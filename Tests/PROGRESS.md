@@ -6,10 +6,10 @@
 
 ## Current state
 
-- **Current phase:** 1 (Explore and plan)
-- **Phase status:** decisions received 2026-10-21 and applied; waiting for my explicit go-ahead to start Phase 2
+- **Current phase:** 2 (Build), batch 0
+- **Phase status:** in progress (go-ahead given 2026-10-21)
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
-- **Last commit:** see `git log -1 add-test-suite` (Phase 1 plan + decisions; the hash is recorded here with the next commit)
+- **Last commit:** `d12483c8` (Phase 1 plan + decisions)
 - **Last updated:** 2026-10-21
 - **Last session summary:** Phase 1 steps 1-9 done. Baseline built and run out-of-tree with GCC 16 (DSP and no-DSP), clang 23, ASan+UBSan (GCC and clang) and gcov. With the `effectsForces` case excluded: 316/316 test cases pass (2 skipped by design). Sanitizer runs found one more issue: an ASan stack-buffer-overflow inside CMSIS-DSP `arm_spline_f32` reached from `EffectsCalculator::evaluateReconstructionFilter` (2 test cases). Firmware mapped, driver list drafted, coverage gaps recorded, plan written below. Nothing under `Firmware/` was changed or written.
 
@@ -27,8 +27,8 @@ Phase 2 batch 0, in this order:
 
 | Phase | Status | Approved by me? | Notes |
 |---|---|---|---|
-| 1. Explore and plan | decisions applied, waiting for go-ahead | partly (2026-10-21 decisions) | Q1-Q8 and A answered |
-| 2. Build | not started | | |
+| 1. Explore and plan | done | yes (2026-10-21) | Q1-Q8 and A answered |
+| 2. Build | in progress | | batch 0: F1 done |
 | 3. Review | not started | | |
 | 4. Verify | not started | | |
 | 5. CPython helpers (vendor tier A) | not started | yes (2026-10-21, no longer optional) | `Firmware/scripts/generate_memory.py`, `Firmware/FFBoard/USB/portable/synopsys/dwc2/dwc2_info.py` |
@@ -70,7 +70,7 @@ All commands run from the repo root (`OpenFFBoard/`). They are plain POSIX comma
 - Build: `cmake --build ../ffb-test-build/default -j"$(nproc)"`
 - Run (with exclusion): `../ffb-test-build/default/ffb_unit_tests --test-case-exclude="requesting the forces of a not existing axis is rejected"` (`-tce=` is the short form)
 - Sanitizer run (both exclusions, as decided 2026-10-21): `../ffb-test-build/san/ffb_unit_tests --test-case-exclude="requesting the forces of a not existing axis is rejected,reconstruction of a constant signal is constant,reconstruction of a step never leaves the range of the input values and reaches the target"`
-- `ctest`: currently FAILS, because `add_test` in `Firmware/Tests/CMakeLists.txt` runs the binary without the exclusion. Use the direct run command until Phase 2 batch 0 adds the exclusion to `add_test` (proposed change F1).
+- `ctest`: `ctest --test-dir ../ffb-test-build/default --output-on-failure` (add `-V` to see the doctest summary). Since F1 the exclusions come from the CMake cache lists `FFB_TESTS_EXCLUDE` (always) and `FFB_TESTS_EXCLUDE_SANITIZE` (added when `FFB_TESTS_SANITIZE=ON`); the configure step prints the active list (`OpenFFBoard tests: excluded from ctest: ...`).
 - Coverage command: gcovr and lcov are NOT installed. Plain `gcov` (part of GCC 16) works: after a run of the `cov` build, `cd <scratch dir> && gcov -n $(find ../ffb-test-build/cov -name '*.gcda' | grep FFBoard/)`. Per-module report: a stdlib-only Python script in `Firmware/Tests/` (to be written, F16) that aggregates `gcov` output; no gcovr/lcov.
 - Sanity check after any build: `git status --short --ignored Firmware` must print nothing.
 
@@ -192,7 +192,7 @@ Rule for every row: after each CMake change rebuild and confirm `ffb_unit_tests`
 
 | # | Fake / change | Location | Purpose | Status |
 |---|---|---|---|---|
-| F1 | Pass the `effectsForces` exclusion in `add_test` (and a `FFB_TESTS_EXCLUDE` cache variable listing excluded case names; sanitizer builds add the 2 spline cases) | `Tests/CMakeLists.txt` | Make `ctest` green and the exclusions visible in one place | approved |
+| F1 | Pass the `effectsForces` exclusion in `add_test` (and a `FFB_TESTS_EXCLUDE` cache variable listing excluded case names; sanitizer builds add the 2 spline cases) | `Tests/CMakeLists.txt` | Make `ctest` green and the exclusions visible in one place | **done** 2026-10-21. Check: default ctest 1/1 passed, doctest 316 passed / 0 failed / 2 skipped; san ctest 1/1 passed, 313 / 0 / 5 skipped; direct run with exclusion 316 / 0 / 2 |
 | F2 | Additional test executables next to the unchanged `ffb_unit_tests`: `ffb_axis_tests` (real `Axis.cpp`/`Axis.h`, `AxesManager`, `FFBHIDMain`, no `fakes/` dir), `ffb_flash_tests` (real `flash_helpers.cpp` + `eeprom.c` on fake HAL FLASH, without the `Flash_*` fake), later `ffb_usb_tests` (Tier B). Firmware sources compiled per executable; only the platform fakes are shared (e.g. an object/static library of `platform/src` pieces) | `Tests/CMakeLists.txt` | The fake `Axis.h` and fake `Flash_*` cannot coexist with the real code in one binary | approved; `ffb_unit_tests` must stay exactly as it is |
 | F3 | Separate feature header for the new executables only (the existing `platform/include/target_constants.h` stays unchanged). Built by copying the feature macros of `Firmware/Targets/F407VG/Core/Inc/target_constants.h`, removing `TMC4671DRIVER`, `PWMDRIVER`, `ODRIVE`, `VESC`, `SIMPLEMOTION`, `RMDCAN`, `TMCDEBUG`, leaving `MIDI` off; plus host pin tables (`BUTTON_PINS`, `ADC_PINS`, ...) and a host `cpp_target_config` as needed | `Tests/platform/` (exact path decided in batch 0) | Compile the in-scope modules without the drivers | approved; **show me the diff before using it** |
 | F4 | Fake HAL SPI (records TX, scripted RX, DMA/IT completion callbacks driven by the test) | `Tests/platform/` | SPIButtons, EncoderSSI, EncoderBissC, MtEncoderSPI, SPI.cpp | proposed |
