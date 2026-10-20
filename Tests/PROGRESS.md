@@ -15,20 +15,16 @@
 
 ## Next action
 
+**Waiting for my review of the F3 feature header diff** (`Firmware/Tests/platform/target_f407/target_constants.h`, not committed, not used by any target yet). It is a copy of `Firmware/Targets/F407VG/Core/Inc/target_constants.h` with exactly these lines removed: `MIDI`, `TMCDEBUG`, `RMDCAN`, `TMC4671DRIVER`, `PWMDRIVER`, `ODRIVE`, `VESC`, `SIMPLEMOTION`, plus a provenance comment. Check with `diff -u Firmware/Targets/F407VG/Core/Inc/target_constants.h Firmware/Tests/platform/target_f407/target_constants.h`.
 
-**Waiting for my go-ahead to start Phase 2.** The 2026-10-21 decisions (decisions log) are applied to `CLAUDE.md`, `Tests/TEST_PLAN.md` and this file.
-
-Phase 2 batch 0, in this order:
-1. F1 (exclusion in `add_test`), rebuild, confirm `ffb_unit_tests` = 316 passed / 0 failed / 2 skipped with the exclusion, record it.
-2. Create the feature header for the new executables (F3): copy the macros of `Firmware/Targets/F407VG/Core/Inc/target_constants.h`, remove the driver macros, leave `MIDI` off. **Show me the diff and wait** before using it.
-3. F2 and the remaining fakes, one CMake change at a time, re-running the 316/0/2 check after each. Then batches 1..N in the priority order.
+After approval: commit the header, then F2 (new executables, one CMake change at a time, 316/0/2 check after each) and the remaining fakes F4-F12, F14-F16 via one subagent, then batches 1..N.
 
 ## Phase checklist
 
 | Phase | Status | Approved by me? | Notes |
 |---|---|---|---|
 | 1. Explore and plan | done | yes (2026-10-21) | Q1-Q8 and A answered |
-| 2. Build | in progress | | batch 0: F1 done |
+| 2. Build | in progress | | batch 0: F1 done (`1876353e`); F3 header approved and committed |
 | 3. Review | not started | | |
 | 4. Verify | not started | | |
 | 5. CPython helpers (vendor tier A) | not started | yes (2026-10-21, no longer optional) | `Firmware/scripts/generate_memory.py`, `Firmware/FFBoard/USB/portable/synopsys/dwc2/dwc2_info.py` |
@@ -51,6 +47,7 @@ Phase 2 batch 0, in this order:
 | 2026-10-21 | Do F1. `ffb_unit_tests` stays exactly as it is (sources, feature set, fake `Axis.h`). New executables get their own feature header derived from the F407 `target_constants.h` minus driver macros, `MIDI` off; diff shown to me before use. Firmware sources compiled per executable, only platform fakes shared. After every CMake change: rebuild, confirm 316 passed / 0 failed / 2 skipped with the exclusion, record it here (Q4/Q5) | My decision |
 | 2026-10-21 | Commit identity: `git -c user.name=MadBull.Ben -c user.email= commit` | My answer to question A |
 | 2026-10-21 | `Firmware/Tests/` was moved out of the repo by accident and restored by me. Re-check after restore: no diff against HEAD under `Firmware/`, `ffb_unit_tests` with the exclusion = 316 passed / 0 failed / 2 skipped | Incident record |
+| 2026-10-21 | F3 feature header `Tests/platform/target_f407/target_constants.h` approved: F407 copy minus `MIDI`, `TMCDEBUG`, `RMDCAN`, `TMC4671DRIVER`, `PWMDRIVER`, `ODRIVE`, `VESC`, `SIMPLEMOTION` | My review of the diff |
 | 2026-10-21 | Coverage: plain `gcov` + a stdlib-only Python script in `Firmware/Tests/`. Nothing installed (Q6) | My decision |
 
 ## Environment
@@ -194,13 +191,13 @@ Rule for every row: after each CMake change rebuild and confirm `ffb_unit_tests`
 |---|---|---|---|---|
 | F1 | Pass the `effectsForces` exclusion in `add_test` (and a `FFB_TESTS_EXCLUDE` cache variable listing excluded case names; sanitizer builds add the 2 spline cases) | `Tests/CMakeLists.txt` | Make `ctest` green and the exclusions visible in one place | **done** 2026-10-21. Check: default ctest 1/1 passed, doctest 316 passed / 0 failed / 2 skipped; san ctest 1/1 passed, 313 / 0 / 5 skipped; direct run with exclusion 316 / 0 / 2 |
 | F2 | Additional test executables next to the unchanged `ffb_unit_tests`: `ffb_axis_tests` (real `Axis.cpp`/`Axis.h`, `AxesManager`, `FFBHIDMain`, no `fakes/` dir), `ffb_flash_tests` (real `flash_helpers.cpp` + `eeprom.c` on fake HAL FLASH, without the `Flash_*` fake), later `ffb_usb_tests` (Tier B). Firmware sources compiled per executable; only the platform fakes are shared (e.g. an object/static library of `platform/src` pieces) | `Tests/CMakeLists.txt` | The fake `Axis.h` and fake `Flash_*` cannot coexist with the real code in one binary | approved; `ffb_unit_tests` must stay exactly as it is |
-| F3 | Separate feature header for the new executables only (the existing `platform/include/target_constants.h` stays unchanged). Built by copying the feature macros of `Firmware/Targets/F407VG/Core/Inc/target_constants.h`, removing `TMC4671DRIVER`, `PWMDRIVER`, `ODRIVE`, `VESC`, `SIMPLEMOTION`, `RMDCAN`, `TMCDEBUG`, leaving `MIDI` off; plus host pin tables (`BUTTON_PINS`, `ADC_PINS`, ...) and a host `cpp_target_config` as needed | `Tests/platform/` (exact path decided in batch 0) | Compile the in-scope modules without the drivers | approved; **show me the diff before using it** |
+| F3 | Separate feature header for the new executables only (the existing `platform/include/target_constants.h` stays unchanged). Built by copying the feature macros of `Firmware/Targets/F407VG/Core/Inc/target_constants.h`, removing `TMC4671DRIVER`, `PWMDRIVER`, `ODRIVE`, `VESC`, `SIMPLEMOTION`, `RMDCAN`, `TMCDEBUG`, leaving `MIDI` off; plus host pin tables (`BUTTON_PINS`, `ADC_PINS`, ...) and a host `cpp_target_config` as needed | `Tests/platform/` (exact path decided in batch 0) | Compile the in-scope modules without the drivers | drafted 2026-10-21 at `Tests/platform/target_f407/target_constants.h` (include dir to be placed before `platform/include` in the new executables only); diff shown, **approved by me 2026-10-21** |
 | F4 | Fake HAL SPI (records TX, scripted RX, DMA/IT completion callbacks driven by the test) | `Tests/platform/` | SPIButtons, EncoderSSI, EncoderBissC, MtEncoderSPI, SPI.cpp | proposed |
 | F5 | Fake HAL I2C (scripted device register map per address, error injection) | `Tests/platform/` | PCF8574, ADS111X, I2C.cpp | proposed |
 | F6 | Fake HAL ADC (settable DMA buffer, conversion-complete callback) + LL ADC voltage/temperature macros | `Tests/platform/` | LocalAnalog, AdcHandler, voltagesense | proposed |
 | F7 | Fake HAL TIM (settable `CNT`, base start/stop record) and EXTI trigger | `Tests/platform/` | EncoderLocal, TimerHandler, ExtiHandler, Axis timers | proposed |
 | F8 | Fake HAL CAN (filters, Tx mailboxes, Rx FIFO, error callbacks) | `Tests/platform/` | CANPort2B, global_callbacks | proposed |
-| F9 | Fake HAL FLASH: RAM-backed sectors with real NOR semantics (erase to 0xFFFF, programming can only clear bits, error flags injectable), `__weak`, OTP area | `Tests/platform/` | flash_helpers + eeprom.c, power-loss/page-transfer scenarios | proposed |
+| F9 | Fake HAL FLASH: RAM-backed sectors with real NOR semantics (erase to 0xFFFF, programming can only clear bits, error flags injectable), `__weak`, OTP area. **Constraint:** `eeprom.c` dereferences absolute addresses (`*(__IO uint16_t*)PAGE0_BASE_ADDRESS`, `EEPROM_START_ADDRESS = 0x08004000`, cast to `uint32_t`), so the fake must `mmap` 2 x 16 KiB at exactly 0x08004000 (`MAP_FIXED_NOREPLACE`, fail loudly if taken); the OTP area likewise at its fixed address. Host-only technique, verify under ASan | `Tests/platform/` | flash_helpers + eeprom.c, power-loss/page-transfer scenarios | proposed |
 | F10 | Misc CMSIS/HAL: `__REVSH`, `NVIC_SystemReset` (recorded, no exit), `HAL_GetUIDw0/1/2`, `HAL_GetDEVID/REVID`, IWDG refresh, `HAL_RCC_GetHCLKFreq`, LED pins | `Tests/platform/` | CRC, SystemCommands, USBdevice, cppmain, ledEffects | proposed |
 | F11 | FreeRTOS: `xQueue*`, `xTimer*`, `xEventGroup*`, `xTimerPendFunctionCall`, `tskIDLE_PRIORITY`, recursive mutex, counting semaphores (simple non-preemptive implementations, with create-failure injection) | `Tests/platform/` | Tier A tests of the FreeRTOS C++ wrappers; modules using queues/timers | proposed |
 | F12 | New mocks: `MockButtonSource`, `MockAnalogSource`, `MockSPIDevice`/`MockI2CDevice` helpers, `AxisFixture` (real Axis + MockMotorDriver + MockEncoder selected via the chooser) | `Tests/mocks/`, `Tests/support/` | Caller-side tests at the interface | proposed |
