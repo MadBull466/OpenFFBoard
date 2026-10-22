@@ -9,7 +9,7 @@
 - **Current phase:** P0 (safety net) done, **awaiting my approval** at the P0 gate. P1 not started.
 - **Phase status:** gate green (see "P0 results"). Stop rule: P1 starts only after my go-ahead.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
-- **Last commit:** P0 commit (hash in the phase checklist). Earlier: `d12483c8` Phase 1 plan, `1876353e` F1, `2d91beed` F3 header.
+- **Last commit:** `88dc8516` (P0 safety net). Earlier: `d12483c8` Phase 1 plan, `1876353e` F1, `2d91beed` F3 header.
 - **Last updated:** 2026-10-21
 - **Last session summary:** Installed plan v2 (`CLAUDE.md`, `Tests/TEST_PLAN.md`, this file) in this checkout and merged the add-test-suite progress into it. Did P0: baseline list (318 cases with expected results) + `tools/check_baseline.py` (also run by `ctest`), F1b (spline exclusion only in sanitizer builds with CMSIS-DSP), `tools/coverage_report.py` (plain gcov), README section. Gate green in 7 variants (GCC/clang, DSP on/off, ASan+UBSan) and with the `host-sanitize` preset. Measured baseline coverage: 2,136 of about 8,160 in-scope lines (26.2 %); compiled files 79.5 %. Read `.github/` (read-only): no workflow runs the host tests. Confirmed bug 5 in the source. Nothing under `Firmware/` outside `Firmware/Tests/` changed.
 
@@ -26,7 +26,7 @@ After approval: P1 as described in `Tests/TEST_PLAN.md` (new `cases/test_*.cpp` 
 | Phase 1 (explore and plan) | n/a | n/a | complete | yes, 2026-10-21 | |
 | Review of the existing suite | n/a | n/a | complete | | |
 | Batch 0 (plan v1) items done before plan v2 | n/a | n/a | F1 done, F3 header approved and committed | yes, 2026-10-21 | `1876353e` (F1), `2d91beed` (F3) |
-| P0 Safety net | `ffb_unit_tests` | 0 (measured baseline 2,136 lines, 26.2 %) | done, awaiting approval | | see git log (`Tests: P0 safety net ...`) |
+| P0 Safety net | `ffb_unit_tests` | 0 (measured baseline 2,136 lines, 26.2 %) | done, awaiting approval | | `88dc8516` |
 | P1 Gaps in compiled files | `ffb_unit_tests` | about 470 | not started | | |
 | P2 Axis and main classes | `ffb_target_tests` (new) | about 790 | not started | | |
 | P3 Flash and persistence | `ffb_flash_tests` (new) | about 365 | not started | | |
