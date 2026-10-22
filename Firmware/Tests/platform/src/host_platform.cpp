@@ -114,26 +114,71 @@ void HAL_GPIO_TogglePin(GPIO_TypeDef *port, uint16_t pin) {
 // ---------------- UART ----------------
 HAL_StatusTypeDef HAL_UART_Init(UART_HandleTypeDef *) {
 	uartState.initCount++;
-	return HAL_OK;
+	return (HAL_StatusTypeDef)uartState.initResult;
 }
 static HAL_StatusTypeDef recordUartTx(const uint8_t *data, uint16_t size) {
+	if (uartState.txResult != HAL_OK) {
+		return (HAL_StatusTypeDef)uartState.txResult;
+	}
 	uartState.tx.append((const char *)data, size);
 	uartState.txTransfers++;
 	return HAL_OK;
 }
-HAL_StatusTypeDef HAL_UART_Transmit(UART_HandleTypeDef *, const uint8_t *data, uint16_t size, uint32_t) { return recordUartTx(data, size); }
-HAL_StatusTypeDef HAL_UART_Transmit_IT(UART_HandleTypeDef *, const uint8_t *data, uint16_t size) { return recordUartTx(data, size); }
-HAL_StatusTypeDef HAL_UART_Transmit_DMA(UART_HandleTypeDef *, const uint8_t *data, uint16_t size) { return recordUartTx(data, size); }
-HAL_StatusTypeDef HAL_UART_Receive(UART_HandleTypeDef *, uint8_t *, uint16_t, uint32_t) { return HAL_TIMEOUT; }
-HAL_StatusTypeDef HAL_UART_Receive_IT(UART_HandleTypeDef *huart, uint8_t *data, uint16_t) {
-	uartState.rxArmedCount++;
+static HAL_StatusTypeDef armUartRx(UART_HandleTypeDef *huart, uint8_t *data, uint16_t size) {
+	uartState.lastRxSize = size;
+	if (uartState.rxArmResult != HAL_OK) {
+		return (HAL_StatusTypeDef)uartState.rxArmResult;
+	}
 	uartRxBuffer = data;
 	uartRxHandle = huart;
 	return HAL_OK;
 }
-HAL_StatusTypeDef HAL_UART_Receive_DMA(UART_HandleTypeDef *, uint8_t *, uint16_t) { return HAL_OK; }
-HAL_StatusTypeDef HAL_UART_AbortReceive(UART_HandleTypeDef *) { return HAL_OK; }
-HAL_StatusTypeDef HAL_UART_AbortTransmit(UART_HandleTypeDef *) { return HAL_OK; }
+HAL_StatusTypeDef HAL_UART_Transmit(UART_HandleTypeDef *, const uint8_t *data, uint16_t size, uint32_t timeout) {
+	uartState.txBlockingCount++;
+	uartState.lastTimeout = timeout;
+	return recordUartTx(data, size);
+}
+HAL_StatusTypeDef HAL_UART_Transmit_IT(UART_HandleTypeDef *, const uint8_t *data, uint16_t size) {
+	uartState.txItCount++;
+	return recordUartTx(data, size);
+}
+HAL_StatusTypeDef HAL_UART_Transmit_DMA(UART_HandleTypeDef *, const uint8_t *data, uint16_t size) {
+	uartState.txDmaCount++;
+	return recordUartTx(data, size);
+}
+HAL_StatusTypeDef HAL_UART_Receive(UART_HandleTypeDef *, uint8_t *data, uint16_t size, uint32_t timeout) {
+	uartState.rxBlockingCount++;
+	uartState.lastTimeout = timeout;
+	uartState.lastRxSize = size;
+	if (uartState.rxData.size() < size) {
+		return HAL_TIMEOUT;
+	}
+	for (uint16_t i = 0; i < size; i++) {
+		data[i] = (uint8_t)uartState.rxData[i];
+	}
+	uartState.rxData.erase(0, size);
+	return HAL_OK;
+}
+HAL_StatusTypeDef HAL_UART_Receive_IT(UART_HandleTypeDef *huart, uint8_t *data, uint16_t size) {
+	uartState.rxArmedCount++;
+	return armUartRx(huart, data, size);
+}
+HAL_StatusTypeDef HAL_UART_Receive_DMA(UART_HandleTypeDef *huart, uint8_t *data, uint16_t size) {
+	uartState.rxDmaArmedCount++;
+	return armUartRx(huart, data, size);
+}
+HAL_StatusTypeDef HAL_UART_AbortReceive(UART_HandleTypeDef *) {
+	uartState.abortRxCount++;
+	if (uartState.abortResult == HAL_OK) {
+		uartRxBuffer = nullptr; // Disarmed
+		uartRxHandle = nullptr;
+	}
+	return (HAL_StatusTypeDef)uartState.abortResult;
+}
+HAL_StatusTypeDef HAL_UART_AbortTransmit(UART_HandleTypeDef *) {
+	uartState.abortTxCount++;
+	return (HAL_StatusTypeDef)uartState.abortResult;
+}
 uint32_t HAL_UART_GetError(UART_HandleTypeDef *huart) { return huart->ErrorCode; }
 
 } // extern "C"

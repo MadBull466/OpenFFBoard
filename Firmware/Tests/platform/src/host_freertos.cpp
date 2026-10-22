@@ -37,6 +37,7 @@ std::vector<HostTask *> &tasks() {
 HostTask *currentTask = nullptr;
 uint32_t delayBudgetMs = 1000;
 uint32_t delayBudgetRemaining = 0;
+size_t liveSemaphores = 0; //!< Created and not deleted semaphores (HostRtos::semaphoreCount)
 
 bool isRegistered(HostTask *task) {
 	return std::find(tasks().begin(), tasks().end(), task) != tasks().end();
@@ -94,8 +95,25 @@ size_t taskCount() {
 	return tasks().size();
 }
 
+TaskHandle_t findTask(const char *name) {
+	for (HostTask *task : tasks()) {
+		if (name != nullptr && task->name == name) {
+			return task;
+		}
+	}
+	return nullptr;
+}
+
+bool isSuspended(TaskHandle_t task) {
+	return isRegistered(task) && task->suspended;
+}
+
 void setDelayBudgetMs(uint32_t ms) {
 	delayBudgetMs = ms;
+}
+
+size_t semaphoreCount() {
+	return liveSemaphores;
 }
 
 } // namespace HostRtos
@@ -159,7 +177,14 @@ TickType_t xTaskGetTickCountFromISR(void) { return xTaskGetTickCount(); }
 void vTaskStartScheduler(void) {}
 void vTaskEndScheduler(void) {}
 void vTaskSuspend(TaskHandle_t task) {
+	if (task == nullptr) {
+		task = currentTask; // NULL suspends the calling task
+	}
 	if (isRegistered(task)) task->suspended = true;
+	if (task != nullptr && task == currentTask) {
+		// A task that suspends itself blocks until another task resumes it
+		throw HostRtos::TaskBlocked();
+	}
 }
 void vTaskResume(TaskHandle_t task) {
 	if (isRegistered(task)) task->suspended = false;
@@ -216,11 +241,14 @@ uint32_t ulTaskNotifyTake(BaseType_t clearOnExit, TickType_t) {
 }
 
 // ---------------- Semaphores ----------------
-SemaphoreHandle_t xSemaphoreCreateBinary(void) { return new HostSemaphore{0, 1}; }
-SemaphoreHandle_t xSemaphoreCreateCounting(UBaseType_t maxCount, UBaseType_t initialCount) { return new HostSemaphore{initialCount, maxCount}; }
-SemaphoreHandle_t xSemaphoreCreateMutex(void) { return new HostSemaphore{1, 1}; }
-SemaphoreHandle_t xSemaphoreCreateRecursiveMutex(void) { return new HostSemaphore{0xffff, 0xffff}; }
-void vSemaphoreDelete(SemaphoreHandle_t sem) { delete sem; }
+SemaphoreHandle_t xSemaphoreCreateBinary(void) { liveSemaphores++; return new HostSemaphore{0, 1}; }
+SemaphoreHandle_t xSemaphoreCreateCounting(UBaseType_t maxCount, UBaseType_t initialCount) { liveSemaphores++; return new HostSemaphore{initialCount, maxCount}; }
+SemaphoreHandle_t xSemaphoreCreateMutex(void) { liveSemaphores++; return new HostSemaphore{1, 1}; }
+SemaphoreHandle_t xSemaphoreCreateRecursiveMutex(void) { liveSemaphores++; return new HostSemaphore{0xffff, 0xffff}; }
+void vSemaphoreDelete(SemaphoreHandle_t sem) {
+	if (sem != nullptr) liveSemaphores--;
+	delete sem;
+}
 
 BaseType_t xSemaphoreTake(SemaphoreHandle_t sem, TickType_t ticksToWait) {
 	if (sem->count > 0) {

@@ -59,11 +59,23 @@ uint32_t pendingNotifications(T &thread) { return pendingNotifications(thread.Ge
 /** Amount of currently registered (started and not deleted) tasks */
 size_t taskCount();
 
+/** First registered task with this name, nullptr if there is none. For threads whose handle is not accessible */
+TaskHandle_t findTask(const char *name);
+
+/**
+ * True while a task is suspended (vTaskSuspend) and not resumed (vTaskResume/xTaskResumeFromISR).
+ * A task that suspends itself while running blocks (leaves its function like any other blocking call).
+ */
+bool isSuspended(TaskHandle_t task);
+
 /**
  * Maximum time in ms a task may spend in vTaskDelay during one activation before
  * it is treated as blocked. Prevents endless polling loops. Default 1000.
  */
 void setDelayBudgetMs(uint32_t ms);
+
+/** Amount of currently existing kernel semaphores and mutexes (created and not deleted with vSemaphoreDelete) */
+size_t semaphoreCount();
 
 } // namespace HostRtos
 
