@@ -7,7 +7,7 @@
 ## Current state
 
 - **Current phase:** P1 (gaps in the 24 compiled files), in progress since 2026-10-22. P0 done and approved.
-- **Phase status:** build. Stop for approval at the end of P1.
+- **Phase status:** build done (`93b82a32`), review running. Stop for approval at the end of P1.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** `d08e0e1b` (P0 safety net, author rewritten). Earlier: `d12483c8` Phase 1 plan, `1876353e` F1, `2d91beed` F3 header.
 - **Last updated:** 2026-10-21
@@ -15,7 +15,7 @@
 
 ## Next action
 
-**P1 in progress** (go-ahead 2026-10-22). Build agents A-E running (see "P1 plan"). Next: integrate their files, gate, coverage, mutation results, review, then stop for approval.
+**P1 in progress.** Build done and committed (`93b82a32`, see "P1 results"). Review by 3 fresh reviewer agents running. Next: fix review findings, gate, coverage, record review outcomes, commit, then stop for approval.
 
 ## Phase checklist
 
@@ -322,9 +322,50 @@ Executable `ffb_unit_tests`, new `cases/test_*.cpp` files only. Gaps taken from 
 
 Not in P1: the skipped "unknown id" case stays skipped (known issue 3). Done when: gate green, at least 85 % line coverage per P1 file, mutation spot-check kills at least 80 %.
 
+## P1 results (2026-10-22, build step; review in progress)
+
+Commit `93b82a32` (tests and fake changes, before review). 329 new cases in 15 new files; no existing test file changed.
+
+| Group | Files | Cases | Own mutation spot-check |
+|---|---|---|---|
+| A command | `test_cmdparser_gaps.cpp`, `test_command_handler_gaps.cpp`, `test_hid_command_interface_gaps.cpp` | 54 | 38/39 own files, 39/39 full suite |
+| B ffb | `test_effects_calculator_gaps.cpp`, `test_hid_ffb_gaps.cpp` | 30 | 23/26 own, 24/26 full (2 equivalent) |
+| C errors/storage | `test_error_handler.cpp`, `test_persistent_storage.cpp` | 61 | 28/29 (survivor equivalent on the fake: `xTaskResumeFromISR` vs `vTaskResume`) |
+| D filters/small | `test_filters.cpp`, `test_device_interfaces_gaps.cpp`, `test_rtos_wrappers.cpp` | 72 | 55/58 (3 equivalent) |
+| E transport | `test_uart.cpp`, `test_ringbuffer.cpp`, `test_can_handler.cpp`, `test_usb_hid_handler.cpp`, `test_cdc.cpp` | 112 | 63/65 (1 equivalent, 1 hidden by FIFO clamping of the fake) |
+| **Total** | | **329** | **207/217 = 95 %** (target 80 %) |
+
+All 6 review survivors (CmdParser:53, :156, EffectsCalculator:235, :1275, HidFFB:423, HidCommandInterface:92) are now killed.
+
+Shared fake changes (additive, needed by the tests):
+- `platform/src/host_freertos.cpp`, `support/HostRtos.h`: `HostRtos::findTask(name)`, `isSuspended(task)`, `semaphoreCount()`; `vTaskSuspend(NULL)` suspends the caller and a task that suspends itself now blocks like on the target (needed for `ErrorPrinter::Run`; no other compiled code suspends itself).
+- `platform/src/host_platform.cpp`, `support/HostPlatform.h`: UART call counters per HAL function, last timeout/size, `rxData` for blocking `HAL_UART_Receive`, injectable results (`initResult`, `txResult`, `rxArmResult`, `abortResult`); `HAL_UART_Receive_DMA` arms the buffer like `_IT`, `HAL_UART_AbortReceive` disarms it. Defaults keep the old behaviour.
+- Fixes during integration: two unused helper functions (`-Wunused-function` in `test_can_handler.cpp`, `test_ringbuffer.cpp`). No warnings from the new files with GCC 16 or clang 23.
+
+### Gate after integration (`ffb_unit_tests`, all with the documented exclusions)
+
+| Variant | doctest | ctest | Baseline check |
+|---|---|---|---|
+| default (GCC 16, DSP on) | 643 passed, 0 failed, 4 skipped | 2/2 | OK, 317 checked, 329 new (0 failed) |
+| nodsp | 643 / 0 / 4 | 2/2 | OK |
+| san (ASan+UBSan, DSP on; + 2 spline cases excluded) | 639 / 0 / 8 | 2/2 | OK, 315 checked |
+| nodsp-san | 641 / 0 / 6 | 2/2 | OK |
+| clang23 | 643 / 0 / 4 | 2/2 | OK |
+| clang23-san | 639 / 0 / 8 | 2/2 | OK |
+
+No sanitizer findings. The 2 extra skips (all builds) are new crash-documenting cases (`doctest::skip()`, bugs 17 and 18); sanitizer builds also skip the new `KNOWN_ISSUE_UB` case.
+
+### Coverage after P1 (gcov, GCC 16, DSP on)
+
+- Compiled files: **2,640 of 2,687 lines (98.3 %)**, was 79.5 %. +504 lines (plan estimate about 470).
+- All in-scope sources: **2,640 of about 8,160 (32.4 %)**, was 26.2 %. Without tier A: 2,531 of about 7,340 (34.5 %).
+- Every P1 file is at or above 87.9 %. Lowest: `CDCcomm.cpp` 87.9 % (private constructor/destructor never called), `csemaphore.cpp` 87.9 % (host-only exception paths), `ErrorHandler.cpp` 92.9 % (output branch of `ErrorPrinter::Run` needs `SystemCommands`, P4), `cmutex.cpp` 94.1 %, `ringbufferwrapper.cpp` 95.5 % (unreachable `goto error`), `CanCommandInterface.cpp` 91.6 % (not a P1 target; NEEDS REVIEW #1 lines).
+- Remaining uncovered lines are explained in the group reports: deleting-destructor variants of abstract classes, constant private flags (`enableBroadcastFromOtherInterfaces`), dead code after `continue` in `EffectsCalculator::Run` and `EffectsCalculator.cpp:1233` (unreachable `filter[i].reset` in `free_effect`), exception paths that the target compiles out (`CPP_FREERTOS_NO_EXCEPTIONS`).
+- Tier C (CMSIS-DSP): unchanged 80.3 % (P9).
+
 ## Test gaps found in review (to close in P1)
 
-From the review run (g++ 11.4, scratch copy); not re-run in P0.
+From the review run (g++ 11.4, scratch copy); not re-run in P0. **All 6 closed in P1** (each mutation re-applied and killed).
 
 | # | File | Line | Change that survived | What no test covers |
 |---|---|---|---|---|
@@ -344,6 +385,24 @@ Functions never run by any test (counts of never-run / total): ErrorHandler 15/2
 | 1 | CAN command interface | `CanCommandInterface.cpp:118-124` | `msg.header.length >= 16/24` paths read `msg.data[8..23]` of an 8-byte array. Dead on classic CAN, out of bounds for any frame with length > 8. Intended for CAN-FD later? | no |
 | 2 | EffectsCalculator | `evaluateReconstructionFilter` (`EffectsCalculator.cpp:584, 624-633`) | Timestamps are stored as `float` microseconds. Above 2^24 µs (≈16.8 s uptime) resolution drops (128 µs at ≈18 min, 512 µs near the 71.6 min `uint32_t` wrap). Also `now_us > last_known_time + 50000` misbehaves at the `micros()` wrap. Intended? To be confirmed by a test in Batch 2 | no |
 | 3 | Existing suite | 17 `KNOWN_ISSUE` cases already in `Firmware/Tests/cases/` (CmdParser 4, EffectsCalculator 5, HidFFB 5, CAN/HID command interface 2 x "ERR never reported", StringCommandInterface 1) | Carried over unchanged; list with `grep -rn KNOWN_ISSUE Firmware/Tests/cases/` | n/a |
+| 4 | CmdParser | `CmdParser.cpp:53` `freeSpace() > len`; `test_cmdparser_gaps.cpp` | A chunk that would exactly fill the free space is dropped, so one byte is never usable. Strict comparison intended? | no |
+| 5 | CmdParser | `CmdParser.cpp:156-180` | `cmd=<int>?<garbage>` is accepted as a plain set of `<int>` instead of being rejected. Intended? | no |
+| 6 | CommandHandler | `CommandHandler.cpp:536` `flags &= flags \| CMDFLAG_EXTOVERRIDE` (no-op) | Re-registering an overridden command replaces it with the unmasked flags and drops the override marker. Should the mask apply? (Related bug 13) | no |
+| 7 | HID command interface | `HidCommandInterface.cpp:203-213` | A broadcast (instance 0xFF) returns at the first handler without the command, after commands for earlier handlers were queued, and without waking the thread. All or nothing intended? | no |
+| 8 | HID command interface | `HidCommandInterface.cpp:162` | `transferComplete` is empty. Intended? | no |
+| 9 | EffectsCalculator | `EffectsCalculator.cpp:51, 64, 1211-1216` | Effect monitoring: command not registered, thread never started, broadcast skipped by `continue` ("TODO"). Is the monitoring stream meant to be enabled later? | no |
+| 10 | ErrorHandler | `Inc/ErrorHandler.h:29,31` | `systemError = 5` and `cmdNotFound = 5`: alias or numbering mistake? Clearing one by code clears the other | no |
+| 11 | ErrorHandler | `ErrorHandler.cpp:97-111` | `clearError(const Error&)` notifies handlers with cleared=true even when the error was not active. Intended? | no |
+| 12 | ErrorHandler | `ErrorHandler.cpp:66-75` | `clearTemp()` does not notify handlers (unlike `clearError`/`clearAll`). Intended? | no |
+| 13 | ErrorHandler | `clearAll()` | Calls every handler's callback for all 16 slots, passing `Error()` for unused slots. Intended? | no |
+| 14 | Filters | `Filters.cpp` peak filter | Uses the earlevel/Zoelzer form (V = 10^(dB/20), boost only in the numerator), not the RBJ cookbook (A = 10^(dB/40)). Gains at fc/DC/Nyquist match, the bandwidth for a given Q differs. Which Q definition is intended? | no |
+| 15 | Filters | shelf filters | Ignore Q (fixed 1/sqrt2), Zoelzer design. Intended? | no |
+| 16 | Filters | `setFc(0)` (and negative, clipped to 0) | All-zero numerator: the filter outputs 0 for every input. Intended? | no |
+| 17 | Filters | Q = 0 | Not validated, NaN coefficients and output. Callers guard (`checkFilterCoeff` maps 0 to 1). Should `Biquad` validate? | no |
+| 18 | UART | `UART.cpp:40-44` `reconfigurePort` | Stores the new configuration before `HAL_UART_Init`; after a failed init the same configuration counts as unchanged and is never retried | no |
+| 19 | UART | `UART.cpp:154, 168, 187` | One `isTakenFlag` for tx and rx: any rx completion clears it while a tx transfer runs, so `isTaken()`/`UART_CommandInterface::readyToSend()` report a free port while the tx semaphore is taken | no |
+| 20 | ringbuffer | `ringbuffer.c:72-88` | `ringBufferAppendOne/Multiple` do not check free space: appending to a full raw buffer loses all data (buffer looks empty). Only reachable through the raw C API; `RingBufferWrapper` clamps first | no |
+| 21 | HidFFB / CDC | `FirmwareFixture::resetGlobals` (test infrastructure) | Does not reset `CDCcomm`'s private `usb_busy_retry`; `test_cdc.cpp` works around it with its own fixture. Shared fix in `support/FirmwareFixture.h`? | no |
 
 New tests that describe unclear behaviour use the `characterization:` name prefix and get a row here. Tests that describe intended behaviour but fail use `KNOWN_ISSUE` and get a row under "Suspected firmware bugs".
 
@@ -356,12 +415,33 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 | 3 | CommandHandler | `FFBoard/Src/CommandHandler.cpp:136` `snprintf(cmdhex,11,"0x%lX",cmd.cmdId)` | `%lX` with `uint32_t`: correct on ARM (where `uint32_t` is `unsigned long`), mismatched type on the 64-bit host. Portability issue rather than a target bug (`PRIX32` would fit both) | GCC `-Wformat` and clang `-Wformat` warnings |
 | 4 | EffectsCalculator | see NEEDS REVIEW #2 | Possible precision/wrap problem of the reconstruction filter after long uptime | Code reading only; to be demonstrated by a test in Batch 2 |
 | 5 | Command execution | `executeCommands` (find with `grep -rn executeCommands Firmware/FFBoard/Src`) | Dereferences the command definition before checking it for nullptr. A command with an unknown id terminates the run | **Confirmed in the source (P0):** `FFBoard/Src/FFBoardMainCommandThread.cpp:99-102`: `cmdDef = handler->getCommandFromId(cmd.cmdId)`, then `validFlags = cmdDef != nullptr`, then `if(cmdDef->flags & ...)` dereferences it unconditionally. Existing test `command with an unknown id is rejected` (`cases/test_command_execution.cpp:186`) stays `skip()`ped (known issue 3) |
+| 7 | ErrorHandler | `ErrorHandler.cpp:130-143` (`getErrors` + `sortErrors`) | Empty slots (code 0) sort to the front; `getErrors()` stops at the first empty slot, so after any `clearError`/`clearTemp` it returns an empty list while errors are still stored. Likely visible via the "errors" command | KNOWN_ISSUE "the other errors stay listed after one error is cleared" (`test_error_handler.cpp`). Confirmed in source |
+| 8 | ErrorHandler | `ErrorHandler.cpp:118-124` `clearError(ErrorCode)` | The slot is emptied before the callbacks, which receive `errors[i]` = an empty Error instead of the cleared one | KNOWN_ISSUE "clearing by code tells the handlers which error was cleared". Confirmed in source |
+| 9 | ErrorHandler | `ErrorHandler.cpp:66-72` `clearTemp` | `break` after the first temporary error: only one is cleared per call; comment says "Clears errors marked as temporary" | KNOWN_ISSUE "clearTemp removes all temporary errors". Confirmed in source |
+| 10 | EffectsCalculator | `EffectsCalculator.cpp:235` (square wave) | Raw phase (0.01 deg) added as milliseconds instead of `phase*period/36000` like sine/triangle; 90 deg on a 1000 ms period shifts by 984 ms instead of 250 ms | KNOWN_ISSUE "square phase is a fraction of the period like for the other periodic effects". Confirmed in source |
+| 11 | HidFFB | `HidFFB.cpp:301-305` `set_effect` | `set_filters` runs before `effect_p->type` is updated: a type change sets up the filters of the OLD type | KNOWN_ISSUE "set effect with another effect type sets up the filters of the new type". Confirmed in source |
+| 12 | HidFFB / EffectsCalculator | `HidFFB.cpp:301-305` + `:423`, crash at `EffectsCalculator.cpp:416/425/433` | **Crash:** a running effect without filters (e.g. sine) changed by Set Effect to damper/friction/inertia keeps null filters (423 skips `set_filters` for running effects); the next force calculation dereferences nullptr (SIGSEGV on host, HardFault on target) | KNOWN_ISSUE "a running effect changed to a damper by set effect has damper filters" (stops at `REQUIRE(filter[0] != nullptr)`); crash confirmed by the author with a temporary probe |
+| 13 | CommandHandler | `CommandHandler.cpp:533-561` | The override placeholder from `overrideCommandFlags_INT` lacks `CMDFLAG_EXTOVERRIDE`, so `registerCommand_INT` treats the id as "already present": the real command is never registered (placeholder keeps `cmd == nullptr`; `getCommandFromName` would compare nullptr with a string = UB) | KNOWN_ISSUE "a command registered after a flag override gets its name and the masked flags". Confirmed in source |
+| 14 | Filters | `Filters.cpp:44/86` + `:102`, reachable via `EffectsCalculator.cpp:868-872` | Clip allows Fc = 0.5 (comment: "Must be lower than 0.5"); with CMSIS-DSP `arm_cos_f32(PI/2)` is exactly 0, K = inf, NaN coefficients, NaN output. DSP off: finite but a double pole on the unit circle. `checkFilterCoeff` maps a stored freq of 0 to Fc = 0.5 | KNOWN_ISSUE in the DSP build only "lowpass at the highest allowed frequency 0.5 ...". Target result may differ (FMA) |
+| 15 | Filters (latent) | `Inc/Filters.h`, `Filters.cpp:22/30` | In the DSP build the copied `arm_biquad_casd_df1_inst_f32` still points into the original's coefficients/state: a copy filters with the original's data and corrupts its state. No current caller copies a Biquad | KNOWN_ISSUE in the DSP build only "a copied filter works independently of the original" |
+| 16 | UART | `UART.cpp:62-106` (`transmit_IT/_DMA`, `receive_IT/_DMA`) | The port is taken before the HAL call; on a HAL error no completion releases it. `UART_CommandInterface::Run` then waits forever in `while(uartport->isTaken()) Delay(1)` | 4 KNOWN_ISSUE tests in `test_uart.cpp` |
+| 17 | UART | `UART.cpp:212-222` | `~UARTDevice` calls `uartport->freePort(this)` unconditionally; a default-constructed device has `uartport == nullptr` (crash). No current firmware class uses the default constructor | Skipped KNOWN ISSUE (crash) case "a device created without a port can be destroyed" |
+| 18 | RingBufferWrapper | `ringbufferwrapper.cpp:24-26, 39-41` | Size constructor returns before initialising `buffer` for a non-power-of-two size: `capacity()`/`freeSpace()` read garbage, destructor deletes an uninitialised pointer. Unreachable today (CmdParser uses 512/1024/4096) | KNOWN_ISSUE_UB + skipped crash case (under review) |
+| 19 | UsbHidHandler | `UsbHidHandler.cpp:19-21` | Destructor does not clear `globalHidHandler`; TinyUSB callbacks (`global_callbacks.cpp:317, 332, 344`) would use a dangling pointer. Same root cause as the existing HidFFB case (`test_hid_ffb.cpp:51`): one bug | KNOWN_ISSUE "a registered handler unregisters when destroyed" |
+| 20 | CDCcomm | `CDCcomm.cpp:69` | `std::min<uint16_t>(reply->length(), bufferRemaining)` truncates the length to 16 bit: a 65546-byte reply is written 10 bytes at a time. Low impact | KNOWN_ISSUE "a reply longer than 65535 bytes is sent in FIFO-sized parts" |
+| V1 | FreeRTOS wrappers (**vendor, tier A**) | `csemaphore.cpp:117-131` | `CountingSemaphore(0, x)` or initial > max throws before `handle` is set; `~Semaphore` then deletes an uninitialised handle (UB). Exception builds only (target uses `CPP_FREERTOS_NO_EXCEPTIONS`/`configASSERT`) | Seen with mutants; no test (would crash) |
+| V2 | FreeRTOS wrappers (**vendor, tier A**) | `cthread.cpp:184-187` | `~Thread` of a never-started thread calls `vTaskDelete` with an uninitialised handle (NULL deletes the calling task on FreeRTOS). Also on target | Code reading; no test (UB) |
+| V3 | FreeRTOS wrappers (**vendor, tier A**) | `cmutex.cpp`, `csemaphore.cpp` | On a kernel create failure (NULL), the destructors call `vSemaphoreDelete(NULL)` (real FreeRTOS asserts) | Code reading; no test |
 | 6 | Test setup (not firmware) | `CMakePresets.json` `host-sanitize`, `CMakeLists.txt` | With the CMSIS-DSP submodule checked out, `ctest` in the sanitizer preset fails on the spline overflow (bug 2). Reproduced with the same flags by script, preset not run | Fixed by F1 (`1876353e`) + F1b (P0). Verified in P0: `cmake --preset host-sanitize -B <out-of-tree>`, `ctest` 2/2 passed |
 
 ## Untestable code and refactor suggestions
 
 | Module | Location | Why untestable | Suggested refactor |
 |---|---|---|---|
+| CDCcomm | `CDCcomm.cpp:19-25` | Private constructor/destructor, never called | none needed (static class) |
+| ErrorPrinter | `ErrorHandler.cpp:162-167` | Output branch needs a real `SystemCommands` (not compiled in `ffb_unit_tests`) | Covered in P4 (`ffb_target_tests`) |
+| CAN/UART dispatch | `global_callbacks.cpp` | Not compiled in `ffb_unit_tests`; P1 tests mirror the loop in a local helper | Real file in P4 |
+| RingBufferWrapper | copy constructor | Owns raw memory with an implicit copy (rule of three broken); works only by guaranteed elision (`CmdParser.cpp:20`, `CommandInterface.h:48`) | Delete copy, add move |
 | Concurrency | all ISR/thread interaction | No preemption on the host | Keep ISR handlers small and testable as functions |
 | CubeMX init | `Targets/*/Core/Src/*` | Hardware init only, not tested by decision | none |
 | MidiMain | `UserExtensions/Src/MidiMain.cpp` | Out of scope. Constructs `TMC_1` directly (no `MotorDriver` interface use) | Take the driver from a chooser or as `MotorDriver*` |
@@ -377,6 +457,10 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 | DSP | `USE_DSP_FUNCTIONS` uses the portable C CMSIS-DSP on the host, not the Cortex-M4 optimised paths. Small float differences possible | Filters, effects, Tier C: use tolerances, run both DSP ON and OFF |
 | Endianness | Both little-endian. `memcpy` of CAN payloads (`CanCommandInterface.cpp`) behaves the same | CAN tests |
 | Signed shifts | Arithmetic right shift on both (GCC/clang) | Encoder decoding |
+| Filters | Host CMSIS-DSP sin/cos are the portable C versions without FMA; the Fc = 0.5 KNOWN_ISSUE depends on `arm_cos_f32` returning exactly 0 | `test_filters.cpp` (tolerances: relative 2e-4) |
+| RTOS wrappers | Exception paths (`throw` on create failure) exist only on the host; the target defines `CPP_FREERTOS_NO_EXCEPTIONS` | `test_rtos_wrappers.cpp` (paths not tested) |
+| CDC command interface | `CommandResult::size()` uses `sizeof` (contains `std::string`), so buffer thresholds differ host/target | `test_command_handler_gaps.cpp` CDC cases rely only on "at least the buffer size" |
+| ringbuffer | `size_t` 64-bit host / 32-bit target with `uint32_t` temporaries; same results for tested sizes | `test_ringbuffer.cpp` |
 
 ## Review outcomes (Phase 3)
 
