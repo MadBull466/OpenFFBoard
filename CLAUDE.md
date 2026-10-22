@@ -18,7 +18,7 @@
 - Never edit the firmware sources to make them testable and never add `#ifdef` for tests to them. Use a test double in `fakes/` or a stub in `platform/src/host_stubs.cpp`.
 - New tests, fakes, mocks and CMake changes go in `Firmware/Tests/` only, matching the existing structure and naming.
 - Use doctest. Do not introduce a new test framework. Python tests use stdlib `unittest` (do not install pytest).
-- Git: work on branch `add-test-suite`. Local commits are allowed (small and frequent). NEVER push, and never add or change a git remote. Do not change git config: use a one-off `git -c user.name="Claude Code" -c user.email= commit ...`. Never commit to main.
+- Git: work on branch `add-test-suite`. Local commits are allowed (small and frequent). NEVER push, and never add or change a git remote. Do not change git config: use a one-off `git -c user.name=MadBull.Ben -c user.email= commit ...` for all commits. Never commit to main.
 - No hardware access, flashing, serial/USB/CAN, or network access during tests.
 - Ask before adding any dependency that has to be downloaded (e.g. CMake FetchContent). Do not install anything globally.
 - Keep the existing tests: all 318 baseline cases (names in `Firmware/Tests/baseline/test_cases.txt`) must stay present with unchanged results. Never edit existing test files; add new files. After every CMake or test change, rebuild and run `tools/check_baseline.py`; `ffb_unit_tests` must report 0 failed (on GCC 16 that is 316 passed, 2 skipped with the documented exclusion).

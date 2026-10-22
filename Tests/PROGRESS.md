@@ -6,18 +6,16 @@
 
 ## Current state
 
-- **Current phase:** P0 (safety net) done, **awaiting my approval** at the P0 gate. P1 not started.
-- **Phase status:** gate green (see "P0 results"). Stop rule: P1 starts only after my go-ahead.
+- **Current phase:** P1 (gaps in the 24 compiled files), in progress since 2026-10-22. P0 done and approved.
+- **Phase status:** build. Stop for approval at the end of P1.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
-- **Last commit:** `88dc8516` (P0 safety net). Earlier: `d12483c8` Phase 1 plan, `1876353e` F1, `2d91beed` F3 header.
+- **Last commit:** `d08e0e1b` (P0 safety net, author rewritten). Earlier: `d12483c8` Phase 1 plan, `1876353e` F1, `2d91beed` F3 header.
 - **Last updated:** 2026-10-21
 - **Last session summary:** Installed plan v2 (`CLAUDE.md`, `Tests/TEST_PLAN.md`, this file) in this checkout and merged the add-test-suite progress into it. Did P0: baseline list (318 cases with expected results) + `tools/check_baseline.py` (also run by `ctest`), F1b (spline exclusion only in sanitizer builds with CMSIS-DSP), `tools/coverage_report.py` (plain gcov), README section. Gate green in 7 variants (GCC/clang, DSP on/off, ASan+UBSan) and with the `host-sanitize` preset. Measured baseline coverage: 2,136 of about 8,160 in-scope lines (26.2 %); compiled files 79.5 %. Read `.github/` (read-only): no workflow runs the host tests. Confirmed bug 5 in the source. Nothing under `Firmware/` outside `Firmware/Tests/` changed.
 
 ## Next action
 
-**Waiting for my review of P0** (results below under "P0 results", open questions at the end). Do not start P1 without my go-ahead.
-
-After approval: P1 as described in `Tests/TEST_PLAN.md` (new `cases/test_*.cpp` files only, gate after each batch, mutation spot-check, stop for approval).
+**P1 in progress** (go-ahead 2026-10-22). Build agents A-E running (see "P1 plan"). Next: integrate their files, gate, coverage, mutation results, review, then stop for approval.
 
 ## Phase checklist
 
@@ -26,8 +24,8 @@ After approval: P1 as described in `Tests/TEST_PLAN.md` (new `cases/test_*.cpp` 
 | Phase 1 (explore and plan) | n/a | n/a | complete | yes, 2026-10-21 | |
 | Review of the existing suite | n/a | n/a | complete | | |
 | Batch 0 (plan v1) items done before plan v2 | n/a | n/a | F1 done, F3 header approved and committed | yes, 2026-10-21 | `1876353e` (F1), `2d91beed` (F3) |
-| P0 Safety net | `ffb_unit_tests` | 0 (measured baseline 2,136 lines, 26.2 %) | done, awaiting approval | | `88dc8516` |
-| P1 Gaps in compiled files | `ffb_unit_tests` | about 470 | not started | | |
+| P0 Safety net | `ffb_unit_tests` | 0 (measured baseline 2,136 lines, 26.2 %) | done | yes, 2026-10-22 | `d08e0e1b` |
+| P1 Gaps in compiled files | `ffb_unit_tests` | about 470 | in progress | | |
 | P2 Axis and main classes | `ffb_target_tests` (new) | about 790 | not started | | |
 | P3 Flash and persistence | `ffb_flash_tests` (new) | about 365 | not started | | |
 | P4 System, callbacks, misc | `ffb_target_tests` | about 460 | not started | | |
@@ -54,7 +52,7 @@ After approval: P1 as described in `Tests/TEST_PLAN.md` (new `cases/test_*.cpp` 
 | 2026-10-21 | Q4/Q5: do F1. `ffb_unit_tests` stays exactly as is (same sources, same feature set, same fake `Axis.h`). New executables get their own feature header (real F407 `target_constants.h` minus driver macros, MIDI off; show me the diff before use). Firmware sources compiled per executable, only platform fakes shared. After every CMake change `ffb_unit_tests` must still give 316 passed, 0 failed, 2 skipped | Keeps the existing suite green and CI-safe |
 | 2026-10-21 | Q6: plain `gcov` plus a small stdlib-only Python script in `Firmware/Tests/` for per-module coverage. Nothing installed | No downloads |
 | 2026-10-21 | Q7: keep `../ffb-test-build/` | |
-| 2026-10-21 | Q8: local commits allowed on `add-test-suite`. Never push, never touch remotes or git config. Identity via one-off `git -c user.name="Claude Code" -c user.email=` | No GitHub connection wanted |
+| 2026-10-21 | Q8: local commits allowed on `add-test-suite`. Never push, never touch remotes or git config. Identity via one-off `git -c` (name superseded 2026-10-22: `MadBull.Ben`) | No GitHub connection wanted |
 | 2026-10-21 | Follow the conventions of `Firmware/Tests/README.md` (fixtures, public interfaces, one behaviour per test, statement names, no sleeps, `characterization:`, `KNOWN_ISSUE`, `KNOWN_ISSUE_UB`, no firmware `#ifdef`) | Existing suite style |
 | 2026-10-21 | Keep Windows/MinGW, `CMakePresets.json` and GitHub Actions working. Do not edit `.github/` | README says tests run in CI |
 | 2026-10-21 | Python helper tests use stdlib `unittest` | Do not install pytest |
@@ -64,6 +62,7 @@ After approval: P1 as described in `Tests/TEST_PLAN.md` (new `cases/test_*.cpp` 
 | 2026-10-21 | New `KNOWN_ISSUE` tests must fail on the assertion that describes the defect | `should_fail` hides a failure on the wrong line |
 | 2026-10-21 | Stop after P0 and P1 for approval, then at the end of each phase unless I say "continue through P<n>" | I keep control of scope and usage |
 | 2026-10-21 | Answer A (plan v1 session): commit identity `git -c user.name=MadBull.Ben -c user.email=`. Used for `d12483c8`, `1876353e`, `2d91beed`. **Conflicts with Q8 / `CLAUDE.md` v2 (`Claude Code`)**; the P0 commit follows `CLAUDE.md` v2. See open question 4 | My answer to question A |
+| 2026-10-22 | Use `MadBull.Ben` for all commits. The 2 P0 commits were rewritten (local rebase, author reset): `88dc8516` -> `d08e0e1b`, `0bbec1cb` -> `24417fa9`. `CLAUDE.md` identity line updated. P0 approved, start P1 | My decision |
 | 2026-10-21 | `Firmware/Tests/` was moved out of the repo by accident and restored by me. Re-check after restore: no diff against HEAD under `Firmware/`, `ffb_unit_tests` with the exclusion = 316 passed / 0 failed / 2 skipped | Incident record |
 | 2026-10-21 | F3 feature header `Firmware/Tests/platform/target_f407/target_constants.h` approved and committed (`2d91beed`): F407 copy minus `MIDI`, `TMCDEBUG`, `RMDCAN`, `TMC4671DRIVER`, `PWMDRIVER`, `ODRIVE`, `VESC`, `SIMPLEMOTION`. Not used by any target yet; for `ffb_target_tests` its directory goes before `platform/include` | My review of the diff |
 | 2026-10-21 | Plan v2 installed in this checkout (`testing/OpenFFBoard`, branch `add-test-suite`). The v2 files came from `~/Downloads` (identical copies are untracked in the second checkout `Testing2/OpenFFBoard`, branch `feature/host-unit-tests` at `a5418ff5`, which has none of the add-test-suite commits). This file = v2 merged with the add-test-suite progress | My instruction to merge |
@@ -309,6 +308,20 @@ Hard gate for Batch 0: after every CMake change `ffb_unit_tests` must still give
 
 The per-module test plan from Phase 1 is now organised into phases P0 to P9 in `TEST_PLAN.md`. Status of each phase is in the "Phase checklist" at the top of this file. Estimated cumulative coverage: baseline about 24%, P1 29%, P2 38%, P3 42%, P4 47%, P5 56%, P6 63%, P7 68%, P8 72%. Measured numbers replace these after each phase.
 
+## P1 plan (2026-10-22)
+
+Executable `ffb_unit_tests`, new `cases/test_*.cpp` files only. Gaps taken from the P0 coverage build (never-run functions per file). Build: 5 subagents in parallel, each in an isolated scratch copy of `Firmware/Tests` (firmware symlinked read-only, own build dirs `../ffb-test-build/p1-<group>[-nodsp|-san]`); the main agent integrates their files and any additive fake changes, runs the gate and records results here.
+
+| Group | Owns (new files) | Firmware covered | Behaviours to test |
+|---|---|---|---|
+| A command | `test_cmdparser_gaps.cpp`, `test_command_handler_gaps.cpp`, `test_hid_command_interface_gaps.cpp` | `CmdParser`, `CommandHandler`, `HidCommandInterface`, `CommandInterface` | Survivors 1, 2, 6 (buffer exactly full, malformed `?` values, get-at reply branch); `CommandHandler::command`, `setInstance`, `logsEnabled`, `logSerial`, `logSerialDebug`, `getHelpstring`, `getCommandHandlerInstance`, `overrideCommandFlags_INT`; `HID_CommandInterface::transferComplete`; `CommandInterface::readyToSend` |
+| B ffb | `test_effects_calculator_gaps.cpp`, `test_hid_ffb_gaps.cpp` | `EffectsCalculator`, `HidFFB` | Survivors 3, 4, 5 (square wave phase offset, constant-force rate 0 after 1 s, filter set-up on effect start); `EffectsCalculator::Run()` thread loop and `getInfo`; other uncovered lines of `EffectsCalculator` |
+| C errors/storage | `test_error_handler.cpp`, `test_persistent_storage.cpp` | `ErrorHandler`, `PersistentStorage` | Add/dedupe, both `clearError`, `clearTemp`, `sortErrors` order, `Error::toString` per type, callbacks, `ErrorPrinter` enable/disable/output; save/restore over registered handlers, delayed restore vs simulated time, startup callback |
+| D filters/small | `test_filters.cpp`, `test_device_interfaces_gaps.cpp`, `test_rtos_wrappers.cpp` | `Filters`, `Encoder`, `MotorDriver`, tier A `cthread`/`cmutex`/`csemaphore` | All biquad types vs reference coefficients, default ctor, `setFc`/`setQ`/`getQ`/`setPeakGain`, DSP on/off agree; `Encoder::getPosAbs`/`setPos`, `MotorDriver::setupDriver`; `Thread::DelayUntil`/`ResetDelayUntil`, mutex standard/recursive lock/unlock, `LockGuard`, `Semaphore::TakeFromISR`, `CountingSemaphore` |
+| E transport | `test_uart.cpp`, `test_ringbuffer.cpp`, `test_can_handler.cpp`, `test_usb_hid_handler.cpp`, `test_cdc.cpp` | `UART`, `UartHandler`, `CDCcomm`, `ringbuffer.c`, `RingBufferWrapper`, `CAN`, `CanHandler`, `UsbHidHandler` | UART transmit/receive blocking, DMA and IT, abort, `getErrors`, rx/tx complete dispatch; ring buffer append/get/peek/empty/max size/wrap-around/full/overflow; CAN callbacks dispatched to registered handlers, `isWaiting`, `handleToPort`; `hidGet`/`hidOut`/`setHidDesc`/`getHidDesc`; `CDCcomm` constructor and `connected` |
+
+Not in P1: the skipped "unknown id" case stays skipped (known issue 3). Done when: gate green, at least 85 % line coverage per P1 file, mutation spot-check kills at least 80 %.
+
 ## Test gaps found in review (to close in P1)
 
 From the review run (g++ 11.4, scratch copy); not re-run in P0.
@@ -388,7 +401,7 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 1. **Coverage goal.** Is about 70% of in-scope firmware lines the right target? Going higher means testing interrupt and hardware-only code through fakes, which costs more per line.
 2. **Pace.** Stop at the end of every phase (default), or run several phases in a row with a report at each? Say "continue through P<n>" to allow it.
 3. **PID 1.01 specification** (optional): give the path of the spec file to have the `HidFFB` characterization tests verified against it. Without it that batch is skipped.
-4. **Commit author name (conflict):** the first three add-test-suite commits use `MadBull.Ben` (my answer A), `CLAUDE.md` v2 says `Claude Code`. The P0 commit follows `CLAUDE.md` v2. Which one should stay? (Local commits only; author names can be changed before anything leaves the machine.)
+4. ~~Commit author name~~: answered 2026-10-22, `MadBull.Ben` for all commits.
 5. **CI:** no GitHub Actions workflow runs the host tests (P0 finding). Should I describe a workflow job (configure, build, `ctest` with DSP on/off and sanitizers, MinGW) for you to add? I will not touch `.github/`.
 6. **Second checkout:** `Testing2/OpenFFBoard` (branch `feature/host-unit-tests`) holds untracked copies of the v2 files and none of the add-test-suite work. Work continues only in `testing/OpenFFBoard` unless you say otherwise.
 
