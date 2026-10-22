@@ -1,118 +1,192 @@
-# Firmware Test Suite Plan
+# Firmware Test Suite Plan v2: keep the suite, cover more code
 
-Extend the existing host-side doctest suite in `Firmware/Tests/` to cover all in-scope firmware logic in `Firmware/`. Permanent rules live in the root `CLAUDE.md` and apply throughout. The most important one is repeated here: **`Firmware/` is read-only except `Firmware/Tests/`.**
+Keep every existing test in `Firmware/Tests/` and raise line coverage of the in-scope firmware from about 24% to about 70%. Work in phases, ordered by risk and by lines gained per effort. Permanent rules are in the root `CLAUDE.md`. The two that matter most: **`Firmware/` is read-only except `Firmware/Tests/`, and never push.**
+
+## Where we are (2026-10-21)
+
+- The existing suite works. 318 test cases, 317 run. All pass with CMSIS-DSP on and off. The only sanitizer finding is the vendor spline overflow (known issue 2).
+- A mutation check caught 42 of 48 deliberate code changes. The 6 survivors are test gaps (listed in P1).
+- 24 of 97 firmware source files are compiled into the tests. 63 files (about 9,000 code lines) have no tests. Inside the 24 compiled files about 550 executable lines are never run.
+- Line coverage of in-scope firmware, measured in P0 (`tools/coverage_report.py`, GCC 16, CMSIS-DSP on): 2,136 of about 8,160 executable lines, about 26%. The 24 compiled files are at 79.5% (2,136 of 2,687, gcov). The 5,470 lines of the 63 files that are not compiled are an estimate from their code lines.
 
 ## How to start or resume
 
-1. Read `CLAUDE.md`, this file, and `Tests/PROGRESS.md`.
-2. If `PROGRESS.md` shows a phase in progress, resume from its "Next action" line. Do not redo completed work.
-3. If `PROGRESS.md` shows Phase 1 not started, begin Phase 1.
-4. Before stopping for any reason (phase end, context getting full, waiting for my approval), update `PROGRESS.md` so another session can pick up cleanly.
+1. Read `CLAUDE.md`, `Firmware/Tests/README.md`, this file and `Tests/PROGRESS.md`.
+2. Resume from the "Next action" line in `PROGRESS.md`. Do not redo completed work.
+3. Before stopping for any reason, update `PROGRESS.md` so another session can pick up cleanly.
 
-## Progress-file protocol (applies to every phase)
+## Rules for keeping the existing tests
 
-- Update `Tests/PROGRESS.md` after every completed module, every phase gate, every decision, and every `NEEDS REVIEW` or suspected-bug finding.
-- Keep the "Current state", "Next action" and "Environment" sections accurate at all times. A future session reads these first and uses the Environment commands to rebuild.
-- Record the exact commit hash on branch `add-test-suite` when a module is done.
-- Commit `PROGRESS.md` together with the work it describes. Small, frequent local commits on `add-test-suite`, with a one-off `git -c user.name=... -c user.email= commit` (never change git config).
-- NEVER push, and never add or change a git remote.
-- Never mark a module "done" until its tests build, pass, and have been reviewed (Phase 3).
+1. **The baseline is the 318 existing cases.** P0 saves their names to `Firmware/Tests/baseline/test_cases.txt` (from `--list-test-cases`) and adds a stdlib-only checker, `Firmware/Tests/tools/check_baseline.py`. Every baseline case must stay present with an unchanged result: passing cases pass, `KNOWN_ISSUE` cases fail as expected, the one skipped case stays skipped.
+2. **Do not edit the existing test files.** Never change an existing assertion, name or marker in `cases/`. Additive changes to shared helpers (`mocks/`, `support/`, `platform/`) are allowed only when a phase needs them, and each one is noted in `PROGRESS.md`. Never edit `third_party/doctest.h`.
+3. **New tests go in new files.** For `ffb_unit_tests` that means new `cases/test_*.cpp` files (the glob picks them up). Each new executable gets its own case directory.
+4. **`ffb_unit_tests` stays as it is:** same firmware sources, same feature set, same fake `Axis.h`. New firmware sources and the F407 feature header go into the new executables.
+5. **A firmware fix changes a known-issue test only if I say so.** If a `KNOWN_ISSUE` test starts reporting "should have failed but didn't", stop and tell me.
+6. **Known-issue tests must fail for the stated reason.** `should_fail` hides a failure on the wrong line. In every new `KNOWN_ISSUE` test the first failing assertion must be the one that describes the defect, and the description must say so.
 
-## Scope
+## The gate (run after every batch and every CMake change)
 
-IN scope: all firmware logic in `Firmware/` outside `Libraries/`: parsing, command handling, state machines, math/scaling/filters, effect and force-feedback calculations, config and persistent-storage handling, protocol/report encoding and decoding, error handling, boundary values.
+1. Every executable builds, with DSP on and off.
+2. `tools/check_baseline.py` passes: no baseline case missing or changed.
+3. `ffb_unit_tests` reports 0 failed. On GCC 16 the expected result is 316 passed, 2 skipped with the documented exclusion. On older compilers the exclusion is not needed.
+4. A sanitizer run (ASan + UBSan) is clean, apart from the two documented spline cases.
+5. `git status --short Firmware` shows changes only under `Firmware/Tests/`, and no build files were written under `Firmware/`.
+6. If the gate fails, fix it before continuing. Never continue past a red gate.
 
-Vendor code IN scope, in tiers. Bugs found in vendor code are reported in `PROGRESS.md` and never fixed:
-- Tier A: `FFBoard/Src/eeprom.c` (ST EEPROM emulation, tested directly via the flash tests on the NOR-semantics fake flash), the FreeRTOS C++ wrappers (`FFBoard/Src/c*.cpp`), and both Python helpers (`Firmware/scripts/generate_memory.py`, `Firmware/FFBoard/USB/portable/synopsys/dwc2/dwc2_info.py`) in Phase 5.
-- Tier B: TinyUSB device code in `Firmware/FFBoard/USB`, tested against a fake USB controller, as its own batch near the end of Phase 2.
-- Tier C: only the CMSIS-DSP functions the firmware calls (biquad, spline, and whatever else `EffectsCalculator` and `Filters` use).
+## Coverage ladder (estimates, replaced by gcov numbers after each phase)
 
-OUT of scope (do not write tests for these):
-- The ST HAL, the FreeRTOS kernel, `Targets/**`, and the rest of `Firmware/Libraries/`, unless I say otherwise.
-- Driver and external-board implementations for TMC4671, ODrive, VESC, PWM, MyActuator, SimpleMotion.
-- `TMCDebugBridge`, `MidiMain` and `MidiHandler`. The `MIDI` feature macro stays off.
-- Anything that only works by talking to real hardware.
+Measured as gcov executable lines of in-scope firmware (P0: about 8,160, of which 2,687 measured by gcov and about 5,470 estimated for the files that are not compiled yet; the earlier estimate was 8,900). Drivers, MIDI, HAL, the RTOS kernel, CubeMX code, TinyUSB and the Python helpers are not in this number.
 
-## Known issue: `effectsForces` out-of-bounds read
+| Milestone | What gets covered | Est. lines gained | Est. cumulative |
+| --- | --- | --- | --- |
+| Baseline | 24 compiled files | none | **measured: 2,136 of about 8,160 (26.2%)** |
+| P1 | Gaps in the compiled files | about 470 | about 2,610 (29%) |
+| P2 | Axis and main classes | about 790 | about 3,400 (38%) |
+| P3 | Flash and persistence | about 365 | about 3,765 (42%) |
+| P4 | System, callbacks, misc | about 460 | about 4,225 (47%) |
+| P5 | Buttons and analog inputs | about 775 | about 5,000 (56%) |
+| P6 | Encoders and buses | about 640 | about 5,640 (63%) |
+| P7 | CAN and serial FFB | about 420 | about 6,060 (68%) |
+| P8 | RTOS wrappers | about 365 | about 6,425 (72%) |
 
-GCC 16's libstdc++ turns on `_GLIBCXX_ASSERTIONS` at -O0, so a pre-existing out-of-bounds read in the `effectsForces` test case now aborts the doctest run. Before any new work, 192 of 317 test cases ran.
+The cumulative percentages of P1 to P8 still use the old 8,900 denominator; with the measured 8,160 the same line gains would reach about 79% after P8. They are replaced by gcov numbers after each phase.
 
-- Record it as a suspected firmware bug in `PROGRESS.md` with the evidence. Do not fix the firmware.
-- Do not write a test that expects the buggy result.
-- Exclude that one case using doctest's test-case-exclude option (`-tce`) in baseline and new runs. Confirm the exact test-case name from the source.
-- List the exclusion explicitly in every report and in the final report.
-- Do not disable `_GLIBCXX_ASSERTIONS` globally.
+The remaining 28% is mostly interrupt and hardware-only code, code gated for other targets, and defensive branches. Aim for 85% or more on every file a phase adds, and explain what is left.
 
-## Known issue: CMSIS-DSP `arm_spline_f32` over-read (sanitizer runs only)
+## Executables
 
-ASan reports a stack-buffer-overflow in CMSIS-DSP `arm_spline_f32` (vendor code), reached from `EffectsCalculator::evaluateReconstructionFilter`. Recorded as bug #2 in `PROGRESS.md`.
+| Executable | Purpose | Added in |
+| --- | --- | --- |
+| `ffb_unit_tests` | The existing suite, unchanged, plus new files in `cases/` | P1 |
+| `ffb_target_tests` | F407 feature set minus drivers, real `Axis.h`; Axis, main classes, inputs, encoders, buses, CAN, system | P2 |
+| `ffb_flash_tests` | Real `flash_helpers.cpp` and `eeprom.c` on a fake HAL FLASH | P3 |
+| `ffb_rtos_tests` | The `cpp_freertos` wrappers on a fake RTOS | P8 |
+| `ffb_usb_tests` | TinyUSB device code on a fake USB controller | P9 |
 
-- Keep ASan on the whole build, including CMSIS-DSP.
-- In sanitizer runs only, also exclude `reconstruction of a constant signal is constant` and `reconstruction of a step never leaves the range of the input values and reaches the target` with `-tce`. List this exclusion in every sanitizer report.
+They share one static library of platform fakes. Firmware sources are compiled per executable. The feature header for `ffb_target_tests` is built from the real F407 `target_constants.h`: copy its feature macros, remove the driver macros (`TMC4671DRIVER`, `PWMDRIVER`, `ODRIVE`, `VESC`, `SIMPLEMOTION`, `RMDCAN`, `TMCDEBUG`), leave `MIDI` off, and show me the diff before using it.
 
-## Phase 1: Explore and plan (read-only)
+## Phases
 
-Goal: understand the code and the existing suite, then produce a plan I can approve. Do not write or change any test or source file in this phase except `Tests/PROGRESS.md` (and `Tests/TEST_PLAN.md` / `CLAUDE.md` if I ask).
+### P0: Safety net (no new firmware tests)
 
-1. Create branch `add-test-suite` if it does not exist.
-2. Build the existing `Firmware/Tests/` suite out-of-tree and run it. Record the baseline in `PROGRESS.md`: exact configure, build and run commands, framework, pass/fail counts, runtime, and the effect of the `effectsForces` exclusion (the run should complete with that case excluded). Report any build problems before going further.
-3. Check the sanitizer variants (ASan, UBSan) and clang if available. Record which variants build and which findings they produce.
-4. Map `Firmware/` (excluding `Libraries/`): modules, classes, public functions, entry points, and which hardware/HAL/RTOS APIs each touches. Record the module list in the `PROGRESS.md` module table.
-5. Identify every source file and class that implements the out-of-scope drivers (TMC4671, ODrive, VESC, PWM, MyActuator, SimpleMotion). List them for my confirmation, including any shared base classes or interfaces and whether each is driver code or caller code.
-6. Inventory what `Firmware/Tests/` already covers and how it handles hardware boundaries (fakes, stubs, link substitution, shadowed headers). Reuse these techniques. Record coverage gaps per module.
-7. Propose any additional fakes needed (HAL peripherals, RTOS primitives, flash/EEPROM emulation, USB/CAN/UART/SPI abstractions, timers/clock).
-8. Write the test plan into `PROGRESS.md`: per module, what will be tested, what will be faked, what is excluded and why, with a priority order (highest-risk logic first).
-9. Flag host-vs-target risks found in the code (type sizes, packing, float/double, overflow).
-10. **STOP.** Present the plan and wait for my explicit approval. Set Phase 1 status to "awaiting approval".
+- Save the baseline list and add `check_baseline.py` (F17).
+- Add the coverage script (F16): plain `gcov`, stdlib Python, per-module, in-scope files only.
+- CMake (F1): add `FFB_TESTS_EXCLUDE` for `ctest`, and exclude the two spline cases when `FFB_TESTS_SANITIZE=ON` and DSP is on (F1b). Without F1b the `host-sanitize` preset fails whenever the CMSIS-DSP submodule is checked out. Read `.github/workflows` first (read-only) and record what CI runs.
+- Measure real baseline coverage with the script and replace the estimates above.
+- Record the new findings in `PROGRESS.md` (skipped crash bug, preset failure, the 6 survivors).
+- **Done when:** the gate passes and the measured baseline is recorded. **Stop for my approval.**
 
-## Phase 2: Build (use subagents)
+### P1: Close the gaps in the 24 compiled files (`ffb_unit_tests`, new files only)
 
-Starts only after I approve the Phase 1 plan.
+Estimated gain about 470 lines. Target at least 85% per file. New files such as `test_error_handler.cpp`, `test_persistent_storage.cpp`, `test_filters.cpp`, `test_uart.cpp`, `test_ringbuffer.cpp`, `test_can_handler.cpp`.
 
-Test executables:
-- `ffb_unit_tests` stays exactly as it is: same sources, same feature set, same fake `Axis.h`.
-- New executables (e.g. for the real `Axis`, the flash/EEPROM code, TinyUSB) get their own feature header. Build it from the real F407 `Targets/F407VG/Core/Inc/target_constants.h`: copy its feature macros, remove `TMC4671DRIVER`, `PWMDRIVER`, `ODRIVE`, `VESC`, `SIMPLEMOTION`, `RMDCAN`, `TMCDEBUG`, leave `MIDI` off, and show me the resulting diff before using it.
-- Firmware sources are compiled per executable. Only the platform fakes are shared.
-- `ctest` runs every executable with the documented exclusions.
-- After every CMake change, rebuild and confirm the existing suite still gives 316 passed, 0 failed, 2 skipped with the exclusion, and record it in `PROGRESS.md`.
+- **Mutation survivors (close all six):**
+  - `CmdParser.cpp:53`: buffer exactly full (capacity boundary).
+  - `CmdParser.cpp:156`: malformed `?` values in complex commands.
+  - `EffectsCalculator.cpp:235`: phase offset of a square wave.
+  - `EffectsCalculator.cpp:1275`: constant-force rate returns 0 after 1 s without updates.
+  - `HidFFB.cpp:423`: filter set-up when an effect starts.
+  - `HidCommandInterface.cpp:92`: reply branch for get-at commands.
+- **`ErrorHandler`** (15 of 20 functions never run): add and dedupe, both `clearError` forms, `sortErrors` order, `Error::toString` per error type, callback delivery, `clearTemp`, `ErrorPrinter` enable, disable and output.
+- **`PersistentStorage`** (5 of 7): save and restore across registered handlers, delayed restore against simulated time, the startup callback.
+- **`Filters`** (5 of 11): default constructor, `setFc`, `setQ`, `getQ`, `setPeakGain`; every filter type against reference coefficients; DSP on and off agree within tolerance.
+- **`UART`** (12 of 30): transmit, receive, DMA and IT variants, abort, `getErrors`, on the fake HAL UART.
+- **`ringbuffer.c` and `RingBufferWrapper`** (15 of 31): append, get, peek, empty, max size, wrap-around, full, overflow.
+- **`CanHandler`** (6 of 8) and **`CAN.cpp`:** all callbacks dispatched to registered handlers; `isWaiting`, `handleToPort`.
+- **`UsbHidHandler`** (5 of 8): `hidGet`, `hidOut`, `setHidDesc`, `getHidDesc`.
+- **`CommandHandler`** (9 of 35): `command(...)`, `setInstance`, `logSerial`, `logSerialDebug`, `getHelpstring`, `overrideCommandFlags_INT`.
+- **`EffectsCalculator::Run()`** (the thread loop) and `getInfo`.
+- **Small ones:** `Encoder::getPosAbs` and `setPos`, `MotorDriver::setupDriver`, `CDCcomm` constructor and `connected`, `cthread` `DelayUntil`, `cmutex` and `csemaphore` lock paths.
+- The skipped "unknown id" case stays skipped (it terminates the run). It is recorded as a suspected bug, not fixed.
+- **Done when:** gate passes, per-file coverage met, a mutation spot-check on the new tests kills at least 80%. **Stop for my approval.**
 
-1. One agent first creates the shared fakes and any CMake changes in `Firmware/Tests/`, then commits them. Later agents build on these. Record them in `PROGRESS.md`.
-2. Then use subagents in parallel, each owning one module or group of modules and its own test files. Give each subagent:
-   - the module(s) it owns,
-   - the conventions and fakes from Phase 1,
-   - the rules in `CLAUDE.md`, including: `Firmware/` is read-only except `Firmware/Tests/`.
-3. Subagents must not edit each other's files, and must not edit shared fakes or CMake without telling me which change is needed.
-4. Each subagent reports back: tests added, behaviours covered, fakes used, `NEEDS REVIEW` items, suspected firmware bugs, untestable code. The main agent records these in `PROGRESS.md`.
-5. After each batch, build and run the whole suite (with the documented `effectsForces` exclusion). Do not continue to the next batch while anything fails to build or regresses.
-6. Prioritise by the approved order. If usage or context is running low, stop at a clean module boundary and update `PROGRESS.md`.
+### P2: Axis and main classes (new `ffb_target_tests`)
 
-## Phase 3: Review (use fresh reviewer subagents)
+Estimated gain about 790 lines. Highest-risk code: the whole torque path.
 
-Use reviewers that did not write the tests being reviewed. Each reviewer checks:
-- Do tests assert meaningful behaviour (no empty or tautological assertions)?
-- Are edge cases, boundaries, error paths and invalid inputs covered?
-- Is any out-of-scope driver or library code being tested by mistake?
-- Are the fakes realistic, or could they hide real bugs?
-- Are tests independent and deterministic: no sleeps, no timing flakiness, no global-state leakage between tests?
-- Any host-vs-target differences (type sizes, packing, endianness, float vs double, overflow, signed shifts) that make a test misleading?
-- Do any tests lock in a suspected firmware bug without a `NEEDS REVIEW` flag?
+- Batch 0 (one agent first): F3 feature header, F7 fake TIM and EXTI, F10 misc CMSIS and HAL stubs, F12 `AxisFixture` (real Axis with `MockMotorDriver` and `MockEncoder` chosen through the public choosers), F14 `-include cmath` for `Axis.cpp` if needed. Run the gate.
+- **`Axis.cpp`:** power scaling and clipping to ±0x7fff, invert, range and degrees scaling, endstop torque, speed limiter, slew-rate limiter, idle spring, damper, friction and inertia strengths, expo curve, gear ratio, effect ratio, fade-in, emergency stop and reset, hands-off detection, config encode and decode round trip, commands with invalid values, driver and encoder selection.
+- **Integration:** PID report to effect to axis to `MockMotorDriver` torque, with position from `MockEncoder`.
+- **`AxesManager`, `FFBHIDMain` and its commands, `FFBWheel`, `FFBJoystick`, `FFBHIDExt`, `CustomMain`, `FFBoardMain`, `mainclass_chooser`:** axis count changes, HID gamepad report packing, FFB on and off, USB suspend and resume, class IDs unique and selectable.
+- **Done when:** gate passes, files at 70% or more, mutation spot-check at 80% or more. **Stop for my approval.**
 
-Fix the findings, re-run the suite, and record review outcomes per module in `PROGRESS.md`. A module is "done" only after this phase passes.
+### P3: Flash and persistence (new `ffb_flash_tests`)
 
-## Phase 4: Verify
+Estimated gain about 365 lines.
 
-1. Run the full suite (existing + new) and record the results, listing the `effectsForces` exclusion.
-2. Run again with AddressSanitizer and UndefinedBehaviorSanitizer (both available with GCC on Linux), on the whole build including CMSIS-DSP. List both exclusions (`effectsForces` and the two spline cases). Record findings.
-3. Measure coverage with plain gcov plus the stdlib-only Python script in `Firmware/Tests/` (no gcovr/lcov, nothing installed). Report firmware code and the tested vendor tiers (A, B, C) separately. Exclude `Firmware/Tests/`, the out-of-scope drivers, and untested vendor code. Report per-module coverage and explain uncovered code as hardware-only, unreachable, or missed.
-4. Test strength check: in a scratch copy outside the repo, mutate a few lines of firmware logic and confirm tests fail. Report which mutations were caught or missed.
-5. Confirm `git diff` shows no changes under `Firmware/` other than `Firmware/Tests/`, so the ARM Makefile build is unaffected. Confirm no build artefacts were written under `Firmware/`.
+- Fake HAL FLASH (F9) with real NOR semantics: erase to 0xFFFF, programming only clears bits, injectable errors, power-loss injection, OTP area.
+- **`flash_helpers.cpp` and `eeprom.c` (vendor, tested directly):** read, write, default, dump, format, write-only-if-changed, missing variable, page full and page transfer, power loss during write and during transfer, invalid page states, OTP.
+- **`eeprom_addresses.c`:** `VirtAddVarTab` entries unique, count equals `NB_OF_VAR`, no 0xFFFF.
+- `PersistentStorage` restore ordering against the real flash layer.
+- Vendor bugs are reported in `PROGRESS.md`, never fixed.
 
-## Phase 5: CPython helper scripts (vendor tier A)
+### P4: System, callbacks and misc (`ffb_target_tests`)
 
-Add small pytest tests for `Firmware/scripts/generate_memory.py` and `Firmware/FFBoard/USB/portable/synopsys/dwc2/dwc2_info.py`. Keep them separate from the C/C++ suite and out of the CMake build. Ask before installing pytest if it is not available (never globally). Bugs in `dwc2_info.py` (TinyUSB) are reported, never fixed.
+Estimated gain about 460 lines.
+
+- `SystemCommands` (each command; resets recorded, not executed), `global_callbacks` (ISR to handler dispatch), `cppmain` `micros()`, `ledEffects` against simulated time, `voltagesense` scaling and over-voltage behaviour, `USBdevice`, `AdcHandler`.
+- USB descriptor tables self-consistent: `wTotalLength`, HID report descriptor length, report IDs match `ffb_defs.h`.
+- Needs F6 (fake ADC) and F10.
+
+### P5: Buttons and analog inputs (`ffb_target_tests`)
+
+Estimated gain about 775 lines. Needs F4 (fake SPI), F5 (fake I2C), F6 (fake ADC), F8 (fake CAN) and `MockButtonSource` and `MockAnalogSource` (F12).
+
+- Buttons: `LocalButtons`, `SPIButtons`, `ShifterAnalog`, `CanButtons`, `PCF8574`, `SelectableInputs`, `ButtonSource`.
+- Analog: `AnalogAxisProcessing` (autoscale, manual range, invert, filters, config round trip), `LocalAnalog`, `CanAnalog`, `ADS111X`, `AnalogSource`.
+
+### P6: Encoders and buses (`ffb_target_tests`)
+
+Estimated gain about 640 lines.
+
+- `EncoderLocal`, `EncoderSSI`, `EncoderBissC` (CRC6, error and warning bits, multiturn), `MtEncoderSPI` (parity, status), `CRC` against known check values.
+- `SPI`, `I2C` and their handlers, `TimerHandler`, `ExtiHandler`: port and device arbitration, callbacks.
+- Driver encoders (TMC, ODrive, VESC, RMD, SimpleMotion) stay out of scope.
+
+### P7: CAN and serial FFB (`ffb_target_tests`)
+
+Estimated gain about 420 lines.
+
+- `CanBridge` frame to host protocol, `CanInputMain`, `CANPort2B` (filters, tx, rx, bus-off), `SerialFFB` (effect commands over the string interface).
+
+### P8: RTOS wrappers (new `ffb_rtos_tests`)
+
+Estimated gain about 365 lines. Needs F11 (queues, timers, event groups, simple non-preemptive).
+
+- `cqueue`, `ctimer`, `ctasklet`, `cevent_groups`, `cworkqueue`, `cmem_pool`, `cread_write_lock`, `ccondition_variable`, `ctickhook`: lifecycle, take and give semantics, timeouts against simulated time. The FreeRTOS kernel itself is not tested.
+
+### P9: Remaining vendor tiers and helpers
+
+- **Tier B:** TinyUSB device code in `Firmware/FFBoard/USB/` on a fake USB controller (F15), in `ffb_usb_tests`.
+- **Tier C:** the CMSIS-DSP functions the firmware calls (biquad, spline, sin, cos), against reference values.
+- **Python helpers** with stdlib `unittest`: `Firmware/scripts/generate_memory.py` and `dwc2_info.py` (vendor: report bugs, never fix).
+- **Optional:** verify the `HidFFB` `characterization` tests against PID 1.01, only if I give you the spec file path.
+
+## How each phase runs
+
+1. **Plan:** the main agent reads the module sources, lists behaviours to test, and updates the module table in `PROGRESS.md`.
+2. **Build:** subagents in parallel, one per module group, each owning its own new files. They follow `Firmware/Tests/README.md` and `CLAUDE.md`. They must not edit each other's files, shared fakes or CMake without telling me the change needed.
+3. **Review:** fresh reviewer subagents check assertions are meaningful, edge cases and error paths are covered, no out-of-scope driver code is tested, fakes are realistic, tests are deterministic with no sleeps, `KNOWN_ISSUE` rules are followed, and nothing breaks MinGW or CI.
+4. **Verify:** run the gate, measure coverage of the phase's files with the script, and run a mutation spot-check in a scratch copy outside the repo (about 8 mutants per file on lines the tests execute). List survivors in `PROGRESS.md`.
+5. **Commit and record:** local commit on `add-test-suite` (never push), update `PROGRESS.md` with measured coverage, `characterization:` and `NEEDS REVIEW` items, suspected bugs and host-vs-target caveats.
+
+## Stop and approval rules
+
+- Stop after P0 and after P1 for my go-ahead. After that, stop at the end of each phase unless I wrote "continue through P<n>".
+- Stop immediately if a baseline case changes result, the gate cannot be made green, a firmware change seems necessary, or something would have to be downloaded.
+- Ask before adding an executable not listed above, touching `.github/`, or changing the feature set of `ffb_unit_tests`.
+
+## Scope and known issues (unchanged)
+
+- In scope: firmware outside `Firmware/Libraries/`, plus the vendor tiers A, B, C above. Not tested: ST HAL, CMSIS core, the FreeRTOS kernel, `Firmware/Targets/**`, CubeMX code.
+- Out of scope: the TMC4671, ODrive, VESC, PWM, MyActuator and SimpleMotion drivers, `TMCDebugBridge`, `MidiMain`, `MidiHandler`. Leave the driver and MIDI feature macros off.
+- **Known issue 1:** `effectsForces` out-of-bounds read aborts on GCC 16. Exclude only the case `requesting the forces of a not existing axis is rejected`.
+- **Known issue 2:** CMSIS-DSP `arm_spline_f32` overflow found by ASan. Skip only the two spline cases in sanitizer runs.
+- **Known issue 3:** the skipped case `command with an unknown id is rejected` (`test_command_execution.cpp:186`) stays skipped. `executeCommands` dereferences the command definition before the null check.
+- Never fix firmware or vendor code. Report it.
 
 ## Deliverables
 
-- New and updated tests, fakes and CMake changes in `Firmware/Tests/`.
-- Updated README for `Firmware/Tests/` (or equivalent): how to build out-of-tree, run, and measure coverage, and how the fakes work.
-- Final report (add it to `Tests/PROGRESS.md` or a new `Tests/REPORT.md`): what is covered, what is excluded and why (including the `effectsForces` exclusion and the sanitizer-only spline exclusion), vendor bugs found per tier, `NEEDS REVIEW` items, suspected firmware bugs, host-vs-target caveats, untestable code with refactor suggestions, and the final coverage numbers.
+- New tests, fakes, mocks and CMake changes in `Firmware/Tests/`, plus `baseline/test_cases.txt` and `tools/` (baseline checker, coverage script).
+- Updated `Firmware/Tests/README.md`: new executables, case directories, options, the exclusion variable, tools, vendor tiers, suite table, limitations and next steps.
+- Final report in `Tests/PROGRESS.md` or `Tests/REPORT.md`: measured coverage per module against the ladder, what is excluded and why, survivors, `NEEDS REVIEW` items, suspected firmware and vendor bugs, host-vs-target caveats, untestable code with refactor suggestions, and any CI changes I need to make myself.

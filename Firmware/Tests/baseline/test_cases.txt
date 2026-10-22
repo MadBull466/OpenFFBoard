@@ -1,0 +1,322 @@
+# Baseline test cases of ffb_unit_tests (commit a5418ff5, before the suite was extended).
+# Format: <expected result> TAB <test suite> TAB <test case name>. Checked by tools/check_baseline.py.
+# Do not edit: every case must stay present with this result. See Tests/TEST_PLAN.md.
+# Generated with: tools/check_baseline.py --build-dir <GCC 16, CMSIS-DSP on> --print-current
+pass	CAN_CommandInterface	interface starts the port and listens on three ids
+pass	CAN_CommandInterface	interface releases the port and its filters when destroyed
+pass	CAN_CommandInterface	request returns the value
+pass	CAN_CommandInterface	write changes the value and replies with the written value
+pass	CAN_CommandInterface	write is not executed before the value frame arrives
+pass	CAN_CommandInterface	write with address replies with value and address
+pass	CAN_CommandInterface	value and address frames may arrive in any order
+pass	CAN_CommandInterface	request with address
+pass	CAN_CommandInterface	reply types
+known_issue	CAN_CommandInterface	failed commands are reported with the err type
+pass	CAN_CommandInterface	unknown targets are answered with not found
+pass	CAN_CommandInterface	instance 0xFF addresses all instances of a class
+pass	CAN_CommandInterface	malformed frames are ignored
+pass	CAN_CommandInterface	frames of another port are ignored
+pass	CAN_CommandInterface	a new header discards an incomplete command
+pass	CAN_CommandInterface	several commands received before execution are executed in order
+pass	CAN_CommandInterface	commands exceeding the receive queue are dropped
+pass	CAN_CommandInterface	commands of other interfaces and broadcasts are not sent on CAN
+pass	CAN_CommandInterface	commands with a not allowed access type are not answered
+pass	CAN_CommandInterface	internal commands
+pass	CmdParser	get command
+pass	CmdParser	command without type suffix is a get command
+pass	CmdParser	set command with decimal values
+pass	CmdParser	set command with hex value
+pass	CmdParser	get with address
+pass	CmdParser	set with address
+pass	CmdParser	info command
+pass	CmdParser	set without value creates no command
+pass	CmdParser	instance number selects one handler
+pass	CmdParser	command without instance targets all instances of a class
+pass	CmdParser	not existing instance is not found
+pass	CmdParser	class name selects the handler
+pass	CmdParser	command without class name is sent to the sys class
+known_issue	CmdParser	instance numbers above 9 can be addressed
+pass	CmdParser	unknown command creates an error and no command
+pass	CmdParser	unknown class creates an error and no command
+pass	CmdParser	internal commands of every handler are available
+pass	CmdParser	HID only commands are hidden from the string parser
+pass	CmdParser	string only commands are available
+pass	CmdParser	debug commands are only found in debug mode
+pass	CmdParser	command names are case sensitive
+pass	CmdParser	all terminators end a command
+pass	CmdParser	add reports if a terminator was received
+pass	CmdParser	multiple commands in one buffer are parsed in order
+pass	CmdParser	commands can arrive in fragments
+pass	CmdParser	byte wise input like from a uart
+pass	CmdParser	parsed commands are removed from the buffer
+pass	CmdParser	empty commands are ignored
+pass	CmdParser	clear discards buffered data
+pass	CmdParser	stale fragments are discarded after the clear timeout
+pass	CmdParser	fragments are kept within the clear timeout
+pass	CmdParser	fragments are kept forever without clear timeout
+pass	CmdParser	parser recovers after the buffer overflows
+pass	CmdParser	buffer capacity is limited
+pass	CmdParser	free buffer capacity decreases when data is buffered
+known_issue	CmdParser	free buffer capacity is correct at any time
+known_issue	CmdParser	invalid command after a valid command is reported
+pass	CmdParser	invalid command before a valid command is reported
+known_issue	CmdParser	non numeric values are rejected without blocking the parser
+pass	CommandExecution	nothing is executed before the command thread runs
+pass	CommandExecution	get command returns the value
+pass	CommandExecution	set command changes the value and returns an empty OK result
+pass	CommandExecution	address commands pass value and address
+pass	CommandExecution	info command returns a string
+pass	CommandExecution	handler error is passed to the interface
+pass	CommandExecution	NO_REPLY status sends nothing
+pass	CommandExecution	multiple replies of one command are kept in order
+pass	CommandExecution	commands of a batch are executed in order with separate results
+pass	CommandExecution	command type must be allowed by the command flags
+pass	CommandExecution	allowed access types are executed
+pass	CommandExecution	command without access flags accepts every type
+skip	CommandExecution	command with an unknown id is rejected
+pass	CommandExecution	internal identification commands
+pass	CommandExecution	cmdinfo returns the flags of a command
+pass	CommandExecution	help lists all commands
+pass	CommandExecution	help info returns a csv list
+pass	CommandExecution	disabled handlers only answer internal commands
+pass	CommandExecution	results are passed to all interfaces with the origin interface
+pass	CommandExecution	batch done is signalled to all interfaces once per batch
+pass	CommandExecution	reply for a busy interface is dropped after 100ms without blocking others
+pass	CommandExecution	handler broadcasts are sent to all interfaces
+pass	CommandExecution	async replies can target a single interface
+pass	CommandExecution	async reply without interface is a broadcast
+pass	CommandExecution	interfaces unregister when destroyed
+pass	CommandHandler	handlers register and unregister in the global list
+pass	CommandHandler	handlers get unique handler ids which are reused
+pass	CommandHandler	lookup by class name and instance
+pass	CommandHandler	lookup by class id and instance
+pass	CommandHandler	class name and id can be translated
+pass	CommandHandler	command lookup by name and id
+pass	CommandHandler	command lookup honors ignored flags and debug mode
+pass	CommandHandler	command id validation with ignored and required flags
+pass	CommandHandler	handleGetSet helper reads and writes a variable
+pass	Encoder	base encoder is a dummy without position
+pass	Encoder	mock encoder reports the position set by the test
+pass	Encoder	mock encoder position can be redefined by the firmware
+pass	Encoder	mock absolute encoder keeps the absolute position when zeroed
+pass	Encoder	mock incremental encoder has no separate absolute position
+pass	Encoder	mock encoder direction can be reversed
+pass	Encoder	mock encoder can be created by a class chooser
+pass	MotorDriver	base motor driver is a dummy that is always ready
+pass	MotorDriver	mock motor driver records the requested torque
+pass	MotorDriver	mock motor driver records start and stop
+pass	MotorDriver	emergency stop stops the motor and reset restarts it
+pass	MotorDriver	mock motor driver state is controlled by the test
+pass	MotorDriver	mock motor driver slew rate calibration
+pass	MotorDriver	external encoder can be assigned to a driver
+pass	MotorDriver	mock motor driver can provide an integrated encoder
+pass	MotorDriver	mock motor driver can be created by a class chooser
+pass	MotorDriver	class chooser lists the selectable classes for the command system
+pass	EffectsCalculator	inactive calculator outputs zero torque on all axes
+pass	EffectsCalculator	axes are updated every cycle with the ffb state
+pass	EffectsCalculator	active state controls the clip led
+pass	EffectsCalculator	paused device outputs no force and continues afterwards
+pass	EffectsCalculator	constant force is passed to the axis with inverted sign
+pass	EffectsCalculator	only started effects create force
+pass	EffectsCalculator	effect without parameters creates no force
+pass	EffectsCalculator	effect gain scales the force
+pass	EffectsCalculator	device gain scales the force
+pass	EffectsCalculator	direction distributes the force to the axes
+pass	EffectsCalculator	forces of multiple effects are summed without clipping
+pass	EffectsCalculator	single axis device
+pass	EffectsCalculator	constant force filter is bypassed at the default frequency
+pass	EffectsCalculator	constant force lowpass filter smooths steps and settles at the target
+pass	EffectsCalculator	effect ends after its duration
+pass	EffectsCalculator	infinite effects never end
+pass	EffectsCalculator	start delay postpones an effect with duration
+known_issue	EffectsCalculator	start delay postpones an infinite effect
+pass	EffectsCalculator	ramp changes linear from start to end level over the duration
+pass	EffectsCalculator	ramp is scaled by the effect gain
+pass	EffectsCalculator	sine
+pass	EffectsCalculator	sine offset shifts the center
+pass	EffectsCalculator	sine phase shifts the start
+pass	EffectsCalculator	sine period
+pass	EffectsCalculator	sine time is relative to the effect start
+pass	EffectsCalculator	periodic effects are scaled by effect and device gain
+pass	EffectsCalculator	characterization: square starts with the negative half
+pass	EffectsCalculator	square offset shifts the center
+known_issue	EffectsCalculator	square repeats with the effect period
+pass	EffectsCalculator	triangle
+pass	EffectsCalculator	triangle offset shifts the center
+pass	EffectsCalculator	characterization: sawtooth up
+pass	EffectsCalculator	characterization: sawtooth down
+known_issue	EffectsCalculator	sawtooth up rises during the period in the sign convention of the other effects
+pass	EffectsCalculator	envelope attack and fade on a constant force
+pass	EffectsCalculator	envelope levels above and below the magnitude
+pass	EffectsCalculator	envelope keeps the sign of a negative constant force
+pass	EffectsCalculator	envelope modulates the amplitude of periodic effects
+pass	EffectsCalculator	envelope is ignored for infinite effects
+pass	EffectsCalculator	spring pushes back to the center proportional to the position
+pass	EffectsCalculator	spring is independent of speed and acceleration
+pass	EffectsCalculator	spring force is limited by the saturation
+pass	EffectsCalculator	spring uses separate coefficients for both sides
+pass	EffectsCalculator	spring dead band
+pass	EffectsCalculator	spring center point offset
+pass	EffectsCalculator	spring with negative coefficient pushes away from the center
+pass	EffectsCalculator	characterization: condition without saturation creates no force
+pass	EffectsCalculator	spring is scaled by the spring gain setting and the device gain
+pass	EffectsCalculator	characterization: condition effects are not scaled by the effect gain
+pass	EffectsCalculator	two condition blocks act on each axis with their own parameters
+known_issue	EffectsCalculator	two condition blocks act on each axis independent of the report order
+pass	EffectsCalculator	single condition block rotated by 45 degrees acts on both axes
+pass	EffectsCalculator	damper opposes the movement proportional to the speed
+pass	EffectsCalculator	damper is independent of position and acceleration
+pass	EffectsCalculator	damper force is limited by the saturation
+pass	EffectsCalculator	damper output is lowpass filtered
+pass	EffectsCalculator	damper is scaled by the damper gain setting
+pass	EffectsCalculator	inertia opposes the acceleration
+pass	EffectsCalculator	inertia is independent of position and speed
+pass	EffectsCalculator	friction creates a constant force against the movement above the ramp up speed
+pass	EffectsCalculator	friction creates no force at standstill
+pass	EffectsCalculator	friction ramps up smoothly at low speed
+pass	EffectsCalculator	friction ramp up range is configurable
+pass	EffectsCalculator	friction force is limited by the saturation
+pass	EffectsCalculator	friction is scaled by the friction gain setting
+pass	EffectsCalculator	constant force, spring and damper are summed
+pass	EffectsCalculator	without reconstruction updates are applied immediately
+pass	EffectsCalculator	linear reconstruction ramps from the previous to the latest value within one update interval
+pass	EffectsCalculator	reconstruction holds the latest value if updates stop
+pass	EffectsCalculator	reconstruction of a constant signal is constant
+pass	EffectsCalculator	reconstruction of a step never leaves the range of the input values and reaches the target
+pass	EffectsCalculator	effects calculator is addressable as fx class
+pass	EffectsCalculator	default gain settings
+pass	EffectsCalculator	gain settings can be written and read
+pass	EffectsCalculator	settings are limited to their valid range
+pass	EffectsCalculator	condition filter settings belong to the custom profile
+pass	EffectsCalculator	filter settings are applied to existing effects
+pass	EffectsCalculator	filters follow a changed update rate
+pass	EffectsCalculator	unknown command ids are not found
+pass	EffectsCalculator	used effect types are recorded
+pass	EffectsCalculator	current forces per effect type can be read
+pass	EffectsCalculator	effect details list maximum and current force as json fragments
+known_issue_ub	EffectsCalculator	requesting the forces of a not existing axis is rejected
+pass	EffectsCalculator	settings are saved to and restored from flash
+pass	EffectsCalculator	defaults are used with empty flash
+pass	EffectsCalculator	find free effect returns the first unused slot
+pass	HID_CommandInterface	command report layout matches the HID descriptor
+pass	HID_CommandInterface	interface registers as global hid command interface
+pass	HID_CommandInterface	request returns the value
+pass	HID_CommandInterface	negative values are transferred as 64 bit two's complement
+pass	HID_CommandInterface	write changes the value and replies with the written value
+pass	HID_CommandInterface	write with address replies with value and address
+pass	HID_CommandInterface	request with address
+pass	HID_CommandInterface	reply types
+pass	HID_CommandInterface	handler error is reported as error report
+known_issue	HID_CommandInterface	failed commands are reported with the err type
+pass	HID_CommandInterface	unknown targets are answered with not found
+pass	HID_CommandInterface	string only commands are not available via HID
+pass	HID_CommandInterface	HID only commands are available
+pass	HID_CommandInterface	debug commands require debug mode
+pass	HID_CommandInterface	commands with a not allowed access type are not answered
+pass	HID_CommandInterface	instance 0xFF addresses all instances of a class
+pass	HID_CommandInterface	broadcast to an unknown class is not answered
+pass	HID_CommandInterface	internal commands
+pass	HID_CommandInterface	writes of other interfaces are mirrored as value updates
+pass	HID_CommandInterface	handler broadcasts are sent
+pass	HID_CommandInterface	several reports are executed in order
+pass	HID_CommandInterface	pending replies are limited while the host does not read reports
+pass	HidFFB	report structs have the size defined by the report descriptor
+pass	HidFFB	handler registers for hid reports
+known_issue	HidFFB	handler unregisters when destroyed
+pass	HidFFB	pool report describes the effect storage
+pass	HidFFB	unknown feature reports are not answered
+pass	HidFFB	create new effect allocates the first free block
+pass	HidFFB	every effect type can be allocated
+pass	HidFFB	new effects have default parameters
+pass	HidFFB	filters are created depending on the effect type
+pass	HidFFB	allocation fails with status full when all blocks are used
+pass	HidFFB	characterization: invalid effect types are rejected with status full
+pass	HidFFB	block free releases and resets an effect
+pass	HidFFB	block free with invalid index is ignored
+pass	HidFFB	available ram pool decreases with allocated effects
+known_issue	HidFFB	available ram pool increases when effects are freed
+pass	HidFFB	allocation sends a PID state report
+pass	HidFFB	set effect stores the effect parameters
+pass	HidFFB	duration 0 is treated as infinite
+pass	HidFFB	set effect enables force feedback and reports the state
+pass	HidFFB	set effect with invalid block index is ignored
+pass	HidFFB	set effect accepts reports longer and shorter than the internal struct
+pass	HidFFB	characterization: axis magnitudes with direction enable (polar angle) on 2 axes
+pass	HidFFB	characterization: axes enable bits are ignored with direction enable
+pass	HidFFB	characterization: axis magnitudes without direction enable (per axis direction)
+pass	HidFFB	characterization: direction enable bit position depends on the axis count
+pass	HidFFB	direction enable mask can be changed
+pass	HidFFB	characterization: single condition block followed by set effect uses the effect direction
+pass	HidFFB	characterization: condition block activates an axis with zero magnitude
+pass	HidFFB	characterization: the order of set effect and set condition changes the X magnitude for direction 0
+pass	HidFFB	characterization: two condition blocks enable both axes independent of the direction
+pass	HidFFB	set constant force stores the signed magnitude
+pass	HidFFB	set periodic stores magnitude, offset, phase and period
+pass	HidFFB	periodic period is limited to 1..32767 ms
+known_issue	HidFFB	periodic phase covers the full range of the descriptor (0..359.99 degrees)
+pass	HidFFB	set condition stores the parameters of each axis block
+pass	HidFFB	condition is only active with a coefficient and its saturation
+known_issue_ub	HidFFB	set condition with a parameter block offset above the axis count does not corrupt the effect
+pass	HidFFB	set envelope stores the envelope and enables it
+pass	HidFFB	set ramp stores start and end level
+pass	HidFFB	parameter reports with invalid block index are ignored
+pass	HidFFB	unknown and unsupported reports are ignored
+pass	HidFFB	effect operation starts and stops an effect
+pass	HidFFB	start records the start time including the start delay
+pass	HidFFB	restarting a running effect restarts its time
+pass	HidFFB	start solo stops all other effects
+pass	HidFFB	device control enables and disables the actuators
+pass	HidFFB	device control pause and continue
+pass	HidFFB	device reset frees all effects and disables force feedback
+pass	HidFFB	characterization: stop all effects disables force feedback but keeps the effects running
+known_issue	HidFFB	stop all effects stops every running effect
+pass	HidFFB	device gain sets the global gain
+pass	HidFFB	report rate is measured
+pass	HidFFB	constant force rate only counts constant force reports
+pass	platform	simulated time drives HAL_GetTick and micros
+pass	platform	interrupt context can be simulated
+pass	platform	flash emulation stores values and reports missing addresses
+pass	platform	threads only run when explicitly executed and stop when they would block
+pass	platform	threads are unregistered when destroyed
+pass	platform	polling threads are stopped by the delay budget and advance time
+pass	StringCommandInterface	reply format of the command types
+pass	StringCommandInterface	reply format of the reply types
+pass	StringCommandInterface	reply format of the status types
+pass	StringCommandInterface	multiple replies of a command are separated by newlines
+pass	StringCommandInterface	multiple results are appended
+pass	StringCommandInterface	writes of other interfaces are formatted as reads of the new value
+pass	StringCommandInterface	reads of other interfaces are not mirrored
+known_issue	StringCommandInterface	writes following a read of another interface are still mirrored
+pass	StringCommandInterface	original command string of a result
+pass	CDC_CommandInterface	get command is answered on the serial port
+pass	CDC_CommandInterface	set command changes the value and is acknowledged
+pass	CDC_CommandInterface	address commands
+pass	CDC_CommandInterface	addressed instance is part of the reply
+pass	CDC_CommandInterface	command without instance is answered by all instances
+pass	CDC_CommandInterface	several commands are answered in order in one transfer
+pass	CDC_CommandInterface	line endings of terminal programs are accepted
+pass	CDC_CommandInterface	command is executed when the terminator arrives
+pass	CDC_CommandInterface	status results
+pass	CDC_CommandInterface	unknown commands are not answered but create an error
+pass	CDC_CommandInterface	commands with a not allowed access type are not answered
+pass	CDC_CommandInterface	internal commands
+pass	CDC_CommandInterface	replies longer than the usb buffer are sent completely in multiple transfers
+pass	CDC_CommandInterface	nothing is sent while usb is not connected
+pass	CDC_CommandInterface	writes from other interfaces are mirrored as value updates
+pass	CDC_CommandInterface	reads from other interfaces are not mirrored
+pass	CDC_CommandInterface	handler broadcasts are printed
+pass	CDC_CommandInterface	incomplete input is discarded after 500ms
+pass	CDC_CommandInterface	interface description
+pass	CDC_CommandInterface	ready to send depends on pending usb data
+pass	UART_CommandInterface	port is configured and receiving after creation
+pass	UART_CommandInterface	get command is answered on the uart
+pass	UART_CommandInterface	set command changes the value and is acknowledged
+pass	UART_CommandInterface	no received byte is lost
+pass	UART_CommandInterface	several commands are answered in order
+pass	UART_CommandInterface	consecutive queries are answered
+pass	UART_CommandInterface	unknown commands are not answered but create an error
+pass	UART_CommandInterface	commands of other interfaces and broadcasts are not sent on the uart
+pass	UART_CommandInterface	incomplete input is discarded after 2000ms
+pass	UART_CommandInterface	not ready to send while a transfer is active
+pass	UART_CommandInterface	cdc and uart interfaces work side by side
+pass	UART_CommandInterface	uart port is released when the interface is destroyed

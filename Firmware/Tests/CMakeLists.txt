@@ -156,17 +156,20 @@ endif()
 set(FFB_TESTS_EXCLUDE
 	"requesting the forces of a not existing axis is rejected"
 	CACHE STRING "Test cases excluded from ctest (list)")
-#  - CMSIS-DSP arm_spline_f32 reads one element past its input. Only reported by the address sanitizer.
+#  - CMSIS-DSP arm_spline_f32 reads one element past its input. Only reported by the address sanitizer,
+#    so these are only excluded in sanitizer builds with CMSIS-DSP.
 set(FFB_TESTS_EXCLUDE_SANITIZE
 	"reconstruction of a constant signal is constant"
 	"reconstruction of a step never leaves the range of the input values and reaches the target"
-	CACHE STRING "Additional test cases excluded from ctest in sanitizer builds (list)")
+	CACHE STRING "Additional test cases excluded from ctest in sanitizer builds with CMSIS-DSP (list)")
 
 set(FFB_TESTS_EXCLUDED ${FFB_TESTS_EXCLUDE})
-if(FFB_TESTS_SANITIZE)
+if(FFB_TESTS_SANITIZE AND USE_DSP)
 	list(APPEND FFB_TESTS_EXCLUDED ${FFB_TESTS_EXCLUDE_SANITIZE})
 endif()
 list(JOIN FFB_TESTS_EXCLUDED "," FFB_TESTS_EXCLUDED_ARG)
+# Read by tools/check_baseline.py --build-dir
+set(FFB_TESTS_EXCLUDED_ARG "${FFB_TESTS_EXCLUDED_ARG}" CACHE INTERNAL "Test cases excluded from ctest (doctest filter)")
 message(STATUS "OpenFFBoard tests: excluded from ctest: ${FFB_TESTS_EXCLUDED_ARG}")
 
 enable_testing()
@@ -174,4 +177,21 @@ if(FFB_TESTS_EXCLUDED_ARG)
 	add_test(NAME ffb_unit_tests COMMAND ffb_unit_tests "--test-case-exclude=${FFB_TESTS_EXCLUDED_ARG}")
 else()
 	add_test(NAME ffb_unit_tests COMMAND ffb_unit_tests)
+endif()
+
+# Every baseline test case (baseline/test_cases.txt) must still exist with its expected result
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_Interpreter_FOUND)
+	if(FFB_TESTS_SANITIZE)
+		set(FFB_TESTS_BASELINE_SANITIZE on)
+	else()
+		set(FFB_TESTS_BASELINE_SANITIZE off)
+	endif()
+	add_test(NAME ffb_unit_tests_baseline
+		COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_baseline.py
+			--exe $<TARGET_FILE:ffb_unit_tests>
+			"--exclude-list=${FFB_TESTS_EXCLUDED_ARG}"
+			--sanitize=${FFB_TESTS_BASELINE_SANITIZE})
+else()
+	message(STATUS "OpenFFBoard tests: Python 3 not found, baseline check not added to ctest")
 endif()

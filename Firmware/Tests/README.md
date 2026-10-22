@@ -60,6 +60,26 @@ build/ffb_unit_tests -s                     # also print successful assertions
 |---|---|---|
 | `FFB_TESTS_USE_DSP` | `AUTO` | Build with `USE_DSP_FUNCTIONS` and CMSIS-DSP like the hardware targets. `AUTO` enables it if the `Firmware/Libraries/CMSIS-DSP` submodule is checked out. With `OFF` the fallback math of the firmware is tested. Both variants must pass. |
 | `FFB_TESTS_SANITIZE` | `OFF` | Address and undefined behaviour sanitizers (Linux/macOS). |
+| `FFB_TESTS_EXCLUDE` | the `effectsForces` case | Test cases `ctest` excludes (`--test-case-exclude`). Only cases that abort the whole run because of a suspected defect belong here. |
+| `FFB_TESTS_EXCLUDE_SANITIZE` | the 2 spline cases | Additionally excluded in sanitizer builds with CMSIS-DSP (the address sanitizer reports an over-read inside `arm_spline_f32`). |
+
+The active exclusions are printed when CMake configures (`OpenFFBoard tests: excluded from ctest: ...`).
+When running the executable directly, pass the same list, e.g.
+`build/ffb_unit_tests --test-case-exclude="requesting the forces of a not existing axis is rejected"`.
+
+### Baseline check and coverage
+
+`ctest` also runs `tools/check_baseline.py` (if Python 3 is found). It checks that every test case listed in
+`baseline/test_cases.txt` still exists with its expected result (passes, fails as a known issue, or is skipped).
+New test cases are allowed. Run it directly with `python3 tools/check_baseline.py --build-dir build`.
+
+Line coverage per file, module and vendor code, with plain `gcov` (no other tools needed):
+
+```sh
+cmake -S . -B build-cov -DCMAKE_C_FLAGS=--coverage -DCMAKE_CXX_FLAGS=--coverage -DCMAKE_EXE_LINKER_FLAGS=--coverage
+cmake --build build-cov -j && ctest --test-dir build-cov
+python3 tools/coverage_report.py --build-dir build-cov
+```
 
 ## Directory layout
 
@@ -72,6 +92,8 @@ build/ffb_unit_tests -s                     # also print successful assertions
 | `platform/include` | Fake `main.h` (HAL), FreeRTOS, CMSIS headers and the `target_constants.h` of the test "target". |
 | `platform/src` | Implementation of the fake platform. |
 | `CMakeLists.txt` | Build. Contains the list of firmware sources under test. |
+| `baseline/test_cases.txt` | The test cases that existed before the suite was extended, with their expected result. Do not edit. |
+| `tools/` | `check_baseline.py` (baseline check), `coverage_report.py` (gcov summary). Python standard library only. |
 
 ## Test suites
 
