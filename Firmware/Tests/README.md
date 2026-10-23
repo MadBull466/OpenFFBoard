@@ -81,6 +81,10 @@ cmake --build build-cov -j && ctest --test-dir build-cov
 python3 tools/coverage_report.py --build-dir build-cov
 ```
 
+Code that can only be checked on the board (register setup, busy waits on peripheral flags, interrupt timing) is
+not tested. It is listed with a reason in `tools/coverage_exclusions.txt` and left out of the coverage numbers
+(`--no-exclusions` shows the raw numbers).
+
 ## Directory layout
 
 | Path | Content |

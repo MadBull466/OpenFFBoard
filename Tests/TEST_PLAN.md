@@ -1,6 +1,6 @@
 # Firmware Test Suite Plan v2: keep the suite, cover more code
 
-Keep every existing test in `Firmware/Tests/` and raise line coverage of the in-scope firmware from about 24% to about 70%. Work in phases, ordered by risk and by lines gained per effort. Permanent rules are in the root `CLAUDE.md`. The two that matter most: **`Firmware/` is read-only except `Firmware/Tests/`, and never push.**
+Keep every existing test in `Firmware/Tests/` and raise line coverage of the in-scope firmware from about 24% to **85% or more** (decided 2026-10-23; hardware-only code is not tested and not counted, see "Coverage goal"). Work in phases, ordered by risk and by lines gained per effort. Permanent rules are in the root `CLAUDE.md`. The two that matter most: **`Firmware/` is read-only except `Firmware/Tests/`, and never push.**
 
 ## Where we are (2026-10-21)
 
@@ -51,7 +51,13 @@ Measured as gcov executable lines of in-scope firmware (P0: about 8,160, of whic
 
 The cumulative percentages of P1 to P8 still use the old 8,900 denominator; with the measured 8,160 the same line gains would reach about 79% after P8. They are replaced by gcov numbers after each phase.
 
-The remaining 28% is mostly interrupt and hardware-only code, code gated for other targets, and defensive branches. Aim for 85% or more on every file a phase adds, and explain what is left.
+### Coverage goal (2026-10-23)
+
+- **Goal: 85% or more** of the in-scope firmware lines, measured with `tools/coverage_report.py`.
+- **Hardware-only code is not tested and not counted.** Hardware-only means behaviour that can only be observed on the board: register and clock setup, busy waits on peripheral flags, interrupt priority and timing, electrical behaviour. Each such range is listed with a reason in `Firmware/Tests/tools/coverage_exclusions.txt`; the script leaves it out of both the covered and the executable lines. Every entry is reviewed in the phase that adds it and recorded in `PROGRESS.md`.
+- Code that calls the HAL with logic around it (decisions, arguments, ordering, error handling) is not hardware-only: it is tested against the fakes, and each new fake reproduces the documented behaviour of the real ST HAL / FreeRTOS / TinyUSB function (the ST HAL source in `Targets/F407VG/Drivers` is the reference; cite the function in the fake).
+- Unreachable or defensive code is not excluded; it is explained in `PROGRESS.md`.
+- The ladder above (P1 to P8 gains as estimated) reaches about 79% of the measured 8,160 lines. To reach 85% every file a phase adds must reach **85% or more** of its countable lines, and each phase report states how far the total is from the goal.
 
 ## Executables
 
@@ -108,7 +114,7 @@ Estimated gain about 790 lines. Highest-risk code: the whole torque path.
 - **`Axis.cpp`:** power scaling and clipping to ±0x7fff, invert, range and degrees scaling, endstop torque, speed limiter, slew-rate limiter, idle spring, damper, friction and inertia strengths, expo curve, gear ratio, effect ratio, fade-in, emergency stop and reset, hands-off detection, config encode and decode round trip, commands with invalid values, driver and encoder selection.
 - **Integration:** PID report to effect to axis to `MockMotorDriver` torque, with position from `MockEncoder`.
 - **`AxesManager`, `FFBHIDMain` and its commands, `FFBWheel`, `FFBJoystick`, `FFBHIDExt`, `CustomMain`, `FFBoardMain`, `mainclass_chooser`:** axis count changes, HID gamepad report packing, FFB on and off, USB suspend and resume, class IDs unique and selectable.
-- **Done when:** gate passes, files at 70% or more, mutation spot-check at 80% or more. **Stop for my approval.**
+- **Done when:** gate passes, files at 85% or more (without hardware-only code), mutation spot-check at 80% or more. **Stop for my approval.**
 
 ### P3: Flash and persistence (new `ffb_flash_tests`)
 

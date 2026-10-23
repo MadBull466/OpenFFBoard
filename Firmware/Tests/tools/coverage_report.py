@@ -21,6 +21,11 @@ gcov only knows the files that are compiled into a test executable. For the othe
 executable lines is ESTIMATED from their code lines, scaled by the ratio gcov lines / code lines of the
 compiled files. Preprocessor branches are not evaluated, so the estimate is approximate.
 
+Hardware-only code (behaviour that can only be observed on the board: register and clock setup, busy waits on
+peripheral flags, interrupt timing) is not tested. It is listed in tools/coverage_exclusions.txt with a reason and
+is left out of the covered AND the executable line counts. Unreachable or defensive code is NOT excluded.
+Use --no-exclusions to see the raw numbers.
+
 Only the Python standard library and gcov are used. gcov runs in a temporary directory with --stdout,
 nothing is written to the build or source tree.
 """
@@ -36,6 +41,8 @@ import sys
 import tempfile
 
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_EXCLUSIONS = os.path.join(TOOLS_DIR, "coverage_exclusions.txt")
+COVERAGE_TARGET = 85.0  # % of in-scope lines without hardware-only code (Tests/TEST_PLAN.md)
 DEFAULT_FIRMWARE_DIR = os.path.normpath(os.path.join(TOOLS_DIR, "..", ".."))
 
 # Driver and MIDI code that is out of scope (Tests/PROGRESS.md, "Out-of-scope driver files")
@@ -167,18 +174,49 @@ def strip_comments_and_strings(text):
 	return "".join(out)
 
 
+def read_exclusions(path, fw):
+	"""Hardware-only exclusions: {rel path: [(first, last, reason)]}, last None = whole file.
+	Format, one per line: <path relative to Firmware/>:<first>-<last> <reason>  or  <path>:* <reason>"""
+	result = collections.OrderedDict()
+	if not path or not os.path.isfile(path):
+		return result
+	with open(path, encoding="utf-8") as f:
+		for number, line in enumerate(f, 1):
+			line = line.strip()
+			if not line or line.startswith("#"):
+				continue
+			m = re.match(r"^(\S+):(\*|(\d+)(?:-(\d+))?)\s+(.+)$", line)
+			if not m:
+				raise ValueError("%s:%d: expected '<file>:<first>-<last> <reason>' or '<file>:* <reason>'" % (path, number))
+			rel, whole, first, last, reason = m.group(1), m.group(2) == "*", m.group(3), m.group(4), m.group(5)
+			if not os.path.isfile(os.path.join(fw, rel)):
+				raise ValueError("%s:%d: no such file %s" % (path, number, rel))
+			if whole:
+				entry = (1, None, reason)
+			else:
+				entry = (int(first), int(last or first), reason)
+				if entry[1] < entry[0]:
+					raise ValueError("%s:%d: empty range" % (path, number))
+			result.setdefault(rel, []).append(entry)
+	return result
+
+
+def is_excluded(exclusions, rel, line):
+	return any(first <= line and (last is None or line <= last) for first, last, _ in exclusions.get(rel, []))
+
+
 def code_lines(path):
-	"""Lines with code: not blank, not a comment, not a preprocessor line, not only braces and
+	"""Line numbers with code: not blank, not a comment, not a preprocessor line, not only braces and
 	not part of a file scope initializer (tables like "const uint8_t desc[] = { ... };" are data)."""
 	with open(path, encoding="utf-8", errors="replace") as f:
 		text = strip_comments_and_strings(f.read())
 	text = re.sub(r"\boperator\s*[^\s\w(]+\s*\(", "operator(", text)  # operator=, operator== ...
-	count = 0
+	numbers = set()
 	depth = 0
 	parens = 0
 	assignment = False  # '=' seen at file scope (not in a parameter list) in the current declaration
 	initializer = False
-	for line in text.splitlines():
+	for number, line in enumerate(text.splitlines(), 1):
 		s = line.strip()
 		if s.startswith("#"):
 			continue
@@ -202,8 +240,8 @@ def code_lines(path):
 					initializer = False
 		if data or not s or re.fullmatch(r"[{}();,\s]*", s):
 			continue
-		count += 1
-	return count
+		numbers.add(number)
+	return numbers
 
 
 def pct(covered, total):
@@ -216,9 +254,13 @@ def main():
 	parser.add_argument("--firmware-dir", default=DEFAULT_FIRMWARE_DIR, help="the Firmware/ directory")
 	parser.add_argument("--gcov", default="gcov", help='gcov command, e.g. "llvm-cov gcov" for clang builds')
 	parser.add_argument("--headers", action="store_true", help="also list header files in the per-file table")
+	parser.add_argument("--exclusions", default=DEFAULT_EXCLUSIONS, help="hardware-only exclusion list")
+	parser.add_argument("--no-exclusions", action="store_true", help="count hardware-only code too (raw numbers)")
 	args = parser.parse_args()
 
 	fw = os.path.abspath(args.firmware_dir)
+	exclusions = {} if args.no_exclusions else read_exclusions(args.exclusions, fw)
+	excluded_lines = collections.OrderedDict()  # rel -> (excluded executable lines, of which covered)
 	gcda_files = []
 	for root, _, files in os.walk(args.build_dir):
 		gcda_files += [os.path.abspath(os.path.join(root, f)) for f in files if f.endswith(".gcda")]
@@ -234,6 +276,10 @@ def main():
 		if tier is None:
 			continue
 		lines = entry["lines"]
+		if rel in exclusions:
+			dropped = {n: c for n, c in lines.items() if is_excluded(exclusions, rel, n)}
+			lines = {n: c for n, c in lines.items() if n not in dropped}
+			excluded_lines[rel] = (len(dropped), sum(1 for c in dropped.values() if c > 0))
 		fns = entry["functions"]
 		rows.append((tier, module_of(rel, tier), rel, sum(1 for c in lines.values() if c > 0), len(lines),
 			sum(1 for c in fns.values() if c > 0), len(fns)))
@@ -271,7 +317,13 @@ def main():
 				in_scope.append(rel)
 	compiled = [rel for rel in in_scope if rel in measured]
 	not_compiled = [rel for rel in in_scope if rel not in measured]
-	code = {rel: code_lines(os.path.join(fw, rel)) for rel in in_scope}
+	code = {}
+	for rel in in_scope:
+		numbers = code_lines(os.path.join(fw, rel))
+		kept = set(n for n in numbers if not is_excluded(exclusions, rel, n))
+		if rel in exclusions and rel not in measured:
+			excluded_lines[rel] = (len(numbers) - len(kept), 0)
+		code[rel] = len(kept)
 	gcov_lines = sum(measured[r][4] for r in compiled)
 	code_compiled = sum(code[r] for r in compiled)
 	ratio = gcov_lines / code_compiled if code_compiled else 1.0
@@ -290,6 +342,20 @@ def main():
 	fw_cov = sum(measured[r][3] for r in fw_only if r in measured)
 	fw_total = sum(measured[r][4] if r in measured else estimated[r] for r in fw_only)
 	print("- Without tier A (firmware only): %d of about %d (about %s)" % (fw_cov, fw_total, pct(fw_cov, fw_total)))
+	if args.no_exclusions:
+		print("- Hardware-only exclusions: NOT applied (--no-exclusions)")
+	else:
+		print("- Hardware-only code left out of these numbers: %d files, %d lines (see below). Target: %.0f %% of all in-scope sources" % (
+			len(excluded_lines), sum(v[0] for v in excluded_lines.values()), COVERAGE_TARGET))
+
+	if excluded_lines:
+		print("\n### Hardware-only code (not counted; lines: gcov executable lines for compiled files, code lines otherwise)\n")
+		print("| File | Lines | Of which covered anyway | Ranges and reasons |")
+		print("|---|---|---|---|")
+		for rel, (n, c) in excluded_lines.items():
+			reasons = "; ".join("%s: %s" % ("whole file" if last is None else "%d-%d" % (first, last), reason)
+				for first, last, reason in exclusions[rel])
+			print("| `%s` | %d | %d | %s |" % (rel, n, c, reasons))
 
 	print("\n### Not compiled (0 %, estimated executable lines)\n")
 	print("| Module | File | Code lines | Est. executable lines |")
