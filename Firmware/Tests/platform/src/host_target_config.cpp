@@ -49,4 +49,20 @@ const OutputPin debugpin = OutputPin(*GP1_GPIO_Port, GP1_Pin);
 
 namespace HostTarget {
 MockCANPort &canPort() { return hostCanPort; }
+
+void resetTargetConfig() {
+	// Handles: back to the state after MX_SPIx_Init / MX_I2C1_Init / MX_ADCx_Init (HAL_xxx_Init sets State READY)
+	hspi1 = {(void *)0x40013000, {}, HAL_SPI_STATE_READY, 0};
+	hspi2 = {(void *)0x40003800, {}, HAL_SPI_STATE_READY, 0};
+	hspi3 = {(void *)0x40003C00, {}, HAL_SPI_STATE_READY, 0};
+	hi2c1 = {(void *)0x40005400, {}, HAL_I2C_STATE_READY, 0};
+	huart3 = {};
+	hadc1 = {(void *)0x40012000, {ADC_RESOLUTION_12B}};
+	hadc2 = {(void *)0x40012100, {ADC_RESOLUTION_12B}};
+	// Release the motor uart in case a test left a transfer unfinished (like external_uart in HostPlatform::reset)
+	motor_uart.giveSemaphore(true);
+	motor_uart.giveSemaphore(false);
+	hostCanPort.resetForTest();
+	// Not reset (private state, see HostTarget.h): external_spi / motor_spi / ext3_spi, i2cport, motor_uart device
+}
 } // namespace HostTarget

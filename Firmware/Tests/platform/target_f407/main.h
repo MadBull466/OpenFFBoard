@@ -97,13 +97,16 @@ typedef struct {
 	__IO uint32_t CR1;	//!< Bit 0 CEN: counter enabled
 	__IO uint32_t DIER; //!< Bit 0 UIE: update interrupt enabled
 	__IO uint32_t SR;
-	__IO uint32_t CCER; //!< Capture/compare outputs. __HAL_TIM_DISABLE only clears CEN while all are 0
+	__IO uint32_t CCER; //!< Capture/compare outputs. __HAL_TIM_DISABLE only clears CEN while no CCxE / CCxNE bit is set
 	__IO uint32_t CNT;
 	__IO uint32_t PSC;
 	__IO uint32_t ARR;
 } TIM_TypeDef;
 #define TIM_CR1_CEN 0x00000001U
 #define TIM_DIER_UIE 0x00000001U
+// stm32f4xx_hal_tim.h: CC1E|CC2E|CC3E|CC4E and CC1NE|CC2NE|CC3NE (stm32f407xx.h bit values)
+#define TIM_CCER_CCxE_MASK 0x00001111U
+#define TIM_CCER_CCxNE_MASK 0x00000444U
 
 typedef enum {
 	HAL_TIM_STATE_RESET = 0x00U,

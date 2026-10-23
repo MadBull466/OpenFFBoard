@@ -90,6 +90,7 @@ not tested. It is listed with a reason in `tools/coverage_exclusions.txt` and le
 | Path | Content |
 |---|---|
 | `cases/test_*.cpp` | Test cases. Every file is picked up automatically. |
+| `cases_target/test_*.cpp` | Test cases of `ffb_target_tests` (F407 feature set, real `Axis`). |
 | `mocks/` | Implementations of firmware class interfaces for tests. |
 | `fakes/` | Headers replacing firmware headers (currently only `Axis.h`). |
 | `support/` | Fixtures and helpers: `FirmwareFixture.h`, `FfbFixture.h`, `PidHost.h`, `TestHelpers.h`, `Host*.h`. |
@@ -178,10 +179,15 @@ Rules:
   is reported as *"Should have failed but didn't"* and the marker must be removed.
   `KNOWN_ISSUE_UB` is the same for undefined behaviour and is skipped in sanitizer builds.
 
+  In `ffb_target_tests` the fixture checks for HAL functions without a fake with a `CHECK` in its destructor. In a
+  `KNOWN_ISSUE` test that check would also count as the expected failure, so such tests call
+  `REQUIRE_ALL_HAL_MODELLED()` right before the assertion that describes the defect whenever they could reach a
+  HAL call (see `ffb_target_tests` below).
+
 List all known issues:
 
 ```sh
-grep -rn "KNOWN_ISSUE\|KNOWN ISSUE" cases/
+grep -rn "KNOWN_ISSUE\|KNOWN ISSUE" cases/ cases_target/
 ```
 
 ### Adding firmware sources to the tests
@@ -192,12 +198,53 @@ grep -rn "KNOWN_ISSUE\|KNOWN ISSUE" cases/
 3. Do not add `#ifdef` for tests to firmware sources. If a class can not be used on the host because of its
    dependencies, give it a test double in `fakes/` or a stub in `platform/src/host_stubs.cpp`.
 
+## `ffb_target_tests`: F407 feature set with the real `Axis`
+
+A second executable built by the same `CMakeLists.txt` and run by `ctest`. It compiles the firmware with the
+feature set of the F407 target without the motor drivers and MIDI, so `Axis.cpp`, `AxesManager`, the main classes
+(`FFBWheel`, `FFBJoystick`, `FFBHIDExt`, ...), the class registries, inputs and the USB device class are real code.
+Later phases add system, inputs, encoders, buses and CAN.
+
+* **Test cases:** `cases_target/test_*.cpp` (own glob; `cases/` belongs to `ffb_unit_tests`).
+* **Feature header:** `platform/target_f407/target_constants.h` (copy of the F407 header without `TMC4671DRIVER`,
+  `PWMDRIVER`, `ODRIVE`, `VESC`, `SIMPLEMOTION`, `RMDCAN`, `TMCDEBUG`, `MIDI`). `platform/target_f407` comes before
+  `platform/include`; it also has its own fake `main.h` (HAL types with the fields the F407 sources use, the F407 pin
+  names) and `cmsis_os.h`. There is no `fakes/` directory: the real `Axis.h` is used. The platform sources are
+  compiled again for this executable because they depend on the feature header.
+* **Fake platform of the target:** `support/HostTarget.h` (implemented in `platform/src/host_target.cpp`): timers
+  (`timerUpdate`, `timerRunning`), EXTI (`triggerExti`), GPIO levels (`setPin`, `outputPin`), chip ids, recorded
+  resets and DFU requests, the USB device task (`queueUsbEvent`). `platform/src/host_target_config.cpp` replaces
+  `cpp_target_config.cpp`: the same SPI/I2C/UART port objects, but the global `canport` is a `MockCANPort`
+  (`HostTarget::canPort()`) until the fake HAL CAN exists. `platform/src/host_stubs_target.cpp` stubs sources that are
+  not compiled yet (`cppmain.cpp`, `global_callbacks.cpp`, `voltagesense.cpp`: `getIntV`/`getExtV`/`getChipTemp`
+  return 0, do not assert them) and the SPI and I2C HAL functions.
+* **Unmodelled-HAL guard:** a HAL function without a fake (SPI, I2C) records its name in
+  `HostTarget::state().unmodelledHalCalls` and returns `HAL_ERROR`; `TargetFixture` fails the test at the end if the
+  list is not empty. In `KNOWN_ISSUE` tests use `REQUIRE_ALL_HAL_MODELLED()` before the defect assertion.
+* **Fixtures** (`support/AxisFixture.h`): `TargetFixture` resets everything (`FirmwareFixture` plus `HostTarget`,
+  `PersistentStorage` startup flag, global HID handler, `mainclass`, `usb_device`; `HostTarget.h` lists the global port
+  objects that can not be reset yet). `AxisFixture` creates real `Axis` objects with `MockMotorDriver` and
+  `MockEncoder` selected through the public `driverChooser` / `encoderChooser`, a real `EffectsCalculator`, `HidFFB`
+  and a `PidHost`; `update()` / `run(ms)` run the FFB cycle like `FFBHIDMain::updateControl`.
+* **`DELETES_FFBHIDMAIN`:** test cases that delete an `FFBHIDMain` main class carry this marker. Deleting one is
+  undefined behaviour (suspected bug 24: `HID_GamepadReport_base` has no virtual destructor), so they run in normal
+  builds and are skipped in sanitizer builds.
+* **Exclusions:** `FFB_TARGET_TESTS_EXCLUDE` (default empty) and `FFB_TARGET_TESTS_EXCLUDE_SANITIZE` (default empty,
+  only in sanitizer builds), printed at configure time like `FFB_TESTS_EXCLUDE`.
+* **Host-vs-target differences of the build:**
+  * `-funsigned-char`: `char` is unsigned on the ARM target (`ffb_unit_tests` keeps the host's signed `char`).
+  * Target include order: `Axis.cpp` is compiled with `-include math.h`. On the shipped targets it gets `<math.h>`
+    through `TMC4671.h` -> `SPI.h`, so `abs(float)` uses the float overload; without the drivers the host would call
+    `::abs(int)`. This also supplies the math functions `Axis.cpp` uses without including `<cmath>`.
+  * Clang only: `-Wno-c++11-narrowing` for `Axis.cpp` (`clip<int8_t>` in `setEqGain`; GCC only warns).
+
 ## Limitations
 
 * The host is a 64 bit little endian machine with a different compiler backend. Stack usage, timing, alignment
   faults and float to integer conversions of out of range values are not covered.
 * No preemption. Race conditions between threads and interrupts can not be found.
-* `Axis`, the main classes, the real motor drivers and encoders and `SystemCommands` are not compiled yet.
+* The real motor drivers are not compiled (out of scope). `Axis`, the main classes and `SystemCommands` are only
+  compiled in `ffb_target_tests`.
 * The USB descriptors are not parsed. The report layouts are compared with constants in the tests.
 
 ## Next steps

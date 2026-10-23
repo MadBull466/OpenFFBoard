@@ -9,6 +9,7 @@
 
 #include "FFBWheel.h"
 #include "mainclass_chooser.h"
+#include "usb_descriptors.h"
 
 #include <cstring>
 #include <type_traits>
@@ -77,10 +78,12 @@ TEST_CASE_FIXTURE(AxisFixture, "an emergency stop sends zero torque and puts the
 	host.setConstantForce(cf, 10000);
 	run(1100);
 	REQUIRE(driver().lastTorque != 0);
+	driver().torqueHistory.clear();
 
 	axis().emergencyStop(false);
 
-	CHECK(driver().lastTorque == 0);
+	// Axis::emergencyStop sends 0 torque itself first, then the driver's emergency stop stops the motor (turn(0) again)
+	CHECK(driver().torqueHistory == std::vector<int16_t>{0, 0});
 	CHECK(driver().emergencyStopCalls == 1);
 	CHECK(driver().emergency);
 	CHECK(control.emergency);
@@ -169,6 +172,22 @@ TEST_CASE("the HID gamepad report of a main class is deleted through a base clas
 		KNOWN_ISSUE("FFBHIDMain owns its HID_GamepadReport<T> as unique_ptr<HID_GamepadReport_base>, which has no "
 					"virtual destructor: deleting a main class is undefined behaviour. The first CHECK fails")) {
 	CHECK(std::has_virtual_destructor<HID_GamepadReport_base>::value);
+}
+
+TEST_CASE_FIXTURE(TargetFixture, "the USB device task initialises TinyUSB and runs tud_task once per queued USB event") {
+	USBdevice dev(&usb_devdesc_ffboard_composite, usb_cdc_conf, &usb_ffboard_strings_default);
+	dev.registerUsb();
+	CHECK(usb_device == &dev);
+
+	HostRtos::runUntilBlocked(dev); // tusb_init, then tud_task waits for events
+	CHECK(HostTarget::state().usbInits == 1);
+	CHECK(HostTarget::state().usbEventsProcessed == 0);
+
+	HostTarget::queueUsbEvent(dev.GetHandle());
+	HostRtos::runUntilBlocked(dev);
+
+	CHECK(HostTarget::state().usbEventsProcessed == 1); // one tud_task pass, then it blocks again
+	CHECK(HostRtos::pendingNotifications(dev) == 0);
 }
 
 } // TEST_SUITE

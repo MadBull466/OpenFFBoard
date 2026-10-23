@@ -11,6 +11,8 @@
 #define HOSTTEST_HOSTTARGET_H_
 
 #include "main.h"
+#include "FreeRTOS.h"
+#include "task.h"
 
 #include <cstdint>
 #include <string>
@@ -28,11 +30,12 @@ namespace HostTarget {
 
 struct State {
 	// --- Recorded ---
-	uint32_t systemResets = 0;		  //!< NVIC_SystemReset calls (the fake returns, the target would reset)
-	uint32_t dfuReboots = 0;		  //!< RebootDFU calls
-	uint32_t dfuExits = 0;			  //!< ExitDFU calls
+	uint32_t systemResets = 0;		  //!< NVIC_SystemReset calls, including those of RebootDFU / ExitDFU (the fake returns, the target would reset)
+	uint32_t dfuReboots = 0;		  //!< RebootDFU calls (each also counts as a system reset, like main.c)
+	uint32_t dfuExits = 0;			  //!< ExitDFU calls (each also counts as a system reset, like main.c)
 	uint32_t usbInits = 0;			  //!< tusb_rhport_init calls (tusb_init)
-	std::vector<std::string> unmodelledHalCalls; //!< HAL functions without a fake that were called (see host_stubs_target.cpp)
+	uint32_t usbEventsProcessed = 0;  //!< tud_task_ext calls that returned after consuming a queued USB event
+	std::vector<std::string> unmodelledHalCalls; //!< HAL functions without a fake that were called (see host_stubs_target.cpp), and triggerExti on a pin without EXTI line
 
 	// --- Controlled by the test ---
 	uint32_t uid[3] = {0x00410032, 0x34385111, 0x30383632}; //!< HAL_GetUIDw0/1/2 (96 bit unique id)
@@ -47,9 +50,24 @@ State &state();
  * and stopped (HAL_TIM_Base_Init: State READY, ARR = Period, PSC = Prescaler, CNT 0), inputs with pull-up high
  * (DIN0-7, E_STOP released), all other inputs low, outputs at their initial level (only SPI1_SS1 set),
  * chip ids default.
- * Does not touch the CAN port (MockCANPort) state other than clearing its records.
+ * Also resets the target configuration (resetTargetConfig) and the stub data (resetStubs).
  */
 void reset();
+
+/**
+ * Resets the objects of the host target configuration (host_target_config.cpp), called by reset():
+ *  - the global `canport` (MockCANPort::resetForTest: records, speed, start/stop, port users, semaphores)
+ *  - the HAL handles hspi1-3, hi2c1, huart3, hadc1/2 (Init and State as after the CubeMX init)
+ *  - the transfer semaphores of motor_uart
+ * NOT reset (private firmware state, no public reset): the SPI ports external_spi / motor_spi / ext3_spi
+ * (freePins, current_device, takenExclusive, isTakenFlag), i2cport (port users, config) and the device pointer of
+ * motor_uart. A test that takes a CS pin or a port must release it again (freeCsPin / freePort). To be replaced by
+ * a full reset when the fake HAL SPI (F4) and I2C (F5) arrive in P5/P6.
+ */
+void resetTargetConfig();
+
+/** Resets the data of the link stubs (host_stubs_target.cpp): ADC1_BUF / ADC2_BUF to 0. Called by reset() */
+void resetStubs();
 
 // --- Timers ---
 /**
@@ -72,8 +90,20 @@ bool outputPin(const GPIO_TypeDef *port, uint16_t pin);
 /**
  * Simulates an EXTI interrupt on a pin. Models HAL_GPIO_EXTI_IRQHandler: calls HAL_GPIO_EXTI_Callback(pin)
  * in interrupt context. Set the new pin level with setPin before.
+ * The interrupt is raised regardless of the edge and of the pin level, like a contact bounce or glitch would.
+ * On the target the lines are (MX_GPIO_Init): BUTTON_A rising, FLAG rising, E_STOP both edges, ENCODER_Z falling.
+ * A test that models a real edge must set the level accordingly. Pins without EXTI line are rejected: no callback,
+ * recorded in unmodelledHalCalls (the fixture check fails).
  */
 void triggerExti(uint16_t pin);
+
+// --- USB device task ---
+/**
+ * Queues one USB event for the TinyUSB task (USBdevice thread): notifies the task. The next tud_task_ext call of
+ * that task returns once (usbEventsProcessed + 1) instead of blocking. Run it with HostRtos::runUntilBlocked.
+ * Note: the host RTOS restarts USBdevice::Run from the start, so tusb_init (usbInits) is called on every activation.
+ */
+void queueUsbEvent(TaskHandle_t usbTask);
 
 // --- Target configuration (host replacement of cpp_target_config.cpp) ---
 /** The global `canport` of the firmware. A MockCANPort until the fake HAL CAN exists (P7) */

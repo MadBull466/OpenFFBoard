@@ -44,7 +44,23 @@ volatile uint32_t *getAnalogBuffer(ADC_HandleTypeDef *hadc, uint8_t *chans) {
 	return NULL;
 }
 
-/** Same as HAL_TIM_PeriodElapsedCallback / _CPP in global_callbacks.cpp: dispatch to all TimerHandlers */
+namespace HostTarget {
+void resetStubs() {
+	for (auto &v : ADC1_BUF) {
+		v = 0;
+	}
+	for (auto &v : ADC2_BUF) {
+		v = 0;
+	}
+}
+} // namespace HostTarget
+
+/**
+ * Same as HAL_TIM_PeriodElapsedCallback / _CPP in global_callbacks.cpp: dispatch to all TimerHandlers.
+ * Not modelled: the F407 main.c overrides HAL_TIM_PeriodElapsedCallback and handles TIM7 (the HAL tick timer,
+ * HAL_IncTick) itself; only other timers reach HAL_TIM_PeriodElapsedCallback_CPP. The host has no TIM7 handle
+ * (the tick is the simulated time of HostPlatform).
+ */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	for (TimerHandler *c : TimerHandler::timerHandlers) {
 		c->timerElapsed(htim);
@@ -59,6 +75,8 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 }
 
 // ---------------- voltagesense.cpp ----------------
+// Stubs returning 0: no test may assert these values (vint, vext, temp commands of SystemCommands) before
+// voltagesense.cpp is compiled with the fake ADC in P4.
 int32_t getIntV() { return 0; }
 int32_t getExtV() { return 0; }
 int32_t getChipTemp() { return 0; }

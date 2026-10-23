@@ -30,12 +30,21 @@ struct State {
 	uint32_t cdcWrites = 0;				//!< Amount of tud_cdc_n_write calls
 	uint32_t cdcFlushes = 0;			//!< Amount of tud_cdc_n_write_flush calls
 	std::vector<HidReport> hidReports;	//!< All HID IN reports sent
+
+	std::string cdcRx;					//!< Received CDC bytes not read yet. Served by tud_cdc_n_available / tud_cdc_n_read
 };
 
 State &state();
 
 /** Restores defaults and clears all recorded data */
 void reset();
+
+/**
+ * Queues bytes received on CDC interface 0 (host -> device). The firmware reads them with tud_cdc_n_read.
+ * Does not call tud_cdc_rx_cb: the test calls the receiver (e.g. FFBoardMain::cdcRcvReady(0)) like
+ * global_callbacks.cpp does.
+ */
+void cdcReceive(const std::string &data);
 
 } // namespace HostUsb
 

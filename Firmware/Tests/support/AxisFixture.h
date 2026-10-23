@@ -6,6 +6,9 @@
  * TargetFixture  Resets the fake platform (FirmwareFixture) and the F407 part of it (HostTarget): timers,
  *                GPIO idle levels, chip ids, the CAN port. Checks at the end that the test did not reach a HAL
  *                function without a fake (HostTarget::state().unmodelledHalCalls).
+ *                That check is a CHECK in the fixture destructor. In a KNOWN_ISSUE (should_fail) test it would
+ *                count as the expected failure, so such tests call REQUIRE_ALL_HAL_MODELLED() right before the
+ *                assertion that describes the defect whenever they could reach a HAL call (see below).
  * AxisFixture    Real Axis objects with MockMotorDriver and MockEncoder selected through the public class
  *                choosers (Axis::driverChooser / Axis::encoderChooser), a real EffectsCalculator and HidFFB,
  *                and a simulated PID host. update() runs one FFB cycle the way FFBHIDMain::updateControl
@@ -47,6 +50,23 @@
 #define DELETES_FFBHIDMAIN doctest::description("Deletes an FFBHIDMain: undefined behaviour (HID_GamepadReport_base has no virtual destructor), skipped with sanitizers")
 #endif
 
+/**
+ * Fails the test (REQUIRE) if a HAL function without a fake was reached so far. Use it in KNOWN_ISSUE tests
+ * before the assertion that describes the defect: the first failing assertion must be the defect, not the
+ * fixture's unmodelled-HAL check at the end of the test.
+ */
+#define REQUIRE_ALL_HAL_MODELLED()                                                                                 \
+	do {                                                                                                           \
+		INFO("first HAL function without a fake: "                                                                 \
+			 << (HostTarget::state().unmodelledHalCalls.empty() ? std::string() : HostTarget::state().unmodelledHalCalls.front())); \
+		REQUIRE(HostTarget::state().unmodelledHalCalls.empty());                                                   \
+	} while (0)
+
+/** Access to the protected PersistentStorage::startupComplete (set by restoreFlashStartupCb, no public reset) */
+struct PersistentStorageStartup : PersistentStorage {
+	static void reset() { startupComplete = false; }
+};
+
 extern FFBoardMain *mainclass; // cppmain.cpp (stub in host_stubs_target.cpp)
 extern USBdevice *usb_device;  // global_callbacks.cpp (stub in host_stubs_target.cpp)
 
@@ -59,8 +79,14 @@ struct TargetFixture : FirmwareFixture {
 		resetTarget();
 	}
 
+	/**
+	 * Resets the F407 part: HostTarget::reset (timers, GPIO, chip ids, canport, HAL handles, ADC stub buffers),
+	 * PersistentStorage::startupComplete (false like after boot), MockMotorDriver::creatable, the global HID
+	 * handler, mainclass and usb_device. See HostTarget::resetTargetConfig for global objects that are NOT reset.
+	 */
 	static void resetTarget() {
 		HostTarget::reset();
+		PersistentStorageStartup::reset();
 		MockMotorDriver::creatable() = true;
 		UsbHidHandler::globalHidHandler = nullptr; // Not reset by the firmware when a handler is deleted
 		mainclass = nullptr;
@@ -122,6 +148,13 @@ struct AxisFixture : TargetFixture {
 	 * One FFB cycle like FFBHIDMain::updateControl -> AxesManager::update / updateTorque:
 	 * prepareForUpdate of all axes, effect calculation, then the drive torque unless the emergency stop is active.
 	 * Does not advance the time.
+	 * Not modelled from updateControl: control.request_update_disabled (moved to update_disabled there),
+	 * control.resetEncoder (resetPosZero there), the HID report and the clip LED pulse during the emergency stop.
+	 * Use a real main class (FFBWheel) to test those.
+	 *
+	 * Note for hands-off detection tests: Axis::updateHandsOffState (Axis.cpp:1339) keeps a function-local
+	 * static check_counter that persists across axes and test cases and can not be reset. Run at least 11 cycles
+	 * before asserting the hands-off state.
 	 */
 	void update() {
 		if (control.update_disabled) {

@@ -71,11 +71,11 @@ void reset() {
 	HAL_GPIO_WritePin(SPI1_SS1_GPIO_Port, SPI1_SS1_Pin, GPIO_PIN_SET);
 	initTimer(htim3, tim3Regs, 0, 0xffff); // MX_TIM3_Init: encoder mode, Period 0xffff
 	initTimer(htim13, tim13Regs, 84 - 1, 100); // MX_TIM13_Init: 1 MHz, Period 100
-	MockCANPort &can = canPort();
-	can.sent.clear();
-	can.filters.clear();
-	can.sendResult = true;
+	resetTargetConfig();
+	resetStubs();
 }
+
+void queueUsbEvent(TaskHandle_t usbTask) { xTaskNotifyGive(usbTask); }
 
 bool timerRunning(const TIM_HandleTypeDef *htim) { return (htim->Instance->CR1 & TIM_CR1_CEN) != 0; }
 bool timerUpdateIrqEnabled(const TIM_HandleTypeDef *htim) { return (htim->Instance->DIER & TIM_DIER_UIE) != 0; }
@@ -95,12 +95,26 @@ void setPin(GPIO_TypeDef *port, uint16_t pin, bool high) { port->IDR = high ? (p
 bool outputPin(const GPIO_TypeDef *port, uint16_t pin) { return (port->ODR & pin) != 0; }
 
 void triggerExti(uint16_t pin) {
+	// MX_GPIO_Init configures only these pins as EXTI lines. Any other pin can not raise an interrupt on the target
+	if (pin != BUTTON_A_Pin && pin != FLAG_Pin && pin != E_STOP_Pin && pin != ENCODER_Z_Pin) {
+		targetState.unmodelledHalCalls.emplace_back("triggerExti on a pin without EXTI line");
+		return;
+	}
 	// HAL_GPIO_EXTI_IRQHandler (stm32f4xx_hal_gpio.c): clears the pending bit and calls HAL_GPIO_EXTI_Callback
 	HostPlatform::IsrContext isr;
 	HAL_GPIO_EXTI_Callback(pin);
 }
 
 } // namespace HostTarget
+
+namespace {
+/** Models __HAL_TIM_DISABLE (stm32f4xx_hal_tim.h): clears CEN only if no channel output (CCxE / CCxNE) is enabled */
+void halTimDisable(TIM_HandleTypeDef *htim) {
+	if ((htim->Instance->CCER & TIM_CCER_CCxE_MASK) == 0U && (htim->Instance->CCER & TIM_CCER_CCxNE_MASK) == 0U) {
+		htim->Instance->CR1 &= ~TIM_CR1_CEN;
+	}
+}
+} // namespace
 
 extern "C" {
 
@@ -118,9 +132,7 @@ HAL_StatusTypeDef HAL_TIM_Base_Start(TIM_HandleTypeDef *htim) {
 
 /** Models HAL_TIM_Base_Stop: counter disabled (__HAL_TIM_DISABLE: only if no CCx output is enabled); State READY */
 HAL_StatusTypeDef HAL_TIM_Base_Stop(TIM_HandleTypeDef *htim) {
-	if (htim->Instance->CCER == 0) {
-		htim->Instance->CR1 &= ~TIM_CR1_CEN;
-	}
+	halTimDisable(htim);
 	htim->State = HAL_TIM_STATE_READY;
 	return HAL_OK;
 }
@@ -139,9 +151,7 @@ HAL_StatusTypeDef HAL_TIM_Base_Start_IT(TIM_HandleTypeDef *htim) {
 /** Models HAL_TIM_Base_Stop_IT: update interrupt disabled, counter disabled (if no CCx output enabled); State READY */
 HAL_StatusTypeDef HAL_TIM_Base_Stop_IT(TIM_HandleTypeDef *htim) {
 	htim->Instance->DIER &= ~TIM_DIER_UIE;
-	if (htim->Instance->CCER == 0) {
-		htim->Instance->CR1 &= ~TIM_CR1_CEN;
-	}
+	halTimDisable(htim);
 	htim->State = HAL_TIM_STATE_READY;
 	return HAL_OK;
 }
@@ -161,9 +171,18 @@ uint32_t HAL_RCC_GetHCLKFreq(void) { return SystemCoreClock; }
 
 /** Models NVIC_SystemReset (core_cm4.h). Recorded. Returns, unlike on the target */
 void NVIC_SystemReset(void) { targetState.systemResets++; }
-/** RebootDFU / ExitDFU of Targets/F407VG/Core/Src/main.c (set a magic value in backup RAM and reset). Recorded */
-void RebootDFU(void) { targetState.dfuReboots++; }
-void ExitDFU(void) { targetState.dfuExits++; }
+/**
+ * RebootDFU / ExitDFU of Targets/F407VG/Core/Src/main.c: write a magic value to backup RAM (not modelled) and end
+ * in NVIC_SystemReset(), so they are also counted in systemResets.
+ */
+void RebootDFU(void) {
+	targetState.dfuReboots++;
+	NVIC_SystemReset();
+}
+void ExitDFU(void) {
+	targetState.dfuExits++;
+	NVIC_SystemReset();
+}
 
 // ---------------- TinyUSB device (usbd.c, tusb.c) used by the F407 sources ----------------
 
@@ -175,9 +194,14 @@ bool tusb_rhport_init(uint8_t, const tusb_rhport_init_t *) {
 
 /**
  * Models tud_task_ext with an RTOS (usbd.c): waits on the USB event queue (osal_queue_receive, here forever)
- * and processes the events. The fake has no USB events, so the calling thread blocks.
+ * and processes the events. The queue is modelled by the task notification of the calling (USB) task.
  */
-void tud_task_ext(uint32_t, bool) { ulTaskNotifyTake(pdTRUE, portMAX_DELAY); }
+void tud_task_ext(uint32_t, bool) {
+	// One queued event (HostTarget::queueUsbEvent: a task notification) is consumed per call; without one the
+	// calling task blocks like on the empty event queue. Event processing itself is not modelled (Tier B, P9).
+	ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+	targetState.usbEventsProcessed++;
+}
 
 /** Models tud_speed_get: speed of the current connection (set by the test, default full speed) */
 tusb_speed_t tud_speed_get(void) { return (tusb_speed_t)targetState.usbSpeed; }

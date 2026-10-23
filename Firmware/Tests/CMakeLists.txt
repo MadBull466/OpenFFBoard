@@ -267,14 +267,16 @@ set(TARGET_PLATFORM_SOURCES
 	platform/src/host_stubs_target.cpp
 )
 
-# Axis.cpp compiles only with workarounds (no firmware change allowed, see Tests/PROGRESS.md F14):
-#  - it uses fabsf, powf, sqrtf, sinf, M_PI without including <cmath>. With CMSIS-DSP the DSP headers include
-#    math.h; without them it does not compile (F14: -include cmath, only when the DSP is off).
+# Axis.cpp: target include order and compile workarounds (no firmware change allowed, see Tests/PROGRESS.md F14):
+#  - -include math.h (both DSP variants): on the shipped targets (arm-none-eabi-g++, TMC4671DRIVER on) Axis.cpp gets
+#    <math.h> transitively via TMC4671.h -> SPI.h:17. The libstdc++ math.h wrapper does `using std::abs;`, so
+#    abs(float) in Axis.cpp (setExpo, updateHandsOffState) calls the float overload. ffb_target_tests has the
+#    drivers off and would only see ::abs(int). Including math.h first restores the target's overload set.
+#    It also provides fabsf, powf, sqrtf, sinf and M_PI, which Axis.cpp uses without including <cmath> (with
+#    CMSIS-DSP the DSP headers include math.h; without them Axis.cpp would not compile: F14).
 #  - setEqGain calls clip<int8_t>(gain, -120, 120): the braced return in clip() (cppmain.h) narrows int to
 #    int8_t. GCC warns, clang rejects it (-Wc++11-narrowing is an error by default). The value is in range.
-if(NOT USE_DSP)
-	set_property(SOURCE ${FFBOARD_DIR}/Src/Axis.cpp APPEND PROPERTY COMPILE_OPTIONS -include cmath)
-endif()
+set_property(SOURCE ${FFBOARD_DIR}/Src/Axis.cpp APPEND PROPERTY COMPILE_OPTIONS -include math.h)
 set_property(SOURCE ${FFBOARD_DIR}/Src/Axis.cpp APPEND PROPERTY COMPILE_OPTIONS $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-c++11-narrowing>)
 
 file(GLOB TARGET_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cases_target/test_*.cpp)
@@ -344,7 +346,14 @@ endif()
 # Test cases of ffb_target_tests excluded from ctest (doctest --test-case-exclude). Same rule as FFB_TESTS_EXCLUDE:
 # only cases that abort the whole run because of a suspected defect belong here.
 set(FFB_TARGET_TESTS_EXCLUDE "" CACHE STRING "Test cases of ffb_target_tests excluded from ctest (list)")
-list(JOIN FFB_TARGET_TESTS_EXCLUDE "," FFB_TARGET_TESTS_EXCLUDED_ARG)
+# Additionally excluded in sanitizer builds (like FFB_TESTS_EXCLUDE_SANITIZE). Cases deleting an FFBHIDMain skip
+# themselves with DELETES_FFBHIDMAIN and need no entry here.
+set(FFB_TARGET_TESTS_EXCLUDE_SANITIZE "" CACHE STRING "Test cases of ffb_target_tests additionally excluded from ctest in sanitizer builds (list)")
+set(FFB_TARGET_TESTS_EXCLUDED ${FFB_TARGET_TESTS_EXCLUDE})
+if(FFB_TESTS_SANITIZE)
+	list(APPEND FFB_TARGET_TESTS_EXCLUDED ${FFB_TARGET_TESTS_EXCLUDE_SANITIZE})
+endif()
+list(JOIN FFB_TARGET_TESTS_EXCLUDED "," FFB_TARGET_TESTS_EXCLUDED_ARG)
 message(STATUS "OpenFFBoard tests: ffb_target_tests excluded from ctest: ${FFB_TARGET_TESTS_EXCLUDED_ARG}")
 if(FFB_TARGET_TESTS_EXCLUDED_ARG)
 	add_test(NAME ffb_target_tests COMMAND ffb_target_tests "--test-case-exclude=${FFB_TARGET_TESTS_EXCLUDED_ARG}")

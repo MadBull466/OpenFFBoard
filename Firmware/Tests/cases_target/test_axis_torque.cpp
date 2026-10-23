@@ -941,18 +941,17 @@ TEST_CASE_FIXTURE(TorqueFixture, "the expo is limited to +-127") {
 	CHECK(axisGet(Axis_commands::expo) == -127);
 }
 
-TEST_CASE_FIXTURE(TorqueFixture, "an expo of 25 bends the game torque curve with exponent 1.5" *
-		KNOWN_ISSUE("Axis.cpp:1026: abs((float)val / expoScaler) resolves to the int abs(): the fraction is truncated, "
-					"so the exponent is 1 + floor(|val| / 50): expo 1..49 has no effect, 127 gives 3 instead of 3.54 "
-					"(Axis.h:558 documents 0.28 to 3.54). The first CHECK fails")) {
+// Axis.cpp:1026 calls abs() on a float. On the target the float overload comes in through a transitive
+// <math.h> include (TMC4671.h -> SPI.h); ffb_target_tests compiles Axis.cpp with -include math.h to match.
+// Without it ::abs(int) would truncate the exponent (host-vs-target caveat, see PROGRESS).
+TEST_CASE_FIXTURE(TorqueFixture, "an expo of 25 bends the game torque curve with exponent 1.5") {
 	axisCommand(Axis_commands::expo, CMDtype::set, 25);
 	finishFadeIn();
 	cycle(16384);
 	CHECK_NEAR(torque(), 32767.0 * std::pow(16384.0 / 32767.0, 1.5), 2);
 }
 
-TEST_CASE_FIXTURE(TorqueFixture, "the largest expo of 127 bends the game torque curve with exponent 3.54" *
-		KNOWN_ISSUE("Axis.cpp:1026: int abs() truncates 127 / 50 = 2.54 to 2, exponent 3 instead of 3.54. The first CHECK fails")) {
+TEST_CASE_FIXTURE(TorqueFixture, "the largest expo of 127 bends the game torque curve with exponent 3.54") {
 	axisCommand(Axis_commands::expo, CMDtype::set, 127);
 	finishFadeIn();
 	cycle(16384);
