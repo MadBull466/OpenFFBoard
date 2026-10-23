@@ -7,7 +7,7 @@
 ## Current state
 
 - **Current phase:** P2 (Axis and main classes, new `ffb_target_tests`), started 2026-10-23. P1 approved 2026-10-23.
-- **Phase status:** batch 0 done (`ffb_target_tests`, 11 smoke cases, gate green in 6 variants; see "P2 batch 0"). Module plan written ("P2 plan"); 4 module agents (A-D) running.
+- **Phase status:** batch 0 done (`ffb_target_tests`, 11 smoke cases, gate green in 6 variants; see "P2 batch 0"). Build done and merged ("P2 results"); next: review by fresh reviewer agents, fixes, gate, stop for approval.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** `7a35d2f1` (P1 review fixes). Earlier: `a79ead3a` P1 tests before review, `540d358a` / `bfdadc7f` PROGRESS records.
 - **Last updated:** 2026-10-23
@@ -26,7 +26,7 @@
 | Batch 0 (plan v1) items done before plan v2 | n/a | n/a | F1 done, F3 header approved and committed | yes, 2026-10-21 | `8861c911` (F1), `ef4101cf` (F3) |
 | P0 Safety net | `ffb_unit_tests` | 0 (measured baseline 2,136 lines, 26.2 %) | done | yes, 2026-10-22 | `2461c51e` |
 | P1 Gaps in compiled files | `ffb_unit_tests` | about 470 (measured +504: 2,640 lines, 32.4 %) | done | yes, 2026-10-23 | `a79ead3a` (tests), `7a35d2f1` (review fixes) |
-| P2 Axis and main classes | `ffb_target_tests` (new) | about 790 | in progress (batch 0 done) | | |
+| P2 Axis and main classes | `ffb_target_tests` (new) | about 790 (measured: total 50.5 %) | in progress (build done, review next) | | |
 | P3 Flash and persistence | `ffb_flash_tests` (new) | about 365 | not started | | |
 | P4 System, callbacks, misc | `ffb_target_tests` | about 460 | not started | | |
 | P5 Buttons and analog | `ffb_target_tests` | about 775 | not started | | |
@@ -329,6 +329,21 @@ Executable `ffb_target_tests`, new files in `cases_target/` only. Coverage after
 | C axes + integration | `test_axes_manager.cpp`, `test_ffb_integration.cpp` | `AxesManager.cpp`, path through `HidFFB`/`EffectsCalculator`/`Axis` | axis count changes, update/updateTorque, emergency stop over all axes, usb suspend/resume, commands; end to end: PID reports (constant, spring, damper, periodic, conditions per axis) -> effects -> axis -> `MockMotorDriver` torque with the position from `MockEncoder` |
 | D main classes | `test_ffbhidmain.cpp`, `test_main_classes.cpp` | `FFBHIDMain.cpp`, `FFBHIDMain_commmands.cpp`, `FFBWheel.cpp`, `FFBJoystick.cpp`, `FFBHIDExt.cpp`, `CustomMain.cpp`, `FFBoardMain.cpp`, `mainclass_chooser.cpp` | HID gamepad report packing (axes, buttons, double buffer), FFB on/off, update rate/timer, usb init/suspend/resume, button/analog source selection commands, main class info/ids unique and selectable, CustomMain |
 
+## P2 results (2026-10-23, build step; review pending)
+
+4 module agents (A axis torque, B axis config, C axes manager + integration, D main classes), merged by the main agent (each workspace only added its own files; no shared helper or CMake change). 377 new cases in 6 files in `cases_target/` (A 103/102 depending on DSP, B 80, C 81, D 114); `ffb_target_tests` now 388 cases.
+
+| Group | Files | Mutation spot-check (passing tests only) |
+|---|---|---|
+| A | `test_axis_torque.cpp` | 36/37 `Axis.cpp` (survivor: hands-off timing, unobservable because of bug 35) |
+| B | `test_axis_config.cpp` | 32/32 `Axis.cpp` |
+| C | `test_axes_manager.cpp`, `test_ffb_integration.cpp` | 31/31 (14 `AxesManager.cpp`, 17 along `Axis`/`EffectsCalculator`/`HidFFB`) |
+| D | `test_ffbhidmain.cpp`, `test_main_classes.cpp` | 70/72 (2 equivalent) |
+
+Gate after the merge (documented exclusions): `ffb_unit_tests` 646/0/4 (default, nodsp, clang23), 643/0/7 (san, clang23-san), 645/0/5 (nodsp-san), baseline OK; `ffb_target_tests` 386 passed / 0 failed / 2 skipped (default, clang23), 387/0/2 (nodsp), 292 passed / 96 skipped (sanitizer builds: `DELETES_FFBHIDMAIN` cases, decision 2026-10-23, plus 1 KNOWN_ISSUE_UB); ctest 3/3 everywhere; no sanitizer findings; no warnings from the new files; no duplicate test names; 3 random orders green.
+
+Coverage (gcov, GCC 16, DSP on, both executables): `Axis.cpp` 673/677 (99.4 %, was 43 %), `AxesManager.cpp` 62/62, `FFBHIDMain.cpp` 167/173 (96.5 %), `FFBHIDMain_commmands.cpp` 76/76, `FFBWheel`, `FFBJoystick`, `FFBHIDExt`, `CustomMain`, `FFBoardMain` 100 %. All in-scope sources **4,163 of about 8,243 (50.5 %)**, was 32.4 % after P1 (part of the gain is incidental coverage of files compiled for the main classes). Hardware-only candidates: none in the P2 files (batch 0 proposed `USBdevice.cpp:33-38`, tier B, decide in review).
+
 ## P2 batch 0 (2026-10-23)
 
 New executable `ffb_target_tests` (CMake block appended, nothing above it changed; `ffb_unit_tests` compile commands identical in all 6 build dirs, checked against copies saved before the change).
@@ -440,6 +455,19 @@ Functions never run by any test (counts of never-run / total): ErrorHandler 15/2
 | 22 | Filters | default `Biquad()` | Leaves type/Fc/Q/peakGain/coefficients uninitialised; setters and `calcBiquad` on it read them; an invalid `BiquadType` leaves the coefficients unset. No test (UB) | no |
 | 23 | CANPort | `CAN.cpp:25-29` `handleToPort` | No `break`: two ports with the same handle return the last registered. Test "characterization: with two ports on the same handle the last registered port is returned" | no |
 | 24 | RingBufferWrapper | `peek_as`/`get_as` | Only compile for byte types (`static_cast<uint8_t*>(&data)`); `peek_as` returns an uninitialised `T` on failure. Never instantiated in the firmware | no |
+| 25 | AxesManager | `AxesManager.cpp:59-65` `getAxisValues` | Axes with the None encoder are skipped, so the next axis moves into the previous HID slot (Y reported as X; analog values move into X). Shift intended, or report 0 for that slot? | no |
+| 26 | Axis | `Axis.cpp:226, 514-516` | An unknown stored driver id is reported by `drvtype` and saved again although the driver is None | no |
+| 27 | Axis | `Axis.cpp:557-563` | Invalid `enctype` reports 0 but keeps the old encoder; an encoder in use by another axis leaves the second axis with a nullptr encoder but enctype 2 | no |
+| 28 | Axis | `Axis.cpp:535-538` | `setDrvType` sets `control->usb_disabled = false` when USB is NOT connected. Inverted? | no |
+| 29 | Axis | `Axis.cpp:498-506, 1287, 1009-1011, 1223` | Value handling of commands: power keeps 16 bits (not limited to 0x7fff, see bug 32); 8-bit settings keep the low byte; eq gain wraps through `int8_t` before the clip (200 -> -56); range masked to 15 bits and 0 restores the previous range; reduction 0 wraps to 256 | no |
+| 30 | Axis | `Axis.cpp:1207-1216` | `curpos`/`curspd`/`curaccel` report `metric.previous` (one cycle late) | no |
+| 31 | Axis | `eeprom_addresses.h`, `Axis.cpp:1399` | Config word comments ("0-2 ENC, 3-5 DRV", "0-6 enc, 7-12 Mot") do not match the code (bits 0-5 encoder, 6-11 driver) | no |
+| 32 | Axis | `Axis.cpp:944-950` | Speed limiter strength differs by orders of magnitude between the CMSIS-DSP (`arm_pid` on deg/s error) and the fallback (error scaled by 0x7fff/maxspeed) build. Which scaling is intended? | no |
+| 33 | Axis | idle spring | Clip at 10000 can never act (max 255*35 = 8925); internal damper on by default (strength 30); `scaleEncValue(angle, 0)` returns (0x7fff, 0.0) | no |
+| 34 | Axis | `Axis.cpp:1339, 1347` | Hands-off counter is a function `static` shared by all axes, checks every 11 calls; `abs(float)` resolves to int `abs` (see bugs 34/35) | no |
+| 35 | FFBHIDMain | `send_report` | Result of `tud_hid_report` ignored, buffers swapped anyway: a rejected report is lost until the next change or the 100-cycle resend | no |
+| 36 | FFBHIDMain / SelectableInputs | `addBtnType`/`addAinType` | Do not update the `btntypes`/`aintypes` mask, so an added source is not saved to flash | no |
+| 37 | FFBWheel | before `usbInit` | HidFFB default direction mask 0x02: a direction-90 constant force acts at half strength with the opposite sign until `usbInit` | no |
 | 21 | HidFFB / CDC | `FirmwareFixture::resetGlobals` (test infrastructure) | Does not reset `CDCcomm`'s private `usb_busy_retry`; `test_cdc.cpp` works around it with its own fixture. Shared fix in `support/FirmwareFixture.h`? | no |
 
 New tests that describe unclear behaviour use the `characterization:` name prefix and get a row here. Tests that describe intended behaviour but fail use `KNOWN_ISSUE` and get a row under "Suspected firmware bugs".
@@ -471,6 +499,19 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 | 24 | FFBHIDMain | `Inc/ffb_defs.h:135` (`HID_GamepadReport_base` without virtual destructor), deleted via `std::unique_ptr` in `~FFBHIDMain` (`FFBHIDMain.cpp:64`) | Deleting any FFBHIDMain main class (e.g. on main class change) is UB: ASan new-delete-type-mismatch | KNOWN_ISSUE on the type trait (no UB executed); tests that delete a main class are marked `DELETES_FFBHIDMAIN` and skipped in sanitizer builds (decided 2026-10-23) |
 | 25 | Axis | `Axis.cpp` | No `#include <cmath>`: compiles only with CMSIS-DSP (`-include cmath` added for `ffb_target_tests` with DSP off, F14) | Build |
 | 26 | Axis | `Axis.cpp:1415` `clip<int8_t>(gain,-120,120)` | Narrowing inside `clip()` (`cppmain.h`): ill-formed C++, GCC warns, clang rejects (`-Wno-c++11-narrowing` for clang, `Axis.cpp` only, `ffb_target_tests` only). No runtime effect | Build |
+| 27 | Axis | `Axis.cpp:519-525` `setDrvType` | A valid but not creatable driver id leaves `drv == nullptr`; `getEncType`, `setEncType`, `updateDriveTorque`, `emergencyStop` would dereference it | KNOWN_ISSUE "selecting a driver that cannot be created keeps a driver on the axis" (`test_axis_config.cpp`) |
+| 28 | Axis | `Axis.cpp:366` `saveFlash` | `(uint16_t)(handsOffAccelThreshold*1000.0)` truncates: 985 of the values 0..1999 lose 1 per save (10 is saved as 9) | KNOWN_ISSUE "a hands-off acceleration threshold set by command survives a flash save and restore" |
+| 29 | Axis | `Axis.cpp:1320` | The hands-off accel get reply truncates the float: 251 reads back as 250 | KNOWN_ISSUE "the hands-off acceleration threshold reads back the value that was set" |
+| 30 | Axis | `Axis.cpp:875` vs `Axis.h:356-361, 473` | `startForceFadeIn(start, fadeTime)` is documented as "over fadeTime", but `fadeTime/samplerate` is added per cycle: the fade takes (1-start)/fadeTime s (zeroenc 1.5 s, usbResume/estop reset 2 s instead of 0.5 s) | KNOWN_ISSUE (B) "zeroenc fades the force in within the 0.5 s fade time" and (A) "after a USB resume the torque is back to full within the documented fade time of 0.5 s" |
+| 31 | Axis | `Axis.cpp:294-299` `restoreFlash` | Stored filter profile used unchecked as index into the 4-element `filterSpeedCst`/`filterAccelCst`: out-of-bounds read (aborts under `_GLIBCXX_ASSERTIONS`) | Skipped KNOWN ISSUE (crash) "a stored filter profile out of range is limited to the last profile like the command does" |
+| 32 | Axis | `Axis.cpp:498-501, 892-894` | `setPower` accepts any `uint16_t`; the torque is clipped to +-power and passed to `MotorDriver::turn(int16_t)`: power 40000 with full force sends -25536 (**motor reverses**) | KNOWN_ISSUE "the driver never receives a torque above 0x7fff or with the wrong sign when the power is above 0x7fff" |
+| 33 | Axis | `Axis.cpp:917-921` with `618` | **Safety:** after an emergency stop reset the slew limiter starts from `metric.previous.torque` (torque before the stop), not from 0: first torque after reset 9899 with slew rate 100; bypasses slew limit and fade-in. `usbSuspend` probably the same | KNOWN_ISSUE "after an emergency stop reset the slew rate limiter starts from the zero torque of the stopped motor" |
+| 34 | Axis | `Axis.cpp:1026` | `abs((float)val / expoScaler)` resolves to integer `abs`: exponent 1 + floor(|val|/50); expo 1..49 has no effect, 127 gives 3 instead of the documented 3.54 (`Axis.h:558`) | 2 KNOWN_ISSUE (expo 25, expo 127) |
+| 35 | Axis | `Axis.cpp:1332-1392`, `Axis.h:455` | Hands-off detection computes `handsOff` but nothing reads it ("Safety override ... cut torque" never happens; unused since commit 40c65391) | 2 KNOWN_ISSUE (speed override, steady wheel) |
+| 36 | Axis | `Axis.cpp:656` `getLastScaledEnc` | Clip in float: 0x7fffffff becomes 2^31; position >= 1.0 converts out of range to int32 (UB). Host gives INT_MIN (opposite end in the HID report), ARM saturates. UBSan does not check float-cast-overflow | KNOWN_ISSUE_UB "an axis beyond the end of its range reports the largest gamepad position" (host-vs-target) |
+| 37 | FFBHIDMain | `FFBHIDMain.cpp:250` `setReportRate` | `clip(rateidx, 0, ffbrates.dividers.size())` allows index 4 of a 4-element array (command `hidsendspd=4`): out-of-bounds read at 256/260/262 (aborts under `_GLIBCXX_ASSERTIONS`; on target garbage dividers, possible division by 0) | Skipped KNOWN ISSUE (crash) "hidsendspd with an index beyond the last rate selects the last rate" |
+| 38 | SelectableInputs | `SelectableInputs.cpp:44-46, 76-78` | `addbtn`/`addain` duplicate check compares the class id (`getInfo().id`) with the selection id: never matches, a second identical source is created | 2 KNOWN_ISSUE (`test_ffbhidmain.cpp`) |
+| 39 | FFBHIDMain | `FFBHIDMain.cpp:361-364` with `298` | A new critical error calls `emergencyStop(true)`, but `true` means reset: **a critical error releases an active emergency stop** instead of triggering one | KNOWN_ISSUE "a critical error puts the main class into emergency stop" |
 | V1 | FreeRTOS wrappers (**vendor, tier A**) | `csemaphore.cpp:117-131` | `CountingSemaphore(0, x)` or initial > max throws before `handle` is set; `~Semaphore` then deletes an uninitialised handle (UB). Exception builds only (target uses `CPP_FREERTOS_NO_EXCEPTIONS`/`configASSERT`) | Seen with mutants; no test (would crash) |
 | V2 | FreeRTOS wrappers (**vendor, tier A**) | `cthread.cpp:184-187` | `~Thread` of a never-started thread calls `vTaskDelete` with an uninitialised handle (NULL deletes the calling task on FreeRTOS). Also on target | Code reading; no test (UB) |
 | V3 | FreeRTOS wrappers (**vendor, tier A**) | `cmutex.cpp`, `csemaphore.cpp` | On a kernel create failure (NULL), the destructors call `vSemaphoreDelete(NULL)` (real FreeRTOS asserts) | Code reading; no test |
