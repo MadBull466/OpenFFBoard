@@ -129,6 +129,13 @@ TEST_CASE_FIXTURE(RtosFixture, "the start guard lock is released after starting 
 	CHECK(secondStarted);
 }
 
+// Vendor issue (tier A, report only, PROGRESS V4): after Run returns, TaskFunctionAdapter deletes the task
+// (cthread.cpp:211), but Thread::handle keeps the old value. ~Thread (cthread.cpp:186) then calls
+// vTaskDelete(handle) a second time on the already deleted task: double delete / use after free on the
+// target. The fake only compares the pointer with its task list and ignores it, so the two tests below
+// pass on the host. Related (V2): Thread::handle (thread.hpp:412) is uninitialised until Start(), so
+// destroying a thread that was never started passes an indeterminate handle to vTaskDelete. No test
+// destroys an unstarted thread for that reason.
 TEST_CASE_FIXTURE(RtosFixture, "a thread whose Run returns calls Cleanup and deletes its task") {
 	CleanupThread thread;
 	REQUIRE(thread.Start());
@@ -178,6 +185,10 @@ TEST_CASE_FIXTURE(RtosFixture, "DelayUntil keeps a fixed period independent of t
 	CHECK(wakeups == std::vector<TickType_t>{100, 113, 123, 133});
 }
 
+// This and the ResetDelayUntil test rely on the fake restarting Run() from the beginning on every
+// runUntilBlocked (a blocked delay leaves Run by an exception). The thread keeps its DelayUntil state
+// between activations like a real task keeps it across a delay, so the observed wake up times are the
+// ones a real kernel would produce for the same tick sequence.
 TEST_CASE_FIXTURE(RtosFixture, "DelayUntil does not wait if the wake up time already passed") {
 	std::vector<TickType_t> wakeups;
 	FunctionThread thread([&](FunctionThread &self) {
@@ -325,7 +336,9 @@ TEST_CASE_FIXTURE(RtosFixture, "TakeFromISR takes an available semaphore once") 
 	{
 		HostPlatform::IsrContext isr;
 		CHECK(sem.TakeFromISR(&woken));
-		CHECK(woken == pdFALSE); // The flag is passed to the kernel, which sets it
+		// Only shows that the wrapper forwards the pointer to xSemaphoreTakeFromISR (the fake writes pdFALSE
+		// into it); the value itself says nothing about a real kernel
+		CHECK(woken == pdFALSE);
 		CHECK_FALSE(sem.TakeFromISR(&woken));
 	}
 	CHECK_FALSE(sem.Take(0));
@@ -340,6 +353,11 @@ TEST_CASE_FIXTURE(RtosFixture, "a semaphore given from an ISR can be taken from 
 	CHECK(sem.TakeFromISR(&woken));
 }
 
+// Not tested: the argument checks of CountingSemaphore (maxCount == 0, initialCount > maxCount,
+// csemaphore.cpp:117-131). In this exception build they throw before handle is assigned, and the base
+// destructor ~Semaphore then calls vSemaphoreDelete on the uninitialised handle (vendor issue V1,
+// undefined behaviour; it crashed the run in the mutation check). On the target (CPP_FREERTOS_NO_EXCEPTIONS)
+// they halt in configASSERT instead.
 TEST_CASE_FIXTURE(RtosFixture, "counting semaphore starts with the initial count") {
 	CountingSemaphore sem(5, 2);
 	CHECK(sem.Take(0));

@@ -6,16 +6,18 @@
 
 ## Current state
 
-- **Current phase:** P1 (gaps in the 24 compiled files), in progress since 2026-10-22. P0 done and approved.
-- **Phase status:** review done, fixes in progress. Stop for approval at the end of P1.
+- **Current phase:** P1 done, **awaiting my approval** at the P1 gate. P2 not started.
+- **Phase status:** build, review and fixes done; gate green in 6 variants (see "P1 results").
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
-- **Last commit:** `d08e0e1b` (P0 safety net, author rewritten). Earlier: `d12483c8` Phase 1 plan, `1876353e` F1, `2d91beed` F3 header.
-- **Last updated:** 2026-10-21
-- **Last session summary:** Installed plan v2 (`CLAUDE.md`, `Tests/TEST_PLAN.md`, this file) in this checkout and merged the add-test-suite progress into it. Did P0: baseline list (318 cases with expected results) + `tools/check_baseline.py` (also run by `ctest`), F1b (spline exclusion only in sanitizer builds with CMSIS-DSP), `tools/coverage_report.py` (plain gcov), README section. Gate green in 7 variants (GCC/clang, DSP on/off, ASan+UBSan) and with the `host-sanitize` preset. Measured baseline coverage: 2,136 of about 8,160 in-scope lines (26.2 %); compiled files 79.5 %. Read `.github/` (read-only): no workflow runs the host tests. Confirmed bug 5 in the source. Nothing under `Firmware/` outside `Firmware/Tests/` changed.
+- **Last commit:** see the phase checklist (P1 row). Earlier: `93b82a32` P1 tests before review, `32cc2ce1` / `17e09826` PROGRESS records.
+- **Last updated:** 2026-10-23
+- **Last session summary:** P1 built by 5 parallel agents in isolated scratch workspaces (A command, B ffb, C errors/storage, D filters/small, E transport), merged in `93b82a32`, reviewed by 3 fresh reviewer agents (r1-r3), fixed by the authors and merged again. 332 new cases in 15 new files, no existing test file changed. Coverage of the 24 compiled files 79.5 % -> 98.3 %; all in-scope sources 26.2 % -> 32.4 %. 16 new suspected firmware bugs (7-22), 4 vendor tier A issues (V1-V4), NEEDS REVIEW #4-#24. The session scratchpad (`/tmp`) was wiped between 2026-10-22 and 2026-10-23; the agents rebuilt their workspaces from the repo and re-applied their fixes (no work lost: everything merged was in git).
 
 ## Next action
 
-**P1 in progress.** Build committed (`93b82a32`). Review done (3 fresh reviewers, see "Review outcomes"); the 5 author agents are applying the fixes in their scratch workspaces (`scratchpad/p1/<group>`; interrupted once by an API limit on 2026-10-22, resumed 2026-10-23). Next: merge fixes (C is the only one changing `host_freertos.cpp`/`HostRtos.h`, E changes the UART fake), gate in all variants, coverage, mutation re-check of the 6 survivors, update Review outcomes, commit, stop for approval.
+**Waiting for my review of P1** (see "P1 results", "Review outcomes", the new rows under "Suspected firmware bugs" and "NEEDS REVIEW items"). Do not start P2 without my go-ahead.
+
+After approval: P2 (Axis and main classes, new `ffb_target_tests`) per `Tests/TEST_PLAN.md`: batch 0 first (F3 header is committed; F7, F10, F12, F14), gate, then the module agents.
 
 ## Phase checklist
 
@@ -25,7 +27,7 @@
 | Review of the existing suite | n/a | n/a | complete | | |
 | Batch 0 (plan v1) items done before plan v2 | n/a | n/a | F1 done, F3 header approved and committed | yes, 2026-10-21 | `1876353e` (F1), `2d91beed` (F3) |
 | P0 Safety net | `ffb_unit_tests` | 0 (measured baseline 2,136 lines, 26.2 %) | done | yes, 2026-10-22 | `d08e0e1b` |
-| P1 Gaps in compiled files | `ffb_unit_tests` | about 470 | in progress | | |
+| P1 Gaps in compiled files | `ffb_unit_tests` | about 470 (measured +504: 2,640 lines, 32.4 %) | done, awaiting approval | | `93b82a32` (tests), P1 final commit (git log `Tests: P1 review fixes`) |
 | P2 Axis and main classes | `ffb_target_tests` (new) | about 790 | not started | | |
 | P3 Flash and persistence | `ffb_flash_tests` (new) | about 365 | not started | | |
 | P4 System, callbacks, misc | `ffb_target_tests` | about 460 | not started | | |
@@ -62,6 +64,7 @@
 | 2026-10-21 | New `KNOWN_ISSUE` tests must fail on the assertion that describes the defect | `should_fail` hides a failure on the wrong line |
 | 2026-10-21 | Stop after P0 and P1 for approval, then at the end of each phase unless I say "continue through P<n>" | I keep control of scope and usage |
 | 2026-10-21 | Answer A (plan v1 session): commit identity `git -c user.name=MadBull.Ben -c user.email=`. Used for `d12483c8`, `1876353e`, `2d91beed`. **Conflicts with Q8 / `CLAUDE.md` v2 (`Claude Code`)**; the P0 commit follows `CLAUDE.md` v2. See open question 4 | My answer to question A |
+| 2026-10-23 | P1 review: 3 fresh reviewer agents (r1-r3), fixes applied by the authoring agents, merged by the main agent (no file changed by two groups). Bug 21 (line 536) moved from NEEDS REVIEW to suspected bugs because the code comment states the intent. The ringbuffer KNOWN_ISSUE_UB case became a skipped case because it read indeterminate memory in the test itself | Review r1-r3 |
 | 2026-10-22 | Use `MadBull.Ben` for all commits. The 2 P0 commits were rewritten (local rebase, author reset): `88dc8516` -> `d08e0e1b`, `0bbec1cb` -> `24417fa9`. `CLAUDE.md` identity line updated. P0 approved, start P1 | My decision |
 | 2026-10-21 | `Firmware/Tests/` was moved out of the repo by accident and restored by me. Re-check after restore: no diff against HEAD under `Firmware/`, `ffb_unit_tests` with the exclusion = 316 passed / 0 failed / 2 skipped | Incident record |
 | 2026-10-21 | F3 feature header `Firmware/Tests/platform/target_f407/target_constants.h` approved and committed (`2d91beed`): F407 copy minus `MIDI`, `TMCDEBUG`, `RMDCAN`, `TMC4671DRIVER`, `PWMDRIVER`, `ODRIVE`, `VESC`, `SIMPLEMOTION`. Not used by any target yet; for `ffb_target_tests` its directory goes before `platform/include` | My review of the diff |
@@ -322,9 +325,9 @@ Executable `ffb_unit_tests`, new `cases/test_*.cpp` files only. Gaps taken from 
 
 Not in P1: the skipped "unknown id" case stays skipped (known issue 3). Done when: gate green, at least 85 % line coverage per P1 file, mutation spot-check kills at least 80 %.
 
-## P1 results (2026-10-22, build step; review in progress)
+## P1 results (2026-10-22/23)
 
-Commit `93b82a32` (tests and fake changes, before review). 329 new cases in 15 new files; no existing test file changed.
+Commit `93b82a32` (tests and fake changes, before review): 329 new cases. After the review fixes: **332 new cases** in 15 new files (C 62, E 114, others unchanged); no existing test file changed.
 
 | Group | Files | Cases | Own mutation spot-check |
 |---|---|---|---|
@@ -333,29 +336,30 @@ Commit `93b82a32` (tests and fake changes, before review). 329 new cases in 15 n
 | C errors/storage | `test_error_handler.cpp`, `test_persistent_storage.cpp` | 61 | 28/29 (survivor equivalent on the fake: `xTaskResumeFromISR` vs `vTaskResume`) |
 | D filters/small | `test_filters.cpp`, `test_device_interfaces_gaps.cpp`, `test_rtos_wrappers.cpp` | 72 | 55/58 (3 equivalent) |
 | E transport | `test_uart.cpp`, `test_ringbuffer.cpp`, `test_can_handler.cpp`, `test_usb_hid_handler.cpp`, `test_cdc.cpp` | 112 | 63/65 (1 equivalent, 1 hidden by FIFO clamping of the fake) |
-| **Total** | | **329** | **207/217 = 95 %** (target 80 %) |
+| **Total** | | **329 (332 after review)** | **207/217 = 95 %** (target 80 %); after review C's survivor at `ErrorHandler.cpp:177` is killed too (fake records the resume API) |
 
 All 6 review survivors (CmdParser:53, :156, EffectsCalculator:235, :1275, HidFFB:423, HidCommandInterface:92) are now killed.
 
 Shared fake changes (additive, needed by the tests):
 - `platform/src/host_freertos.cpp`, `support/HostRtos.h`: `HostRtos::findTask(name)`, `isSuspended(task)`, `semaphoreCount()`; `vTaskSuspend(NULL)` suspends the caller and a task that suspends itself now blocks like on the target (needed for `ErrorPrinter::Run`; no other compiled code suspends itself).
 - `platform/src/host_platform.cpp`, `support/HostPlatform.h`: UART call counters per HAL function, last timeout/size, `rxData` for blocking `HAL_UART_Receive`, injectable results (`initResult`, `txResult`, `rxArmResult`, `abortResult`); `HAL_UART_Receive_DMA` arms the buffer like `_IT`, `HAL_UART_AbortReceive` disarms it. Defaults keep the old behaviour.
+- After review: C added `HostRtos::resumeStats()` (counts `vTaskResume`, `xTaskResumeFromISR`, and `vTaskResume` called in ISR context, which is only recorded); `xTaskResumeFromISR` no longer calls `vTaskResume`. E made the UART fake complete a receive only after the armed size (like the HAL), `AbortReceive` resets the count, and documented the remaining fake limits in `HostPlatform.h`.
 - Fixes during integration: two unused helper functions (`-Wunused-function` in `test_can_handler.cpp`, `test_ringbuffer.cpp`). No warnings from the new files with GCC 16 or clang 23.
 
 ### Gate after integration (`ffb_unit_tests`, all with the documented exclusions)
 
 | Variant | doctest | ctest | Baseline check |
 |---|---|---|---|
-| default (GCC 16, DSP on) | 643 passed, 0 failed, 4 skipped | 2/2 | OK, 317 checked, 329 new (0 failed) |
-| nodsp | 643 / 0 / 4 | 2/2 | OK |
-| san (ASan+UBSan, DSP on; + 2 spline cases excluded) | 639 / 0 / 8 | 2/2 | OK, 315 checked |
-| nodsp-san | 641 / 0 / 6 | 2/2 | OK |
-| clang23 | 643 / 0 / 4 | 2/2 | OK |
-| clang23-san | 639 / 0 / 8 | 2/2 | OK |
+| default (GCC 16, DSP on) | 646 passed, 0 failed, 4 skipped | 2/2 | OK, 317 checked, 332 new (0 failed) |
+| nodsp | 646 / 0 / 4 | 2/2 | OK |
+| san (ASan+UBSan, DSP on; + 2 spline cases excluded) | 643 / 0 / 7 | 2/2 | OK, 315 checked |
+| nodsp-san | 645 / 0 / 5 | 2/2 | OK |
+| clang23 | 646 / 0 / 4 | 2/2 | OK |
+| clang23-san | 643 / 0 / 7 | 2/2 | OK |
 
-No sanitizer findings. The 2 extra skips (all builds) are new crash-documenting cases (`doctest::skip()`, bugs 17 and 18); sanitizer builds also skip the new `KNOWN_ISSUE_UB` case.
+Final state after the review fixes. No sanitizer findings. The 2 extra skips (all builds) are new crash/UB-documenting cases (`doctest::skip()`, bugs 17 and 18). Full suite in random order (seeds 5, 77, 31337): 646 passed, 0 failed each. No compiler warnings from the new files (GCC 16, clang 23).
 
-### Coverage after P1 (gcov, GCC 16, DSP on)
+### Coverage after P1 (gcov, GCC 16, DSP on; unchanged after the review fixes)
 
 - Compiled files: **2,640 of 2,687 lines (98.3 %)**, was 79.5 %. +504 lines (plan estimate about 470).
 - All in-scope sources: **2,640 of about 8,160 (32.4 %)**, was 26.2 %. Without tier A: 2,531 of about 7,340 (34.5 %).
@@ -403,7 +407,7 @@ Functions never run by any test (counts of never-run / total): ErrorHandler 15/2
 | 19 | UART | `UART.cpp:154, 168, 187` | One `isTakenFlag` for tx and rx: any rx completion clears it while a tx transfer runs, so `isTaken()`/`UART_CommandInterface::readyToSend()` report a free port while the tx semaphore is taken | no |
 | 20 | ringbuffer | `ringbuffer.c:72-88` | `ringBufferAppendOne/Multiple` do not check free space: appending to a full raw buffer loses all data (buffer looks empty). Only reachable through the raw C API; `RingBufferWrapper` clamps first | no |
 | 22 | Filters | default `Biquad()` | Leaves type/Fc/Q/peakGain/coefficients uninitialised; setters and `calcBiquad` on it read them; an invalid `BiquadType` leaves the coefficients unset. No test (UB) | no |
-| 23 | CANPort | `CAN.cpp:25-29` `handleToPort` | No `break`: two ports with the same handle return the last registered (characterization) | no |
+| 23 | CANPort | `CAN.cpp:25-29` `handleToPort` | No `break`: two ports with the same handle return the last registered. Test "characterization: with two ports on the same handle the last registered port is returned" | no |
 | 24 | RingBufferWrapper | `peek_as`/`get_as` | Only compile for byte types (`static_cast<uint8_t*>(&data)`); `peek_as` returns an uninitialised `T` on failure. Never instantiated in the firmware | no |
 | 21 | HidFFB / CDC | `FirmwareFixture::resetGlobals` (test infrastructure) | Does not reset `CDCcomm`'s private `usb_busy_retry`; `test_cdc.cpp` works around it with its own fixture. Shared fix in `support/FirmwareFixture.h`? | no |
 
@@ -435,8 +439,8 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 | V1 | FreeRTOS wrappers (**vendor, tier A**) | `csemaphore.cpp:117-131` | `CountingSemaphore(0, x)` or initial > max throws before `handle` is set; `~Semaphore` then deletes an uninitialised handle (UB). Exception builds only (target uses `CPP_FREERTOS_NO_EXCEPTIONS`/`configASSERT`) | Seen with mutants; no test (would crash) |
 | V2 | FreeRTOS wrappers (**vendor, tier A**) | `cthread.cpp:184-187` | `~Thread` of a never-started thread calls `vTaskDelete` with an uninitialised handle (NULL deletes the calling task on FreeRTOS). Also on target | Code reading; no test (UB) |
 | V3 | FreeRTOS wrappers (**vendor, tier A**) | `cmutex.cpp`, `csemaphore.cpp` | On a kernel create failure (NULL), the destructors call `vSemaphoreDelete(NULL)` (real FreeRTOS asserts) | Code reading; no test |
-| 21 | CommandHandler | `CommandHandler.cpp:536` `flags &= flags \| CMDFLAG_EXTOVERRIDE` | No-op although the comment says "honor flag mask": (re-)registering an overridden command drops the override mask (moved from NEEDS REVIEW #6 after review r1) | Separate KNOWN_ISSUE test (review fix) |
-| 22 | UART | `UART.cpp:94-106, 116-122, 186-191` | `abortReceive()` and a failed `receive_IT/_DMA` never clear `rxbuf_t`: the next single-byte completion armed by `registerInterrupt()` passes the old (possibly dangling) user buffer to `uartRcv` instead of the received byte (found by review r3) | KNOWN_ISSUE test (review fix) |
+| 21 | CommandHandler | `CommandHandler.cpp:536` `flags &= flags \| CMDFLAG_EXTOVERRIDE` | No-op although the comment says "honor flag mask": (re-)registering an overridden command drops the override mask (moved from NEEDS REVIEW #6 after review r1) | KNOWN_ISSUE "registering an overridden command again keeps the override mask" (`test_command_handler_gaps.cpp`) |
+| 22 | UART | `UART.cpp:97, 104, 116-123`, used at `189-191` | `abortReceive()` and a failed `receive_IT/_DMA` never clear `rxbuf_t`: the next single-byte completion armed by `registerInterrupt()` passes the old (possibly dangling) user buffer to `uartRcv` instead of the received byte (found by review r3) | 2 KNOWN_ISSUE tests in `test_uart.cpp` (after abort, after a failed receive) |
 | V4 | FreeRTOS wrappers (**vendor, tier A**) | `cthread.cpp` `~Thread` after `TaskFunctionAdapter` | When `Run()` returns, the adapter deletes the task; the Thread destructor then calls `vTaskDelete` again on the freed handle (double delete / use after free on target). The fake ignores it (found by review r2) | Comment in `test_rtos_wrappers.cpp`; no test (UB) |
 | 6 | Test setup (not firmware) | `CMakePresets.json` `host-sanitize`, `CMakeLists.txt` | With the CMSIS-DSP submodule checked out, `ctest` in the sanitizer preset fails on the spline overflow (bug 2). Reproduced with the same flags by script, preset not run | Fixed by F1 (`1876353e`) + F1b (P0). Verified in P0: `cmake --preset host-sanitize -B <out-of-tree>`, `ctest` 2/2 passed |
 
@@ -472,11 +476,11 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 
 | Module | Reviewer | Findings | Fixed? |
 |---|---|---|---|
-| P1 A command (`test_cmdparser_gaps`, `test_command_handler_gaps`, `test_hid_command_interface_gaps`) | r1 (fresh agent, 2026-10-22) | must: placeholder test asserted the exact flags of bug 13 unflagged; should: bug 13 test also failed for the line 536 defect (now bug 21, own KNOWN_ISSUE), missing NEEDS REVIEW comment; nits: comments. All 4 KNOWN_ISSUE claims confirmed, first failing assertion correct; random order and single runs green | in progress (author agent) |
-| P1 B ffb (`test_effects_calculator_gaps`, `test_hid_ffb_gaps`) | r1 | should: "HardFault on target" wording (bug 12), the 180 deg square test passes by coincidence (rename + comment as mutation guard); nits: weak sign check, comments on dead monitoring code | in progress |
-| P1 C errors/storage | r2 | must: 3 tests asserted slot positions that exist only because of bug 7 (a plausible fix broke them); should: ISR vs thread resume not distinguishable (fake extension); nit: raw slot write. KNOWN_ISSUEs confirmed; vTaskSuspend fake change realistic; no static leakage | in progress |
-| P1 D filters/small | r2 | should: coefficient tolerance effectively absolute (small coefficients checked to ~20 %), vendor double delete in `~Thread` (V4); nits: comments on IEEE divide by zero, default Biquad UB note, fake-only assertion. Filters KNOWN_ISSUEs confirmed (arm_cos_f32(PI/2) == 0 exactly on host) | in progress |
-| P1 E transport | r3 | must: KNOWN_ISSUE_UB ringbuffer test read indeterminate memory (could flip in Release); should: wrong lines (bug 18), CDC bug 20 understated (CDC dead), new bug 22, UART fake completed receives after 1 byte regardless of size, a test that only tested `MockCANPort`, CAN dispatch helper scope wording, CDC reset relied on fake semaphore, missing CDC blocking test; nits | in progress |
+| P1 A command (`test_cmdparser_gaps`, `test_command_handler_gaps`, `test_hid_command_interface_gaps`) | r1 (fresh agent, 2026-10-22) | must: placeholder test asserted the exact flags of bug 13 unflagged; should: bug 13 test also failed for the line 536 defect (now bug 21, own KNOWN_ISSUE), missing NEEDS REVIEW comment; nits: comments. All 4 KNOWN_ISSUE claims confirmed, first failing assertion correct; random order and single runs green | yes (2026-10-23) |
+| P1 B ffb (`test_effects_calculator_gaps`, `test_hid_ffb_gaps`) | r1 | should: "HardFault on target" wording (bug 12), the 180 deg square test passes by coincidence (rename + comment as mutation guard); nits: weak sign check, comments on dead monitoring code | yes (2026-10-23) |
+| P1 C errors/storage | r2 | must: 3 tests asserted slot positions that exist only because of bug 7 (a plausible fix broke them); should: ISR vs thread resume not distinguishable (fake extension); nit: raw slot write. KNOWN_ISSUEs confirmed; vTaskSuspend fake change realistic; no static leakage | yes (2026-10-23) |
+| P1 D filters/small | r2 | should: coefficient tolerance effectively absolute (small coefficients checked to ~20 %), vendor double delete in `~Thread` (V4); nits: comments on IEEE divide by zero, default Biquad UB note, fake-only assertion. Filters KNOWN_ISSUEs confirmed (arm_cos_f32(PI/2) == 0 exactly on host) | yes (2026-10-23) |
+| P1 E transport | r3 | must: KNOWN_ISSUE_UB ringbuffer test read indeterminate memory (could flip in Release); should: wrong lines (bug 18), CDC bug 20 understated (CDC dead), new bug 22, UART fake completed receives after 1 byte regardless of size, a test that only tested `MockCANPort`, CAN dispatch helper scope wording, CDC reset relied on fake semaphore, missing CDC blocking test; nits | yes (2026-10-23) |
 
 ## Verification results (Phase 4)
 

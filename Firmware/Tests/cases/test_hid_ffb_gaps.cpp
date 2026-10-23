@@ -49,7 +49,8 @@ TEST_CASE_FIXTURE(DamperFixture, "starting a stopped effect starts its filter fr
 
 	host.startEffect(damper);
 	int32_t first = torque();
-	CHECK(first * settled >= 0);			   // Same direction
+	CHECK(first != 0);
+	CHECK(first * settled > 0);			   // Same direction
 	CHECK(std::abs(first) < std::abs(settled) / 10); // Filter state was reset: no jump to the old output
 }
 
@@ -93,7 +94,8 @@ TEST_CASE_FIXTURE(FfbFixture, "set effect with another effect type sets up the f
 TEST_CASE_FIXTURE(FfbFixture, "a running effect changed to a damper by set effect has damper filters" *
 		KNOWN_ISSUE("HidFFB.cpp:301-307: set_filters runs with the previous type (sine: no filters) and the start at line 423 skips "
 					"set_filters for a running effect. The damper then calls process() on a null filter (EffectsCalculator.cpp:425): "
-					"segmentation fault on the host, HardFault on the target")) {
+					"null pointer dereference (UB): SIGSEGV on the host; undefined on the target (address 0 aliases flash: "
+					"may output garbage torque or corrupt memory instead of faulting)")) {
 	uint8_t index = startEffect(FFB_EFFECT_SINE); // Running, no filters
 	host.setEffect(index, FFB_EFFECT_DAMPER);
 	host.setCondition(index, 0, 0, 10000, 10000, 10000, 10000, 0);

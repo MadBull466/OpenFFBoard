@@ -15,13 +15,12 @@
 
 namespace {
 
-/** Saves and restores the static state of UsbHidHandler */
+/** Saves and restores the static state of UsbHidHandler (also clears a dangling globalHidHandler) */
 struct HidHandlerFixture {
 	UsbHidHandler *savedHandler = UsbHidHandler::globalHidHandler;
 	const uint8_t *savedDesc = UsbHidHandler::getHidDesc();
 	HidHandlerFixture() {
-		UsbHidHandler::globalHidHandler = nullptr;
-		UsbHidHandler::setHidDesc(nullptr);
+			UsbHidHandler::setHidDesc(nullptr);
 	}
 	~HidHandlerFixture() {
 		UsbHidHandler::globalHidHandler = savedHandler;
@@ -56,20 +55,14 @@ const uint8_t descB[] = {0x05, 0x0F};
 
 TEST_SUITE("UsbHidHandler") {
 
-TEST_CASE_FIXTURE(HidHandlerFixture, "the default get report callback returns no data") {
+TEST_CASE_FIXTURE(HidHandlerFixture, "the default report callbacks return no data and ignore out reports") {
 	UsbHidHandler handler;
 	uint8_t buffer[4] = {1, 2, 3, 4};
 	CHECK(handler.hidGet(1, HID_REPORT_TYPE_FEATURE, buffer, sizeof(buffer)) == 0);
 	CHECK(buffer[0] == 1); // Untouched
 	CHECK(buffer[3] == 4);
-}
-
-TEST_CASE_FIXTURE(HidHandlerFixture, "the default out report callback ignores the report") {
-	UsbHidHandler handler;
-	const uint8_t report[3] = {7, 8, 9};
-	handler.hidOut(2, HID_REPORT_TYPE_OUTPUT, report, sizeof(report));
-	CHECK(UsbHidHandler::globalHidHandler == nullptr); // No side effects
-	CHECK(UsbHidHandler::getHidDesc() == nullptr);
+	handler.hidOut(2, HID_REPORT_TYPE_OUTPUT, buffer, sizeof(buffer)); // Base class: no effect
+	CHECK(buffer[0] == 1);
 }
 
 TEST_CASE_FIXTURE(HidHandlerFixture, "a new handler does not receive reports until it registers") {
@@ -77,7 +70,6 @@ TEST_CASE_FIXTURE(HidHandlerFixture, "a new handler does not receive reports unt
 	CHECK(UsbHidHandler::globalHidHandler == nullptr);
 	handler.registerHidCallback();
 	CHECK(UsbHidHandler::globalHidHandler == &handler);
-	UsbHidHandler::globalHidHandler = nullptr; // handler is destroyed at the end of the test
 }
 
 TEST_CASE_FIXTURE(HidHandlerFixture, "the handler registered last receives the reports") {
@@ -100,7 +92,6 @@ TEST_CASE_FIXTURE(HidHandlerFixture, "the handler registered last receives the r
 	CHECK(second.getType == HID_REPORT_TYPE_FEATURE);
 	CHECK(reply[0] == 0x42);
 	CHECK(first.outData.empty());
-	UsbHidHandler::globalHidHandler = nullptr;
 }
 
 TEST_CASE_FIXTURE(HidHandlerFixture, "setHidDesc stores the report descriptor returned by getHidDesc") {
@@ -126,7 +117,6 @@ TEST_CASE_FIXTURE(HidHandlerFixture, "destroying a handler that is not registere
 		UsbHidHandler other;
 	}
 	CHECK(UsbHidHandler::globalHidHandler == &registered);
-	UsbHidHandler::globalHidHandler = nullptr;
 }
 
 TEST_CASE_FIXTURE(HidHandlerFixture, "a registered handler unregisters when destroyed" * KNOWN_ISSUE("UsbHidHandler::~UsbHidHandler does not clear globalHidHandler (UsbHidHandler.cpp:19-21). Reports received afterwards are passed to a destroyed object by the tinyusb callbacks (global_callbacks.cpp:317, 332, 344). Same root cause as the HidFFB case `handler unregisters when destroyed`")) {
@@ -135,7 +125,6 @@ TEST_CASE_FIXTURE(HidHandlerFixture, "a registered handler unregisters when dest
 		handler.registerHidCallback();
 	}
 	bool unregistered = UsbHidHandler::globalHidHandler == nullptr;
-	UsbHidHandler::globalHidHandler = nullptr; // Do not leave a dangling pointer to other tests
 	CHECK(unregistered);
 }
 

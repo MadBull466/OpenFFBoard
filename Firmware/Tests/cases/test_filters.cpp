@@ -41,6 +41,20 @@ struct Coeffs {
 
 /** Relative tolerance for coefficients (CMSIS-DSP sin/cos tables are accurate to about 2e-5 relative) */
 constexpr double COEFF_EPS = 2e-4;
+/** Absolute floor for coefficients that are exactly 0 in the reference (e.g. bandpass b1) */
+constexpr double COEFF_ABS = 1e-7;
+
+/**
+ * Truly relative comparison: |actual - expected| <= COEFF_EPS * |expected| + COEFF_ABS.
+ * (doctest Approx uses scale 1, which would make small coefficients like b0 ~ 1e-3 an absolute check)
+ */
+#define CHECK_COEFF(actual, expected)                                                                    \
+	do {                                                                                                 \
+		const double a_ = static_cast<double>(actual);                                                   \
+		const double e_ = static_cast<double>(expected);                                                 \
+		INFO(#actual " = " << a_ << ", expected " << e_ << " (relative " << COEFF_EPS << ")");           \
+		CHECK(std::fabs(a_ - e_) <= COEFF_EPS * std::fabs(e_) + COEFF_ABS);                             \
+	} while (0)
 
 /**
  * Coefficients of a firmware filter converted to the cookbook convention.
@@ -135,11 +149,11 @@ double magnitude(const Coeffs &c, double f) {
 double dbToGain(double db) { return std::pow(10.0, db / 20.0); }
 
 void checkCoeffs(const Coeffs &actual, const Coeffs &expected) {
-	CHECK(actual.b0 == Approx(expected.b0).epsilon(COEFF_EPS));
-	CHECK(actual.b1 == Approx(expected.b1).epsilon(COEFF_EPS));
-	CHECK(actual.b2 == Approx(expected.b2).epsilon(COEFF_EPS));
-	CHECK(actual.a1 == Approx(expected.a1).epsilon(COEFF_EPS));
-	CHECK(actual.a2 == Approx(expected.a2).epsilon(COEFF_EPS));
+	CHECK_COEFF(actual.b0, expected.b0);
+	CHECK_COEFF(actual.b1, expected.b1);
+	CHECK_COEFF(actual.b2, expected.b2);
+	CHECK_COEFF(actual.a1, expected.a1);
+	CHECK_COEFF(actual.a2, expected.a2);
 }
 
 /** True if all 5 coefficients of two filters are identical */
@@ -225,11 +239,11 @@ TEST_CASE("coefficients are stored in CMSIS-DSP order with negated feedback term
 	Biquad filter(BiquadType::lowpass, 0.1f, 1.0f, 0);
 	const Coeffs ref = rbjLowpass(0.1, 1.0);
 	const float *c = filter.getCoeffs();
-	CHECK(c[0] == Approx(ref.b0).epsilon(COEFF_EPS));
-	CHECK(c[1] == Approx(ref.b1).epsilon(COEFF_EPS));
-	CHECK(c[2] == Approx(ref.b2).epsilon(COEFF_EPS));
-	CHECK(c[3] == Approx(-ref.a1).epsilon(COEFF_EPS)); // positive for a lowpass
-	CHECK(c[4] == Approx(-ref.a2).epsilon(COEFF_EPS)); // negative
+	CHECK_COEFF(c[0], ref.b0);
+	CHECK_COEFF(c[1], ref.b1);
+	CHECK_COEFF(c[2], ref.b2);
+	CHECK_COEFF(c[3], -ref.a1); // positive for a lowpass
+	CHECK_COEFF(c[4], -ref.a2); // negative
 	CHECK(c[3] > 0);
 	CHECK(c[4] < 0);
 }
@@ -258,9 +272,9 @@ TEST_CASE("peak filter has the requested gain at fc and unity gain at DC and Nyq
 		CAPTURE(gain);
 		Biquad filter(BiquadType::peak, 0.1f, 0.707f, (float)gain);
 		const Coeffs c = firmwareCoeffs(filter);
-		CHECK(magnitude(c, 0.1) == Approx(dbToGain(gain)).epsilon(1e-3));
-		CHECK(magnitude(c, 0.0) == Approx(1.0).epsilon(1e-3));
-		CHECK(magnitude(c, 0.5) == Approx(1.0).epsilon(1e-3));
+		CHECK(magnitude(c, 0.1) == Approx(dbToGain(gain)).epsilon(1e-3).scale(0));
+		CHECK(magnitude(c, 0.0) == Approx(1.0).epsilon(1e-3).scale(0));
+		CHECK(magnitude(c, 0.5) == Approx(1.0).epsilon(1e-3).scale(0));
 	}
 }
 
@@ -303,8 +317,8 @@ TEST_CASE("lowshelf has the shelf gain at DC and unity gain at Nyquist") {
 		CAPTURE(gain);
 		Biquad filter(BiquadType::lowshelf, 0.05f, 0.707f, (float)gain);
 		const Coeffs c = firmwareCoeffs(filter);
-		CHECK(magnitude(c, 0.0) == Approx(dbToGain(gain)).epsilon(1e-3));
-		CHECK(magnitude(c, 0.5) == Approx(1.0).epsilon(1e-3));
+		CHECK(magnitude(c, 0.0) == Approx(dbToGain(gain)).epsilon(1e-3).scale(0));
+		CHECK(magnitude(c, 0.5) == Approx(1.0).epsilon(1e-3).scale(0));
 	}
 }
 
@@ -313,8 +327,8 @@ TEST_CASE("highshelf has unity gain at DC and the shelf gain at Nyquist") {
 		CAPTURE(gain);
 		Biquad filter(BiquadType::highshelf, 0.05f, 0.707f, (float)gain);
 		const Coeffs c = firmwareCoeffs(filter);
-		CHECK(magnitude(c, 0.0) == Approx(1.0).epsilon(1e-3));
-		CHECK(magnitude(c, 0.5) == Approx(dbToGain(gain)).epsilon(1e-3));
+		CHECK(magnitude(c, 0.0) == Approx(1.0).epsilon(1e-3).scale(0));
+		CHECK(magnitude(c, 0.5) == Approx(dbToGain(gain)).epsilon(1e-3).scale(0));
 	}
 }
 
@@ -325,7 +339,7 @@ TEST_CASE("shelf cut is the inverse of the shelf boost") {
 		Biquad cut(type, 0.08f, 0.707f, -9.0f);
 		for (double f : {0.0, 0.02, 0.08, 0.2, 0.5}) {
 			CAPTURE(f);
-			CHECK(magnitude(firmwareCoeffs(boost), f) * magnitude(firmwareCoeffs(cut), f) == Approx(1.0).epsilon(1e-3));
+			CHECK(magnitude(firmwareCoeffs(boost), f) * magnitude(firmwareCoeffs(cut), f) == Approx(1.0).epsilon(1e-3).scale(0));
 		}
 	}
 }
@@ -359,10 +373,10 @@ TEST_CASE("highpass blocks a constant input") {
 
 TEST_CASE("lowpass passes a low frequency sine and attenuates a high frequency sine") {
 	Biquad low(BiquadType::lowpass, 0.05f, 0.707f, 0);
-	CHECK(sineGain(low, 0.005) == Approx(1.0).epsilon(0.01));
+	CHECK(sineGain(low, 0.005) == Approx(1.0).epsilon(0.01).scale(0));
 	Biquad high(BiquadType::lowpass, 0.05f, 0.707f, 0);
 	const double gain = sineGain(high, 0.25);
-	CHECK(gain == Approx(magnitude(rbjLowpass(0.05, 0.707), 0.25)).epsilon(0.01));
+	CHECK(gain == Approx(magnitude(rbjLowpass(0.05, 0.707), 0.25)).epsilon(0.01).scale(0));
 	CHECK(gain < 0.05);
 }
 
@@ -370,14 +384,14 @@ TEST_CASE("lowpass gain at fc equals Q") {
 	for (double q : {0.5, 0.707, 2.0}) {
 		CAPTURE(q);
 		Biquad filter(BiquadType::lowpass, 0.05f, (float)q, 0);
-		CHECK(magnitude(firmwareCoeffs(filter), 0.05) == Approx(q).epsilon(1e-3));
-		CHECK(sineGain(filter, 0.05) == Approx(q).epsilon(0.01));
+		CHECK(magnitude(firmwareCoeffs(filter), 0.05) == Approx(q).epsilon(1e-3).scale(0));
+		CHECK(sineGain(filter, 0.05) == Approx(q).epsilon(0.01).scale(0));
 	}
 }
 
 TEST_CASE("bandpass has unity gain at fc and blocks DC") {
 	Biquad filter(BiquadType::bandpass, 0.1f, 2.0f, 0);
-	CHECK(sineGain(filter, 0.1) == Approx(1.0).epsilon(0.01));
+	CHECK(sineGain(filter, 0.1) == Approx(1.0).epsilon(0.01).scale(0));
 	CHECK(magnitude(firmwareCoeffs(filter), 0.0) < 1e-6);
 }
 
@@ -385,12 +399,12 @@ TEST_CASE("notch removes a sine at fc and passes other frequencies") {
 	Biquad filter(BiquadType::notch, 0.1f, 2.0f, 0);
 	CHECK(sineGain(filter, 0.1, 4000) < 0.01);
 	Biquad other(BiquadType::notch, 0.1f, 2.0f, 0);
-	CHECK(sineGain(other, 0.01) == Approx(1.0).epsilon(0.01));
+	CHECK(sineGain(other, 0.01) == Approx(1.0).epsilon(0.01).scale(0));
 }
 
 TEST_CASE("peak filter amplifies a sine at fc by the peak gain") {
 	Biquad filter(BiquadType::peak, 0.1f, 1.0f, 6.0f);
-	CHECK(sineGain(filter, 0.1) == Approx(dbToGain(6.0)).epsilon(0.01));
+	CHECK(sineGain(filter, 0.1) == Approx(dbToGain(6.0)).epsilon(0.01).scale(0));
 }
 
 TEST_CASE("process output matches the difference equation of the coefficients") {
@@ -417,6 +431,13 @@ TEST_CASE("process output matches the difference equation of the coefficients") 
 }
 
 // ---------------- Construction and setters ----------------
+
+// NEEDS REVIEW (no test, reading the values would be undefined behaviour): Biquad() initialises only the
+// filter state (Filters.cpp:17-27). type, Fc, Q, peakGain and the coefficients stay uninitialised, so
+// process(), setFc(), setQ(), setPeakGain() or calcBiquad() on a default constructed filter read
+// indeterminate values. Only setBiquad() makes it usable (as AnalogAxisProcessing and Axis do).
+// Also: calcBiquad has no default case, a BiquadType outside the enum leaves the coefficients unchanged
+// (uninitialised for a default constructed filter).
 
 TEST_CASE("default constructed filter configured with setBiquad equals the parametrised constructor") {
 	Biquad configured;
@@ -483,7 +504,7 @@ TEST_CASE("setPeakGain changes the gain of a peak filter") {
 	Biquad filter(BiquadType::peak, 0.1f, 1.0f, 3.0f);
 	filter.setPeakGain(-9.0f);
 	checkCoeffs(firmwareCoeffs(filter), zoelzer(BiquadType::peak, 0.1, 1.0, -9.0));
-	CHECK(magnitude(firmwareCoeffs(filter), 0.1) == Approx(dbToGain(-9.0)).epsilon(1e-3));
+	CHECK(magnitude(firmwareCoeffs(filter), 0.1) == Approx(dbToGain(-9.0)).epsilon(1e-3).scale(0));
 	CHECK(filter.getQ() == 1.0f);
 	CHECK(filter.getFc() == 0.1f);
 }
@@ -559,6 +580,9 @@ TEST_CASE("characterization: a lowpass with frequency 0 outputs zero") {
 	CHECK(settle(filter, 1.0f) == 0.0f);
 }
 
+// Note: this test divides floats by zero on purpose (K / Q with Q = 0). The result (inf, then NaN) is
+// defined by IEEE 754 but undefined in ISO C++; UBSan's -fsanitize=undefined does not include
+// float-divide-by-zero, so the sanitizer build accepts it.
 // NEEDS REVIEW: Biquad does not validate Q. Q = 0 divides by zero (K/Q = inf) and gives a NaN
 // feedback coefficient, the filter output is NaN from then on. EffectsCalculator::checkFilterCoeff
 // maps q = 0 to 1, the Axis constants are non zero, so no caller is known to pass 0.
@@ -576,6 +600,9 @@ TEST_CASE("characterization: a Q of zero makes the filter output NaN") {
 #define NYQUIST_ISSUE
 #endif
 
+// Note: in the DSP build this test divides floats by zero on purpose (sin/cos with cos = 0). The result
+// (inf, then NaN) is defined by IEEE 754 but undefined in ISO C++; UBSan's -fsanitize=undefined does not
+// include float-divide-by-zero, so the sanitizer build accepts it.
 // Suspected bug (DSP build, the configuration of the hardware targets): Fc = 0.5 is accepted by the
 // clip in setFc/setBiquad and EffectsCalculator::checkFilterCoeff passes exactly calcfrequency/2
 // (also for a stored frequency of 0). With CMSIS-DSP all coefficients become NaN.
@@ -588,7 +615,7 @@ TEST_CASE("lowpass at the highest allowed frequency 0.5 has finite coefficients 
 		CAPTURE(i);
 		REQUIRE(std::isfinite(filter.getCoeffs()[i]));
 	}
-	CHECK(settle(filter, 1.0f, 50) == Approx(1.0).epsilon(1e-3));
+	CHECK(settle(filter, 1.0f, 50) == Approx(1.0).epsilon(1e-3).scale(0));
 }
 
 #ifdef USE_DSP_FUNCTIONS

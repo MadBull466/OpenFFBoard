@@ -275,7 +275,7 @@ TEST_CASE_FIXTURE(FirmwareFixture, "overriding the flags of an unregistered comm
 	REQUIRE(def != nullptr);
 	CHECK(def->cmd == nullptr);
 	CHECK(def->helpstring == nullptr);
-	CHECK(def->flags == CMDFLAG_GET);
+	CHECK((def->flags & ~CMDFLAG_EXTOVERRIDE) == CMDFLAG_GET); // EXTOVERRIDE marker: see the KNOWN_ISSUE test below (bug 13)
 	// Placeholders are not listed in the help
 	CHECK(bare.getCommandsHelpstring() == "\nBare handler(bare.0):\ncmd\tflags\tdescription\n\n");
 }
@@ -290,26 +290,24 @@ TEST_CASE_FIXTURE(FirmwareFixture, "a command registered after a flag override g
 	REQUIRE(def != nullptr);
 	REQUIRE(def->cmd != nullptr); // first failing assertion: the placeholder is still there
 	CHECK(std::string(def->cmd) == "rw");
-	CHECK_FALSE(bare.isValidCommandId(bareId(BareCmd::rw), 0, CMDFLAG_SET));
+	CHECK(std::string(def->helpstring) == "Read write");
 	CHECK(bare.isValidCommandId(bareId(BareCmd::rw), 0, CMDFLAG_GET));
+	// The mask itself is checked in "registering an overridden command again keeps the override mask" (line 536, bug 21)
 }
 
-TEST_CASE_FIXTURE(FirmwareFixture, "characterization: registering an overridden command again replaces it with the new definition") {
-	// NEEDS REVIEW: registerCommand_INT says "honor flag mask" for an override but `flags &= flags | CMDFLAG_EXTOVERRIDE`
-	// (CommandHandler.cpp:536) does not change the flags. The new registration gets its own flags unmasked
-	// and loses the override marker. Should the flags of the override be applied?
+TEST_CASE_FIXTURE(FirmwareFixture, "registering an overridden command again keeps the override mask" *
+		KNOWN_ISSUE("registerCommand_INT should honor the flag mask of an override, but `flags &= flags | CMDFLAG_EXTOVERRIDE` (CommandHandler.cpp:536) does not change the flags. The new registration gets its own flags unmasked")) {
+	// Independent of the placeholder defect: the command is registered before the override
 	BareHandler bare;
 	bare.registerCommand("rw", BareCmd::rw, "Read write", CMDFLAG_GET | CMDFLAG_SET);
 	bare.overrideCommandFlags(BareCmd::rw, CMDFLAG_GET);
-	bare.registerCommand("rw2", BareCmd::rw, "Read write 2", CMDFLAG_GET | CMDFLAG_SET);
+	bare.registerCommand("rw", BareCmd::rw, "Read write", CMDFLAG_GET | CMDFLAG_SET);
 
+	CHECK_FALSE(bare.isValidCommandId(bareId(BareCmd::rw), 0, CMDFLAG_SET)); // first failing assertion: SET is allowed again
+	CHECK(bare.isValidCommandId(bareId(BareCmd::rw), 0, CMDFLAG_GET));
 	CmdHandlerCommanddef *def = bare.getCommandFromId(bareId(BareCmd::rw));
 	REQUIRE(def != nullptr);
-	REQUIRE(def->cmd != nullptr);
-	CHECK(std::string(def->cmd) == "rw2");
-	CHECK(std::string(def->helpstring) == "Read write 2");
-	CHECK(def->flags == (CMDFLAG_GET | CMDFLAG_SET));
-	CHECK(bare.getCommandFromName("rw") == nullptr);
+	CHECK((def->flags & (CMDFLAG_GET | CMDFLAG_SET)) == CMDFLAG_GET);
 }
 
 } // TEST_SUITE
@@ -386,7 +384,7 @@ TEST_CASE_FIXTURE(CommandSystemFixture, "a full reply buffer blocks further repl
 	CHECK_FALSE(cdc.readyToSend());
 	HostPlatform::advanceMs(500);
 	CHECK_FALSE(cdc.readyToSend());
-	HostPlatform::advanceMs(1); // more than 500 ms after the last reply: sendReplies discards the old buffer
+	HostPlatform::advanceMs(1); // more than 500 ms after the last reply: readyToSend's own timeout check (CommandInterface.cpp:311) reports ready
 	CHECK(cdc.readyToSend());
 }
 
@@ -438,7 +436,9 @@ TEST_CASE_FIXTURE(CommandSystemFixture, "replies are not transmitted while the u
 	CHECK(HostPlatform::uart().txTransfers == 0);
 
 	external_uart.giveSemaphore(true);
-	uart.Notify(); // the host kernel restarts a thread that gave up waiting at the start of Run()
+	// Extra Notify() only because the fake kernel restarts Run() after the delay budget is used up;
+	// on target the thread keeps polling the port and sends without a new notification
+	uart.Notify();
 	HostRtos::runUntilBlocked(uart);
 	CHECK(HostPlatform::uart().tx == "[mock.value?|4]\n");
 	HostPlatform::uartCompleteTx();

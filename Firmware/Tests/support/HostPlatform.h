@@ -74,9 +74,14 @@ UartState &uart();
 
 /**
  * Simulates bytes received on the uart whose receive transfer is armed.
- * Every byte is stored in the buffer armed by HAL_UART_Receive_IT (or _DMA) and the receive
- * complete callback of all UartHandlers is called in interrupt context like on the target.
+ * The bytes are stored in sequence in the buffer armed by HAL_UART_Receive_IT (or _DMA). When the armed
+ * size is reached the receive complete callback of all UartHandlers is called in interrupt context like
+ * on the target and the transfer is disarmed (single shot).
  * Bytes are lost if the firmware did not rearm the receive interrupt.
+ *
+ * Remaining limits of the fake: HAL_UART_AbortReceive ignores its huart argument (disarms whatever is
+ * armed); there is one global armed receive slot for all uarts; arming again while a receive is armed
+ * returns HAL_OK and replaces the armed buffer (the real HAL returns HAL_BUSY).
  */
 void uartReceive(const std::string &data);
 

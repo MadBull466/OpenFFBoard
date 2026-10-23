@@ -9,6 +9,7 @@
 
 #include "HostRtos.h"
 #include "HostPlatform.h"
+#include "cmsis_compiler.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -38,6 +39,7 @@ HostTask *currentTask = nullptr;
 uint32_t delayBudgetMs = 1000;
 uint32_t delayBudgetRemaining = 0;
 size_t liveSemaphores = 0; //!< Created and not deleted semaphores (HostRtos::semaphoreCount)
+HostRtos::ResumeStats resumeCalls; //!< Calls of the task resume functions (HostRtos::resumeStats)
 
 bool isRegistered(HostTask *task) {
 	return std::find(tasks().begin(), tasks().end(), task) != tasks().end();
@@ -53,6 +55,7 @@ void reset() {
 	}
 	delayBudgetMs = 1000;
 	currentTask = nullptr;
+	resumeCalls = ResumeStats();
 }
 
 bool runUntilBlocked(TaskHandle_t task) {
@@ -114,6 +117,10 @@ void setDelayBudgetMs(uint32_t ms) {
 
 size_t semaphoreCount() {
 	return liveSemaphores;
+}
+
+ResumeStats &resumeStats() {
+	return resumeCalls;
 }
 
 } // namespace HostRtos
@@ -187,10 +194,15 @@ void vTaskSuspend(TaskHandle_t task) {
 	}
 }
 void vTaskResume(TaskHandle_t task) {
+	resumeCalls.resume++;
+	if (__get_IPSR() != 0U) {
+		resumeCalls.resumeInIsr++; // Not allowed on the target. Recorded, execution continues
+	}
 	if (isRegistered(task)) task->suspended = false;
 }
 BaseType_t xTaskResumeFromISR(TaskHandle_t task) {
-	vTaskResume(task);
+	resumeCalls.resumeFromIsr++;
+	if (isRegistered(task)) task->suspended = false;
 	return pdFALSE;
 }
 void vTaskSuspendAll(void) {}

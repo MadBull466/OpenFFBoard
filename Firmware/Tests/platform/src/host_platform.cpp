@@ -25,8 +25,10 @@ namespace {
 uint64_t timeUs = 0;
 HostPlatform::LedState ledState;
 HostPlatform::UartState uartState;
-uint8_t *uartRxBuffer = nullptr; // Buffer armed by HAL_UART_Receive_IT
+uint8_t *uartRxBuffer = nullptr; // Buffer armed by HAL_UART_Receive_IT/_DMA
 UART_HandleTypeDef *uartRxHandle = nullptr;
+uint16_t uartRxSize = 0;  // Armed transfer size. Completion after this many bytes
+uint16_t uartRxCount = 0; // Bytes stored in the armed buffer so far
 } // namespace
 
 namespace HostPlatform {
@@ -39,6 +41,8 @@ void reset() {
 	uartState = UartState();
 	uartRxBuffer = nullptr;
 	uartRxHandle = nullptr;
+	uartRxSize = 0;
+	uartRxCount = 0;
 	huart1 = {};
 	// Release the port in case a test left a transfer unfinished
 	external_uart.giveSemaphore(true);
@@ -58,9 +62,13 @@ void uartReceive(const std::string &data) {
 			uartState.rxLost++;
 			continue;
 		}
-		*uartRxBuffer = (uint8_t)c;
+		uartRxBuffer[uartRxCount++] = (uint8_t)c;
+		if (uartRxCount < uartRxSize) {
+			continue; // Like the HAL: the complete callback follows after `size` bytes
+		}
 		UART_HandleTypeDef *huart = uartRxHandle;
 		uartRxBuffer = nullptr; // Single shot. Must be rearmed by the firmware
+		uartRxCount = 0;
 		IsrContext isr;
 		for (UartHandler *handler : UartHandler::getUARTHandlers()) {
 			handler->uartRxComplete(huart);
@@ -131,6 +139,8 @@ static HAL_StatusTypeDef armUartRx(UART_HandleTypeDef *huart, uint8_t *data, uin
 	}
 	uartRxBuffer = data;
 	uartRxHandle = huart;
+	uartRxSize = size == 0 ? 1 : size;
+	uartRxCount = 0;
 	return HAL_OK;
 }
 HAL_StatusTypeDef HAL_UART_Transmit(UART_HandleTypeDef *, const uint8_t *data, uint16_t size, uint32_t timeout) {
@@ -172,6 +182,7 @@ HAL_StatusTypeDef HAL_UART_AbortReceive(UART_HandleTypeDef *) {
 	if (uartState.abortResult == HAL_OK) {
 		uartRxBuffer = nullptr; // Disarmed
 		uartRxHandle = nullptr;
+		uartRxCount = 0;
 	}
 	return (HAL_StatusTypeDef)uartState.abortResult;
 }

@@ -108,6 +108,19 @@ python3 tools/coverage_report.py --build-dir build-cov
 | `EffectsCalculator` | `test_effects_calculator.cpp` | Force calculation of all effect types, gains, envelope, filters, settings |
 | `Encoder`, `MotorDriver` | `test_device_mocks.cpp` | Base class interfaces and the mocks |
 | `platform` | `test_platform.cpp` | Self test of the fake platform |
+| `CmdParser`, `CommandHandler`, `CommandInterface`, `CDC_CommandInterface`, `UART_CommandInterface`, `HID_CommandInterface` | `test_cmdparser_gaps.cpp`, `test_command_handler_gaps.cpp`, `test_hid_command_interface_gaps.cpp` | Buffer boundaries, malformed addresses, logging, help, flag overrides, reply buffering, HID reply branches |
+| `EffectsCalculator`, `HidFFB` | `test_effects_calculator_gaps.cpp`, `test_hid_ffb_gaps.cpp` | Square phase, rate measurement, effects thread, settings commands, filter set-up on effect start and type change |
+| `ErrorHandler`, `ErrorPrinter` | `test_error_handler.cpp` | Error list, clearing, sorting, callbacks, error printer thread |
+| `PersistentStorage` | `test_persistent_storage.cpp` | Save and restore over all handlers, delayed restore at startup |
+| `Filters` | `test_filters.cpp` | Biquad coefficients of all types against reference formulas, frequency response, setters (CMSIS-DSP on and off) |
+| `Encoder`, `MotorDriver` | `test_device_interfaces_gaps.cpp` | Default implementations of the base classes |
+| `cpp_freertos` | `test_rtos_wrappers.cpp` | FreeRTOS C++ wrappers (vendor): thread, mutex, semaphore |
+| `UART`, `UartHandler` | `test_uart.cpp` | UART port transfers (blocking, IT, DMA), reservation, abort, completion dispatch |
+| `ringbuffer`, `RingBufferWrapper` | `test_ringbuffer.cpp` | Ring buffer append, get, peek, wrap-around, full buffer |
+| `CANPort`, `CanHandler` | `test_can_handler.cpp` | Port and handler registry, `handleToPort` (dispatch through `global_callbacks.cpp` is not compiled yet) |
+| `UsbHidHandler`, `CDCcomm` | `test_usb_hid_handler.cpp`, `test_cdc.cpp` | HID handler registration and descriptor, CDC send, retry and blocking |
+
+Test cases marked `KNOWN_ISSUE` and the suspected defects behind them are listed in `Tests/PROGRESS.md` (repository root).
 
 ## Mocks and helpers
 

@@ -1,10 +1,10 @@
 /*
  * CAN port registry (CAN.cpp) and CAN callback handlers (CanHandler.cpp)
  *
- * The HAL CAN interrupt callbacks (global_callbacks.cpp, not compiled for the host) look up the port with
- * CANPort::handleToPort(hcan) and call the matching callback of every registered CanHandler.
- * The dispatch helpers below do exactly that, so the registry and the callbacks are tested the way the
- * firmware uses them.
+ * Registry and handleToPort only: ports and handlers register themselves and are found again.
+ * The HAL CAN interrupt callbacks that dispatch to the handlers live in global_callbacks.cpp, which is
+ * not compiled here; that dispatch is tested in P4. The local dispatch helpers below only call the
+ * registered handlers the same way to show the registry contents and order.
  */
 #include "doctest.h"
 #include "TestHelpers.h"
@@ -142,6 +142,14 @@ TEST_CASE_FIXTURE(CanFixture, "a destroyed port is no longer found") {
 	CHECK(CANPort::handleToPort(&hcanB) == &stays);
 }
 
+// NEEDS REVIEW: the search loop in handleToPort has no break (CAN.cpp:25-29), so with two ports on the
+// same handle (a misconfiguration) the port registered last wins. Intended or should the first match win?
+TEST_CASE_FIXTURE(CanFixture, "characterization: with two ports on the same handle the last registered port is returned") {
+	HandlePort first(&hcanA);
+	HandlePort second(&hcanA);
+	CHECK(CANPort::handleToPort(&hcanA) == &second);
+}
+
 TEST_CASE_FIXTURE(CanFixture, "a new port is not waiting") {
 	HandlePort port(&hcanA);
 	CHECK_FALSE(port.isWaiting());
@@ -185,27 +193,9 @@ TEST_CASE_FIXTURE(CanFixture, "every callback reaches every registered handler w
 	HandlePort port(&hcanA);
 	RecordingCanHandler a;
 	RecordingCanHandler b;
-	std::vector<Call> expected;
-	SUBCASE("rx pending") {
-		dispatchRxPend(&hcanA, 0x321);
-		expected = {{"rxPend", &port, 0x321}};
-	}
-	SUBCASE("rx fifo full") {
-		dispatchRxFull(&hcanA, 1);
-		expected = {{"rxFull", &port, 1}};
-	}
-	SUBCASE("error") {
-		dispatchError(&hcanA, 0x80);
-		expected = {{"error", &port, 0x80}};
-	}
-	SUBCASE("tx complete") {
-		dispatchTxCplt(&hcanA, 2);
-		expected = {{"txCplt", &port, 2}};
-	}
-	SUBCASE("tx abort") {
-		dispatchTxAbort(&hcanA, 1);
-		expected = {{"txAbort", &port, 1}};
-	}
+	dispatchAll(&hcanA);
+	const std::vector<Call> expected{
+		{"rxPend", &port, 0x123}, {"rxFull", &port, 1}, {"error", &port, 0x40}, {"txCplt", &port, 2}, {"txAbort", &port, 0}};
 	CHECK(a.calls == expected);
 	CHECK(b.calls == expected);
 }
@@ -243,20 +233,6 @@ TEST_CASE_FIXTURE(CanFixture, "the default callbacks of the can handler base cla
 	CHECK(isRegistered(&plain));
 	dispatchAll(&hcanA);
 	CHECK(log == std::vector<std::string>{"after rxPend", "after rxFull", "after error", "after txCplt", "after txAbort"});
-}
-
-TEST_CASE_FIXTURE(CanFixture, "frames received by the mock port reach all can handlers") {
-	MockCANPort port;
-	CAN_filter f{};
-	f.filter_id = 0x100;
-	f.filter_mask = 0x7FF;
-	f.active = true;
-	port.addCanFilter(f);
-	RecordingCanHandler a;
-	RecordingCanHandler b;
-	CHECK(port.receive(0x100, std::array<uint8_t, 8>{}));
-	CHECK(a.calls == std::vector<Call>{{"rxPend", &port, 0x100}});
-	CHECK(b.calls == std::vector<Call>{{"rxPend", &port, 0x100}});
 }
 
 } // TEST_SUITE

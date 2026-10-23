@@ -468,9 +468,14 @@ TEST_CASE_FIXTURE(UartPortFixture, "DMA receive passes the user buffer to the de
 	CHECK(device.events == Events{"start rx"});
 	CHECK_FALSE(rxFree());
 
-	HostPlatform::uartReceive("D"); // Fake stores the byte in buf[0] and calls the rx complete callbacks
-	CHECK(device.received == "D");
-	CHECK(device.lastRcvAddress == buf); // Reference to the start of the user buffer
+	HostPlatform::uartReceive("DMA rx"); // 6 of 8 bytes: not complete yet
+	CHECK(device.received.empty());
+	CHECK_FALSE(rxFree());
+
+	HostPlatform::uartReceive("!!"); // 8 bytes: rx complete callback
+	CHECK(std::string(buf, 8) == "DMA rx!!");
+	CHECK(device.received == "D");		 // uartRcv gets a reference to the first byte
+	CHECK(device.lastRcvAddress == buf); // which is the start of the user buffer
 	CHECK(device.events == Events{"start rx", "end rx"});
 	CHECK(rxFree());
 }
@@ -484,6 +489,9 @@ TEST_CASE_FIXTURE(UartPortFixture, "interrupt receive passes the user buffer to 
 	CHECK_FALSE(rxFree());
 
 	HostPlatform::uartReceive("I");
+	CHECK(device.received.empty()); // 1 of 2 bytes
+	HostPlatform::uartReceive("T");
+	CHECK(std::string(buf, 2) == "IT");
 	CHECK(device.received == "I");
 	CHECK(device.lastRcvAddress == buf);
 	CHECK(device.events == Events{"start rx", "end rx"});
@@ -570,6 +578,29 @@ TEST_CASE_FIXTURE(UartPortFixture, "a failed DMA receive releases the port" * KN
 	CHECK(rxFree());
 }
 
+TEST_CASE_FIXTURE(UartPortFixture, "after an aborted receive the next single byte completion delivers the received byte" * KNOWN_ISSUE("UARTPort::abortReceive does not clear rxbuf_t set by receive_IT/receive_DMA (UART.cpp:97, 104, 116-123). The next completion armed by registerInterrupt passes the old user buffer to uartRcv (UART.cpp:189-191) instead of the received byte; the buffer may be out of scope by then")) {
+	RecordingDevice device(port);
+	char buf[1] = {'S'};
+	port.receive_IT(buf, 1);
+	CHECK(port.abortReceive());
+	CHECK(port.registerInterrupt());
+	HostPlatform::uartReceive("A");
+	CHECK(device.received == "A");
+	CHECK(device.lastRcvAddress != buf);
+}
+
+TEST_CASE_FIXTURE(UartPortFixture, "after a failed receive the next single byte completion delivers the received byte" * KNOWN_ISSUE("UARTPort::receive_IT/receive_DMA store rxbuf_t before the HAL call and do not clear it if the call fails (UART.cpp:97, 104). The next completion armed by registerInterrupt passes the old user buffer to uartRcv (UART.cpp:189-191) instead of the received byte")) {
+	RecordingDevice device(port);
+	char buf[1] = {'S'};
+	HostPlatform::uart().rxArmResult = HAL_BUSY;
+	CHECK_FALSE(port.receive_IT(buf, 1));
+	HostPlatform::uart().rxArmResult = HAL_OK;
+	CHECK(port.registerInterrupt());
+	HostPlatform::uartReceive("A");
+	CHECK(device.received == "A");
+	CHECK(device.lastRcvAddress != buf);
+}
+
 // NEEDS REVIEW: one isTaken flag is shared by the transmit and the receive semaphore. A receive completion
 // (even of a single byte armed by registerInterrupt) clears it while a transmit is still running, so isTaken()
 // and UART_CommandInterface::readyToSend() report a free port although the tx semaphore is still taken.
@@ -580,6 +611,7 @@ TEST_CASE_FIXTURE(UartPortFixture, "characterization: a receive completion clear
 	port.registerInterrupt();
 	HostPlatform::uartReceive("r");
 
+	// This path calls endUartTransfer(rx) and gives the rx semaphore although it was never taken
 	CHECK_FALSE(port.isTaken());   // Flag cleared by the receive side
 	CHECK_FALSE(txFree());		   // but the transmit is still running
 	CHECK(device.events == Events{"start tx", "end rx"});
@@ -595,6 +627,7 @@ TEST_CASE_FIXTURE(UartPortFixture, "abortReceive stops the receive and releases 
 	RecordingDevice device(port);
 	char buf[4] = {};
 	port.receive_IT(buf, 4);
+	HostPlatform::uartReceive("ab"); // Partly received
 	CHECK(port.abortReceive());
 	CHECK(HostPlatform::uart().abortRxCount == 1);
 	CHECK(device.events == Events{"start rx", "end rx"});
@@ -647,9 +680,16 @@ TEST_CASE_FIXTURE(UartPortFixture, "abort without a device only aborts the HAL t
 } // TEST_SUITE
 
 // ---------------------------------------------------------------------------
+namespace {
+struct UartHandlerFixture {
+	UartHandlerFixture() { HostPlatform::reset(); }
+	~UartHandlerFixture() { HostPlatform::reset(); }
+};
+} // namespace
+
 TEST_SUITE("UartHandler") {
 
-TEST_CASE("a uart handler is registered while it exists") {
+TEST_CASE_FIXTURE(UartHandlerFixture, "a uart handler is registered while it exists") {
 	UartHandler *address = nullptr;
 	{
 		RecordingUartHandler handler;
@@ -660,8 +700,7 @@ TEST_CASE("a uart handler is registered while it exists") {
 	CHECK(std::find(handlers.begin(), handlers.end(), address) == handlers.end());
 }
 
-TEST_CASE("every registered handler receives rx and tx completions with the uart handle") {
-	HostPlatform::reset();
+TEST_CASE_FIXTURE(UartHandlerFixture, "every registered handler receives rx and tx completions with the uart handle") {
 	UART_HandleTypeDef handle{};
 	RecordingUartHandler a;
 	RecordingUartHandler b;
@@ -673,7 +712,7 @@ TEST_CASE("every registered handler receives rx and tx completions with the uart
 	CHECK(b.tx == std::vector<UART_HandleTypeDef *>{&handle});
 }
 
-TEST_CASE("uart handlers are called in the order they were created") {
+TEST_CASE_FIXTURE(UartHandlerFixture, "uart handlers are called in the order they were created") {
 	UART_HandleTypeDef handle{};
 	std::vector<std::string> log;
 	RecordingUartHandler first(&log, "first");
@@ -682,7 +721,7 @@ TEST_CASE("uart handlers are called in the order they were created") {
 	CHECK(log == std::vector<std::string>{"first rx", "second rx"});
 }
 
-TEST_CASE("a destroyed uart handler receives no more completions") {
+TEST_CASE_FIXTURE(UartHandlerFixture, "a destroyed uart handler receives no more completions") {
 	UART_HandleTypeDef handle{};
 	std::vector<std::string> log;
 	RecordingUartHandler stays(&log, "stays");
@@ -693,7 +732,7 @@ TEST_CASE("a destroyed uart handler receives no more completions") {
 	CHECK(log == std::vector<std::string>{"stays tx"});
 }
 
-TEST_CASE("the default callbacks of the uart handler base class ignore completions") {
+TEST_CASE_FIXTURE(UartHandlerFixture, "the default callbacks of the uart handler base class ignore completions") {
 	UART_HandleTypeDef handle{};
 	std::vector<std::string> log;
 	UartHandler plain; // Registered, does not override the callbacks

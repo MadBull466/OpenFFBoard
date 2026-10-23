@@ -77,7 +77,10 @@ TEST_SUITE("EffectsCalculator") {
 // Square wave phase (review survivor: EffectsCalculator.cpp:235 '+' -> '-')
 // ---------------------------------------------------------------------------
 
-TEST_CASE_FIXTURE(SquareFixture, "square phase of 180 degrees inverts the first period") {
+TEST_CASE_FIXTURE(SquareFixture, "a square phase of 18000 shifts the wave at 25 and 75 ms") {
+	// Mutation guard for EffectsCalculator.cpp:235 ('+' -> '-'). It passes only because 18000 % 102 = 48 is close to
+	// half of period+2 (51); the code does not really invert the wave (e.g. not at t = 1 ms). The phase handling is a
+	// suspected bug, see the KNOWN_ISSUE test "square phase is a fraction of the period like for the other periodic effects".
 	// Phase 0: +5000 torque in the first half, -5000 in the second (see "characterization: square starts with the negative half")
 	startSquare(5000, 18000, 100);
 	CHECK(torqueAt(25) == -5000);
@@ -157,6 +160,8 @@ TEST_CASE_FIXTURE(FirmwareFixture, "an effects calculator deleted through its co
 // ---------------------------------------------------------------------------
 
 TEST_CASE_FIXTURE(EffectsThreadFixture, "effects thread waits 500ms after start and then wakes every 3s") {
+	// Run() never starts on the target: Start() is commented out in the constructor (EffectsCalculator.cpp:64).
+	// The test starts it through EffectsThreadFixture. See PROGRESS.md NEEDS REVIEW #9.
 	SUBCASE("first wake up after 500ms, next wait is 3s") {
 		HostRtos::setDelayBudgetMs(1000); // Allows the 500ms delay; the following 3000ms delay blocks
 		CHECK(HostRtos::runUntilBlocked(task));
@@ -170,7 +175,7 @@ TEST_CASE_FIXTURE(EffectsThreadFixture, "effects thread waits 500ms after start 
 }
 
 TEST_CASE_FIXTURE(EffectsThreadFixture, "characterization: effects thread broadcasts nothing even with effect monitoring enabled") {
-	// NEEDS REVIEW: Run() skips the effectsDetails broadcast with `continue` ("TODO uncomment when stream is ok",
+	// NEEDS REVIEW (PROGRESS.md #9): Run() skips the effectsDetails broadcast with `continue` ("TODO uncomment when stream is ok",
 	// EffectsCalculator.cpp:1211) and the thread is never started (constructor, line 64). The monitorEffect command
 	// is not registered (line 51 commented out). Is the monitoring stream meant to be enabled later?
 	MockCommandInterface observer;
@@ -186,6 +191,8 @@ TEST_CASE_FIXTURE(EffectsThreadFixture, "characterization: effects thread broadc
 }
 
 TEST_CASE_FIXTURE(FfbFixture, "effect monitoring flag can be written and read and is limited to 0..1") {
+	// The monitorEffect command is not registered (EffectsCalculator.cpp:51 commented out), so it is reachable only by
+	// its command id, not by name. See PROGRESS.md NEEDS REVIEW #9.
 	CHECK(getValue(*this, EffectsCalculator_commands::monitorEffect) == 0);
 	fxCommand(EffectsCalculator_commands::monitorEffect, CMDtype::set, 1);
 	CHECK(getValue(*this, EffectsCalculator_commands::monitorEffect) == 1);

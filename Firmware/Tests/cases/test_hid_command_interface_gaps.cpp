@@ -270,7 +270,9 @@ TEST_CASE_FIXTURE(HidGapFixture, "replies wait while the HID endpoint is busy") 
 	CHECK(HostPlatform::nowUs() >= 10000); // polled the endpoint with 1 ms delays
 
 	HostUsb::state().hidReady = true;
-	hid.Notify(); // the host kernel restarts a thread that gave up waiting at the start of Run()
+	// Extra Notify() only because the fake kernel restarts Run() after the delay budget is used up;
+	// on target the thread keeps polling tud_hid_n_ready() and sends without a new notification
+	hid.Notify();
 	process();
 	reply = decodeHidReports();
 	REQUIRE(reply.size() == 1);
@@ -279,7 +281,7 @@ TEST_CASE_FIXTURE(HidGapFixture, "replies wait while the HID endpoint is busy") 
 }
 
 TEST_CASE_FIXTURE(HidGapFixture, "characterization: the transfer complete callback does not change pending replies") {
-	// transferComplete is empty (HidCommandInterface.cpp:162). Pending replies are sent by Run() only
+	// NEEDS REVIEW: transferComplete is empty (HidCommandInterface.cpp:162). Should it trigger sending pending replies? (PROGRESS NEEDS REVIEW #8)
 	HostUsb::state().hidReady = false;
 	std::vector<CommandResult> results = {makeResult(mock, MockCommandHandler::id(MockCmd::value), CMDtype::get, CommandStatus::OK, {CommandReply((int64_t)1)})};
 	hid.sendReplies(results, &hid);

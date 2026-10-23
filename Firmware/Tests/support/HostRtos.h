@@ -77,6 +77,14 @@ void setDelayBudgetMs(uint32_t ms);
 /** Amount of currently existing kernel semaphores and mutexes (created and not deleted with vSemaphoreDelete) */
 size_t semaphoreCount();
 
+/** Calls of the task resume functions since the last reset() */
+struct ResumeStats {
+	uint32_t resume = 0;		//!< vTaskResume calls
+	uint32_t resumeFromIsr = 0; //!< xTaskResumeFromISR calls
+	uint32_t resumeInIsr = 0;	//!< vTaskResume calls in (simulated) interrupt context: not allowed on the target
+};
+ResumeStats &resumeStats();
+
 } // namespace HostRtos
 
 #endif

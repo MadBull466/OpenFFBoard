@@ -42,11 +42,15 @@ public:
 	std::vector<Call> calls;
 };
 
-/** Access to the protected storage and sort function through a derived class */
+/**
+ * Read-only view of the protected error storage through a derived class.
+ * Workaround for the getErrors() KNOWN_ISSUE (empty slots sorted to the front hide stored errors
+ * after any clear). Only used to check WHICH errors are stored and in which relative order,
+ * never their slot positions, and never to write.
+ */
 class ErrorListProbe : public ErrorHandler {
 public:
-	static std::array<Error, ERRORHANDLER_MAXERRORS> &raw() { return errors; }
-	static void sort() { sortErrors(); }
+	static const std::array<Error, ERRORHANDLER_MAXERRORS> &raw() { return errors; }
 };
 
 struct ErrorFixture : FirmwareFixture {
@@ -61,6 +65,14 @@ struct ErrorFixture : FirmwareFixture {
 	static size_t storedCount() {
 		auto &raw = ErrorListProbe::raw();
 		return std::count_if(raw.begin(), raw.end(), [](const Error &e) { return e.isError(); });
+	}
+	/** Codes of the stored errors in storage order, empty slots skipped */
+	static std::vector<ErrorCode> storedCodes() {
+		std::vector<ErrorCode> codes;
+		for (const Error &e : ErrorListProbe::raw()) {
+			if (e.isError()) codes.push_back(e.code);
+		}
+		return codes;
 	}
 	/** True if an equal error (code and type) is stored anywhere in the list, regardless of getErrors() */
 	static bool stored(const Error &e) {
@@ -201,14 +213,36 @@ TEST_CASE_FIXTURE(ErrorFixture, "a full error list keeps its errors and still no
 	CHECK_FALSE(rec.calls[0].cleared);
 }
 
-TEST_CASE_FIXTURE(ErrorFixture, "a new error reuses the first free slot") {
-	ErrorHandler::addError(underVoltage);
-	ErrorHandler::addError(overTemp);
-	ErrorListProbe::raw()[0] = Error(); // Free the first slot without sorting
-	ErrorHandler::addError(encoderTemp);
-	CHECK(ErrorListProbe::raw()[0] == encoderTemp);
-	CHECK(ErrorListProbe::raw()[1] == overTemp);
-	CHECK(storedCount() == 2);
+TEST_CASE_FIXTURE(ErrorFixture, "a slot freed by clearing an error in a full list is used by the next new error") {
+	// Fill all ERRORHANDLER_MAXERRORS slots with distinct errors (code x type)
+	const ErrorCode codes[] = {ErrorCode::shutdown, ErrorCode::emergencyStop, ErrorCode::brakeResistorFailure,
+							   ErrorCode::cmdExecutionError, ErrorCode::undervoltage, ErrorCode::overvoltage};
+	const ErrorType types[] = {ErrorType::warning, ErrorType::critical, ErrorType::temporary};
+	std::vector<Error> added;
+	for (ErrorCode c : codes) {
+		for (ErrorType t : types) {
+			if (added.size() < ERRORHANDLER_MAXERRORS) {
+				added.emplace_back(c, t, "");
+			}
+		}
+	}
+	for (const Error &e : added) {
+		ErrorHandler::addError(e);
+	}
+	REQUIRE(storedCount() == ERRORHANDLER_MAXERRORS);
+
+	ErrorHandler::clearError(added[5]);
+	REQUIRE(storedCount() == ERRORHANDLER_MAXERRORS - 1);
+
+	const Error first(ErrorCode::axisOutOfRange, ErrorType::critical, "first");
+	const Error second(ErrorCode::externalConfigurationError, ErrorType::critical, "second");
+	ErrorHandler::addError(first);
+	CHECK(stored(first));
+	CHECK(storedCount() == ERRORHANDLER_MAXERRORS);
+	ErrorHandler::addError(second); // Full again: not stored
+	CHECK_FALSE(stored(second));
+	CHECK(stored(first));
+	CHECK(storedCount() == ERRORHANDLER_MAXERRORS);
 }
 
 // ---------------- clearError(const Error&) ----------------
@@ -392,21 +426,16 @@ TEST_CASE_FIXTURE(ErrorFixture, "characterization: clearAll also calls the handl
 
 // ---------------- sortErrors ----------------
 
-TEST_CASE_FIXTURE(ErrorFixture, "sortErrors orders the error slots by ascending code") {
+TEST_CASE_FIXTURE(ErrorFixture, "sortErrors orders the stored errors by ascending code") {
 	ErrorHandler::addError(Error(ErrorCode::axisOutOfRange, ErrorType::warning, ""));
 	ErrorHandler::addError(Error(ErrorCode::emergencyStop, ErrorType::critical, ""));
 	ErrorHandler::addError(Error(ErrorCode::overtemp, ErrorType::temporary, ""));
 	ErrorHandler::addError(Error(ErrorCode::undervoltage, ErrorType::warning, ""));
-	ErrorListProbe::sort();
-	auto &raw = ErrorListProbe::raw();
-	CHECK(std::is_sorted(raw.begin(), raw.end(), [](const Error &a, const Error &b) { return a.code < b.code; }));
-	// Empty slots have code 0 and are sorted to the front (see the KNOWN_ISSUE above)
-	const size_t first = ERRORHANDLER_MAXERRORS - 4;
-	CHECK(raw[first].code == ErrorCode::emergencyStop);
-	CHECK(raw[first + 1].code == ErrorCode::undervoltage);
-	CHECK(raw[first + 2].code == ErrorCode::overtemp);
-	CHECK(raw[first + 3].code == ErrorCode::axisOutOfRange);
-	CHECK(storedCount() == 4);
+	REQUIRE(storedCodes() == std::vector<ErrorCode>{ErrorCode::axisOutOfRange, ErrorCode::emergencyStop,
+													 ErrorCode::overtemp, ErrorCode::undervoltage}); // Unsorted before
+	ErrorHandler::clearError(ErrorCode::shutdown); // Not active: removes nothing, only sorts
+	CHECK(storedCodes() == std::vector<ErrorCode>{ErrorCode::emergencyStop, ErrorCode::undervoltage,
+												   ErrorCode::overtemp, ErrorCode::axisOutOfRange});
 }
 
 TEST_CASE_FIXTURE(ErrorFixture, "clearing an error sorts the remaining errors by code") {
@@ -414,25 +443,25 @@ TEST_CASE_FIXTURE(ErrorFixture, "clearing an error sorts the remaining errors by
 	ErrorHandler::addError(Error(ErrorCode::emergencyStop, ErrorType::critical, ""));
 	ErrorHandler::addError(underVoltage);
 	ErrorHandler::clearError(underVoltage);
-	auto &raw = ErrorListProbe::raw();
-	CHECK(raw[ERRORHANDLER_MAXERRORS - 2].code == ErrorCode::emergencyStop);
-	CHECK(raw[ERRORHANDLER_MAXERRORS - 1].code == ErrorCode::axisOutOfRange);
+	CHECK(storedCodes() == std::vector<ErrorCode>{ErrorCode::emergencyStop, ErrorCode::axisOutOfRange});
 }
 
-TEST_CASE_FIXTURE(ErrorFixture, "clearing by code and clearTemp sort the remaining errors by code") {
+TEST_CASE_FIXTURE(ErrorFixture, "clearTemp sorts the remaining errors by code") {
 	ErrorHandler::addError(Error(ErrorCode::axisOutOfRange, ErrorType::warning, ""));
 	ErrorHandler::addError(Error(ErrorCode::emergencyStop, ErrorType::critical, ""));
 	ErrorHandler::addError(encoderTemp);
 	ErrorHandler::clearTemp();
-	auto &raw = ErrorListProbe::raw();
-	CHECK(raw[ERRORHANDLER_MAXERRORS - 2].code == ErrorCode::emergencyStop);
-	CHECK(raw[ERRORHANDLER_MAXERRORS - 1].code == ErrorCode::axisOutOfRange);
+	CHECK(storedCodes() == std::vector<ErrorCode>{ErrorCode::emergencyStop, ErrorCode::axisOutOfRange});
+}
 
-	ErrorHandler::addError(underVoltage); // Goes to the first free slot (index 0)
-	ErrorHandler::clearError(ErrorCode::shutdown); // Not active: only sorts
-	CHECK(raw[ERRORHANDLER_MAXERRORS - 3].code == ErrorCode::emergencyStop);
-	CHECK(raw[ERRORHANDLER_MAXERRORS - 2].code == ErrorCode::undervoltage);
-	CHECK(raw[ERRORHANDLER_MAXERRORS - 1].code == ErrorCode::axisOutOfRange);
+TEST_CASE_FIXTURE(ErrorFixture, "a new error after a sort is sorted in by the next clear") {
+	ErrorHandler::addError(Error(ErrorCode::axisOutOfRange, ErrorType::warning, ""));
+	ErrorHandler::addError(Error(ErrorCode::emergencyStop, ErrorType::critical, ""));
+	ErrorHandler::clearError(ErrorCode::shutdown); // Sorts
+	ErrorHandler::addError(underVoltage);
+	ErrorHandler::clearError(ErrorCode::shutdown); // Sorts again
+	CHECK(storedCodes() == std::vector<ErrorCode>{ErrorCode::emergencyStop, ErrorCode::undervoltage,
+												   ErrorCode::axisOutOfRange});
 }
 
 // ---------------- Handler registration ----------------
@@ -505,6 +534,9 @@ TEST_CASE_FIXTURE(ErrorPrinterFixture, "a new error resumes the error printer th
 	REQUIRE(HostRtos::isSuspended(task));
 	ErrorHandler::addError(overTemp);
 	CHECK_FALSE(HostRtos::isSuspended(task));
+	// Thread context uses the normal resume function
+	CHECK(HostRtos::resumeStats().resume == 1);
+	CHECK(HostRtos::resumeStats().resumeFromIsr == 0);
 }
 
 TEST_CASE_FIXTURE(ErrorPrinterFixture, "a new error reported from an interrupt resumes the error printer thread") {
@@ -516,6 +548,10 @@ TEST_CASE_FIXTURE(ErrorPrinterFixture, "a new error reported from an interrupt r
 		ErrorHandler::addError(overTemp);
 	}
 	CHECK_FALSE(HostRtos::isSuspended(task));
+	// Interrupt context must use the ISR safe resume function only
+	CHECK(HostRtos::resumeStats().resumeFromIsr == 1);
+	CHECK(HostRtos::resumeStats().resume == 0);
+	CHECK(HostRtos::resumeStats().resumeInIsr == 0);
 }
 
 TEST_CASE_FIXTURE(ErrorPrinterFixture, "a cleared error does not resume the error printer thread") {

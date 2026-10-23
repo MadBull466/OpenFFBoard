@@ -201,21 +201,13 @@ TEST_CASE("a wrapper with a size that is not a power of two is invalid") {
 	CHECK_FALSE(zero->isValid());
 }
 
-TEST_CASE("an invalid wrapper created with a size is empty and has no capacity" * KNOWN_ISSUE_UB("RingBufferWrapper(uint32_t) returns before initialising the RingBuffer member if the size is not a power of two (ringbufferwrapper.cpp:24-26). head, tail, sizeMask and data stay indeterminate, so capacity() and freeSpace() return garbage")) {
-	alignas(RingBufferWrapper) unsigned char storage[sizeof(RingBufferWrapper)];
-	std::memset(storage, 0xA5, sizeof(storage)); // Simulates left over memory content
-	RingBufferWrapper *w = new (storage) RingBufferWrapper(6);
-	REQUIRE_FALSE(w->isValid());
-	CHECK(w->capacity() == 0);
-	CHECK(w->freeSpace() == 0);
-	// Not destroyed: would delete the indeterminate data pointer
-}
-
-TEST_CASE("an invalid wrapper created with a size can be destroyed" * doctest::skip() *
-		doctest::description("KNOWN ISSUE (crash): RingBufferWrapper(uint32_t) leaves buffer.data uninitialised for sizes that are not a power of two (ringbufferwrapper.cpp:24-26) and ~RingBufferWrapper deletes it (ringbufferwrapper.cpp:39-41). Skipped because it terminates the test run. Unreachable in the firmware today: CmdParser is only constructed with 512 and 1024/4096")) {
+TEST_CASE("an invalid wrapper created with a size is empty, has no capacity and can be destroyed" * doctest::skip() *
+		doctest::description("KNOWN ISSUE (undefined behaviour): RingBufferWrapper(uint32_t) returns early for sizes that are not a power of two (ringbufferwrapper.cpp:29-34) without initialising the RingBuffer member. head, tail, sizeMask and data stay indeterminate, so capacity() and freeSpace() return garbage, and ~RingBufferWrapper deletes the indeterminate data pointer (ringbufferwrapper.cpp:45-50). Skipped in every build: the test itself would read indeterminate values and can crash the run. Unreachable in the firmware today: CmdParser is only constructed with 512 and 1024/4096")) {
 	{
 		RingBufferWrapper w(6);
 		CHECK_FALSE(w.isValid());
+		CHECK(w.capacity() == 0);
+		CHECK(w.freeSpace() == 0);
 	}
 }
 
