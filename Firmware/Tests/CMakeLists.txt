@@ -195,3 +195,159 @@ if(Python3_Interpreter_FOUND)
 else()
 	message(STATUS "OpenFFBoard tests: Python 3 not found, baseline check not added to ctest")
 endif()
+
+# ===========================================================================
+# ffb_target_tests: F407 feature set without the motor drivers and MIDI, with the real Axis.h.
+# Axis, AxesManager and the main classes (P2), later system, inputs, encoders, buses and CAN.
+#
+# ffb_unit_tests above is not changed by this section: its sources, include order, defines and
+# options stay exactly the same. The platform fakes are compiled again for this executable because
+# they include main.h / target_constants.h and therefore depend on the feature header.
+# ===========================================================================
+set(TARGET_FIRMWARE_SOURCES
+	${FIRMWARE_SOURCES}
+	# Axis and main classes (P2)
+	${FFBOARD_DIR}/Src/Axis.cpp
+	${FFBOARD_DIR}/Src/AxesManager.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/FFBoardMain.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/FFBHIDMain.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/FFBHIDMain_commmands.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/FFBWheel.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/FFBJoystick.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/FFBHIDExt.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/CustomMain.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/mainclass_chooser.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/CanBridge.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/CanInputMain.cpp
+	# Needed by the main classes to link (class registries, inputs, USB device). Tested in later phases
+	${FFBOARD_DIR}/Src/SystemCommands.cpp
+	${FFBOARD_DIR}/Src/SelectableInputs.cpp
+	${FFBOARD_DIR}/Src/ButtonSource.cpp
+	${FFBOARD_DIR}/Src/AnalogSource.cpp
+	${FFBOARD_DIR}/Src/AnalogAxisProcessing.cpp
+	${FFBOARD_DIR}/Src/AdcHandler.cpp
+	${FFBOARD_DIR}/Src/SerialFFB.cpp
+	${FFBOARD_DIR}/Src/TimerHandler.cpp
+	${FFBOARD_DIR}/Src/ExtiHandler.cpp
+	${FFBOARD_DIR}/Src/USBdevice.cpp
+	${FFBOARD_DIR}/Src/SPI.cpp
+	${FFBOARD_DIR}/Src/SpiHandler.cpp
+	${FFBOARD_DIR}/Src/I2C.cpp
+	${FFBOARD_DIR}/Src/I2CHandler.cpp
+	${FFBOARD_DIR}/Src/CRC.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/ButtonSources.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/AnalogSources.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/EncoderSources.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/LocalButtons.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/SPIButtons.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/ShifterAnalog.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/PCF8574.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/CanButtons.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/LocalAnalog.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/CanAnalog.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/ADS111X.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/EncoderLocal.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/MtEncoderSPI.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/EncoderBissC.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/EncoderSSI.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/usb_descriptors.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/usb_hid_1ffb_desc.c
+	${FFBOARD_DIR}/UserExtensions/Src/usb_hid_2ffb_desc.c
+	${FFBOARD_DIR}/UserExtensions/Src/usb_hid_gamepad.c
+)
+
+# Compiled again for this executable (they include main.h / target_constants.h). host_stubs.cpp is replaced by
+# the real SystemCommands.cpp; host_stubs_target.cpp holds the stubs of sources not compiled yet.
+set(TARGET_PLATFORM_SOURCES
+	platform/src/host_freertos.cpp
+	platform/src/host_platform.cpp
+	platform/src/host_usb.cpp
+	platform/src/host_target.cpp
+	platform/src/host_target_config.cpp
+	platform/src/host_stubs_target.cpp
+)
+
+# Axis.cpp compiles only with workarounds (no firmware change allowed, see Tests/PROGRESS.md F14):
+#  - it uses fabsf, powf, sqrtf, sinf, M_PI without including <cmath>. With CMSIS-DSP the DSP headers include
+#    math.h; without them it does not compile (F14: -include cmath, only when the DSP is off).
+#  - setEqGain calls clip<int8_t>(gain, -120, 120): the braced return in clip() (cppmain.h) narrows int to
+#    int8_t. GCC warns, clang rejects it (-Wc++11-narrowing is an error by default). The value is in range.
+if(NOT USE_DSP)
+	set_property(SOURCE ${FFBOARD_DIR}/Src/Axis.cpp APPEND PROPERTY COMPILE_OPTIONS -include cmath)
+endif()
+set_property(SOURCE ${FFBOARD_DIR}/Src/Axis.cpp APPEND PROPERTY COMPILE_OPTIONS $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-c++11-narrowing>)
+
+file(GLOB TARGET_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cases_target/test_*.cpp)
+
+add_executable(ffb_target_tests
+	${TARGET_FIRMWARE_SOURCES}
+	${TARGET_PLATFORM_SOURCES}
+	${TARGET_TEST_SOURCES}
+	support/test_main.cpp
+)
+
+# Order matters: the F407 feature header (platform/target_f407) shadows the one of ffb_unit_tests in
+# platform/include. No fakes/ directory: the real Axis.h is used.
+target_include_directories(ffb_target_tests PRIVATE
+	platform/target_f407
+	platform/include
+	support
+	mocks
+	third_party
+	${FFBOARD_DIR}/Inc
+	${FFBOARD_DIR}/UserExtensions/Inc
+	${FFBOARD_DIR}/USB
+	${FFBOARD_DIR}/USB/common
+	${FFBOARD_DIR}/USB/device
+	${FFBOARD_DIR}/USB/class/hid
+	${FFBOARD_DIR}/USB/class/cdc
+	${FFBOARD_DIR}/USB/class/midi
+)
+
+target_compile_definitions(ffb_target_tests PRIVATE HOSTTEST)
+
+if(USE_DSP)
+	target_sources(ffb_target_tests PRIVATE
+		${DSP_DIR}/Source/CommonTables/arm_common_tables.c
+		${DSP_DIR}/Source/FastMathFunctions/arm_sin_f32.c
+		${DSP_DIR}/Source/FastMathFunctions/arm_cos_f32.c
+		${DSP_DIR}/Source/FilteringFunctions/arm_biquad_cascade_df1_f32.c
+		${DSP_DIR}/Source/FilteringFunctions/arm_biquad_cascade_df1_init_f32.c
+		${DSP_DIR}/Source/InterpolationFunctions/arm_spline_interp_f32.c
+		${DSP_DIR}/Source/InterpolationFunctions/arm_spline_interp_init_f32.c
+		# Axis.cpp: speed limiter PID and hands-off detection
+		${DSP_DIR}/Source/ControllerFunctions/arm_pid_init_f32.c
+		${DSP_DIR}/Source/ControllerFunctions/arm_pid_reset_f32.c
+		${DSP_DIR}/Source/StatisticsFunctions/arm_std_f32.c
+		${DSP_DIR}/Source/StatisticsFunctions/arm_var_f32.c
+	)
+	target_include_directories(ffb_target_tests PRIVATE ${DSP_DIR}/Include ${DSP_DIR}/PrivateInclude)
+	target_compile_definitions(ffb_target_tests PRIVATE USE_DSP_FUNCTIONS ARM_MATH_LOOPUNROLL __GNUC_PYTHON__)
+endif()
+
+target_link_libraries(ffb_target_tests PRIVATE Threads::Threads)
+
+# -funsigned-char: char is unsigned on the ARM target (AAPCS). Without it CanBridge.h does not compile
+# (narrowing 0xF1 to char) and char arithmetic would differ from the target.
+target_compile_options(ffb_target_tests PRIVATE -Wall $<$<COMPILE_LANGUAGE:CXX>:-Wno-volatile> -funsigned-char)
+if(MINGW)
+	target_compile_options(ffb_target_tests PRIVATE -mno-ms-bitfields)
+	target_link_options(ffb_target_tests PRIVATE -static)
+endif()
+
+if(FFB_TESTS_SANITIZE)
+	target_compile_definitions(ffb_target_tests PRIVATE HOSTTEST_SANITIZERS)
+	target_compile_options(ffb_target_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined)
+	target_link_options(ffb_target_tests PRIVATE -fsanitize=address,undefined)
+endif()
+
+# Test cases of ffb_target_tests excluded from ctest (doctest --test-case-exclude). Same rule as FFB_TESTS_EXCLUDE:
+# only cases that abort the whole run because of a suspected defect belong here.
+set(FFB_TARGET_TESTS_EXCLUDE "" CACHE STRING "Test cases of ffb_target_tests excluded from ctest (list)")
+list(JOIN FFB_TARGET_TESTS_EXCLUDE "," FFB_TARGET_TESTS_EXCLUDED_ARG)
+message(STATUS "OpenFFBoard tests: ffb_target_tests excluded from ctest: ${FFB_TARGET_TESTS_EXCLUDED_ARG}")
+if(FFB_TARGET_TESTS_EXCLUDED_ARG)
+	add_test(NAME ffb_target_tests COMMAND ffb_target_tests "--test-case-exclude=${FFB_TARGET_TESTS_EXCLUDED_ARG}")
+else()
+	add_test(NAME ffb_target_tests COMMAND ffb_target_tests)
+endif()
