@@ -95,6 +95,34 @@ double endstopTorque(double beyondDeg, int esgain = 127) {
 	return std::min(beyondDeg * esgain * 25.0, 32767.0);
 }
 
+/**
+ * Driver whose emergency stop does not set the torque to zero by itself (like a driver that only disables its
+ * output stage). Records for every turn() how many emergency stops had been requested before it.
+ */
+class EstopOnlyDriver : public MockMotorDriver {
+public:
+	static constexpr uint16_t SELECTION_ID = 61;
+	void emergencyStop(bool reset = false) override {
+		emergencyStopCalls++;
+		emergency = !reset;
+	}
+	void turn(int16_t power) override {
+		emergencyStopsBeforeTurn.push_back(emergencyStopCalls);
+		MockMotorDriver::turn(power);
+	}
+	std::vector<uint32_t> emergencyStopsBeforeTurn; //!< parallel to torqueHistory
+};
+
+/** Selects EstopOnlyDriver (and the mock encoder again) on the axis of the fixture */
+void selectEstopOnlyDriver(AxisFixture &f) {
+	static const std::vector<class_entry<MotorDriver>> registry = {add_class<MotorDriver, MotorDriver>(0),
+																   add_class<EstopOnlyDriver, MotorDriver>(EstopOnlyDriver::SELECTION_ID)};
+	f.axis().driverChooser = ClassChooser<MotorDriver>(registry);
+	f.axis().setDrvType(EstopOnlyDriver::SELECTION_ID);
+	f.axis().setEncType(MockEncoder::SELECTION_ID);
+	f.encoder().setCpr(CPR);
+}
+
 } // namespace
 
 TEST_SUITE("Axis") {
@@ -180,7 +208,7 @@ TEST_CASE_FIXTURE(TorqueFixture, "the clip led does not pulse for a torque withi
 
 TEST_CASE_FIXTURE(TorqueFixture, "the driver never receives a torque above 0x7fff or with the wrong sign when the power is above 0x7fff" *
 		KNOWN_ISSUE("Axis.cpp:498-501, 892-894: power is not limited to 0x7fff (setPower takes any uint16_t), the torque is "
-					"clipped to +-power and passed to MotorDriver::turn(int16_t): 39999 wraps to -25537 (reversed torque). "
+					"clipped to +-power and passed to MotorDriver::turn(int16_t): the torque of 40000 wraps to -25536 (reversed torque). "
 					"The first CHECK fails")) {
 	axisCommand(Axis_commands::power, CMDtype::set, 40000);
 	finishFadeIn();
@@ -271,8 +299,8 @@ TEST_CASE_FIXTURE(TorqueFixture, "after a USB resume the driver is started and t
 
 TEST_CASE_FIXTURE(TorqueFixture, "after a USB resume the torque is back to full within the documented fade time of 0.5 s" *
 		KNOWN_ISSUE("Axis.cpp:875: the multiplier grows by fadeTime / samplerate per cycle, so startForceFadeIn(start, "
-					"fadeTime) (documented in Axis.h:357-360 and :473 as duration in s) takes 1 / fadeTime s: the default "
-					"0.5 s fade of usbResume / emergency stop reset / zeroing takes 2 s. The first CHECK fails")) {
+					"fadeTime) (documented in Axis.h:357-360 and :473 as duration in s) takes (1 - start) / fadeTime s: the default "
+					"0.5 s fade of usbResume and of the emergency stop reset (start 0) takes 2 s, zeroing (start 0.25) 1.5 s. The first CHECK fails")) {
 	finishFadeIn();
 	axis().usbSuspend();
 	axis().usbResume();
@@ -285,31 +313,23 @@ TEST_CASE_FIXTURE(TorqueFixture, "after a USB resume the torque is back to full 
 // ---------------------------------------------------------------------------------------------------------------
 
 TEST_CASE_FIXTURE(TorqueFixture, "an emergency stop sends zero torque before it stops the driver") {
+	selectEstopOnlyDriver(*this);
 	finishFadeIn();
 	cycle(10000);
-	driver().torqueHistory.clear();
+	auto &drv = dynamic_cast<EstopOnlyDriver &>(driver());
+	drv.torqueHistory.clear();
+	drv.emergencyStopsBeforeTurn.clear();
 	axis().emergencyStop(false);
-	CHECK(driver().torqueHistory.size() >= 1);
-	CHECK(driver().torqueHistory.front() == 0);
-	CHECK(driver().emergency);
+	REQUIRE(drv.torqueHistory.size() >= 1);
+	CHECK(drv.torqueHistory.front() == 0);
+	CHECK(drv.emergencyStopsBeforeTurn.front() == 0); // zero torque requested before the driver's emergency stop
+	CHECK(drv.emergencyStopCalls == 1);
+	CHECK(drv.emergency);
 	CHECK(control.emergency);
 }
 
-/** Driver whose emergency stop does not set the torque to zero by itself (like a driver that only disables its output stage) */
-class EstopOnlyDriver : public MockMotorDriver {
-public:
-	static constexpr uint16_t SELECTION_ID = 61;
-	void emergencyStop(bool reset = false) override {
-		emergencyStopCalls++;
-		emergency = !reset;
-	}
-};
-
 TEST_CASE_FIXTURE(TorqueFixture, "an emergency stop sends zero torque also to a driver that does not stop the torque itself") {
-	static const std::vector<class_entry<MotorDriver>> registry = {add_class<MotorDriver, MotorDriver>(0), add_class<EstopOnlyDriver, MotorDriver>(EstopOnlyDriver::SELECTION_ID)};
-	axis().driverChooser = ClassChooser<MotorDriver>(registry);
-	axis().setDrvType(EstopOnlyDriver::SELECTION_ID);
-	axis().setEncType(MockEncoder::SELECTION_ID);
+	selectEstopOnlyDriver(*this);
 	axisCommand(Axis_commands::slewrate, CMDtype::set, 0);
 	finishFadeIn();
 	cycle(10000);
@@ -340,7 +360,7 @@ TEST_CASE_FIXTURE(TorqueFixture, "resetting the emergency stop clears it and fad
 TEST_CASE_FIXTURE(TorqueFixture, "after an emergency stop reset the slew rate limiter starts from the zero torque of the stopped motor" *
 		KNOWN_ISSUE("Axis.cpp:917-921: the slew rate limiter compares with metric.previous.torque, which keeps the last "
 					"torque before the emergency stop (emergencyStop only calls drv->turn(0), Axis.cpp:618). After the reset "
-					"the first torque jumps from 0 to the old torque - slewrate (9900 instead of <= 100), bypassing the "
+					"the first torque jumps from 0 to the old torque - slewrate (9899 instead of <= 100), bypassing the "
 					"fade-in. The first CHECK fails")) {
 	axisCommand(Axis_commands::slewrate, CMDtype::set, 100);
 	finishFadeIn();
@@ -349,6 +369,24 @@ TEST_CASE_FIXTURE(TorqueFixture, "after an emergency stop reset the slew rate li
 	axis().emergencyStop(false);
 	cycles(10, 10000);
 	axis().emergencyStop(true);
+
+	cycle(10000);
+	CHECK(std::abs(torque()) <= 100);
+}
+
+TEST_CASE_FIXTURE(TorqueFixture, "after a USB resume the slew rate limiter starts from the zero torque of the stopped motor" *
+		KNOWN_ISSUE("Axis.cpp:917-921: same root cause as after an emergency stop reset. usbSuspend only calls drv->turn(0) "
+					"and stopMotor (Axis.cpp:629-634); metric.previous.torque keeps the torque before the suspend. After the "
+					"resume the first torque jumps from 0 to the old torque - slewrate (9899 with slew rate 100) although the "
+					"fade-in restarts at 0. The first CHECK fails")) {
+	axisCommand(Axis_commands::slewrate, CMDtype::set, 100);
+	finishFadeIn();
+	cycles(150, 10000);
+	REQUIRE(torque() > 9900);
+	axis().usbSuspend();
+	REQUIRE(torque() == 0);
+	axis().usbResume(); // short suspend: no FFB cycle in between (FFBHIDMain keeps updating while suspended)
+	REQUIRE_ALL_HAL_MODELLED();
 
 	cycle(10000);
 	CHECK(std::abs(torque()) <= 100);
@@ -1076,7 +1114,8 @@ TEST_CASE_FIXTURE(TorqueFixture, "the speed limiter reduces a negative torque in
 
 #ifdef USE_DSP_FUNCTIONS
 // arm_pid_f32 with Kp 0.3, Ki 0.03, Kd 0: out[n] = out[n-1] + 0.33 * e[n] - 0.3 * e[n-1], e in deg/s
-TEST_CASE_FIXTURE(TorqueFixture, "with CMSIS-DSP the speed limiter reduces the torque by a PI controller on the speed error in deg/s") {
+// NEEDS REVIEW #32: the gain differs by orders of magnitude from the build without CMSIS-DSP; which one is intended?
+TEST_CASE_FIXTURE(TorqueFixture, "characterization: with CMSIS-DSP the speed limiter reduces the torque by a PI controller on the speed error in deg/s") {
 	useLargeRange();
 	finishFadeIn();
 	moveAt(500, 300, 10000);
@@ -1087,7 +1126,8 @@ TEST_CASE_FIXTURE(TorqueFixture, "with CMSIS-DSP the speed limiter reduces the t
 	CHECK_NEAR(torque(), 10000 - (0.33 * 400 + 9 * 0.03 * 400), 3);
 }
 
-TEST_CASE_FIXTURE(TorqueFixture, "with CMSIS-DSP the speed limiter restarts its integral when it is not active") {
+// NEEDS REVIEW #32
+TEST_CASE_FIXTURE(TorqueFixture, "characterization: with CMSIS-DSP the speed limiter restarts its integral when it is not active") {
 	useLargeRange();
 	finishFadeIn();
 	moveAt(500, 300, 10000);
@@ -1099,7 +1139,8 @@ TEST_CASE_FIXTURE(TorqueFixture, "with CMSIS-DSP the speed limiter restarts its 
 }
 #else
 // Fallback: speed error scaled by 0x7fff / maxspeed, P 0.3, I 0.03 * torque scaler, I limited to 0..power
-TEST_CASE_FIXTURE(TorqueFixture, "without CMSIS-DSP the speed limiter reduces the torque by a PI controller on the speed error scaled to the torque range") {
+// NEEDS REVIEW #32: the gain differs by orders of magnitude from the CMSIS-DSP build (the target); which one is intended?
+TEST_CASE_FIXTURE(TorqueFixture, "characterization: without CMSIS-DSP the speed limiter reduces the torque by a PI controller on the speed error scaled to the torque range") {
 	useLargeRange();
 	finishFadeIn();
 	moveAt(110, 300, 10000);
@@ -1111,7 +1152,8 @@ TEST_CASE_FIXTURE(TorqueFixture, "without CMSIS-DSP the speed limiter reduces th
 	CHECK_NEAR(torque(), 10000 - (reducer * 0.3 + 10 * reducer * 0.03), 4);
 }
 
-TEST_CASE_FIXTURE(TorqueFixture, "without CMSIS-DSP the speed limiter restarts its integral when it is not active") {
+// NEEDS REVIEW #32
+TEST_CASE_FIXTURE(TorqueFixture, "characterization: without CMSIS-DSP the speed limiter restarts its integral when it is not active") {
 	useLargeRange();
 	finishFadeIn();
 	moveAt(110, 300, 10000);
@@ -1123,7 +1165,8 @@ TEST_CASE_FIXTURE(TorqueFixture, "without CMSIS-DSP the speed limiter restarts i
 	CHECK_NEAR(torque(), 10000 - (reducer * 0.3 + reducer * 0.03), 3);
 }
 
-TEST_CASE_FIXTURE(TorqueFixture, "without CMSIS-DSP the speed limiter removes the torque at four times the maximum speed") {
+// NEEDS REVIEW #32 (the torque is gone from about 1.9 times the maximum speed)
+TEST_CASE_FIXTURE(TorqueFixture, "characterization: without CMSIS-DSP the speed limiter removes the torque far above the maximum speed") {
 	useLargeRange();
 	finishFadeIn();
 	moveAt(500, 300, 10000);
@@ -1135,6 +1178,10 @@ TEST_CASE_FIXTURE(TorqueFixture, "without CMSIS-DSP the speed limiter removes th
 
 // ---------------------------------------------------------------------------------------------------------------
 // Hands-off detection
+// The two passing cases below cannot fail today: handsOff is computed but never used (bug 35), so they only
+// guard against a future implementation cutting the torque while the hands are on the wheel. The check runs on
+// every 11th call through a function static check_counter (Axis.cpp:1339), shared by all axes and never reset:
+// the phase of the 11-cycle check depends on the test order.
 // ---------------------------------------------------------------------------------------------------------------
 
 TEST_CASE_FIXTURE(TorqueFixture, "with hands-off detection enabled a moving wheel below the speed threshold keeps the game torque") {

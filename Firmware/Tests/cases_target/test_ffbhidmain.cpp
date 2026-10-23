@@ -28,11 +28,6 @@ extern volatile uint32_t ADC1_BUF[ADC1_CHANNELS]; // host_stubs_target.cpp (glob
 
 namespace {
 
-/** Access to the protected global PersistentStorage startup flag (no public reset), like test_persistent_storage.cpp */
-struct HidMainStartupFlag : PersistentStorage {
-	static void set(bool v) { startupComplete = v; }
-};
-
 /** FFBHIDMain with 32 bit HID axes (HIDAXISRES_USE_32B_DESC is off in the F407 configuration) and 1 axis */
 class HidMain32 : public FFBHIDMain {
 public:
@@ -47,17 +42,8 @@ private:
 };
 ClassIdentifier HidMain32::info = {.name = "HID main 32 bit (test)", .id = 0x7f01};
 
+/** TargetFixture resets PersistentStorage::startupComplete, ADC1_BUF/ADC2_BUF and the CAN mock */
 struct HidMainFixture : TargetFixture {
-	HidMainFixture() { resetInputs(); }
-	~HidMainFixture() override { resetInputs(); }
-
-	static void resetInputs() {
-		HidMainStartupFlag::set(false);
-		for (auto &v : ADC1_BUF) {
-			v = 0;
-		}
-	}
-
 	/** The gamepad reports (report id 1) sent so far. HidFFB also sends PID state reports on the same interface */
 	static std::vector<std::vector<uint8_t>> gamepadReports() {
 		std::vector<std::vector<uint8_t>> reports;
@@ -504,7 +490,7 @@ TEST_CASE_FIXTURE(HidMainFixture, "each hidsendspd index sets the FFB timer peri
 	}
 }
 
-TEST_CASE_FIXTURE(HidMainFixture, "the rate does not depend on the USB speed in a full speed build" * DELETES_FFBHIDMAIN) {
+TEST_CASE_FIXTURE(HidMainFixture, "a full speed build uses 1 kHz at index 0 whatever speed TinyUSB reports" * DELETES_FFBHIDMAIN) {
 	FFBWheel wheel;
 	HostTarget::state().usbSpeed = TUSB_SPEED_HIGH;
 
@@ -519,7 +505,6 @@ TEST_CASE_FIXTURE(HidMainFixture, "the rate does not depend on the USB speed in 
 
 TEST_CASE_FIXTURE(HidMainFixture, "at the lowest rate a gamepad report is still sent in every FFB cycle" * DELETES_FFBHIDMAIN) {
 	FFBWheel wheel;
-	selectMocks();
 	REQUIRE(cmd(wheel, "hidsendspd", CMDtype::set, 3) == CommandStatus::OK); // 125 Hz
 	start(wheel);
 	// usb divider 1 for every full speed rate
@@ -659,8 +644,13 @@ TEST_CASE_FIXTURE(HidMainFixture, "ffbactive cannot be set" * DELETES_FFBHIDMAIN
 
 TEST_CASE_FIXTURE(HidMainFixture, "estop set 1 stops the motor and estop get reports it" * DELETES_FFBHIDMAIN) {
 	FFBWheel wheel;
+	PidHost host;
 	selectMocks();
 	MockMotorDriver &drv = driverOf();
+	startConstantForce(host);
+	start(wheel);
+	tick(wheel, 10);
+	REQUIRE(drv.lastTorque != 0);
 
 	REQUIRE(cmd(wheel, "estop", CMDtype::set, 1) == CommandStatus::OK);
 
@@ -692,7 +682,8 @@ TEST_CASE_FIXTURE(HidMainFixture, "estop with another type than get or set chang
 TEST_CASE_FIXTURE(HidMainFixture, "during an emergency stop the cycle sends no torque and pulses the clip LED" * DELETES_FFBHIDMAIN) {
 	FFBWheel wheel;
 	PidHost host;
-	selectMocks().setDegrees(20.0f);
+	MockEncoder &enc = selectMocks();
+	enc.setDegrees(20.0f);
 	MockMotorDriver &drv = driverOf();
 	startConstantForce(host);
 	start(wheel);
@@ -705,7 +696,22 @@ TEST_CASE_FIXTURE(HidMainFixture, "during an emergency stop the cycle sends no t
 
 	CHECK(drv.torqueHistory.size() == torques);
 	CHECK(HostPlatform::leds().clipPulses > pulses);
-	CHECK(gamepadReportCount() == 1); // reports continue
+}
+
+TEST_CASE_FIXTURE(HidMainFixture, "during an emergency stop the gamepad reports continue" * DELETES_FFBHIDMAIN) {
+	FFBWheel wheel;
+	MockEncoder &enc = selectMocks();
+	enc.setDegrees(20.0f);
+	start(wheel);
+	tick(wheel);
+	REQUIRE(gamepadReportCount() == 1);
+	REQUIRE(cmd(wheel, "estop", CMDtype::set, 1) == CommandStatus::OK);
+
+	enc.setDegrees(40.0f);
+	tick(wheel);
+
+	REQUIRE(gamepadReportCount() == 2);
+	CHECK(axis16(gamepadReports().back(), 0) == static_cast<int16_t>(mainAxis().getLastScaledEnc() >> 16));
 }
 
 TEST_CASE_FIXTURE(HidMainFixture, "btntypes set creates the selected button sources and get returns the mask" * DELETES_FFBHIDMAIN) {
@@ -885,7 +891,9 @@ TEST_CASE_FIXTURE(HidMainFixture, "pressing the E-stop triggers an emergency sto
 	FFBWheel wheel;
 	selectMocks();
 	start(wheel);
-	HostPlatform::advanceMs(1001); // 1 s debounce after startup
+	// lastEstop starts at 0 and the simulated tick starts at 0: an E-stop edge in the first 1000 ms is ignored.
+	// On the target the tick of the first event depends on the boot time
+	HostPlatform::advanceMs(1001);
 
 	HostTarget::setPin(E_STOP_GPIO_Port, E_STOP_Pin, false);
 	HostTarget::triggerExti(E_STOP_Pin);
@@ -897,6 +905,8 @@ TEST_CASE_FIXTURE(HidMainFixture, "pressing the E-stop triggers an emergency sto
 TEST_CASE_FIXTURE(HidMainFixture, "releasing the E-stop more than 1 s later resets the emergency stop" * DELETES_FFBHIDMAIN) {
 	FFBWheel wheel;
 	start(wheel);
+	// lastEstop starts at 0 and the simulated tick starts at 0: an E-stop edge in the first 1000 ms is ignored.
+	// On the target the tick of the first event depends on the boot time
 	HostPlatform::advanceMs(1001);
 	HostTarget::setPin(E_STOP_GPIO_Port, E_STOP_Pin, false);
 	HostTarget::triggerExti(E_STOP_Pin);
@@ -909,9 +919,13 @@ TEST_CASE_FIXTURE(HidMainFixture, "releasing the E-stop more than 1 s later rese
 	CHECK(get(wheel, "estop") == 0);
 }
 
-TEST_CASE_FIXTURE(HidMainFixture, "E-stop pin changes within 1 s of the last one are ignored" * DELETES_FFBHIDMAIN) {
+TEST_CASE_FIXTURE(HidMainFixture, "characterization: a release of the E-stop within 1 s of the press is never applied" * DELETES_FFBHIDMAIN) {
+	// NEEDS REVIEW #39: the debounce in FFBHIDMain::exti (FFBHIDMain.cpp:343) drops the edge and the pin is never read
+	// again, so the emergency stop stays active although the E-stop is released. Intended (latching) or a defect?
 	FFBWheel wheel;
 	start(wheel);
+	// lastEstop starts at 0 and the simulated tick starts at 0: an E-stop edge in the first 1000 ms is ignored.
+	// On the target the tick of the first event depends on the boot time
 	HostPlatform::advanceMs(1001);
 	HostTarget::setPin(E_STOP_GPIO_Port, E_STOP_Pin, false);
 	HostTarget::triggerExti(E_STOP_Pin);
@@ -920,33 +934,88 @@ TEST_CASE_FIXTURE(HidMainFixture, "E-stop pin changes within 1 s of the last one
 	HostPlatform::advanceMs(1000); // not more than 1000 ms
 	HostTarget::setPin(E_STOP_GPIO_Port, E_STOP_Pin, true);
 	HostTarget::triggerExti(E_STOP_Pin);
+	HostPlatform::advanceMs(5000); // no further edge: the pin stays released
 
 	CHECK(get(wheel, "estop") == 1);
 }
 
-TEST_CASE_FIXTURE(HidMainFixture, "an E-stop interrupt without a level change does nothing" * DELETES_FFBHIDMAIN) {
+// The fake kernel restarts FFBHIDMain::Run on every activation, which reads the E-stop pin again (host only, on the
+// target Run reads it once at startup). The following tests therefore do not run the main thread after the edge.
+
+TEST_CASE_FIXTURE(HidMainFixture, "an E-stop pressed within 1 s after a release still stops the motor" *
+		KNOWN_ISSUE("FFBHIDMain::exti (FFBHIDMain.cpp:343) drops an E-stop edge that comes within 1000 ms of the last "
+					"accepted one and never reads the pin again: the motor keeps running while the E-stop is pressed "
+					"(bug 40). The first CHECK on the estop state fails") *
+		DELETES_FFBHIDMAIN) {
 	FFBWheel wheel;
 	selectMocks();
 	start(wheel);
+	// lastEstop starts at 0 and the simulated tick starts at 0: an E-stop edge in the first 1000 ms is ignored.
+	// On the target the tick of the first event depends on the boot time
+	HostPlatform::advanceMs(1001);
+	HostTarget::setPin(E_STOP_GPIO_Port, E_STOP_Pin, false);
+	HostTarget::triggerExti(E_STOP_Pin);
+	HostPlatform::advanceMs(1001);
+	HostTarget::setPin(E_STOP_GPIO_Port, E_STOP_Pin, true);
+	HostTarget::triggerExti(E_STOP_Pin);
+	REQUIRE(get(wheel, "estop") == 0);
+
+	HostPlatform::advanceMs(500);
+	HostTarget::setPin(E_STOP_GPIO_Port, E_STOP_Pin, false); // pressed again and held
+	HostTarget::triggerExti(E_STOP_Pin);
+	HostPlatform::advanceMs(5000);
+
+	REQUIRE_ALL_HAL_MODELLED();
+	CHECK(get(wheel, "estop") == 1);
+	CHECK(driverOf().emergency);
+}
+
+TEST_CASE_FIXTURE(HidMainFixture, "an E-stop pressed within 1 s after start stops the motor" *
+		KNOWN_ISSUE("FFBHIDMain::lastEstop starts at 0 (FFBHIDMain.h:153), so FFBHIDMain::exti (FFBHIDMain.cpp:343) drops "
+					"an E-stop edge while HAL_GetTick() <= 1000 and never reads the pin again (bug 40). The first CHECK "
+					"on the estop state fails") *
+		DELETES_FFBHIDMAIN) {
+	FFBWheel wheel;
+	selectMocks();
+	start(wheel); // E-stop released at startup
+	HostPlatform::advanceMs(500);
+
+	HostTarget::setPin(E_STOP_GPIO_Port, E_STOP_Pin, false); // pressed and held
+	HostTarget::triggerExti(E_STOP_Pin);
+	HostPlatform::advanceMs(5000);
+
+	REQUIRE_ALL_HAL_MODELLED();
+	CHECK(get(wheel, "estop") == 1);
+	CHECK(driverOf().emergency);
+}
+
+TEST_CASE_FIXTURE(HidMainFixture, "a bounce interrupt of the released E-stop does nothing" * DELETES_FFBHIDMAIN) {
+	FFBWheel wheel;
+	selectMocks();
+	start(wheel);
+	// lastEstop starts at 0 and the simulated tick starts at 0: an E-stop edge in the first 1000 ms is ignored.
+	// On the target the tick of the first event depends on the boot time
 	HostPlatform::advanceMs(1001);
 
-	HostTarget::triggerExti(E_STOP_Pin); // pin still released
+	HostTarget::triggerExti(E_STOP_Pin); // contact bounce: interrupt, but the pin reads released
 
 	CHECK(get(wheel, "estop") == 0);
 	CHECK(driverOf().emergencyStopCalls == 0); // no reset of an emergency stop that is not active
 }
 
-TEST_CASE_FIXTURE(HidMainFixture, "a second E-stop interrupt while the E-stop stays pressed does not stop again" * DELETES_FFBHIDMAIN) {
+TEST_CASE_FIXTURE(HidMainFixture, "a bounce interrupt while the E-stop stays pressed does not stop again" * DELETES_FFBHIDMAIN) {
 	FFBWheel wheel;
 	selectMocks();
 	start(wheel);
+	// lastEstop starts at 0 and the simulated tick starts at 0: an E-stop edge in the first 1000 ms is ignored.
+	// On the target the tick of the first event depends on the boot time
 	HostPlatform::advanceMs(1001);
 	HostTarget::setPin(E_STOP_GPIO_Port, E_STOP_Pin, false);
 	HostTarget::triggerExti(E_STOP_Pin);
 	REQUIRE(driverOf().emergencyStopCalls == 1);
 
 	HostPlatform::advanceMs(1001);
-	HostTarget::triggerExti(E_STOP_Pin); // still pressed
+	HostTarget::triggerExti(E_STOP_Pin); // contact bounce: interrupt, the pin still reads pressed
 
 	CHECK(driverOf().emergencyStopCalls == 1);
 	CHECK(get(wheel, "estop") == 1);
@@ -999,6 +1068,18 @@ TEST_CASE_FIXTURE(HidMainFixture, "a critical error puts the main class into eme
 	CHECK(get(wheel, "estop") == 1);
 }
 
+TEST_CASE_FIXTURE(HidMainFixture, "a critical error keeps an active emergency stop" *
+		KNOWN_ISSUE("FFBHIDMain::errorCallback (FFBHIDMain.cpp:361-364) calls emergencyStop(true) (= reset) for a new "
+					"critical error: an active emergency stop is released (bug 39). The first CHECK fails") *
+		DELETES_FFBHIDMAIN) {
+	FFBWheel wheel;
+	REQUIRE(cmd(wheel, "estop", CMDtype::set, 1) == CommandStatus::OK);
+
+	ErrorHandler::addError(Error(ErrorCode::overtemp, ErrorType::critical, "test"));
+
+	CHECK(get(wheel, "estop") == 1);
+}
+
 // ---------------- USB suspend / resume ----------------
 
 TEST_CASE_FIXTURE(HidMainFixture, "USB suspend disables FFB and deletes all effects" * DELETES_FFBHIDMAIN) {
@@ -1019,10 +1100,15 @@ TEST_CASE_FIXTURE(HidMainFixture, "USB suspend disables FFB and deletes all effe
 
 TEST_CASE_FIXTURE(HidMainFixture, "USB suspend suspends the axes and resume restarts them" * DELETES_FFBHIDMAIN) {
 	FFBWheel wheel;
+	PidHost host;
 	selectMocks();
 	MockMotorDriver &drv = driverOf();
 	wheel.usbResume(); // USB mounted (tud_mount_cb)
 	REQUIRE(drv.running);
+	startConstantForce(host);
+	start(wheel);
+	tick(wheel, 10);
+	REQUIRE(drv.lastTorque != 0);
 
 	wheel.usbSuspend();
 	CHECK(drv.lastTorque == 0);
@@ -1066,13 +1152,20 @@ TEST_CASE_FIXTURE(HidMainFixture, "USB resume after suspend allows a new suspend
 	CHECK(get(wheel, "ffbactive") == 0);
 }
 
-TEST_CASE_FIXTURE(HidMainFixture, "USB resume releases an emergency stop when the E-stop pin is released" * DELETES_FFBHIDMAIN) {
+TEST_CASE_FIXTURE(HidMainFixture, "characterization: USB resume clears the emergency flag but leaves the driver in emergency stop" * DELETES_FFBHIDMAIN) {
+	// NEEDS REVIEW #38: FFBHIDMain::usbResume (FFBHIDMain.cpp:321-322) sets control.emergency = false when the E-stop
+	// pin is released but never calls axes_manager->emergencyStop(true): estop reads 0 while the driver stays stopped.
 	FFBWheel wheel;
+	selectMocks();
+	MockMotorDriver &drv = driverOf();
 	REQUIRE(cmd(wheel, "estop", CMDtype::set, 1) == CommandStatus::OK);
+	REQUIRE(drv.emergency);
 
 	wheel.usbResume();
 
 	CHECK(get(wheel, "estop") == 0);
+	CHECK(drv.emergencyStopCalls == 1); // no reset call
+	CHECK(drv.emergency);
 }
 
 TEST_CASE_FIXTURE(HidMainFixture, "USB resume keeps the emergency stop while the E-stop pin is pressed" * DELETES_FFBHIDMAIN) {

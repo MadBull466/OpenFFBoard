@@ -168,14 +168,39 @@ TEST_CASE_FIXTURE(MainClassFixture, "a command received on the CDC port is execu
 	CHECK(HostUsb::state().cdcTx == "[main.id?|0]\n");
 }
 
-TEST_CASE_FIXTURE(MainClassFixture, "an empty CDC read passes nothing to the command parser") {
+TEST_CASE_FIXTURE(MainClassFixture, "data read from the CDC port is executed as a command") {
 	FFBoardMain main;
+	HostUsb::cdcReceive("main.id?\n");
 
-	main.cdcRcvReady(0); // the fake tud_cdc_n_read returns no data
+	main.cdcRcvReady(0);
 	HostRtos::runUntilIdle();
 
-	CHECK(HostUsb::state().cdcTx.empty());
-	CHECK(main.cdcCmdInterface->bufferCapacity() > 0);
+	CHECK(HostUsb::state().cdcRx.empty());
+	CHECK(HostUsb::state().cdcTx == "[main.id?|0]\n");
+}
+
+TEST_CASE_FIXTURE(MainClassFixture, "one CDC read takes at most the 64 bytes of the full speed CDC buffer") {
+	FFBoardMain main;
+	REQUIRE(main.cdcCmdInterface->bufferCapacity() > 64);
+	HostUsb::cdcReceive(std::string(100, ' '));
+
+	main.cdcRcvReady(0);
+
+	CHECK(HostUsb::state().cdcRx.size() == 100 - 64);
+}
+
+TEST_CASE_FIXTURE(MainClassFixture, "one CDC read takes at most the free space of the command buffer") {
+	FFBoardMain main;
+	std::string pending(1000, 'x'); // an unfinished command fills the parser buffer
+	uint32_t len = pending.size();
+	main.cdcRcv(pending.data(), &len);
+	uint32_t capacity = main.cdcCmdInterface->bufferCapacity();
+	REQUIRE(capacity < 64);
+	HostUsb::cdcReceive(std::string(64, 'y'));
+
+	main.cdcRcvReady(0);
+
+	CHECK(HostUsb::state().cdcRx.size() == 64 - capacity);
 }
 
 } // TEST_SUITE FFBoardMain
@@ -216,10 +241,17 @@ TEST_CASE_FIXTURE(MainClassFixture, "an unknown command of the custom main class
 
 TEST_CASE_FIXTURE(MainClassFixture, "the custom main class keeps the internal commands registered once") {
 	CustomMain main; // FFBoardMain and CustomMain::registerCommands both register the internal commands
-	CmdHandlerCommanddef *id = main.getCommandFromName("id");
-	REQUIRE(id != nullptr);
+	const std::string help = main.getCommandsHelpstring();
+	INFO(help);
+	size_t ids = 0;
+	for (size_t pos = 0; (pos = help.find("\nid", pos)) != std::string::npos; pos++) {
+		ids++;
+	}
+	if (help.rfind("id", 0) == 0) {
+		ids++;
+	}
+	CHECK(ids == 1);
 	CHECK(main.getCommandFromName("command") != nullptr);
-	CHECK(main.getCommandFromId(id->cmdId) == id);
 }
 
 TEST_CASE_FIXTURE(MainClassFixture, "the custom main class is not in the class registry of the F407 feature set") {

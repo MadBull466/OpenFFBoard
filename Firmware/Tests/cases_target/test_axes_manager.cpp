@@ -339,13 +339,14 @@ TEST_CASE_FIXTURE(AxesManagerFixture, "the axis values are rebuilt on every call
 	CHECK(manager->getAxisValues()->size() == 1);
 }
 
-TEST_CASE_FIXTURE(AxesManagerFixture, "axes without an encoder have no axis value") {
+TEST_CASE_FIXTURE(AxesManagerFixture, "characterization: axes without an encoder have no axis value") {
+	// NEEDS REVIEW #25: an axis without encoder is left out of the axis values instead of reporting 0 in its slot
 	REQUIRE(manager->setAxisCount(1)); // Empty flash: no driver, no encoder
 	CHECK(manager->getAxisValues()->empty());
 }
 
 TEST_CASE_FIXTURE(AxesManagerFixture, "characterization: an axis without encoder is left out and the next axis takes its place in the axis values") {
-	// NEEDS REVIEW: with X without encoder the Y position is reported in the first (X) slot of the HID gamepad report
+	// NEEDS REVIEW #25: with X without encoder the Y position is reported in the first (X) slot of the HID gamepad report
 	REQUIRE(manager->setAxisCount(2));
 	selectMocks(1);
 	axisCommand(1, Axis_commands::invert, CMDtype::set, 0);
@@ -364,7 +365,7 @@ TEST_CASE_FIXTURE(AxesManagerFixture, "characterization: an axis without encoder
 // Emergency stop, USB suspend / resume, zeroing, sample rate
 // ---------------------------------------------------------------------------
 
-TEST_CASE_FIXTURE(AxesManagerFixture, "an emergency stop sends zero torque to all drivers and puts them into emergency stop") {
+TEST_CASE_FIXTURE(AxesManagerFixture, "an emergency stop puts the drivers of all axes into emergency stop") {
 	createAxesWithMocks(2);
 	encoder(0).setDegrees(90.0f);
 	encoder(1).setDegrees(90.0f);
@@ -376,6 +377,7 @@ TEST_CASE_FIXTURE(AxesManagerFixture, "an emergency stop sends zero torque to al
 
 	for (uint8_t i = 0; i < 2; i++) {
 		CAPTURE((int)i);
+		// End state only: Axis::emergencyStop sends 0, but MotorDriver::emergencyStop (base of the mock) also turns 0
 		CHECK(driver(i).lastTorque == 0);
 		CHECK(driver(i).emergencyStopCalls == 1);
 		CHECK(driver(i).emergency);
@@ -401,24 +403,27 @@ TEST_CASE_FIXTURE(AxesManagerFixture, "resetting the emergency stop releases all
 
 	cycle(1);
 	CHECK(std::abs(driver(0).lastTorque) < std::abs(before) / 100); // fade-in starts at 0
-	cycle(2100);													 // default fade of startForceFadeIn(): 0.5 per second
+	// Documented fade 0.5 s; the firmware takes 2 s (bug 30); 2100 cycles cover both
+	cycle(2100);
 	CHECK(driver(0).lastTorque == before);
 	CHECK(driver(1).lastTorque == before);
 }
 
-TEST_CASE_FIXTURE(AxesManagerFixture, "a USB suspend sends zero torque and stops the motors of all axes") {
+TEST_CASE_FIXTURE(AxesManagerFixture, "a USB suspend stops the motors of all axes") {
 	createAxesWithMocks(2);
 	encoder(0).setDegrees(90.0f);
 	encoder(1).setDegrees(90.0f);
 	cycle(1100);
+	uint32_t stopsBefore[2] = {driver(0).stopCalls, driver(1).stopCalls};
 
 	manager->usbSuspend();
 
 	for (uint8_t i = 0; i < 2; i++) {
 		CAPTURE((int)i);
+		// End state only: Axis::usbSuspend sends 0, but MotorDriver::stopMotor (base of the mock) also turns 0
 		CHECK(driver(i).lastTorque == 0);
 		CHECK_FALSE(driver(i).running);
-		CHECK(driver(i).stopCalls == 1);
+		CHECK(driver(i).stopCalls == stopsBefore[i] + 1);
 	}
 }
 
@@ -440,6 +445,7 @@ TEST_CASE_FIXTURE(AxesManagerFixture, "a USB resume starts the motors of all axe
 	}
 	cycle(1);
 	CHECK(std::abs(driver(1).lastTorque) < std::abs(before) / 100);
+	// Documented fade 0.5 s; the firmware takes 2 s (bug 30); 2100 cycles cover both
 	cycle(2100);
 	CHECK(driver(1).lastTorque == before);
 }

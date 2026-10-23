@@ -451,6 +451,7 @@ TEST_CASE_FIXTURE(AxisFixture, "a hands-off acceleration threshold set by comman
 					"on the flash value fails")) {
 	axisCommand(Axis_commands::handsoff_accel, CMDtype::set, 10);
 	axis().saveFlash();
+	REQUIRE_ALL_HAL_MODELLED();
 	CHECK(flashRead(X_HANDSOFF_ACCEL) == 10);
 	axis().restoreFlash();
 	CHECK(axisGet(Axis_commands::handsoff_accel) == 10);
@@ -464,13 +465,20 @@ TEST_CASE_FIXTURE(AxisFixture, "power is read back as set and passed to the driv
 	CHECK(driver().powerLimit == 12000);
 }
 
-TEST_CASE_FIXTURE(AxisFixture, "characterization: power is not limited to 0x7fff and keeps the low 16 bits of the value") {
-	// NEEDS REVIEW: setPower(uint16_t) without range check (Axis.cpp:498-506). 0x7fff is full scale (torqueScaler 1.0);
-	// larger values give a torque scaler above 1
-	axisCommand(Axis_commands::power, CMDtype::set, 40000);
-	CHECK(axisGet(Axis_commands::power) == 40000);
+TEST_CASE_FIXTURE(AxisFixture, "characterization: a power value above 16 bits keeps only its low 16 bits") {
+	// NEEDS REVIEW: the command value is converted to setPower(uint16_t) without a range check (Axis.cpp:1051, 498)
 	axisCommand(Axis_commands::power, CMDtype::set, 0x10000 + 7);
 	CHECK(axisGet(Axis_commands::power) == 7);
+}
+
+TEST_CASE_FIXTURE(AxisFixture, "power above 0x7fff is limited to 0x7fff" *
+		KNOWN_ISSUE("Bug 32: setPower accepts any uint16_t (Axis.cpp:498-501); 0x7fff is full scale and the torque "
+					"clipped to +-power is passed to MotorDriver::turn(int16_t), so a power above 0x7fff can reverse "
+					"the motor. The first CHECK on the stored power fails")) {
+	axisCommand(Axis_commands::power, CMDtype::set, 40000);
+	REQUIRE_ALL_HAL_MODELLED();
+	CHECK(axisGet(Axis_commands::power) <= 0x7fff);
+	CHECK(driver().powerLimit <= 0x7fff);
 }
 
 TEST_CASE_FIXTURE(AxisFixture, "characterization: the 8 bit settings keep the low byte of a value above 255") {
@@ -692,6 +700,7 @@ TEST_CASE_FIXTURE(AxisFixture, "the hands-off acceleration threshold reads back 
 		KNOWN_ISSUE("The get reply is handsOffAccelThreshold * 1000 in float, truncated to an integer (Axis.cpp:1320): "
 					"0.251f * 1000 = 250.99998, read back as 250 (10 of the values 0..1999). The CHECK fails")) {
 	axisCommand(Axis_commands::handsoff_accel, CMDtype::set, 251);
+	REQUIRE_ALL_HAL_MODELLED();
 	CHECK(axisGet(Axis_commands::handsoff_accel) == 251);
 }
 
@@ -810,6 +819,7 @@ TEST_CASE_FIXTURE(AxisFixture, "zeroenc fades the force in within the 0.5 s fade
 
 	axisCommand(Axis_commands::zeroenc, CMDtype::get);
 	run(501); // 0.5 s after the first faded cycle
+	REQUIRE_ALL_HAL_MODELLED();
 
 	CHECK(std::abs(axis().getTorque()) == doctest::Approx(10000).epsilon(0.001));
 }
@@ -919,7 +929,7 @@ TEST_CASE_FIXTURE(AxisFixture, "drvtype info shows the selected driver as availa
 	CHECK(replies[1].type == CommandReplyType::STRING); // not creatable: no ids
 }
 
-TEST_CASE_FIXTURE(RealAxisFixture, "the F407 feature set offers only the None driver to the axes X, Y and Z") {
+TEST_CASE_FIXTURE(RealAxisFixture, "the test feature set (F407 without out-of-scope drivers) offers only the None driver to the axes X, Y and Z") {
 	auto x = makeAxis('X');
 	auto y = makeAxis('Y');
 	auto z = makeAxis('Z');
@@ -966,6 +976,7 @@ TEST_CASE_FIXTURE(AxisFixture, "selecting a driver that cannot be created keeps 
 					"updateDriveTorque, emergencyStop would dereference nullptr. The first CHECK fails")) {
 	MockMotorDriver::creatable() = false;
 	axisCommand(Axis_commands::drvtype, CMDtype::set, MockMotorDriver::SELECTION_ID);
+	REQUIRE_ALL_HAL_MODELLED();
 	CHECK(axis().getDriver() != nullptr);
 	if (axis().getDriver() != nullptr) {
 		CHECK(axisGet(Axis_commands::drvtype) == MockMotorDriver::SELECTION_ID);

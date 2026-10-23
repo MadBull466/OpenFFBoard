@@ -9,8 +9,17 @@
  * Axes are inverted by default (Axis.h invertAxis = true). The direction enable bit is 0x04 (2 axis descriptor) like
  * FFBWheel::usbInit sets it; HidFFB's own 1 axis default is 0x02.
  *
- * Expected values are derived from the formulas in EffectsCalculator.cpp / Axis.cpp and given with tolerances
- * (float arithmetic, CMSIS-DSP vs libm sin/cos).
+ * Two kinds of expectations:
+ * - PID / DirectInput semantics, independent of the firmware tuning: signs (a constant force and a spring at the same
+ *   position push the same way, conditions oppose position / motion / acceleration, inversion does not change the
+ *   physical direction of conditions), linearity, ratios (gains, power, effect ratio), timing (duration, start delay,
+ *   period, ramp). The absolute sign of the constant force itself comes from the firmware (EffectsCalculator negates
+ *   it); its consistency with the spring is checked by "a positive constant force in direction 90 degrees pushes the
+ *   same way as a spring ...".
+ * - Absolute magnitudes of conditions and endstop use the firmware tuning constants copied from EffectsCalculator.h
+ *   (gains 64/64/254/127, scalers 16/4/1/2, INTERNAL_SCALER_*) and Axis.h (endstop gain 25, strength 127, idle spring
+ *   127 * 35). They protect against unintended changes of the tuning, not against the PID specification.
+ * Values are compared with tolerances (float arithmetic, CMSIS-DSP vs libm sin/cos).
  */
 #include "doctest.h"
 #include "AxisFixture.h"
@@ -162,14 +171,14 @@ TEST_CASE_FIXTURE(IntegrationFixture, "the gain of the effect scales its torque"
 	params.gain = 128;
 	constantForce(10000, params);
 	run(1);
-	CHECK(driver().lastTorque == doctest::Approx(10000 * 128 / 255).epsilon(0.001));
+	CHECK(driver().lastTorque == doctest::Approx(10000.0 * 128 / 255).epsilon(0.001));
 }
 
 TEST_CASE_FIXTURE(IntegrationFixture, "the device gain scales the torque of all effects") {
 	constantForce(10000);
 	host.deviceGain(128);
 	run(1);
-	CHECK(driver().lastTorque == doctest::Approx(10000 * 128 / 255).epsilon(0.001));
+	CHECK(driver().lastTorque == doctest::Approx(10000.0 * 128 / 255).epsilon(0.001));
 }
 
 TEST_CASE_FIXTURE(IntegrationFixture, "the device gain and the effect gain multiply") {
@@ -250,9 +259,9 @@ TEST_CASE_FIXTURE(IntegrationFixture, "an effect with a duration stops producing
 	PidHost::EffectParams params;
 	params.duration = 100;
 	constantForce(10000, params);
-	run(100);
+	run(100); // still on 100 ms after the start (expires when more than the duration has elapsed)
 	CHECK(driver().lastTorque == doctest::Approx(10000).epsilon(0.0005));
-	run(2);
+	run(1); // 101 ms
 	CHECK(driver().lastTorque == 0);
 }
 
@@ -265,7 +274,7 @@ TEST_CASE_FIXTURE(IntegrationFixture, "an effect with a duration and a start del
 	constantForce(10000, params);
 	run(49);
 	CHECK(driver().lastTorque == 0);
-	run(2);
+	run(1); // exactly 50 ms
 	CHECK(driver().lastTorque == doctest::Approx(10000).epsilon(0.0005));
 }
 
@@ -273,12 +282,12 @@ TEST_CASE_FIXTURE(IntegrationFixture, "an effect with a duration and a start del
 // Device control and gain
 // ---------------------------------------------------------------------------
 
-TEST_CASE_FIXTURE(IntegrationFixture, "stop all effects turns FFB off and removes the effect torque") {
+TEST_CASE_FIXTURE(IntegrationFixture, "stop all effects removes the effect torque") {
+	// Whether FFB stays enabled is open: baseline KNOWN_ISSUE "stop all effects stops every running effect"
 	constantForce(10000);
 	run(1);
 	host.deviceControl(PidHost::DC_STOP_ALL_EFFECTS);
 	run(1);
-	CHECK_FALSE(ffb.getFfbActive());
 	CHECK(driver().lastTorque == 0); // centered: no idle spring torque either
 }
 
@@ -323,7 +332,7 @@ TEST_CASE_FIXTURE(IntegrationFixture, "a device reset deletes the effects so con
 TEST_CASE_FIXTURE(IntegrationFixture, "while FFB is off the idle spring of the axis replaces the effects") {
 	encoder().setDegrees(90.0f);
 	constantForce(10000);
-	host.deviceControl(PidHost::DC_STOP_ALL_EFFECTS);
+	host.deviceControl(PidHost::DC_DISABLE_ACTUATORS);
 	run(1);
 	// Idle spring strength 127: clip 127 * 35 = 4445, restoring (encoder positive -> negative torque)
 	CHECK(driver().lastTorque == -4445);
@@ -359,14 +368,17 @@ TEST_CASE_FIXTURE(IntegrationFixture, "the offset of a periodic effect shifts th
 	CHECK(driver().lastTorque == doctest::Approx(2000).epsilon(0.01));
 }
 
-TEST_CASE_FIXTURE(IntegrationFixture, "a square wave alternates between the negative and positive magnitude") {
+TEST_CASE_FIXTURE(IntegrationFixture, "a square wave flips its sign between the two halves of the period") {
+	// Which half comes first: baseline characterization "square starts with the negative half"
 	uint8_t index = startEffect(FFB_EFFECT_SQUARE);
 	host.setPeriodic(index, 10000, 0, 0, 1000);
 
-	run(100); // first half: -magnitude
-	CHECK(driver().lastTorque == doctest::Approx(-10000).epsilon(0.0005));
+	run(100); // first half
+	int32_t first = driver().lastTorque;
 	run(500); // second half
-	CHECK(driver().lastTorque == doctest::Approx(10000).epsilon(0.0005));
+	int32_t second = driver().lastTorque;
+	CHECK(std::abs(first) == doctest::Approx(10000).epsilon(0.0005));
+	CHECK(second == doctest::Approx(-first).epsilon(0.0005));
 }
 
 TEST_CASE_FIXTURE(IntegrationFixture, "a ramp moves the torque linearly from the start to the end level over the duration") {
@@ -408,6 +420,31 @@ TEST_CASE_FIXTURE(IntegrationFixture, "a spring pushes back from the other side 
 	conditionEffect(FFB_EFFECT_SPRING, 10000);
 	run(1);
 	CHECK(driver().lastTorque == doctest::Approx(springForce(10000, 6553)).epsilon(0.001));
+}
+
+TEST_CASE_FIXTURE(IntegrationFixture, "a positive constant force in direction 90 degrees pushes the same way as a spring at a position on the positive X side") {
+	// DirectInput: a positive force in direction 90 deg (east) pushes towards -X, like a centering spring at +X
+	for (int inverted : {1, 0}) {
+		CAPTURE(inverted);
+		setAxis(Axis_commands::invert, inverted);
+		encoder().setDegrees(inverted ? -90.0f : 90.0f); // +X as seen by the game (HID axis value)
+		run(1);
+		REQUIRE(axis().getLastScaledEnc() > 0);
+
+		uint8_t spring = conditionEffect(FFB_EFFECT_SPRING, 10000);
+		run(1);
+		int32_t springTorque = driver().lastTorque;
+		host.blockFree(spring);
+
+		uint8_t cf = constantForce(10000);
+		run(1);
+		int32_t constantTorque = driver().lastTorque;
+		host.blockFree(cf);
+
+		REQUIRE(springTorque != 0);
+		CHECK((springTorque > 0) == (constantTorque > 0));
+		CHECK(constantTorque != 0);
+	}
 }
 
 TEST_CASE_FIXTURE(IntegrationFixture, "a spring torque is limited by its saturation") {
@@ -565,12 +602,13 @@ TEST_CASE_FIXTURE(IntegrationFixture, "the effect ratio scales the effects but n
 	CHECK(driver().lastTorque == doctest::Approx(-15875 + 10000.0 * 128 / 255).epsilon(0.002));
 }
 
-TEST_CASE_FIXTURE(IntegrationFixture, "the endstop torque is clipped to the power") {
+TEST_CASE_FIXTURE(IntegrationFixture, "the endstop torque is at most the power") {
 	setAxis(Axis_commands::power, 10000);
 	fineEncoder();
-	encoder().setRawPosition(fineCounts(-500.0));
+	encoder().setRawPosition(fineCounts(-500.0)); // 50 deg beyond the range: far more than full scale
 	run(1);
-	CHECK(driver().lastTorque == 10000);
+	CHECK(driver().lastTorque <= 10000);
+	CHECK(driver().lastTorque == doctest::Approx(10000).epsilon(0.001));
 }
 
 TEST_CASE_FIXTURE(IntegrationFixture, "within the range there is no endstop torque") {
