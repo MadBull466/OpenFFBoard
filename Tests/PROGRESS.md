@@ -9,7 +9,7 @@
 - **Current phase:** P1 done, **awaiting my approval** at the P1 gate. P2 not started.
 - **Phase status:** build, review and fixes done; gate green in 6 variants (see "P1 results").
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
-- **Last commit:** see the phase checklist (P1 row). Earlier: `93b82a32` P1 tests before review, `32cc2ce1` / `17e09826` PROGRESS records.
+- **Last commit:** `449b63ae` (P1 review fixes). Earlier: `93b82a32` P1 tests before review, `32cc2ce1` / `17e09826` PROGRESS records.
 - **Last updated:** 2026-10-23
 - **Last session summary:** P1 built by 5 parallel agents in isolated scratch workspaces (A command, B ffb, C errors/storage, D filters/small, E transport), merged in `93b82a32`, reviewed by 3 fresh reviewer agents (r1-r3), fixed by the authors and merged again. 332 new cases in 15 new files, no existing test file changed. Coverage of the 24 compiled files 79.5 % -> 98.3 %; all in-scope sources 26.2 % -> 32.4 %. 16 new suspected firmware bugs (7-22), 4 vendor tier A issues (V1-V4), NEEDS REVIEW #4-#24. The session scratchpad (`/tmp`) was wiped between 2026-10-22 and 2026-10-23; the agents rebuilt their workspaces from the repo and re-applied their fixes (no work lost: everything merged was in git).
 
@@ -27,7 +27,7 @@ After approval: P2 (Axis and main classes, new `ffb_target_tests`) per `Tests/TE
 | Review of the existing suite | n/a | n/a | complete | | |
 | Batch 0 (plan v1) items done before plan v2 | n/a | n/a | F1 done, F3 header approved and committed | yes, 2026-10-21 | `1876353e` (F1), `2d91beed` (F3) |
 | P0 Safety net | `ffb_unit_tests` | 0 (measured baseline 2,136 lines, 26.2 %) | done | yes, 2026-10-22 | `d08e0e1b` |
-| P1 Gaps in compiled files | `ffb_unit_tests` | about 470 (measured +504: 2,640 lines, 32.4 %) | done, awaiting approval | | `93b82a32` (tests), P1 final commit (git log `Tests: P1 review fixes`) |
+| P1 Gaps in compiled files | `ffb_unit_tests` | about 470 (measured +504: 2,640 lines, 32.4 %) | done, awaiting approval | | `93b82a32` (tests), `449b63ae` (review fixes) |
 | P2 Axis and main classes | `ffb_target_tests` (new) | about 790 | not started | | |
 | P3 Flash and persistence | `ffb_flash_tests` (new) | about 365 | not started | | |
 | P4 System, callbacks, misc | `ffb_target_tests` | about 460 | not started | | |
