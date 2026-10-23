@@ -7,7 +7,7 @@
 ## Current state
 
 - **Current phase:** P3 (flash and persistence, new `ffb_flash_tests`), started 2026-10-23. P2 approved 2026-10-23.
-- **Phase status:** batch 0 done; next: P3 module agents.
+- **Phase status:** batch 0 done (`bfe6ed56`); module plan written ("P3 plan"); 2 module agents running.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** `41112d85` (P2 review fixes) + this PROGRESS update.
 - **Last updated:** 2026-10-23
@@ -329,6 +329,15 @@ Executable `ffb_target_tests`, new files in `cases_target/` only. Coverage after
 | B axis config | `test_axis_config.cpp` | `Axis.cpp` (config, commands, flash) | `encodeConfToInt`/`decodeConfFromInt` round trip, save/restore flash (incl. empty flash, bug 23), every axis command get/set/info incl. limits and invalid values, driver/encoder selection via chooser and commands, zeroing/position commands, error handling |
 | C axes + integration | `test_axes_manager.cpp`, `test_ffb_integration.cpp` | `AxesManager.cpp`, path through `HidFFB`/`EffectsCalculator`/`Axis` | axis count changes, update/updateTorque, emergency stop over all axes, usb suspend/resume, commands; end to end: PID reports (constant, spring, damper, periodic, conditions per axis) -> effects -> axis -> `MockMotorDriver` torque with the position from `MockEncoder` |
 | D main classes | `test_ffbhidmain.cpp`, `test_main_classes.cpp` | `FFBHIDMain.cpp`, `FFBHIDMain_commmands.cpp`, `FFBWheel.cpp`, `FFBJoystick.cpp`, `FFBHIDExt.cpp`, `CustomMain.cpp`, `FFBoardMain.cpp`, `mainclass_chooser.cpp` | HID gamepad report packing (axes, buttons, double buffer), FFB on/off, update rate/timer, usb init/suspend/resume, button/analog source selection commands, main class info/ids unique and selectable, CustomMain |
+
+## P3 plan (2026-10-24)
+
+Executable `ffb_flash_tests`, new files in `cases_flash/` only. 2 module agents in isolated scratch workspaces (`scratchpad/p3/<group>`), per-file goal 85 %, mutation spot-check 80 % (about 15 mutants per file).
+
+| Group | Owns (new files) | Firmware | Behaviours |
+|---|---|---|---|
+| A eeprom | `test_eeprom.cpp` | `eeprom.c` (vendor tier A, AN3969) | `EE_Init` for every page-status combination (ERASED/RECEIVE_DATA/VALID/invalid, incl. power-loss states), `EE_ReadVariable` (newest record wins, missing variable), `EE_WriteVariable` (page full -> `EE_PageTransfer`, only variables in `VirtAddVarTab` transferred, the new value kept), `EE_Format`, HAL error propagation (program/erase/unlock failures), power loss at every step of write/transfer/format, bug V5 (`EE_VerifyPageFullyErased`) as KNOWN_ISSUE, NEEDS REVIEW 41 |
+| B flash helpers | `test_flash_helpers.cpp`, `test_eeprom_addresses.cpp`, `test_persistent_storage_flash.cpp` | `flash_helpers.cpp`, `eeprom_addresses.c`, `PersistentStorage.cpp` on the real flash layer | `Flash_Init`, `Flash_Write` (write only if changed, return values), `Flash_Read`, `Flash_ReadWriteDefault`, `Flash_Dump`, `Flash_Format`, cache handling, locking, HAL error handling (NEEDS REVIEW 42), `OTP_Write`/`OTP_Read` (one-time semantics, bounds, bug 41), `VirtAddVarTab` (`NB_OF_VAR` entries, unique, no 0xFFFF, matches the `ADR_*` constants), save/restore of handlers through the real flash incl. reboot and page transfer, delayed restore ordering |
 
 ## P3 batch 0 (2026-10-24)
 
