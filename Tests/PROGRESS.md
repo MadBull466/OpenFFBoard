@@ -7,7 +7,7 @@
 ## Current state
 
 - **Current phase:** P2 (Axis and main classes, new `ffb_target_tests`), started 2026-10-23. P1 approved 2026-10-23.
-- **Phase status:** batch 0 done (`ffb_target_tests`, 11 smoke cases, gate green in 6 variants; see "P2 batch 0"). Waiting for my decision on sanitizer handling of main-class deletion (bug 24) before the module agents start.
+- **Phase status:** batch 0 done (`ffb_target_tests`, 11 smoke cases, gate green in 6 variants; see "P2 batch 0"). Module plan written ("P2 plan"); 4 module agents (A-D) running.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** `7a35d2f1` (P1 review fixes). Earlier: `a79ead3a` P1 tests before review, `540d358a` / `bfdadc7f` PROGRESS records.
 - **Last updated:** 2026-10-23
@@ -64,6 +64,8 @@
 | 2026-10-21 | Answer A (plan v1 session): commit identity `git -c user.name=MadBull.Ben -c user.email=`. Used for `f46b31f5`, `8861c911`, `ef4101cf`. **Conflicts with Q8 / `CLAUDE.md` v2 (`Claude Code`)**; the P0 commit follows `CLAUDE.md` v2. See open question 4 | My answer to question A |
 | 2026-10-23 | Commit identity: author and committer `MadBull.Ben` with an **empty email** (`git -c user.name=MadBull.Ben -c user.email= commit`); the email must not appear anywhere. All 11 add-test-suite commits rewritten with `git filter-branch` (metadata and file contents), `refs/original` deleted. Hash map: `d12483c8`->`f46b31f5`, `1876353e`->`8861c911`, `2d91beed`->`ef4101cf`, `d08e0e1b`->`2461c51e`, `24417fa9`->`359c2a6a`, `d17cb295`->`124fa93e`, `93b82a32`->`a79ead3a`, `32cc2ce1`->`540d358a`, `17e09826`->`bfdadc7f`, `449b63ae`->`7a35d2f1`, `1568343e`->`9a0a7d05` (hashes elsewhere in this file are the new ones) | My decision (privacy) |
 | 2026-10-23 | P1 approved; start P2 | My go-ahead |
+| 2026-10-23 | Bug 24 (main class deletion UB): tests that delete an FFBHIDMain main class are marked `DELETES_FFBHIDMAIN` and skipped in sanitizer builds; ASan stays fully on (no `ASAN_OPTIONS` suppression) | My decision |
+| 2026-10-23 | Keep `-funsigned-char` for `ffb_target_tests` only (matches the ARM target; host-vs-target caveat for `ffb_unit_tests`) | My decision |
 | 2026-10-23 | Pace: stop at the end of every phase (P2 to P9) for my approval | My answer to open question 2 |
 | 2026-10-23 | Coverage goal: higher than the 70 % of plan v2 | My answer to open question 1 |
 | 2026-10-23 | **Coverage goal 85 % or more; hardware-only code is ignored** (not tested, not counted). Mechanism: reviewed list `Firmware/Tests/tools/coverage_exclusions.txt` (file:range + reason), applied by `coverage_report.py` to covered and executable lines (`--no-exclusions` for raw numbers). Unreachable/defensive code stays counted. Per-file target for every phase 85 %. New fakes are modelled on the real ST HAL source and cite the function they reproduce. TEST_PLAN "Coverage goal" updated | My decision after the fake-fidelity discussion |
@@ -316,6 +318,17 @@ Hard gate for Batch 0: after every CMake change `ffb_unit_tests` must still give
 
 The per-module test plan from Phase 1 is now organised into phases P0 to P9 in `TEST_PLAN.md`. Status of each phase is in the "Phase checklist" at the top of this file. Estimated cumulative coverage: baseline about 24%, P1 29%, P2 38%, P3 42%, P4 47%, P5 56%, P6 63%, P7 68%, P8 72%. Measured numbers replace these after each phase.
 
+## P2 plan (2026-10-23)
+
+Executable `ffb_target_tests`, new files in `cases_target/` only. Coverage after batch 0 (smoke tests): `Axis.cpp` 294/677 (43 %), `AxesManager.cpp` 41/62 (66 %), `FFBHIDMain.cpp` 66/173 (38 %), `FFBHIDMain_commmands.cpp` 13/76 (17 %), `FFBWheel.cpp` 6/16, `FFBoardMain.cpp` 6/31, `FFBJoystick.cpp`, `FFBHIDExt.cpp`, `CustomMain.cpp` 0 %. 4 parallel agents in isolated scratch workspaces (`scratchpad/p2/<group>`), same procedure as P1; per-file goal 85 % without hardware-only code; mutation spot-check 80 % (about 20 mutants for `Axis.cpp`).
+
+| Group | Owns (new files) | Firmware | Behaviours |
+|---|---|---|---|
+| A axis torque | `test_axis_torque.cpp` | `Axis.cpp` (torque path) | power scaling and clipping to +-0x7fff, invert, range/degrees scaling, endstop torque (gain, beyond range), speed limiter, torque slew-rate limiter (axis and driver), idle spring, damper/friction/inertia strengths, expo curve, gear ratio, effect ratio, fade-in, emergency stop and reset, hands-off/suspend, position/speed/accel metrics |
+| B axis config | `test_axis_config.cpp` | `Axis.cpp` (config, commands, flash) | `encodeConfToInt`/`decodeConfFromInt` round trip, save/restore flash (incl. empty flash, bug 23), every axis command get/set/info incl. limits and invalid values, driver/encoder selection via chooser and commands, zeroing/position commands, error handling |
+| C axes + integration | `test_axes_manager.cpp`, `test_ffb_integration.cpp` | `AxesManager.cpp`, path through `HidFFB`/`EffectsCalculator`/`Axis` | axis count changes, update/updateTorque, emergency stop over all axes, usb suspend/resume, commands; end to end: PID reports (constant, spring, damper, periodic, conditions per axis) -> effects -> axis -> `MockMotorDriver` torque with the position from `MockEncoder` |
+| D main classes | `test_ffbhidmain.cpp`, `test_main_classes.cpp` | `FFBHIDMain.cpp`, `FFBHIDMain_commmands.cpp`, `FFBWheel.cpp`, `FFBJoystick.cpp`, `FFBHIDExt.cpp`, `CustomMain.cpp`, `FFBoardMain.cpp`, `mainclass_chooser.cpp` | HID gamepad report packing (axes, buttons, double buffer), FFB on/off, update rate/timer, usb init/suspend/resume, button/analog source selection commands, main class info/ids unique and selectable, CustomMain |
+
 ## P2 batch 0 (2026-10-23)
 
 New executable `ffb_target_tests` (CMake block appended, nothing above it changed; `ffb_unit_tests` compile commands identical in all 6 build dirs, checked against copies saved before the change).
@@ -455,7 +468,7 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 | 19 | UsbHidHandler | `UsbHidHandler.cpp:19-21` | Destructor does not clear `globalHidHandler`; TinyUSB callbacks (`global_callbacks.cpp:317, 332, 344`) would use a dangling pointer. Same root cause as the existing HidFFB case (`test_hid_ffb.cpp:51`): one bug | KNOWN_ISSUE "a registered handler unregisters when destroyed" |
 | 20 | CDCcomm | `CDCcomm.cpp:69` | `std::min<uint16_t>(reply->length(), bufferRemaining)` truncates the length to 16 bit. Review r3: after a partial write the remainder can be exactly 65536 (any multiple of 65536), which truncates to 0; the retry writes 0 bytes without flush, no tx-complete follows, `cdcSems[0]` is never given back and every later `cdcSend` blocks: **CDC output dead** | KNOWN_ISSUE "a reply longer than 65535 bytes is sent in FIFO-sized parts" |
 | 23 | Axis | `Axis.h:504-507`, `Axis.cpp:221-262, 498-501, 733-735` | An axis restored from empty flash reports power 5000 / effect ratio 204, but `torqueScaler` and `effectRatioScaler` stay 0 (only computed in `setPower`/`setEffectRatio`, which `restoreFlash` calls only when flash has a value): **no torque until power/ratio are set by a command or flash** | KNOWN_ISSUE "an axis restored from empty flash applies its default power of 5000 and effect ratio of 204" (`cases_target/test_target_setup.cpp`); first failing check is the driver torque. Confirmed in source |
-| 24 | FFBHIDMain | `Inc/ffb_defs.h:135` (`HID_GamepadReport_base` without virtual destructor), deleted via `std::unique_ptr` in `~FFBHIDMain` (`FFBHIDMain.cpp:64`) | Deleting any FFBHIDMain main class (e.g. on main class change) is UB: ASan new-delete-type-mismatch | KNOWN_ISSUE on the type trait (no UB executed); tests that delete a main class are marked `DELETES_FFBHIDMAIN` and skipped in sanitizer builds (decision pending) |
+| 24 | FFBHIDMain | `Inc/ffb_defs.h:135` (`HID_GamepadReport_base` without virtual destructor), deleted via `std::unique_ptr` in `~FFBHIDMain` (`FFBHIDMain.cpp:64`) | Deleting any FFBHIDMain main class (e.g. on main class change) is UB: ASan new-delete-type-mismatch | KNOWN_ISSUE on the type trait (no UB executed); tests that delete a main class are marked `DELETES_FFBHIDMAIN` and skipped in sanitizer builds (decided 2026-10-23) |
 | 25 | Axis | `Axis.cpp` | No `#include <cmath>`: compiles only with CMSIS-DSP (`-include cmath` added for `ffb_target_tests` with DSP off, F14) | Build |
 | 26 | Axis | `Axis.cpp:1415` `clip<int8_t>(gain,-120,120)` | Narrowing inside `clip()` (`cppmain.h`): ill-formed C++, GCC warns, clang rejects (`-Wno-c++11-narrowing` for clang, `Axis.cpp` only, `ffb_target_tests` only). No runtime effect | Build |
 | V1 | FreeRTOS wrappers (**vendor, tier A**) | `csemaphore.cpp:117-131` | `CountingSemaphore(0, x)` or initial > max throws before `handle` is set; `~Semaphore` then deletes an uninitialised handle (UB). Exception builds only (target uses `CPP_FREERTOS_NO_EXCEPTIONS`/`configASSERT`) | Seen with mutants; no test (would crash) |
