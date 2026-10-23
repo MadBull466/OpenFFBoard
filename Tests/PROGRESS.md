@@ -6,8 +6,8 @@
 
 ## Current state
 
-- **Current phase:** P2 done, **awaiting my approval** at the P2 gate. P3 not started.
-- **Phase status:** batch 0, module tests, review (p2r1-p2r4) and fixes done; gate green in 6 variants (see "P2 results").
+- **Current phase:** P3 (flash and persistence, new `ffb_flash_tests`), started 2026-10-23. P2 approved 2026-10-23.
+- **Phase status:** batch 0 (executable, fake HAL FLASH with NOR semantics F9, fixture, smoke tests) by one agent in the repo checkout, no commits by the agent.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** `41112d85` (P2 review fixes) + this PROGRESS update.
 - **Last updated:** 2026-10-23
@@ -15,9 +15,7 @@
 
 ## Next action
 
-**Waiting for my review of P2** ("P2 results", "Review outcomes", "Suspected firmware bugs" 23-40, "NEEDS REVIEW items" 25-40). Do not start P3 without my go-ahead.
-
-After approval: P3 (flash and persistence, new `ffb_flash_tests`: fake HAL FLASH with NOR semantics F9, `flash_helpers.cpp`, `eeprom.c` tier A, `eeprom_addresses.c`) per `Tests/TEST_PLAN.md`.
+**P3 batch 0 running.** Then: review and commit batch 0, P3 module plan (`eeprom.c` tier A; `flash_helpers.cpp`, `eeprom_addresses.c`, `PersistentStorage` on the real flash layer), module agents, review, fixes, gate, coverage (85 % per file), stop for approval.
 
 ## Phase checklist
 
@@ -28,8 +26,8 @@ After approval: P3 (flash and persistence, new `ffb_flash_tests`: fake HAL FLASH
 | Batch 0 (plan v1) items done before plan v2 | n/a | n/a | F1 done, F3 header approved and committed | yes, 2026-10-21 | `8861c911` (F1), `ef4101cf` (F3) |
 | P0 Safety net | `ffb_unit_tests` | 0 (measured baseline 2,136 lines, 26.2 %) | done | yes, 2026-10-22 | `2461c51e` |
 | P1 Gaps in compiled files | `ffb_unit_tests` | about 470 (measured +504: 2,640 lines, 32.4 %) | done | yes, 2026-10-23 | `a79ead3a` (tests), `7a35d2f1` (review fixes) |
-| P2 Axis and main classes | `ffb_target_tests` (new) | about 790 (measured: total 4,164 lines, 50.5 %) | done, awaiting approval | | `4aec799c` batch 0, `760f6f1a` tests, `76d89b40` infra review fixes, `41112d85` review fixes |
-| P3 Flash and persistence | `ffb_flash_tests` (new) | about 365 | not started | | |
+| P2 Axis and main classes | `ffb_target_tests` (new) | about 790 (measured: total 4,164 lines, 50.5 %) | done | yes, 2026-10-23 | `4aec799c` batch 0, `760f6f1a` tests, `76d89b40` infra review fixes, `41112d85` review fixes |
+| P3 Flash and persistence | `ffb_flash_tests` (new) | about 365 | in progress (batch 0) | | |
 | P4 System, callbacks, misc | `ffb_target_tests` | about 460 | not started | | |
 | P5 Buttons and analog | `ffb_target_tests` | about 775 | not started | | |
 | P6 Encoders and buses | `ffb_target_tests` | about 640 | not started | | |
@@ -66,6 +64,7 @@ After approval: P3 (flash and persistence, new `ffb_flash_tests`: fake HAL FLASH
 | 2026-10-21 | Answer A (plan v1 session): commit identity `git -c user.name=MadBull.Ben -c user.email=`. Used for `f46b31f5`, `8861c911`, `ef4101cf`. **Conflicts with Q8 / `CLAUDE.md` v2 (`Claude Code`)**; the P0 commit follows `CLAUDE.md` v2. See open question 4 | My answer to question A |
 | 2026-10-23 | Commit identity: author and committer `MadBull.Ben` with an **empty email** (`git -c user.name=MadBull.Ben -c user.email= commit`); the email must not appear anywhere. All 11 add-test-suite commits rewritten with `git filter-branch` (metadata and file contents), `refs/original` deleted. Hash map: `d12483c8`->`f46b31f5`, `1876353e`->`8861c911`, `2d91beed`->`ef4101cf`, `d08e0e1b`->`2461c51e`, `24417fa9`->`359c2a6a`, `d17cb295`->`124fa93e`, `93b82a32`->`a79ead3a`, `32cc2ce1`->`540d358a`, `17e09826`->`bfdadc7f`, `449b63ae`->`7a35d2f1`, `1568343e`->`9a0a7d05` (hashes elsewhere in this file are the new ones) | My decision (privacy) |
 | 2026-10-23 | P1 approved; start P2 | My go-ahead |
+| 2026-10-23 | P2 approved; start P3 | My go-ahead |
 | 2026-10-23 | Bug 24 (main class deletion UB): tests that delete an FFBHIDMain main class are marked `DELETES_FFBHIDMAIN` and skipped in sanitizer builds; ASan stays fully on (no `ASAN_OPTIONS` suppression) | My decision |
 | 2026-10-23 | Keep `-funsigned-char` for `ffb_target_tests` only (matches the ARM target; host-vs-target caveat for `ffb_unit_tests`) | My decision |
 | 2026-10-23 | Pace: stop at the end of every phase (P2 to P9) for my approval | My answer to open question 2 |
