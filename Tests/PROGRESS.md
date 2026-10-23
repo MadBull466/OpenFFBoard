@@ -9,9 +9,9 @@
 - **Current phase:** P1 done, **awaiting my approval** at the P1 gate. P2 not started.
 - **Phase status:** build, review and fixes done; gate green in 6 variants (see "P1 results").
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
-- **Last commit:** `449b63ae` (P1 review fixes). Earlier: `93b82a32` P1 tests before review, `32cc2ce1` / `17e09826` PROGRESS records.
+- **Last commit:** `7a35d2f1` (P1 review fixes). Earlier: `a79ead3a` P1 tests before review, `540d358a` / `bfdadc7f` PROGRESS records.
 - **Last updated:** 2026-10-23
-- **Last session summary:** P1 built by 5 parallel agents in isolated scratch workspaces (A command, B ffb, C errors/storage, D filters/small, E transport), merged in `93b82a32`, reviewed by 3 fresh reviewer agents (r1-r3), fixed by the authors and merged again. 332 new cases in 15 new files, no existing test file changed. Coverage of the 24 compiled files 79.5 % -> 98.3 %; all in-scope sources 26.2 % -> 32.4 %. 16 new suspected firmware bugs (7-22), 4 vendor tier A issues (V1-V4), NEEDS REVIEW #4-#24. The session scratchpad (`/tmp`) was wiped between 2026-10-22 and 2026-10-23; the agents rebuilt their workspaces from the repo and re-applied their fixes (no work lost: everything merged was in git).
+- **Last session summary:** P1 built by 5 parallel agents in isolated scratch workspaces (A command, B ffb, C errors/storage, D filters/small, E transport), merged in `a79ead3a`, reviewed by 3 fresh reviewer agents (r1-r3), fixed by the authors and merged again. 332 new cases in 15 new files, no existing test file changed. Coverage of the 24 compiled files 79.5 % -> 98.3 %; all in-scope sources 26.2 % -> 32.4 %. 16 new suspected firmware bugs (7-22), 4 vendor tier A issues (V1-V4), NEEDS REVIEW #4-#24. The session scratchpad (`/tmp`) was wiped between 2026-10-22 and 2026-10-23; the agents rebuilt their workspaces from the repo and re-applied their fixes (no work lost: everything merged was in git).
 
 ## Next action
 
@@ -25,9 +25,9 @@ After approval: P2 (Axis and main classes, new `ffb_target_tests`) per `Tests/TE
 |---|---|---|---|---|---|
 | Phase 1 (explore and plan) | n/a | n/a | complete | yes, 2026-10-21 | |
 | Review of the existing suite | n/a | n/a | complete | | |
-| Batch 0 (plan v1) items done before plan v2 | n/a | n/a | F1 done, F3 header approved and committed | yes, 2026-10-21 | `1876353e` (F1), `2d91beed` (F3) |
-| P0 Safety net | `ffb_unit_tests` | 0 (measured baseline 2,136 lines, 26.2 %) | done | yes, 2026-10-22 | `d08e0e1b` |
-| P1 Gaps in compiled files | `ffb_unit_tests` | about 470 (measured +504: 2,640 lines, 32.4 %) | done, awaiting approval | | `93b82a32` (tests), `449b63ae` (review fixes) |
+| Batch 0 (plan v1) items done before plan v2 | n/a | n/a | F1 done, F3 header approved and committed | yes, 2026-10-21 | `8861c911` (F1), `ef4101cf` (F3) |
+| P0 Safety net | `ffb_unit_tests` | 0 (measured baseline 2,136 lines, 26.2 %) | done | yes, 2026-10-22 | `2461c51e` |
+| P1 Gaps in compiled files | `ffb_unit_tests` | about 470 (measured +504: 2,640 lines, 32.4 %) | done, awaiting approval | | `a79ead3a` (tests), `7a35d2f1` (review fixes) |
 | P2 Axis and main classes | `ffb_target_tests` (new) | about 790 | not started | | |
 | P3 Flash and persistence | `ffb_flash_tests` (new) | about 365 | not started | | |
 | P4 System, callbacks, misc | `ffb_target_tests` | about 460 | not started | | |
@@ -63,11 +63,15 @@ After approval: P2 (Axis and main classes, new `ffb_target_tests`) per `Tests/TE
 | 2026-10-21 | Phase order: P0 safety net, P1 gaps in compiled files, then by risk and lines gained per effort (Axis first) | Cheapest gains first, highest-risk code early |
 | 2026-10-21 | New `KNOWN_ISSUE` tests must fail on the assertion that describes the defect | `should_fail` hides a failure on the wrong line |
 | 2026-10-21 | Stop after P0 and P1 for approval, then at the end of each phase unless I say "continue through P<n>" | I keep control of scope and usage |
-| 2026-10-21 | Answer A (plan v1 session): commit identity `git -c user.name=MadBull.Ben -c user.email=`. Used for `d12483c8`, `1876353e`, `2d91beed`. **Conflicts with Q8 / `CLAUDE.md` v2 (`Claude Code`)**; the P0 commit follows `CLAUDE.md` v2. See open question 4 | My answer to question A |
+| 2026-10-21 | Answer A (plan v1 session): commit identity `git -c user.name=MadBull.Ben -c user.email=`. Used for `f46b31f5`, `8861c911`, `ef4101cf`. **Conflicts with Q8 / `CLAUDE.md` v2 (`Claude Code`)**; the P0 commit follows `CLAUDE.md` v2. See open question 4 | My answer to question A |
+| 2026-10-23 | Commit identity: author and committer `MadBull.Ben` with an **empty email** (`git -c user.name=MadBull.Ben -c user.email= commit`); the email must not appear anywhere. All 11 add-test-suite commits rewritten with `git filter-branch` (metadata and file contents), `refs/original` deleted. Hash map: `d12483c8`->`f46b31f5`, `1876353e`->`8861c911`, `2d91beed`->`ef4101cf`, `d08e0e1b`->`2461c51e`, `24417fa9`->`359c2a6a`, `d17cb295`->`124fa93e`, `93b82a32`->`a79ead3a`, `32cc2ce1`->`540d358a`, `17e09826`->`bfdadc7f`, `449b63ae`->`7a35d2f1`, `1568343e`->`9a0a7d05` (hashes elsewhere in this file are the new ones) | My decision (privacy) |
+| 2026-10-23 | Pace: stop at the end of every phase (P2 to P9) for my approval | My answer to open question 2 |
+| 2026-10-23 | Coverage goal: higher than the 70 % of plan v2. Exact target and how hardware-facing code is counted to be agreed (fidelity of the fakes) | My answer to open question 1 |
+| 2026-10-23 | The specification behind the `HidFFB` characterization tests is the USB HID PID 1.01 (Physical Interface Device class) | My correction to open question 3 |
 | 2026-10-23 | P1 review: 3 fresh reviewer agents (r1-r3), fixes applied by the authoring agents, merged by the main agent (no file changed by two groups). Bug 21 (line 536) moved from NEEDS REVIEW to suspected bugs because the code comment states the intent. The ringbuffer KNOWN_ISSUE_UB case became a skipped case because it read indeterminate memory in the test itself | Review r1-r3 |
-| 2026-10-22 | Use `MadBull.Ben` for all commits. The 2 P0 commits were rewritten (local rebase, author reset): `88dc8516` -> `d08e0e1b`, `0bbec1cb` -> `24417fa9`. `CLAUDE.md` identity line updated. P0 approved, start P1 | My decision |
+| 2026-10-22 | Use `MadBull.Ben` for all commits. The 2 P0 commits were rewritten (local rebase, author reset): `88dc8516` -> `d08e0e1b`, `0bbec1cb` -> `24417fa9` (both rewritten again on 2026-10-23, see below). `CLAUDE.md` identity line updated. P0 approved, start P1 | My decision |
 | 2026-10-21 | `Firmware/Tests/` was moved out of the repo by accident and restored by me. Re-check after restore: no diff against HEAD under `Firmware/`, `ffb_unit_tests` with the exclusion = 316 passed / 0 failed / 2 skipped | Incident record |
-| 2026-10-21 | F3 feature header `Firmware/Tests/platform/target_f407/target_constants.h` approved and committed (`2d91beed`): F407 copy minus `MIDI`, `TMCDEBUG`, `RMDCAN`, `TMC4671DRIVER`, `PWMDRIVER`, `ODRIVE`, `VESC`, `SIMPLEMOTION`. Not used by any target yet; for `ffb_target_tests` its directory goes before `platform/include` | My review of the diff |
+| 2026-10-21 | F3 feature header `Firmware/Tests/platform/target_f407/target_constants.h` approved and committed (`ef4101cf`): F407 copy minus `MIDI`, `TMCDEBUG`, `RMDCAN`, `TMC4671DRIVER`, `PWMDRIVER`, `ODRIVE`, `VESC`, `SIMPLEMOTION`. Not used by any target yet; for `ffb_target_tests` its directory goes before `platform/include` | My review of the diff |
 | 2026-10-21 | Plan v2 installed in this checkout (`testing/OpenFFBoard`, branch `add-test-suite`). The v2 files came from `~/Downloads` (identical copies are untracked in the second checkout `Testing2/OpenFFBoard`, branch `feature/host-unit-tests` at `a5418ff5`, which has none of the add-test-suite commits). This file = v2 merged with the add-test-suite progress | My instruction to merge |
 | 2026-10-21 | F1b: the 2 spline cases are excluded only when `FFB_TESTS_SANITIZE=ON` **and** CMSIS-DSP is used (DSP-off sanitizer builds run them again: 315 passed instead of 313). The effective list is cached as `FFB_TESTS_EXCLUDED_ARG` (INTERNAL) for the checker | Plan v2 P0 |
 | 2026-10-21 | The baseline check also runs as a second `ctest` test `ffb_unit_tests_baseline` when Python 3 is found (otherwise a configure message, no failure). Not a new executable | Makes the safety net automatic in every `ctest` run |
@@ -287,9 +291,9 @@ Hard gate for Batch 0: after every CMake change `ffb_unit_tests` must still give
 
 | # | Fake / change | Location (`Firmware/Tests/`) | Purpose | Status |
 |---|---|---|---|---|
-| F1 | `FFB_TESTS_EXCLUDE` cache variable (default: the `effectsForces` case name) passed to `add_test` as `--test-case-exclude=` | `CMakeLists.txt` | Make `ctest` green and the exclusion visible in one place. Check CI impact first (older compilers do not abort on this case) | **done** `1876353e` (2026-10-21). Excluding the case on older compilers only skips a `KNOWN_ISSUE_UB` case; no CI runs the tests (P0) |
+| F1 | `FFB_TESTS_EXCLUDE` cache variable (default: the `effectsForces` case name) passed to `add_test` as `--test-case-exclude=` | `CMakeLists.txt` | Make `ctest` green and the exclusion visible in one place. Check CI impact first (older compilers do not abort on this case) | **done** `8861c911` (2026-10-21). Excluding the case on older compilers only skips a `KNOWN_ISSUE_UB` case; no CI runs the tests (P0) |
 | F2 | Keep `ffb_unit_tests` exactly as is (same sources, same feature set, same fake `Axis.h`). Add `ffb_target_tests` (real `Axis.cpp`/`Axis.h`, `AxesManager`, `FFBHIDMain`, inputs, encoders, buses, CAN, system; no `fakes/Axis.h`), `ffb_rtos_tests` (the `cpp_freertos` wrappers), `ffb_flash_tests` (real `flash_helpers.cpp` + `eeprom.c` on fake HAL FLASH, without the `Flash_*` fake) and `ffb_usb_tests` (Tier B, real TinyUSB device code + fake USB controller). Firmware sources are compiled per executable; only the platform fakes are shared (static library). New cases go in separate directories (e.g. `cases_axis/`, `cases_flash/`, `cases_usb/`) outside the existing `cases/test_*.cpp` glob. Update `CMakePresets.json` so `cmake --preset host` builds all and `ctest` runs all | `CMakeLists.txt`, `CMakePresets.json` | The fake `Axis.h` and fake `Flash_*` cannot coexist with the real code in one binary. The README says every `cases/test_*.cpp` is picked up automatically, so new executables must not share that directory | approved |
-| F3 | Own feature header for the new executables: read the real F407 target's `target_constants.h`, copy its feature macros, remove the driver macros (`TMC4671DRIVER`, `PWMDRIVER`, `ODRIVE`, `VESC`, `SIMPLEMOTION`, `RMDCAN`, `TMCDEBUG`), leave `MIDI` off, add pin tables (`BUTTON_PINS`, `ADC_PINS`, ...). Show me the resulting diff before use. `ffb_unit_tests` keeps its current header | `platform/target_f407/target_constants.h` (its directory goes before `platform/include` in the new executables only) | Compile the in-scope modules without the drivers | **done**: diff approved, committed `2d91beed`. Pin tables (`BUTTON_PINS`, `ADC_PINS`, ...) still to add in P2 batch 0 |
+| F3 | Own feature header for the new executables: read the real F407 target's `target_constants.h`, copy its feature macros, remove the driver macros (`TMC4671DRIVER`, `PWMDRIVER`, `ODRIVE`, `VESC`, `SIMPLEMOTION`, `RMDCAN`, `TMCDEBUG`), leave `MIDI` off, add pin tables (`BUTTON_PINS`, `ADC_PINS`, ...). Show me the resulting diff before use. `ffb_unit_tests` keeps its current header | `platform/target_f407/target_constants.h` (its directory goes before `platform/include` in the new executables only) | Compile the in-scope modules without the drivers | **done**: diff approved, committed `ef4101cf`. Pin tables (`BUTTON_PINS`, `ADC_PINS`, ...) still to add in P2 batch 0 |
 | F4 | Fake HAL SPI (records TX, scripted RX, DMA/IT completion callbacks driven by the test) | `platform/` | SPIButtons, EncoderSSI, EncoderBissC, MtEncoderSPI, SPI.cpp | proposed |
 | F5 | Fake HAL I2C (scripted device register map per address, error injection) | `platform/` | PCF8574, ADS111X, I2C.cpp | proposed |
 | F6 | Fake HAL ADC (settable DMA buffer, conversion-complete callback) + LL ADC voltage/temperature macros | `platform/` | LocalAnalog, AdcHandler, voltagesense | proposed |
@@ -327,7 +331,7 @@ Not in P1: the skipped "unknown id" case stays skipped (known issue 3). Done whe
 
 ## P1 results (2026-10-22/23)
 
-Commit `93b82a32` (tests and fake changes, before review): 329 new cases. After the review fixes: **332 new cases** in 15 new files (C 62, E 114, others unchanged); no existing test file changed.
+Commit `a79ead3a` (tests and fake changes, before review): 329 new cases. After the review fixes: **332 new cases** in 15 new files (C 62, E 114, others unchanged); no existing test file changed.
 
 | Group | Files | Cases | Own mutation spot-check |
 |---|---|---|---|
@@ -442,7 +446,7 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 | 21 | CommandHandler | `CommandHandler.cpp:536` `flags &= flags \| CMDFLAG_EXTOVERRIDE` | No-op although the comment says "honor flag mask": (re-)registering an overridden command drops the override mask (moved from NEEDS REVIEW #6 after review r1) | KNOWN_ISSUE "registering an overridden command again keeps the override mask" (`test_command_handler_gaps.cpp`) |
 | 22 | UART | `UART.cpp:97, 104, 116-123`, used at `189-191` | `abortReceive()` and a failed `receive_IT/_DMA` never clear `rxbuf_t`: the next single-byte completion armed by `registerInterrupt()` passes the old (possibly dangling) user buffer to `uartRcv` instead of the received byte (found by review r3) | 2 KNOWN_ISSUE tests in `test_uart.cpp` (after abort, after a failed receive) |
 | V4 | FreeRTOS wrappers (**vendor, tier A**) | `cthread.cpp` `~Thread` after `TaskFunctionAdapter` | When `Run()` returns, the adapter deletes the task; the Thread destructor then calls `vTaskDelete` again on the freed handle (double delete / use after free on target). The fake ignores it (found by review r2) | Comment in `test_rtos_wrappers.cpp`; no test (UB) |
-| 6 | Test setup (not firmware) | `CMakePresets.json` `host-sanitize`, `CMakeLists.txt` | With the CMSIS-DSP submodule checked out, `ctest` in the sanitizer preset fails on the spline overflow (bug 2). Reproduced with the same flags by script, preset not run | Fixed by F1 (`1876353e`) + F1b (P0). Verified in P0: `cmake --preset host-sanitize -B <out-of-tree>`, `ctest` 2/2 passed |
+| 6 | Test setup (not firmware) | `CMakePresets.json` `host-sanitize`, `CMakeLists.txt` | With the CMSIS-DSP submodule checked out, `ctest` in the sanitizer preset fails on the spline overflow (bug 2). Reproduced with the same flags by script, preset not run | Fixed by F1 (`8861c911`) + F1b (P0). Verified in P0: `cmake --preset host-sanitize -B <out-of-tree>`, `ctest` 2/2 passed |
 
 ## Untestable code and refactor suggestions
 
@@ -496,9 +500,9 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 
 ## Open questions for me
 
-1. **Coverage goal.** Is about 70% of in-scope firmware lines the right target? Going higher means testing interrupt and hardware-only code through fakes, which costs more per line.
-2. **Pace.** Stop at the end of every phase (default), or run several phases in a row with a report at each? Say "continue through P<n>" to allow it.
-3. **PID 1.01 specification** (optional): give the path of the spec file to have the `HidFFB` characterization tests verified against it. Without it that batch is skipped.
+1. ~~Coverage goal~~: answered 2026-10-23, higher than 70 % (exact target to be agreed, see decisions log). Original question: Is about 70% of in-scope firmware lines the right target? Going higher means testing interrupt and hardware-only code through fakes, which costs more per line.
+2. ~~Pace~~: answered 2026-10-23, stop at the end of every phase. Original question: Stop at the end of every phase (default), or run several phases in a row with a report at each? Say "continue through P<n>" to allow it.
+3. **USB HID PID 1.01 specification** (USB Device Class Definition for Physical Interface Devices, optional): give the path of the spec file to have the `HidFFB` characterization tests verified against it. Without it that batch is skipped.
 4. ~~Commit author name~~: answered 2026-10-22, `MadBull.Ben` for all commits.
 5. **CI:** no GitHub Actions workflow runs the host tests (P0 finding). Should I describe a workflow job (configure, build, `ctest` with DSP on/off and sanitizers, MinGW) for you to add? I will not touch `.github/`.
 6. **Second checkout:** `Testing2/OpenFFBoard` (branch `feature/host-unit-tests`) holds untracked copies of the v2 files and none of the add-test-suite work. Work continues only in `testing/OpenFFBoard` unless you say otherwise.

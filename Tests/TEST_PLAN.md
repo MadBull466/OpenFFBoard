@@ -160,7 +160,7 @@ Estimated gain about 365 lines. Needs F11 (queues, timers, event groups, simple 
 - **Tier B:** TinyUSB device code in `Firmware/FFBoard/USB/` on a fake USB controller (F15), in `ffb_usb_tests`.
 - **Tier C:** the CMSIS-DSP functions the firmware calls (biquad, spline, sin, cos), against reference values.
 - **Python helpers** with stdlib `unittest`: `Firmware/scripts/generate_memory.py` and `dwc2_info.py` (vendor: report bugs, never fix).
-- **Optional:** verify the `HidFFB` `characterization` tests against PID 1.01, only if I give you the spec file path.
+- **Optional:** verify the `HidFFB` `characterization` tests against the USB HID PID 1.01 specification, only if I give you the spec file path.
 
 ## How each phase runs
 

@@ -198,7 +198,7 @@ grep -rn "KNOWN_ISSUE\|KNOWN ISSUE" cases/
 
 ## Next steps
 
-* Verification of the `characterization` tests of `HidFFB` against PID 1.01 (direction handling,
+* Verification of the `characterization` tests of `HidFFB` against the USB HID PID 1.01 specification (direction handling,
   condition blocks, device control, block load status).
 * Integration test with the real `Axis.cpp`: PID report -> effect -> axis -> `MockMotorDriver` torque with the
   position from `MockEncoder`. Requires a few more HAL declarations for the headers included by `Axis.h`
