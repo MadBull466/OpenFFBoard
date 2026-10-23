@@ -91,6 +91,7 @@ not tested. It is listed with a reason in `tools/coverage_exclusions.txt` and le
 |---|---|
 | `cases/test_*.cpp` | Test cases. Every file is picked up automatically. |
 | `cases_target/test_*.cpp` | Test cases of `ffb_target_tests` (F407 feature set, real `Axis`). |
+| `cases_flash/test_*.cpp` | Test cases of `ffb_flash_tests` (real `flash_helpers.cpp` and `eeprom.c` on the fake HAL FLASH). |
 | `mocks/` | Implementations of firmware class interfaces for tests. |
 | `fakes/` | Headers replacing firmware headers (currently only `Axis.h`). |
 | `support/` | Fixtures and helpers: `FirmwareFixture.h`, `FfbFixture.h`, `PidHost.h`, `TestHelpers.h`, `Host*.h`. |
@@ -237,6 +238,46 @@ Later phases add system, inputs, encoders, buses and CAN.
     through `TMC4671.h` -> `SPI.h`, so `abs(float)` uses the float overload; without the drivers the host would call
     `::abs(int)`. This also supplies the math functions `Axis.cpp` uses without including `<cmath>`.
   * Clang only: `-Wno-c++11-narrowing` for `Axis.cpp` (`clip<int8_t>` in `setEqGain`; GCC only warns).
+
+## `ffb_flash_tests`: the real flash layer on a fake HAL FLASH
+
+A third executable built by the same `CMakeLists.txt` and run by `ctest`. It compiles the real `flash_helpers.cpp`,
+`eeprom.c` (ST AN3969 EEPROM emulation, vendor code: tested, never fixed), `eeprom_addresses.c` and
+`PersistentStorage.cpp` with the F407 feature header (`USE_EEPROM_EMULATION`, `EEPROM_START_ADDRESS` 0x08004000) on a
+fake HAL FLASH with NOR semantics. The map-backed `Flash_*` replacement of `host_platform.cpp` is left out
+(`HOSTTEST_REAL_FLASH_HELPERS`).
+
+* **Test cases:** `cases_flash/test_*.cpp` (own glob).
+* **Fake HAL FLASH:** declarations in `platform/target_f407/host_flash_hal.h` (included by the target `main.h` only when
+  `HOSTTEST_FLASH_HAL` is defined, i.e. only in `ffb_flash_tests`; it defines `FLASH_OTP_BASE`, so `OTPMEMORY` is on
+  like on the F407), implementation in `platform/src/host_flash.cpp` (each function cites the ST HAL function it
+  models). Erase sets a sector to 0xFF, programming can only clear bits (`old & data`; 0 -> 1 requests are recorded),
+  programming while locked fails with PGSERR, erasing while locked does nothing and returns `HAL_OK` (like the chip),
+  pending error flags make the next operation fail, OTP bytes are one-time programmable and lock bytes block
+  programming. Sectors 0..3 (16 KiB) and the OTP area are modelled; anything else is recorded as unexpected and fails
+  the test.
+* **Fixed-address memory:** `eeprom.c` and `flash_helpers.cpp` dereference absolute addresses, so the fake memory is
+  mapped at the target addresses when the executable starts: 64 KiB at 0x08000000 (sectors 0..3, EEPROM pages in
+  sectors 1 and 2) and 64 KiB at 0x1FFF0000 (OTP 0x1FFF7800..0x1FFF7A0F). Linux/macOS: `mmap` with the address as
+  hint (+ `MAP_FIXED_NOREPLACE` where available), never replacing an existing mapping; Windows: `VirtualAlloc` at the
+  fixed address. If a range is in use the run aborts with a message (no fallback). Both ranges lie in ASan's
+  application memory on x86-64 Linux (`LowMem` 0..0x7fff7fff). On 64-bit macOS the default 4 GiB `__PAGEZERO` covers
+  these addresses, so the executable is expected to abort there (not verified).
+* **Test control:** `support/HostFlash.h`: raw memory access (`read16`, `write16`, `fill`, `snapshot`, ...), recording
+  (operations log, program/erase counts per sector, 0 -> 1 requests, unlock/lock, cache resets, unexpected accesses),
+  error injection (`failNext` with an FLASH_SR error flag, `failNextWithStatus` for `HAL_TIMEOUT`/`HAL_BUSY`,
+  `setPendingFlags`, `setUnlockFails`) and power-loss injection (`cutPowerAfterPrograms(n, tornMask)`,
+  `cutPowerDuringErase(n, offset, length)`: the memory is frozen at the cut, later operations have no effect until
+  the reboot).
+* **Fixture** (`support/FlashFixture.h`): `FlashFixture` resets the fake flash (erased), simulated time, RTOS and the
+  global firmware state (`PersistentStorage` handler list and startup flag, `DataVar` of `eeprom.c`). `init()` runs the
+  start-up (`Flash_Init`), `reboot()` simulates a power cycle (memory kept, `Flash_Init` again). Page image helpers:
+  `writePage(page, status, records)`, `fillPage`, `writeRecord`, `pageStatus`, `pageRecords`. The destructor fails the
+  test on unmodelled flash accesses; in `KNOWN_ISSUE` tests use `REQUIRE_FLASH_ACCESSES_MODELLED()` before the defect
+  assertion.
+* **Exclusions:** `FFB_FLASH_TESTS_EXCLUDE` and `FFB_FLASH_TESTS_EXCLUDE_SANITIZE` (both default empty), printed at
+  configure time like the others.
+* No CMSIS-DSP sources (none of the compiled files use them). `-funsigned-char` like `ffb_target_tests`.
 
 ## Limitations
 

@@ -13,6 +13,7 @@
  *
  * Implementations: platform/src/host_target.cpp (TIM, EXTI, system, CMSIS) and
  * platform/src/host_platform.cpp (GPIO, UART, tick). Test control: support/HostTarget.h.
+ * ffb_flash_tests additionally gets the FLASH HAL (host_flash_hal.h, see the end of this file).
  *
  * If a newly tested source file needs more of the HAL add it here. Keep it minimal.
  */
@@ -450,6 +451,12 @@ static inline int16_t __REVSH(int16_t value) {
 
 #ifdef __cplusplus
 }
+#endif
+
+// FLASH HAL (stm32f4xx_hal_flash.h) with the fake flash of ffb_flash_tests. Only ffb_flash_tests defines
+// HOSTTEST_FLASH_HAL; for ffb_target_tests this header is unchanged (no FLASH_OTP_BASE, so no OTPMEMORY).
+#ifdef HOSTTEST_FLASH_HAL
+#include "host_flash_hal.h"
 #endif
 
 #endif

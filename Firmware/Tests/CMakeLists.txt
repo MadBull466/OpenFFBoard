@@ -360,3 +360,92 @@ if(FFB_TARGET_TESTS_EXCLUDED_ARG)
 else()
 	add_test(NAME ffb_target_tests COMMAND ffb_target_tests)
 endif()
+
+# ===========================================================================
+# ffb_flash_tests: the real flash layer (flash_helpers.cpp, eeprom.c = ST AN3969 EEPROM emulation, vendor tier A,
+# eeprom_addresses.c) and PersistentStorage on a fake HAL FLASH with NOR semantics (P3).
+#
+# ffb_unit_tests and ffb_target_tests above are not changed by this section. Feature set: the F407 test header
+# (platform/target_f407/target_constants.h: USE_EEPROM_EMULATION, EEPROM_START_ADDRESS 0x08004000).
+#  - HOSTTEST_FLASH_HAL: platform/target_f407/main.h includes host_flash_hal.h (FLASH HAL declarations, FLASH_OTP_BASE,
+#    so constants.h defines OTPMEMORY like on the F407). Implementation: platform/src/host_flash.cpp.
+#  - HOSTTEST_REAL_FLASH_HELPERS: host_platform.cpp leaves out its map-backed Flash_* replacement.
+# The fake flash memory is mapped at the target addresses (0x08000000 and 0x1FFF0000, 64 KiB each) when the
+# executable starts, see host_flash.cpp.
+# ===========================================================================
+set(FLASH_FIRMWARE_SOURCES
+	# Under test (P3)
+	${FFBOARD_DIR}/Src/flash_helpers.cpp
+	${FFBOARD_DIR}/Src/eeprom.c
+	${FFBOARD_DIR}/UserExtensions/Src/eeprom_addresses.c
+	${FFBOARD_DIR}/Src/PersistentStorage.cpp
+	# Needed to link: flashMutex in flash_helpers.cpp, external_uart in host_platform.cpp
+	${FFBOARD_DIR}/Src/cmutex.cpp
+	${FFBOARD_DIR}/Src/csemaphore.cpp
+	${FFBOARD_DIR}/Src/UART.cpp
+	${FFBOARD_DIR}/Src/UartHandler.cpp
+)
+
+set(FLASH_PLATFORM_SOURCES
+	platform/src/host_freertos.cpp
+	platform/src/host_platform.cpp
+	platform/src/host_flash.cpp
+)
+
+file(GLOB FLASH_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cases_flash/test_*.cpp)
+
+add_executable(ffb_flash_tests
+	${FLASH_FIRMWARE_SOURCES}
+	${FLASH_PLATFORM_SOURCES}
+	${FLASH_TEST_SOURCES}
+	support/test_main.cpp
+)
+
+target_include_directories(ffb_flash_tests PRIVATE
+	platform/target_f407
+	platform/include
+	support
+	mocks
+	third_party
+	${FFBOARD_DIR}/Inc
+	${FFBOARD_DIR}/UserExtensions/Inc
+	${FFBOARD_DIR}/USB
+	${FFBOARD_DIR}/USB/common
+	${FFBOARD_DIR}/USB/device
+	${FFBOARD_DIR}/USB/class/hid
+	${FFBOARD_DIR}/USB/class/cdc
+	${FFBOARD_DIR}/USB/class/midi
+)
+
+target_compile_definitions(ffb_flash_tests PRIVATE HOSTTEST HOSTTEST_FLASH_HAL HOSTTEST_REAL_FLASH_HELPERS)
+
+target_link_libraries(ffb_flash_tests PRIVATE Threads::Threads)
+
+# -funsigned-char: char is unsigned on the ARM target (like ffb_target_tests)
+target_compile_options(ffb_flash_tests PRIVATE -Wall $<$<COMPILE_LANGUAGE:CXX>:-Wno-volatile> -funsigned-char)
+if(MINGW)
+	target_compile_options(ffb_flash_tests PRIVATE -mno-ms-bitfields)
+	target_link_options(ffb_flash_tests PRIVATE -static)
+endif()
+
+if(FFB_TESTS_SANITIZE)
+	target_compile_definitions(ffb_flash_tests PRIVATE HOSTTEST_SANITIZERS)
+	target_compile_options(ffb_flash_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined)
+	target_link_options(ffb_flash_tests PRIVATE -fsanitize=address,undefined)
+endif()
+
+# Test cases of ffb_flash_tests excluded from ctest (doctest --test-case-exclude). Same rule as FFB_TESTS_EXCLUDE:
+# only cases that abort the whole run because of a suspected defect belong here.
+set(FFB_FLASH_TESTS_EXCLUDE "" CACHE STRING "Test cases of ffb_flash_tests excluded from ctest (list)")
+set(FFB_FLASH_TESTS_EXCLUDE_SANITIZE "" CACHE STRING "Test cases of ffb_flash_tests additionally excluded from ctest in sanitizer builds (list)")
+set(FFB_FLASH_TESTS_EXCLUDED ${FFB_FLASH_TESTS_EXCLUDE})
+if(FFB_TESTS_SANITIZE)
+	list(APPEND FFB_FLASH_TESTS_EXCLUDED ${FFB_FLASH_TESTS_EXCLUDE_SANITIZE})
+endif()
+list(JOIN FFB_FLASH_TESTS_EXCLUDED "," FFB_FLASH_TESTS_EXCLUDED_ARG)
+message(STATUS "OpenFFBoard tests: ffb_flash_tests excluded from ctest: ${FFB_FLASH_TESTS_EXCLUDED_ARG}")
+if(FFB_FLASH_TESTS_EXCLUDED_ARG)
+	add_test(NAME ffb_flash_tests COMMAND ffb_flash_tests "--test-case-exclude=${FFB_FLASH_TESTS_EXCLUDED_ARG}")
+else()
+	add_test(NAME ffb_flash_tests COMMAND ffb_flash_tests)
+endif()

@@ -3,7 +3,8 @@
  *
  * Fake hardware layer for the host unit tests: HAL, time base, flash storage and LEDs.
  * Replaces the target specific code (Targets/<target>/Core) and the hardware bound
- * helpers (flash_helpers.cpp, ledEffects.cpp, parts of cppmain.cpp).
+ * helpers (flash_helpers.cpp, ledEffects.cpp, parts of cppmain.cpp). ffb_flash_tests keeps the real
+ * flash_helpers.cpp (HOSTTEST_REAL_FLASH_HELPERS, see the end of this file).
  * See support/HostPlatform.h for the test control interface.
  */
 #include "HostPlatform.h"
@@ -210,6 +211,9 @@ void setErrLed(uint8_t on) { ledState.errLed = on; }
 void setSysLed(uint8_t on) { ledState.sysLed = on; }
 
 // ---------------- Persistent storage (flash_helpers.h) ----------------
+// Map-backed replacement of flash_helpers.cpp. ffb_flash_tests compiles the real flash_helpers.cpp and eeprom.c on
+// the fake HAL FLASH (host_flash.cpp) and defines HOSTTEST_REAL_FLASH_HELPERS to leave this section out.
+#ifndef HOSTTEST_REAL_FLASH_HELPERS
 bool Flash_Init() { return true; }
 
 bool Flash_Write(uint16_t adr, uint16_t dat) {
@@ -249,3 +253,4 @@ bool Flash_Format() {
 void Flash_Write_Defaults() {}
 bool OTP_Write(uint16_t, uint64_t) { return false; }
 bool OTP_Read(uint16_t, uint64_t *) { return false; }
+#endif // HOSTTEST_REAL_FLASH_HELPERS

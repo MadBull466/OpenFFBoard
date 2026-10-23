@@ -7,7 +7,7 @@
 ## Current state
 
 - **Current phase:** P3 (flash and persistence, new `ffb_flash_tests`), started 2026-10-23. P2 approved 2026-10-23.
-- **Phase status:** batch 0 (executable, fake HAL FLASH with NOR semantics F9, fixture, smoke tests) by one agent in the repo checkout, no commits by the agent.
+- **Phase status:** batch 0 done; next: P3 module agents.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** `41112d85` (P2 review fixes) + this PROGRESS update.
 - **Last updated:** 2026-10-23
@@ -15,7 +15,7 @@
 
 ## Next action
 
-**P3 batch 0 running.** Then: review and commit batch 0, P3 module plan (`eeprom.c` tier A; `flash_helpers.cpp`, `eeprom_addresses.c`, `PersistentStorage` on the real flash layer), module agents, review, fixes, gate, coverage (85 % per file), stop for approval.
+**P3 batch 0 done** (`ffb_flash_tests`, see "P3 batch 0"). Then: review and commit batch 0, P3 module plan (`eeprom.c` tier A; `flash_helpers.cpp`, `eeprom_addresses.c`, `PersistentStorage` on the real flash layer), module agents, review, fixes, gate, coverage (85 % per file), stop for approval.
 
 ## Phase checklist
 
@@ -27,7 +27,7 @@
 | P0 Safety net | `ffb_unit_tests` | 0 (measured baseline 2,136 lines, 26.2 %) | done | yes, 2026-10-22 | `2461c51e` |
 | P1 Gaps in compiled files | `ffb_unit_tests` | about 470 (measured +504: 2,640 lines, 32.4 %) | done | yes, 2026-10-23 | `a79ead3a` (tests), `7a35d2f1` (review fixes) |
 | P2 Axis and main classes | `ffb_target_tests` (new) | about 790 (measured: total 4,164 lines, 50.5 %) | done | yes, 2026-10-23 | `4aec799c` batch 0, `760f6f1a` tests, `76d89b40` infra review fixes, `41112d85` review fixes |
-| P3 Flash and persistence | `ffb_flash_tests` (new) | about 365 | in progress (batch 0) | | |
+| P3 Flash and persistence | `ffb_flash_tests` (new) | about 365 | in progress (batch 0 done) | | |
 | P4 System, callbacks, misc | `ffb_target_tests` | about 460 | not started | | |
 | P5 Buttons and analog | `ffb_target_tests` | about 775 | not started | | |
 | P6 Encoders and buses | `ffb_target_tests` | about 640 | not started | | |
@@ -330,6 +330,17 @@ Executable `ffb_target_tests`, new files in `cases_target/` only. Coverage after
 | C axes + integration | `test_axes_manager.cpp`, `test_ffb_integration.cpp` | `AxesManager.cpp`, path through `HidFFB`/`EffectsCalculator`/`Axis` | axis count changes, update/updateTorque, emergency stop over all axes, usb suspend/resume, commands; end to end: PID reports (constant, spring, damper, periodic, conditions per axis) -> effects -> axis -> `MockMotorDriver` torque with the position from `MockEncoder` |
 | D main classes | `test_ffbhidmain.cpp`, `test_main_classes.cpp` | `FFBHIDMain.cpp`, `FFBHIDMain_commmands.cpp`, `FFBWheel.cpp`, `FFBJoystick.cpp`, `FFBHIDExt.cpp`, `CustomMain.cpp`, `FFBoardMain.cpp`, `mainclass_chooser.cpp` | HID gamepad report packing (axes, buttons, double buffer), FFB on/off, update rate/timer, usb init/suspend/resume, button/analog source selection commands, main class info/ids unique and selectable, CustomMain |
 
+## P3 batch 0 (2026-10-24)
+
+New executable `ffb_flash_tests` (CMake block appended; `ffb_unit_tests` and `ffb_target_tests` compile commands identical in all 6 build dirs). Cases in `cases_flash/`. Feature header: F407 test header (`USE_EEPROM_EMULATION`, `EEPROM_START_ADDRESS 0x08004000`, `OTPMEMORY`). Defines `HOSTTEST_FLASH_HAL` (target `main.h` includes `host_flash_hal.h`, values from the ST headers) and `HOSTTEST_REAL_FLASH_HELPERS` (the map-backed `Flash_*`/`OTP_*` fake in `host_platform.cpp` is left out). Exclusion lists `FFB_FLASH_TESTS_EXCLUDE` / `_SANITIZE` (empty). No CMSIS-DSP.
+- Firmware compiled: `flash_helpers.cpp`, `eeprom.c` (tier A), `eeprom_addresses.c`, `PersistentStorage.cpp`; for linking `cmutex.cpp`, `csemaphore.cpp`, `UART.cpp`, `UartHandler.cpp`. No stubs.
+- F9 fake HAL FLASH (`platform/src/host_flash.cpp`, `support/HostFlash.h`) modelled on `stm32f4xx_hal_flash(_ex).c` and RM0090: LOCK bit, program = old & data with 0->1 requests recorded, PGSERR when locked, PGAERR across a 128-bit row, pending SR flags, sector erase (sectors 0-3), erase while locked ignored, OTP 16x32 bytes + lock bytes (WRPERR on locked block), cache macros counted; injections (error flags, HAL_TIMEOUT/HAL_BUSY, unlock failure) and **power loss** (cut after N programs with torn-bit mask, partial erase), recording per sector, `unexpected` accesses fail the test.
+- **Fixed-address memory:** 64 KiB mapped at 0x08000000 and at 0x1FFF0000 at startup (POSIX `mmap` hint + `MAP_FIXED_NOREPLACE`, never `MAP_FIXED`; Windows `VirtualAlloc` at the fixed base), abort with a message if unavailable. Verified on Linux x86-64 incl. ASan (LowMem 0x0-0x7fff7fff is application memory). **Not verified on Windows; expected to fail on macOS** (4 GiB `__PAGEZERO`) - see open question 7.
+- `support/FlashFixture.h`: resets fake flash, injections, PersistentStorage lists/startup flag, `eeprom.c` `DataVar`; `init()`, `reboot()`, page image helpers (`writePage`, `fillPage`, `pageRecords`, ...), `REQUIRE_FLASH_ACCESSES_MODELLED()`.
+- 9 smoke cases (`FlashSetup`), incl. a power loss at every program step of a page transfer (recovers).
+- Gate: ctest 4/4 in all 6 dirs, baseline OK, `ffb_unit_tests` and `ffb_target_tests` unchanged, `ffb_flash_tests` 9/0/0 everywhere, no sanitizer findings, no warnings from test files (firmware `-Wint-to-pointer-cast` in `eeprom.c`/`flash_helpers.cpp`: 32-bit addresses as pointers, host only). Verified again by the main agent.
+- Hardware-only candidates: none.
+
 ## P2 results (2026-10-23)
 
 4 module agents (A axis torque, B axis config, C axes manager + integration, D main classes), merged by the main agent (each workspace only added its own files; no shared helper or CMake change). 377 new cases in 6 files in `cases_target/` (A 103/102 depending on DSP, B 80, C 81, D 114); `ffb_target_tests` now 388 cases.
@@ -474,6 +485,8 @@ Functions never run by any test (counts of never-run / total): ErrorHandler 15/2
 | 38 | FFBHIDMain | `FFBHIDMain.cpp:321-322` `usbResume` | Clears `control.emergency` when the E-stop pin is released, but never calls `axes_manager->emergencyStop(true)`: the drivers stay in emergency stop while `estop` reports 0. Intended? | no |
 | 39 | FFBHIDMain | `FFBHIDMain.cpp:343` | An E-stop release within 1 s of the press is never applied (motor stays stopped until the next edge). Intended (fail-safe) or part of bug 40? | no |
 | 40 | FFBHIDMain | `FFBHIDMain.cpp:128-159` `updateControl` | Does not check `usb_disabled`: during a USB suspend the axes keep computing torque and `turn()` it to the stopped driver (and the slew limiter winds down during a long suspend). Intended? (found while fixing bug 33 tests) | no |
+| 41 | eeprom.c (vendor, AN3969 design) | `EE_Init` | Power loss while erasing the old page after a completed transfer, with its VALID header surviving: the next `EE_Init` copies the partially erased old page again and appends stale values (no "erase in progress" state). Accept as AN3969 limitation? | no |
+| 42 | flash_helpers | `Flash_Init`, `Flash_Write`, `Flash_Format`, `Flash_ReadWriteDefault` | Ignore the result of `HAL_FLASH_Unlock`; `Flash_ReadWriteDefault` ignores the result of `EE_WriteVariable` | no |
 | 21 | HidFFB / CDC | `FirmwareFixture::resetGlobals` (test infrastructure) | Does not reset `CDCcomm`'s private `usb_busy_retry`; `test_cdc.cpp` works around it with its own fixture. Shared fix in `support/FirmwareFixture.h`? | no |
 
 New tests that describe unclear behaviour use the `characterization:` name prefix and get a row here. Tests that describe intended behaviour but fail use `KNOWN_ISSUE` and get a row under "Suspected firmware bugs".
@@ -519,6 +532,8 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 | 38 | SelectableInputs | `SelectableInputs.cpp:44-46, 76-78` | `addbtn`/`addain` duplicate check compares the class id (`getInfo().id`) with the selection id: never matches, a second identical source is created | 2 KNOWN_ISSUE (`test_ffbhidmain.cpp`) |
 | 39 | FFBHIDMain | `FFBHIDMain.cpp:361-364` with `298` | A new critical error calls `emergencyStop(true)`, but `true` means reset: **a critical error releases an active emergency stop** instead of triggering one. History (review p2r3): commit `8fad1a7b` (2022-06-02) introduced `emergencyStop(bool reset)` and converted this call to `true` while `exti` got `false`; `3105628c` added `control.emergency = !reset`. A regression: before `8fad1a7b` a critical error did stop | KNOWN_ISSUE "a critical error puts the main class into emergency stop" and "a critical error keeps an active emergency stop" |
 | 40 | FFBHIDMain | `FFBHIDMain.cpp:343` (`exti`, E-stop debounce) | **Safety:** an E-stop edge within 1 s of the previous one is dropped and nothing re-reads the pin later (no polling in `updateControl`): pressing the E-stop within 1 s after a release, or within 1 s after boot (`lastEstop` starts at 0), leaves the motor running while the E-stop is held (found by review p2r3 with 2 probe tests) | 2 KNOWN_ISSUE: "an E-stop pressed within 1 s after a release still stops the motor", "an E-stop pressed within 1 s after start stops the motor" (`test_ffbhidmain.cpp`) |
+| 41 | flash_helpers | `flash_helpers.cpp:298-326` `OTP_Write`/`OTP_Read` | Bound check `adr > FLASH_OTP_END` lets offsets 64/65 reach the OTP lock bytes (0x1FFF7A00..0x1FFF7A0F): `OTP_Write(64, x)` would permanently lock OTP blocks | Code reading (P3 batch 0); test in P3 |
+| V5 | ST EEPROM emulation (**vendor, tier A**) | `eeprom.c:333-356` `EE_VerifyPageFullyErased` | Loop `while (Address <= PAGE0_END_ADDRESS)` for any page: for page 1 it never runs and reports "erased"; it also checks only every other half-word. Page 1 is never erased by `EE_Format` / the `EE_Init` RECEIVE/ERASED, VALID/ERASED branches; a VALID page 1 left over then receives writes that `Flash_Read` cannot find (silent loss). Confirmed in source by the main agent | Throwaway test in batch 0; KNOWN_ISSUE in P3 |
 | V1 | FreeRTOS wrappers (**vendor, tier A**) | `csemaphore.cpp:117-131` | `CountingSemaphore(0, x)` or initial > max throws before `handle` is set; `~Semaphore` then deletes an uninitialised handle (UB). Exception builds only (target uses `CPP_FREERTOS_NO_EXCEPTIONS`/`configASSERT`) | Seen with mutants; no test (would crash) |
 | V2 | FreeRTOS wrappers (**vendor, tier A**) | `cthread.cpp:184-187` | `~Thread` of a never-started thread calls `vTaskDelete` with an uninitialised handle (NULL deletes the calling task on FreeRTOS). Also on target | Code reading; no test (UB) |
 | V3 | FreeRTOS wrappers (**vendor, tier A**) | `cmutex.cpp`, `csemaphore.cpp` | On a kernel create failure (NULL), the destructors call `vSemaphoreDelete(NULL)` (real FreeRTOS asserts) | Code reading; no test |
@@ -555,6 +570,7 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 | CDC command interface | `CommandResult::size()` uses `sizeof` (contains `std::string`), so buffer thresholds differ host/target | `test_command_handler_gaps.cpp` CDC cases rely only on "at least the buffer size" |
 | Axis | `Axis.cpp:1026, 1347` call `abs()` on floats; the float overload comes only through a transitive `<math.h>` (`TMC4671.h -> SPI.h`). `ffb_target_tests` compiles `Axis.cpp` with `-include math.h` to match the target (was bug 34) | `test_axis_torque.cpp` expo cases |
 | Axis | `getLastScaledEnc` out-of-range float->int: host INT_MIN, ARM saturates (bug 36) | `KNOWN_ISSUE_UB` case |
+| flash | `ffb_flash_tests` maps memory at the target addresses (0x08000000, 0x1FFF0000); 32-bit addresses become pointers (host warnings). Fake flash is instantaneous (no BSY/timing); partial erase / torn programs are a deterministic model of an indeterminate real state. Linux only verified; Windows untested; macOS expected to fail (`__PAGEZERO`) | `ffb_flash_tests` |
 | all target tests | `ffb_target_tests` uses `-funsigned-char` like ARM; `ffb_unit_tests` keeps signed `char` | char-dependent code |
 | ringbuffer | `size_t` 64-bit host / 32-bit target with `uint32_t` temporaries; same results for tested sizes | `test_ringbuffer.cpp` |
 
@@ -590,6 +606,7 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 1. ~~Coverage goal~~: answered 2026-10-23, 85 % or more, hardware-only code ignored (see decisions log). Original question: Is about 70% of in-scope firmware lines the right target? Going higher means testing interrupt and hardware-only code through fakes, which costs more per line.
 2. ~~Pace~~: answered 2026-10-23, stop at the end of every phase. Original question: Stop at the end of every phase (default), or run several phases in a row with a report at each? Say "continue through P<n>" to allow it.
 3. **USB HID PID 1.01 specification** (USB Device Class Definition for Physical Interface Devices, optional): give the path of the spec file to have the `HidFFB` characterization tests verified against it. Without it that batch is skipped.
+7. **macOS / Windows for `ffb_flash_tests`:** the fixed-address flash memory works on Linux; on macOS the default 4 GiB `__PAGEZERO` blocks it (the executable would abort), Windows is untested. Options: skip `ffb_flash_tests` on macOS in CMake, or link it there with a smaller page zero (`-Wl,-pagezero_size,0x1000`, x86-64 only). Which do you want? (CI runs none of these today.)
 4. ~~Commit author name~~: answered 2026-10-22, `MadBull.Ben` for all commits.
 5. **CI:** no GitHub Actions workflow runs the host tests (P0 finding). Should I describe a workflow job (configure, build, `ctest` with DSP on/off and sanitizers, MinGW) for you to add? I will not touch `.github/`.
 6. **Second checkout:** `Testing2/OpenFFBoard` (branch `feature/host-unit-tests`) holds untracked copies of the v2 files and none of the add-test-suite work. Work continues only in `testing/OpenFFBoard` unless you say otherwise.
