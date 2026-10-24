@@ -76,7 +76,11 @@ struct FirmwareInitialValues {
 	bool mainclassChosen = ::mainclassChosen;
 	bool forceErase = ::forceErase;
 	uint16_t mainId = ::main_id;
-	Ledstruct_t sysled = ::sysled, errled = ::errled, clipled = ::clipled;
+	// The LEDs are written literally like ledEffects.cpp:10-18: command handlers constructed during the dynamic
+	// initialisation of other files call pulseSysLed() (CommandHandler.cpp:505), possibly before this snapshot is taken.
+	Ledstruct_t sysled{0, 0, 0, LED_SYS_GPIO_Port, LED_SYS_Pin, 0};
+	Ledstruct_t errled{0, 0, 0, LED_ERR_GPIO_Port, LED_ERR_Pin, 0};
+	Ledstruct_t clipled{0, 0, 0, LED_CLIP_GPIO_Port, LED_CLIP_Pin, 0};
 	bool brakingFlag = ::braking_flag;
 	int32_t maxVoltage = ::maxVoltage;
 	int32_t voltageDiffActivate = ::voltageDiffActivate;
