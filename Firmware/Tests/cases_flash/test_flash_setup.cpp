@@ -134,7 +134,7 @@ TEST_CASE_FIXTURE(FlashFixture, "a power loss at any program step of a page tran
 
 	for (uint32_t completed = 0; completed < programs; completed++) {
 		CAPTURE(completed);
-		HostFlash::reset();
+		resetIteration();
 		fillPage(0, VALID_PAGE, RECORDS_PER_PAGE, addresses);
 		HostFlash::cutPowerAfterPrograms(completed);
 

@@ -15,12 +15,16 @@
  *   - Erase sets a whole sector to 0xFF. Programming can only clear bits: new = old & data. Requests to set a bit
  *     from 0 to 1 are recorded (State::zeroToOneRequests), the bit stays 0 like on the chip.
  *   - HAL_FLASH_Program while the flash is locked fails with PGSERR (HAL_ERROR, HAL_FLASH_ERROR_PGS), nothing is
- *     written. HAL_FLASHEx_Erase while locked returns HAL_OK and erases nothing (FLASH_CR writes are ignored).
+ *     written. HAL_FLASHEx_Erase while locked returns HAL_OK and erases nothing (model assumption: inferred from
+ *     RM0090 3.9.7, FLASH_CR writes are ignored while LOCK is set; the outcome is not stated explicitly).
+ *   - Programming at an address not aligned to the program size fails with PGPERR (model assumption: the
+ *     Cortex-M4 splits the access into accesses that do not match PSIZE, RM0090 3.9.5).
  *   - Error flags still set in FLASH_SR when an operation starts make it fail (HAL_ERROR) before anything is
  *     written; the HAL clears them in FLASH_SetErrorCode, so the next operation works again.
  *   - OTP bytes can never be erased. A block whose lock byte is 0x00 can not be programmed (WRPERR).
  *   - Accesses outside the modelled areas (sectors 4..11, mass erase, other addresses) are not modelled: they fail
- *     with WRPERR and are recorded in State::unexpected. FlashFixture fails the test if that list is not empty.
+ *     with WRPERR and are recorded in State::unexpected (also while the flash is locked). FlashFixture fails the
+ *     test if that list is not empty.
  *
  * Reset with HostFlash::reset() (done by FlashFixture).
  */
@@ -138,13 +142,21 @@ void failNext(uint32_t count, uint32_t srFlags = FLASH_FLAG_PGSERR, Target targe
  */
 void failNextAfter(uint32_t succeeding, uint32_t count, uint32_t srFlags = FLASH_FLAG_PGSERR, Target target = Target::Any);
 /**
- * Like failNext, but the operation returns `status` (HAL_TIMEOUT: BSY stays set; HAL_BUSY: the HAL process lock
- * is taken) and sets no flag. Nothing is written.
+ * Like failNext, but the operation returns `status` and sets no flag. Nothing is written.
+ *   - HAL_TIMEOUT: BSY stays set (FLASH_WaitForLastOperation times out); counted like failNext.
+ *   - HAL_BUSY: the HAL process lock is taken (__HAL_LOCK(&pFlash)): the HAL call returns at once, before waiting,
+ *     touching *SectorError or the hardware. One HAL call (also a multi-sector erase) consumes one count.
  */
 void failNextWithStatus(uint32_t count, HAL_StatusTypeDef status, Target target = Target::Any);
 /** Error flags already set in FLASH_SR (e.g. left over from an earlier failed operation) */
 void setPendingFlags(uint32_t srFlags);
-/** HAL_FLASH_Unlock fails (wrong key sequence: the flash stays locked until reset) while set */
+/**
+ * HAL_FLASH_Unlock fails (wrong key sequence: the flash stays locked until reset) while set: it returns HAL_ERROR
+ * and the firmware continues with the flash locked.
+ * Model assumption: on the chip a wrong key sequence gives a bus error and locks FLASH_CR until reset (RM0090
+ * 3.5.1), which is effectively a HardFault. Firmware paths handling an unlock failure are defensive and probably
+ * unreachable without a fault.
+ */
 void setUnlockFails(bool fails);
 
 // ---------------- Power-loss injection ----------------

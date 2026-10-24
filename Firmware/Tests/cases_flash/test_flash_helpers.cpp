@@ -16,8 +16,16 @@
 #include "FlashFixture.h"
 #include "TestHelpers.h"
 
+#include <optional>
 #include <tuple>
 #include <vector>
+
+namespace doctest {
+/** Prints the result of read() in failed assertions */
+template <> struct StringMaker<std::optional<uint16_t>> {
+	static String convert(const std::optional<uint16_t> &v) { return v ? toString((unsigned)*v) : String("missing"); }
+};
+} // namespace doctest
 
 namespace {
 
@@ -27,9 +35,12 @@ const std::vector<uint32_t> errorFlags = {FLASH_FLAG_OPERR, FLASH_FLAG_WRPERR, F
 
 bool dataCacheEnabled() { return (FLASH->ACR & FLASH_ACR_DCEN) != 0; }
 
-uint16_t read(uint16_t adr) {
+/** The stored value of a variable, empty if Flash_Read does not find it (use inside CHECK) */
+std::optional<uint16_t> read(uint16_t adr) {
 	uint16_t v = 0;
-	REQUIRE(Flash_Read(adr, &v));
+	if (!Flash_Read(adr, &v)) {
+		return std::nullopt;
+	}
 	return v;
 }
 
@@ -68,7 +79,7 @@ TEST_CASE_FIXTURE(FlashFixture, "Flash_Init keeps the stored variables of a vali
 TEST_CASE_FIXTURE(FlashFixture, "Flash_Init clears an error flag left by an earlier operation before repairing the pages") {
 	for (uint32_t flag : errorFlags) {
 		CAPTURE(flag);
-		HostFlash::reset(); // blank flash: EE_Init formats (programs the page 0 header)
+		resetIteration(); // blank flash: EE_Init formats (programs the page 0 header)
 		HostFlash::setPendingFlags(flag);
 
 		CHECK(init());
@@ -89,6 +100,8 @@ TEST_CASE_FIXTURE(FlashFixture, "Flash_Init reports failure and locks the flash 
 }
 
 TEST_CASE_FIXTURE(FlashFixture, "Flash_Init reports failure when the flash can not be unlocked and the pages need programming") {
+	// Defensive path: on the chip a failing unlock is a bus error (model assumption, see HostFlash::setUnlockFails),
+	// so this is probably unreachable without a fault.
 	HostFlash::setUnlockFails(true); // blank flash: the format has to program the page 0 header
 
 	CHECK_FALSE(init());
@@ -98,9 +111,11 @@ TEST_CASE_FIXTURE(FlashFixture, "Flash_Init reports failure when the flash can n
 }
 
 TEST_CASE_FIXTURE(FlashFixture, "characterization: Flash_Init reports success when the flash can not be unlocked and only an erase was needed") {
-	// NEEDS REVIEW 42: Flash_Init ignores the result of HAL_FLASH_Unlock. Page 0 ERASED but dirty, page 1 VALID:
-	// EE_Init only erases page 0. An erase while locked is ignored by the chip without an error flag (RM0090
-	// 3.9.7, HAL_FLASHEx_Erase returns HAL_OK), so the repair silently does not happen.
+	// NEEDS REVIEW 43: Flash_Init ignores the result of HAL_FLASH_Unlock. Page 0 ERASED but dirty, page 1 VALID:
+	// EE_Init only erases page 0. An erase while locked is ignored without an error flag (model assumption inferred
+	// from RM0090 3.9.7, HAL_FLASHEx_Erase returns HAL_OK), so the repair silently does not happen.
+	// Defensive path: on the chip a failing unlock is a bus error (model assumption, see HostFlash::setUnlockFails),
+	// so this state is probably unreachable without a fault.
 	writePage(0, ERASED, {{ADR_HW_VERSION, 0x0BAD}});
 	writePage(1, VALID_PAGE, {{ADR_CURRENT_CONFIG, 0x1234}});
 	HostFlash::setUnlockFails(true);
@@ -186,7 +201,7 @@ TEST_CASE_FIXTURE(FlashFixture, "Flash_Write leaves the flash locked and resets 
 TEST_CASE_FIXTURE(FlashFixture, "Flash_Write clears an error flag left by an earlier operation before writing") {
 	for (uint32_t flag : errorFlags) {
 		CAPTURE(flag);
-		HostFlash::reset();
+		resetIteration();
 		REQUIRE(init());
 		HostFlash::setPendingFlags(flag);
 
@@ -209,6 +224,7 @@ TEST_CASE_FIXTURE(FlashFixture, "a failed program operation makes Flash_Write re
 }
 
 TEST_CASE_FIXTURE(FlashFixture, "Flash_Write returns false and keeps the old value when the flash can not be unlocked") {
+	// Defensive path: on the chip a failing unlock is a bus error (model assumption, see HostFlash::setUnlockFails)
 	REQUIRE(init());
 	REQUIRE(Flash_Write(ADR_CURRENT_CONFIG, 1));
 	HostFlash::setUnlockFails(true);
@@ -287,7 +303,7 @@ TEST_CASE_FIXTURE(FlashFixture, "reading does not unlock, program or lock the fl
 
 TEST_CASE_FIXTURE(FlashFixture, "characterization: checkempty has no effect with the EEPROM emulation, a stored 0xFFFF is found") {
 	// The I2C EEPROM variant (flash_helpers.cpp:186) reports a 0xFFFF value as missing when checkempty is set.
-	// With the EEPROM emulation a stored 0xFFFF is a real value. NEEDS REVIEW: should both backends agree?
+	// With the EEPROM emulation a stored 0xFFFF is a real value. NEEDS REVIEW 46: should both backends agree?
 	writePage(0, VALID_PAGE, {{ADR_CURRENT_CONFIG, 0xFFFF}});
 	uint16_t v = 0;
 
@@ -339,7 +355,7 @@ TEST_CASE_FIXTURE(FlashFixture, "writing the default resets the data cache befor
 TEST_CASE_FIXTURE(FlashFixture, "Flash_ReadWriteDefault clears an error flag left by an earlier operation before writing the default") {
 	for (uint32_t flag : errorFlags) {
 		CAPTURE(flag);
-		HostFlash::reset();
+		resetIteration();
 		REQUIRE(init());
 		HostFlash::setPendingFlags(flag);
 		uint16_t v = 0;
@@ -458,6 +474,8 @@ TEST_CASE_FIXTURE(FlashFixture, "the dump leaves out stored addresses that are n
 }
 
 TEST_CASE_FIXTURE(FlashFixture, "characterization: Flash_Dump appends to the entries already in the result") {
+	// NEEDS REVIEW 47: Flash_Dump push_backs into the caller's vector without clearing it. Intended (callers pass
+	// an empty vector) or should it clear?
 	REQUIRE(init());
 	REQUIRE(Flash_Write(ADR_CURRENT_CONFIG, 2));
 	Dump dump = {{0x1234, 0x5678}};
@@ -513,6 +531,7 @@ TEST_CASE_FIXTURE(FlashFixture, "Flash_Format returns false and locks the flash 
 }
 
 TEST_CASE_FIXTURE(FlashFixture, "Flash_Format returns false and deletes nothing when the flash can not be unlocked") {
+	// Defensive path: on the chip a failing unlock is a bus error (model assumption, see HostFlash::setUnlockFails)
 	REQUIRE(init());
 	REQUIRE(Flash_Write(ADR_CURRENT_CONFIG, 1));
 	HostFlash::setUnlockFails(true);
@@ -523,7 +542,7 @@ TEST_CASE_FIXTURE(FlashFixture, "Flash_Format returns false and deletes nothing 
 }
 
 TEST_CASE_FIXTURE(FlashFixture, "characterization: Flash_Format does not clear an error flag left by an earlier operation and fails once") {
-	// NEEDS REVIEW: Flash_Init, Flash_Write and Flash_ReadWriteDefault clear the FLASH_SR error flags before
+	// NEEDS REVIEW 44: Flash_Init, Flash_Write and Flash_ReadWriteDefault clear the FLASH_SR error flags before
 	// using the flash (workaround for the TODO at flash_helpers.cpp:16), Flash_Format does not. The HAL clears the
 	// flags when it reports them, so a second call works.
 	REQUIRE(init());
@@ -668,6 +687,8 @@ TEST_CASE_FIXTURE(FlashFixture, "an OTP read at offset 64 is rejected because it
 }
 
 TEST_CASE_FIXTURE(FlashFixture, "an OTP write fails and programs nothing when the flash can not be unlocked") {
+	// Defensive path (flash_helpers.cpp:309): on the chip a failing unlock is a bus error (model assumption, see
+	// HostFlash::setUnlockFails), so this is probably unreachable without a fault.
 	HostFlash::setUnlockFails(true);
 
 	CHECK_FALSE(OTP_Write(0, 0x1234));
@@ -685,8 +706,18 @@ TEST_CASE_FIXTURE(FlashFixture, "an OTP write reports failure when programming t
 	CHECK(HostFlash::locked());
 }
 
+TEST_CASE_FIXTURE(FlashFixture, "an OTP write reports failure when programming the second word fails") {
+	HostFlash::failNextAfter(1, 1, FLASH_FLAG_PGPERR, HostFlash::Target::Program); // low word works, high word fails
+
+	CHECK_FALSE(OTP_Write(2, 0x1111111122222222ULL));
+
+	CHECK(HostFlash::read32(otpSlot(2)) == 0x22222222U); // the low word was programmed
+	CHECK(HostFlash::read32(otpSlot(2) + 4) == 0xFFFFFFFFU);
+	CHECK(HostFlash::locked());
+}
+
 TEST_CASE_FIXTURE(FlashFixture, "characterization: after a failed first word the second word of the OTP slot is still programmed") {
-	// NEEDS REVIEW: OTP_Write always programs the high word (flash_helpers.cpp:312), also after the low word
+	// NEEDS REVIEW 45: OTP_Write always programs the high word (flash_helpers.cpp:312), also after the low word
 	// failed, so the slot is half written and can never be written again (curval != all ones). Stop after the
 	// first failure instead?
 	HostFlash::failNext(1, FLASH_FLAG_PGPERR, HostFlash::Target::Program);
@@ -707,7 +738,8 @@ TEST_CASE_FIXTURE(FlashFixture, "an OTP write to a locked OTP block fails and le
 }
 
 TEST_CASE_FIXTURE(FlashFixture, "characterization: an OTP slot written with all ones stays writable") {
-	// Programming all ones changes no bit, so the "already written" check (curval != all ones) still passes
+	// NEEDS REVIEW 45 (part): programming all ones changes no bit, so the "already written" check
+	// (curval != all ones, flash_helpers.cpp:306) still passes and the slot can be written again
 	REQUIRE(OTP_Write(7, 0xFFFFFFFFFFFFFFFFULL));
 
 	CHECK(OTP_Write(7, 0x42));

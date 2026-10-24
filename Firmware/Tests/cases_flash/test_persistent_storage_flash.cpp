@@ -161,7 +161,7 @@ TEST_CASE_FIXTURE(FlashFixture, "a power loss at any program step of a save keep
 		for (uint64_t torn : {0x0000ULL, 0xFF00ULL}) { // nothing / only the high byte of the interrupted half-word
 			CAPTURE(completed);
 			CAPTURE(torn);
-			resetAll();
+			resetIteration();
 			REQUIRE(init());
 			{
 				Settings wheel(wheelAddresses, oldValues);
@@ -196,8 +196,7 @@ TEST_CASE_FIXTURE(FlashFixture, "a delayed restore requested before the flash st
 		Settings wheel(wheelAddresses, {7, 8, 9});
 		saveAll();
 	}
-	HostFlash::powerOn();
-	FlashPersistentStorageStartup::reset();
+	powerCycle(); // RAM cleared (startup flag), no Flash_Init yet
 
 	// Next start: an object created before Flash_Init requests its restore
 	Settings wheel(wheelAddresses, {0, 0, 0});

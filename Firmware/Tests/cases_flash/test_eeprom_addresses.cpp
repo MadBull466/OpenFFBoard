@@ -8,9 +8,10 @@
  * An address of 0xFFFF can not be stored (it marks an erased record).
  *
  * The consistency with the ADR_ constants is checked against the header text: the test reads
- * FFBoard/UserExtensions/Inc/eeprom_addresses.h relative to this source file (__FILE__) and parses its
- * "#define ADR_x value" lines. That is the only way to find a constant that was added to the header but not to the
- * table. If the header can not be found (sources moved), the test fails with the path it tried.
+ * FFBoard/UserExtensions/Inc/eeprom_addresses.h (absolute path passed by CMake as FFB_EEPROM_ADDRESSES_H) and parses
+ * its "#define ADR_x value" lines. That is the only way to find a constant that was added to the header but not to
+ * the table. If the header can not be opened, the test fails with the path it tried; a line that does not parse as a
+ * plain decimal or hexadecimal value fails too.
  */
 #include "doctest.h"
 #include "FlashFixture.h"
@@ -32,11 +33,10 @@ std::vector<uint16_t> exportable() {
 }
 bool contains(const std::vector<uint16_t> &list, uint16_t adr) { return std::find(list.begin(), list.end(), adr) != list.end(); }
 
-std::filesystem::path headerPath() {
-	// cases_flash/<this file> -> Tests -> Firmware
-	return std::filesystem::path(__FILE__).parent_path().parent_path().parent_path() / "FFBoard" / "UserExtensions" / "Inc" /
-		   "eeprom_addresses.h";
-}
+#ifndef FFB_EEPROM_ADDRESSES_H
+#error "FFB_EEPROM_ADDRESSES_H (path of eeprom_addresses.h) is set by the ffb_flash_tests block of CMakeLists.txt"
+#endif
+std::filesystem::path headerPath() { return std::filesystem::path(FFB_EEPROM_ADDRESSES_H); }
 
 /** name -> value of every "#define ADR_x value" line of eeprom_addresses.h. Fails the test if the file is missing */
 std::map<std::string, uint32_t> headerConstants() {
@@ -44,18 +44,43 @@ std::map<std::string, uint32_t> headerConstants() {
 	std::ifstream file(headerPath());
 	INFO("header: " << headerPath().string());
 	REQUIRE(file.is_open());
-	const std::regex define(R"(^\s*#define\s+(ADR_\w+)\s+(0[xX][0-9a-fA-F]+|[0-9]+)\b)");
+	const std::regex anyDefine(R"(^\s*#\s*define\s+ADR_)");
+	// The whole line: name, a plain decimal or hexadecimal value, optionally a // comment
+	const std::regex define(R"(^\s*#define\s+(ADR_\w+)\s+(0[xX][0-9a-fA-F]+|[0-9]+)\s*(//.*)?$)");
 	std::string line;
+	uint32_t defineLines = 0;
 	while (std::getline(file, line)) {
+		if (!line.empty() && line.back() == '\r') {
+			line.pop_back(); // CRLF checkout
+		}
+		if (!std::regex_search(line, anyDefine)) {
+			continue;
+		}
+		defineLines++;
+		INFO("line: " << line);
 		std::smatch m;
-		if (std::regex_search(line, m, define)) {
-			INFO("line: " << line);
+		const bool parsed = std::regex_match(line, m, define);
+		CHECK(parsed); // e.g. 0x101U or (0x101) would need the parser extended
+		if (parsed) {
 			CHECK(constants.count(m[1].str()) == 0); // every constant defined once
 			constants[m[1].str()] = (uint32_t)std::stoul(m[2].str(), nullptr, 0);
 		}
 	}
+	CHECK(constants.size() == defineLines);
 	return constants;
 }
+
+/**
+ * Board-specific addresses left out of exportableFlashAddresses (eeprom_addresses.c): hardware / software version
+ * and the TMC ADC and encoder calibration ("could break something if imported on a different board",
+ * flash_helpers.cpp Flash_Dump comment)
+ */
+const std::vector<uint16_t> boardSpecific = {
+	ADR_HW_VERSION, ADR_SW_VERSION,
+	ADR_TMC1_ADC_I0_OFS, ADR_TMC1_ADC_I1_OFS, ADR_TMC1_ENC_OFFSET, ADR_TMC1_PHIE_OFS,
+	ADR_TMC2_ADC_I0_OFS, ADR_TMC2_ADC_I1_OFS, ADR_TMC2_ENC_OFFSET, ADR_TMC2_PHIE_OFS,
+	ADR_TMC3_ADC_I0_OFS, ADR_TMC3_ADC_I1_OFS, ADR_TMC3_ENC_OFFSET, ADR_TMC3_PHIE_OFS,
+};
 
 /**
  * The flash addresses the in-scope firmware uses (grep of FFBoard/ outside the drivers TMC4671, ODrive, VESC,
@@ -178,14 +203,6 @@ TEST_CASE_FIXTURE(FlashFixture, "exportableFlashAddresses has NB_EXPORTABLE_ADR 
 }
 
 TEST_CASE_FIXTURE(FlashFixture, "the version and the board calibration addresses are not exportable") {
-	// eeprom_addresses.c: hardware / software version and the TMC ADC and encoder calibration of the board
-	// ("could break something if imported on a different board", flash_helpers.cpp Flash_Dump comment)
-	const std::vector<uint16_t> boardSpecific = {
-		ADR_HW_VERSION, ADR_SW_VERSION,
-		ADR_TMC1_ADC_I0_OFS, ADR_TMC1_ADC_I1_OFS, ADR_TMC1_ENC_OFFSET, ADR_TMC1_PHIE_OFS,
-		ADR_TMC2_ADC_I0_OFS, ADR_TMC2_ADC_I1_OFS, ADR_TMC2_ENC_OFFSET, ADR_TMC2_PHIE_OFS,
-		ADR_TMC3_ADC_I0_OFS, ADR_TMC3_ADC_I1_OFS, ADR_TMC3_ENC_OFFSET, ADR_TMC3_PHIE_OFS,
-	};
 	const auto exp = exportable();
 	for (uint16_t adr : boardSpecific) {
 		CAPTURE(adr);
@@ -194,18 +211,16 @@ TEST_CASE_FIXTURE(FlashFixture, "the version and the board calibration addresses
 }
 
 TEST_CASE_FIXTURE(FlashFixture, "characterization: the CAN analog configuration is the only non-calibration address that is not exportable") {
-	// NEEDS REVIEW: ADR_CANANALOG_CONF1 has no export flag in memory_map.csv (commented out in
+	// NEEDS REVIEW 48: ADR_CANANALOG_CONF1 has no export flag in memory_map.csv (commented out in
 	// exportableFlashAddresses), unlike every other input configuration. Intended?
 	const auto exp = exportable();
-	std::vector<uint16_t> notExported;
+	std::vector<uint16_t> notExportedOther; // not exportable and not board-specific
 	for (uint16_t adr : table()) {
-		if (!contains(exp, adr)) {
-			notExported.push_back(adr);
+		if (!contains(exp, adr) && !contains(boardSpecific, adr)) {
+			notExportedOther.push_back(adr);
 		}
 	}
-	CHECK(notExported.size() == NB_OF_VAR - NB_EXPORTABLE_ADR);
-	CHECK(notExported.size() == 15);
-	CHECK(contains(notExported, ADR_CANANALOG_CONF1));
+	CHECK(notExportedOther == std::vector<uint16_t>{ADR_CANANALOG_CONF1});
 }
 
 TEST_CASE_FIXTURE(FlashFixture, "the system variables are the only addresses below 0x100") {

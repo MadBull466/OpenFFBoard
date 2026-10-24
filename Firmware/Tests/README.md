@@ -252,10 +252,15 @@ fake HAL FLASH with NOR semantics. The map-backed `Flash_*` replacement of `host
   `HOSTTEST_FLASH_HAL` is defined, i.e. only in `ffb_flash_tests`; it defines `FLASH_OTP_BASE`, so `OTPMEMORY` is on
   like on the F407), implementation in `platform/src/host_flash.cpp` (each function cites the ST HAL function it
   models). Erase sets a sector to 0xFF, programming can only clear bits (`old & data`; 0 -> 1 requests are recorded),
-  programming while locked fails with PGSERR, erasing while locked does nothing and returns `HAL_OK` (like the chip),
-  pending error flags make the next operation fail, OTP bytes are one-time programmable and lock bytes block
-  programming. Sectors 0..3 (16 KiB) and the OTP area are modelled; anything else is recorded as unexpected and fails
-  the test.
+  programming while locked fails with PGSERR, pending error flags make the next operation fail, OTP bytes are
+  one-time programmable and lock bytes block programming. Sectors 0..3 (16 KiB) and the OTP area are modelled;
+  anything else is recorded as unexpected (also while the flash is locked) and fails the test.
+  **Model assumptions** (not stated explicitly by ST): erasing while locked does nothing and returns `HAL_OK`
+  (inferred from RM0090 3.9.7: `FLASH_CR` writes are ignored while LOCK is set); a program address not aligned to
+  the program size raises PGPERR (RM0090 3.9.5); `setUnlockFails` makes `HAL_FLASH_Unlock` return `HAL_ERROR` and
+  the firmware continue, while on the chip a wrong key sequence is a bus error that locks `FLASH_CR` until reset
+  (RM0090 3.5.1, effectively a HardFault), so tests of unlock-failure paths cover defensive code that is probably
+  unreachable without a fault.
 * **Fixed-address memory:** `eeprom.c` and `flash_helpers.cpp` dereference absolute addresses, so the fake memory is
   mapped at the target addresses when the executable starts: 64 KiB at 0x08000000 (sectors 0..3, EEPROM pages in
   sectors 1 and 2) and 64 KiB at 0x1FFF0000 (OTP 0x1FFF7800..0x1FFF7A0F). Linux/macOS: `mmap` with the address as
@@ -265,13 +270,18 @@ fake HAL FLASH with NOR semantics. The map-backed `Flash_*` replacement of `host
   these addresses, so `ffb_flash_tests` is not built on macOS (CMake prints a message; the other executables are).
 * **Test control:** `support/HostFlash.h`: raw memory access (`read16`, `write16`, `fill`, `snapshot`, ...), recording
   (operations log, program/erase counts per sector, 0 -> 1 requests, unlock/lock, cache resets, unexpected accesses),
-  error injection (`failNext` with an FLASH_SR error flag, `failNextWithStatus` for `HAL_TIMEOUT`/`HAL_BUSY`,
+  error injection (`failNext` with an FLASH_SR error flag, `failNextAfter` for a later step, `failNextWithStatus`
+  for `HAL_TIMEOUT`/`HAL_BUSY` (`HAL_BUSY` returns before anything else, like a taken `__HAL_LOCK`),
   `setPendingFlags`, `setUnlockFails`) and power-loss injection (`cutPowerAfterPrograms(n, tornMask)`,
   `cutPowerDuringErase(n, offset, length)`: the memory is frozen at the cut, later operations have no effect until
   the reboot).
 * **Fixture** (`support/FlashFixture.h`): `FlashFixture` resets the fake flash (erased), simulated time, RTOS and the
   global firmware state (`PersistentStorage` handler list and startup flag, `DataVar` of `eeprom.c`). `init()` runs the
-  start-up (`Flash_Init`), `reboot()` simulates a power cycle (memory kept, `Flash_Init` again). Page image helpers:
+  start-up (`Flash_Init`). `powerCycle()` simulates a power cycle without the start-up (memory kept, hardware reset,
+  the RAM state of the flash layer cleared: `DataVar` and the `PersistentStorage` startup flag; the handler list is
+  kept because it holds objects the test owns), `reboot()` = `powerCycle()` + `Flash_Init`. Loops that reset the
+  flash between iterations use `resetIteration()`, which first checks the iteration for unmodelled accesses (a plain
+  reset would discard them). Page image helpers:
   `writePage(page, status, records)`, `fillPage`, `writeRecord`, `pageStatus`, `pageRecords`. The destructor fails the
   test on unmodelled flash accesses; in `KNOWN_ISSUE` tests use `REQUIRE_FLASH_ACCESSES_MODELLED()` before the defect
   assertion.

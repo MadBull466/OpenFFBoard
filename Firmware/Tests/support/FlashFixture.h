@@ -90,14 +90,34 @@ struct FlashFixture {
 	static bool init() { return Flash_Init(); }
 
 	/**
-	 * Power cycle: the hardware comes back (HostFlash::powerOn: power-loss state and injections cleared, flash
-	 * locked, flags cleared), the memory keeps its content, and the firmware start-up runs again (Flash_Init).
-	 * Returns the result of Flash_Init.
+	 * Power cycle without the firmware start-up: the hardware comes back (HostFlash::powerOn: power-loss state and
+	 * injections cleared, flash locked, flags cleared) and the memory keeps its content. The RAM state of the flash
+	 * layer is cleared like after a real reset: eeprom.c's DataVar and PersistentStorage::startupComplete. The
+	 * PersistentStorage handler list is kept: it holds handler objects the test owns (a test models the objects of
+	 * the next run by destroying the old handlers and creating new ones).
 	 */
-	static bool reboot() {
+	static void powerCycle() {
 		HostFlash::powerOn();
 		DataVar = 0;
+		FlashPersistentStorageStartup::reset();
+	}
+
+	/** Power cycle (powerCycle()) followed by the firmware start-up (Flash_Init). Returns the result of Flash_Init */
+	static bool reboot() {
+		powerCycle();
 		return Flash_Init();
+	}
+
+	/**
+	 * Reset between the iterations of a loop inside one test case (e.g. one iteration per power-cut point). Checks
+	 * first that the iteration did not reach unmodelled flash (resetAll() clears HostFlash::state().unexpected, so the
+	 * destructor check would miss it), then resets everything like a new test (resetAll()).
+	 */
+	static void resetIteration() {
+		const auto &unexpected = HostFlash::state().unexpected;
+		INFO("first unmodelled flash access: " << (unexpected.empty() ? std::string() : unexpected.front()));
+		CHECK_MESSAGE(unexpected.empty(), "the firmware reached flash that the fake does not model (see HostFlash.h)");
+		resetAll();
 	}
 
 	// ---------------- EEPROM emulation pages ----------------

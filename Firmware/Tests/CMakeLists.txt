@@ -422,6 +422,9 @@ target_include_directories(ffb_flash_tests PRIVATE
 )
 
 target_compile_definitions(ffb_flash_tests PRIVATE HOSTTEST HOSTTEST_FLASH_HAL HOSTTEST_REAL_FLASH_HELPERS)
+# Header parsed at run time by cases_flash/test_eeprom_addresses.cpp (consistency of VirtAddVarTab with the ADR_ constants)
+get_filename_component(FFB_EEPROM_ADDRESSES_HEADER ${FFBOARD_DIR}/UserExtensions/Inc/eeprom_addresses.h ABSOLUTE)
+target_compile_definitions(ffb_flash_tests PRIVATE FFB_EEPROM_ADDRESSES_H="${FFB_EEPROM_ADDRESSES_HEADER}")
 
 target_link_libraries(ffb_flash_tests PRIVATE Threads::Threads)
 

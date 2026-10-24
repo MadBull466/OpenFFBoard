@@ -19,7 +19,30 @@
  *   - Windows (MinGW): VirtualAlloc with the fixed base address (fails if the range is in use).
  * If the range can not be mapped the run is aborted with a message. There is no fallback: a relocated memory
  * would require changing the firmware sources.
+ *
+ * Model assumptions (not stated explicitly by ST, chosen so the firmware's defensive paths can be exercised):
+ *   - HostFlash::setUnlockFails: HAL_FLASH_Unlock returns HAL_ERROR and execution continues with the flash locked.
+ *     On the chip a wrong key sequence gives a bus error and locks FLASH_CR until the next reset (RM0090 3.5.1),
+ *     i.e. effectively a HardFault. The firmware's unlock-failure paths are therefore defensive and probably
+ *     unreachable without a fault; tests of them describe what the code would do, not a reachable chip state.
+ *   - Erase while locked: RM0090 3.9.7 says FLASH_CR can not be written while LOCK is set, so SER/STRT are never
+ *     set. The fake infers from this that nothing is erased, no error flag is raised and HAL_FLASHEx_Erase returns
+ *     HAL_OK (RM0090 does not state the outcome explicitly).
+ *   - Program-size alignment: an access not aligned to its size is split by the Cortex-M4 into smaller accesses
+ *     whose size does not match PSIZE, which raises PGPERR (RM0090 3.9.5). The fake raises PGPERR for any
+ *     address not aligned to the program size.
  */
+// <windows.h> first, lean and without the min/max macros, so it can not change the HAL declarations of main.h
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 #include "HostFlash.h"
 
 #include "main.h"
@@ -30,9 +53,7 @@
 #include <cstring>
 #include <stdexcept>
 
-#if defined(_WIN32)
-#include <windows.h>
-#else
+#if !defined(_WIN32)
 #include <sys/mman.h>
 #ifndef MAP_ANONYMOUS
 #define MAP_ANONYMOUS MAP_ANON
@@ -193,9 +214,30 @@ HAL_StatusTypeDef waitForLastOperation() {
 	return HAL_OK;
 }
 
-/** Consumes an armed injection for this kind of operation. True if the operation fails */
+bool injectionMatches(HostFlash::Target kind) {
+	return injection.count != 0 && (injection.target == HostFlash::Target::Any || injection.target == kind);
+}
+
+/**
+ * HAL_BUSY injections model __HAL_LOCK(&pFlash) failing: the HAL returns HAL_BUSY as its first statement, before
+ * waiting, touching *SectorError or the hardware. One HAL call (also a multi-sector erase) consumes one count.
+ * True if the call returns HAL_BUSY.
+ */
+bool takeBusyInjection(HostFlash::Target kind) {
+	if (injection.status != HAL_BUSY || !injectionMatches(kind)) {
+		return false;
+	}
+	if (injection.skip > 0) {
+		injection.skip--;
+		return false;
+	}
+	injection.count--;
+	return true;
+}
+
+/** Consumes an armed (non-HAL_BUSY) injection for this kind of operation. True if the operation fails */
 bool takeInjection(HostFlash::Target kind) {
-	if (injection.count == 0 || (injection.target != HostFlash::Target::Any && injection.target != kind)) {
+	if (injection.status == HAL_BUSY || !injectionMatches(kind)) {
 		return false;
 	}
 	if (injection.skip > 0) {
@@ -219,6 +261,12 @@ void unexpected(const std::string &what) {
 /** The program operation in the flash interface after FLASH_Program_Byte/HalfWord/Word/DoubleWord set PG and PSIZE */
 bool programHardware(uint32_t typeProgram, uint32_t address, uint64_t data) {
 	uint32_t size = typeProgram == FLASH_TYPEPROGRAM_BYTE ? 1 : typeProgram == FLASH_TYPEPROGRAM_HALFWORD ? 2 : typeProgram == FLASH_TYPEPROGRAM_WORD ? 4 : 8;
+	// Unmodelled addresses are recorded first, so they are reported also while the flash is locked
+	bool otp = inOtp(address, size);
+	if (!inMain(address, size) && !otp) {
+		unexpected("HAL_FLASH_Program at " + hex(address) + " (not modelled: only sectors 0..3 and the OTP area)");
+		return false;
+	}
 	if (takeInjection(HostFlash::Target::Program)) {
 		return false;
 	}
@@ -228,9 +276,10 @@ bool programHardware(uint32_t typeProgram, uint32_t address, uint64_t data) {
 		hosttest_flash_regs.SR |= FLASH_FLAG_PGSERR;
 		return false;
 	}
-	bool otp = inOtp(address, size);
-	if (!inMain(address, size) && !otp) {
-		unexpected("HAL_FLASH_Program at " + hex(address) + " (not modelled: only sectors 0..3 and the OTP area)");
+	if ((address % size) != 0U) {
+		// Model assumption (file comment): an unaligned access is split into accesses that do not match PSIZE
+		// -> PGPERR (RM0090 3.9.5). Nothing is programmed.
+		hosttest_flash_regs.SR |= FLASH_FLAG_PGPERR;
 		return false;
 	}
 	if ((address & 0xFU) + size > 16U) {
@@ -291,16 +340,17 @@ bool programHardware(uint32_t typeProgram, uint32_t address, uint64_t data) {
 
 /** The sector erase in the flash interface after FLASH_Erase_Sector set SER, SNB and STRT */
 bool eraseHardware(uint32_t sector) {
+	// Unmodelled sectors are recorded first, so they are reported also while the flash is locked
+	if (sector >= (uint32_t)HostFlash::SECTOR_COUNT) {
+		unexpected("HAL_FLASHEx_Erase of sector " + std::to_string(sector) + " (not modelled: only sectors 0..3)");
+		return false;
+	}
 	if (takeInjection(HostFlash::Target::Erase)) {
 		return false;
 	}
 	if (hosttest_flash_regs.CR & FLASH_CR_LOCK) {
-		// RM0090 3.9.7: FLASH_CR writes are ignored while LOCK is set: SER and STRT are never set, nothing is erased
-		// and no error flag is raised, so the HAL returns HAL_OK.
-		return false;
-	}
-	if (sector >= (uint32_t)HostFlash::SECTOR_COUNT) {
-		unexpected("HAL_FLASHEx_Erase of sector " + std::to_string(sector) + " (not modelled: only sectors 0..3)");
+		// Model assumption (file comment): RM0090 3.9.7 says FLASH_CR writes are ignored while LOCK is set, so SER
+		// and STRT are never set. Inferred: nothing is erased and no error flag is raised, the HAL returns HAL_OK.
 		return false;
 	}
 	uint32_t base = HostFlash::sectorBase((int)sector);
@@ -483,7 +533,10 @@ void hosttest_flash_data_cache_reset(void) {
 	}
 }
 
-/** Models HAL_FLASH_Unlock (stm32f4xx_hal_flash.c): key sequence only if locked; HAL_ERROR if still locked */
+/**
+ * Models HAL_FLASH_Unlock (stm32f4xx_hal_flash.c): key sequence only if locked; HAL_ERROR if still locked.
+ * setUnlockFails: model assumption, see the file comment (on the chip a wrong key sequence is a bus error).
+ */
 HAL_StatusTypeDef HAL_FLASH_Unlock(void) {
 	HostFlash::state().unlocks++;
 	if (hosttest_flash_regs.CR & FLASH_CR_LOCK) {
@@ -521,6 +574,11 @@ HAL_StatusTypeDef HAL_FLASH_Program(uint32_t TypeProgram, uint32_t Address, uint
 		st.log.push_back(op);
 		return HAL_ERROR;
 	}
+	if (takeBusyInjection(HostFlash::Target::Program)) { // __HAL_LOCK(&pFlash) taken
+		op.result = HAL_BUSY;
+		st.log.push_back(op);
+		return HAL_BUSY;
+	}
 	HAL_StatusTypeDef status = waitForLastOperation();
 	if (status == HAL_OK) {
 		op.applied = programHardware(TypeProgram, Address, Data);
@@ -544,6 +602,10 @@ HAL_StatusTypeDef HAL_FLASHEx_Erase(FLASH_EraseInitTypeDef *pEraseInit, uint32_t
 		st.opsWhilePowerLost++;
 		st.log.push_back(HostFlash::Operation{HostFlash::OpKind::Erase, 0, pEraseInit->Sector, 0, HAL_ERROR, false});
 		return HAL_ERROR;
+	}
+	if (takeBusyInjection(HostFlash::Target::Erase)) { // __HAL_LOCK(&pFlash) taken: *SectorError untouched
+		st.log.push_back(HostFlash::Operation{HostFlash::OpKind::Erase, 0, pEraseInit->Sector, 0, HAL_BUSY, false});
+		return HAL_BUSY;
 	}
 	HAL_StatusTypeDef status = waitForLastOperation();
 	if (status == HAL_OK) {
