@@ -157,14 +157,27 @@ struct EepromFixture : FlashFixture {
 	}
 
 	/**
+	 * HostFlash::reset() between loop iterations, without losing the unmodelled-access check of the fixture (the
+	 * fixture destructor only sees HostFlash::state().unexpected of the last iteration)
+	 */
+	static void resetFlashKeepingChecks() {
+		const auto &unexpected = HostFlash::state().unexpected;
+		INFO("first unmodelled flash access: " << (unexpected.empty() ? std::string() : unexpected.front()));
+		CHECK_MESSAGE(unexpected.empty(), "the firmware reached flash that the fake does not model (see HostFlash.h)");
+		HostFlash::reset();
+	}
+
+	/**
 	 * Runs `action` once to count its applied program and erase operations, then once per cut point: `setup`, arm the
 	 * power cut, `action` (result ignored), power cycle, `check`. Program cuts use the torn masks in `tornMasks`,
 	 * erase cuts the partial-erase variants in `cuts`.
+	 * The REQUIRE(powerLost()) preconditions of the cut model also run in the passing (non-KNOWN_ISSUE) loops that use
+	 * this helper, so a KNOWN_ISSUE loop can not be satisfied by a broken cut model.
 	 */
 	static void forEveryPowerCut(const std::function<void()> &setup, const std::function<void()> &action,
 								 const std::function<void()> &check, const std::vector<uint64_t> &tornMasks = {0},
 								 const std::vector<EraseCut> &cuts = eraseCuts()) {
-		HostFlash::reset();
+		resetFlashKeepingChecks();
 		setup();
 		action();
 		REQUIRE_FALSE(HostFlash::powerLost());
@@ -180,7 +193,7 @@ struct EepromFixture : FlashFixture {
 			for (uint64_t mask : tornMasks) {
 				CAPTURE(completed);
 				CAPTURE(mask);
-				HostFlash::reset();
+				resetFlashKeepingChecks();
 				setup();
 				HostFlash::cutPowerAfterPrograms(completed, mask);
 				action();
@@ -194,7 +207,7 @@ struct EepromFixture : FlashFixture {
 				CAPTURE(completed);
 				CAPTURE(cut.offset);
 				CAPTURE(cut.length);
-				HostFlash::reset();
+				resetFlashKeepingChecks();
 				setup();
 				HostFlash::cutPowerDuringErase(completed, cut.offset, cut.length);
 				action();
@@ -307,6 +320,22 @@ TEST_CASE_FIXTURE(EepromFixture, "EE_Init formats the emulation when both pages 
 	CHECK(missing(ADR_CANCONF1));
 }
 
+TEST_CASE_FIXTURE(EepromFixture, "after EE_Init formatted two receiving pages a written variable reads back and formatted variables stay missing across a power cycle" *
+								 KNOWN_ISSUE("V5: the format leaves page 1 RECEIVE_DATA (eeprom.c:483); writes then go to page 1 (eeprom.c:534), reads to page 0")) {
+	writePage(0, RECEIVE_DATA, {{ADR_CURRENT_CONFIG, 7}});
+	writePage(1, RECEIVE_DATA, {{ADR_CANCONF1, 8}});
+	REQUIRE(eeInit() == EE_OK);
+
+	CHECK(eeWrite(ADR_AXIS1_POWER, 0x0042) == EE_OK);
+
+	REQUIRE_FLASH_ACCESSES_MODELLED();
+	CHECK(has(ADR_AXIS1_POWER, 0x0042));
+	powerCycle();
+	CHECK(has(ADR_AXIS1_POWER, 0x0042));
+	CHECK(missing(ADR_CURRENT_CONFIG));
+	CHECK(missing(ADR_CANCONF1));
+}
+
 TEST_CASE_FIXTURE(EepromFixture, "EE_Init completes an interrupted transfer from page 1 to page 0 and page 0 becomes valid") {
 	writePage(1, VALID_PAGE, {{ADR_CURRENT_CONFIG, 1}, {ADR_CANCONF1, 2}, {ADR_CURRENT_CONFIG, 3}});
 	writePage(0, RECEIVE_DATA, {{ADR_AXIS1_POWER, 9}}); // the value written by the interrupted EE_WriteVariable
@@ -394,7 +423,7 @@ TEST_CASE_FIXTURE(EepromFixture, "EE_Init formats the emulation when both pages 
 }
 
 TEST_CASE_FIXTURE(EepromFixture, "characterization: EE_Init with a valid page 0 and an invalid page 1 status reports success and loses every variable") {
-	// NEEDS REVIEW: the VALID_PAGE case handles every page 1 status other than VALID and ERASED as "Page0 valid, Page1
+	// NEEDS REVIEW 49: the VALID_PAGE case handles every page 1 status other than VALID and ERASED as "Page0 valid, Page1
 	// receive" (eeprom.c:259). The copies go through EE_FindValidPage(WRITE_IN_VALID_PAGE), which only selects page 1
 	// for exactly RECEIVE_DATA, so they are appended to page 0 itself; then page 1 is marked VALID and page 0 erased.
 	// Result: EE_OK, page 1 valid and empty. A torn RECEIVE_DATA header of page 1 (power loss at the first program of a
@@ -428,7 +457,7 @@ TEST_CASE_FIXTURE(EepromFixture, "EE_Init formats the emulation when page 0 has 
 }
 
 TEST_CASE_FIXTURE(EepromFixture, "characterization: EE_Init discards a valid page 1 when page 0 has an invalid status") {
-	// NEEDS REVIEW: "Any other state -> format eeprom" (eeprom.c:308) also applies when page 1 is VALID, so a corrupted
+	// NEEDS REVIEW 50: "Any other state -> format eeprom" (eeprom.c:308) also applies when page 1 is VALID, so a corrupted
 	// page 0 header (e.g. a torn RECEIVE_DATA program at the start of a transfer to page 0) loses all variables of the
 	// valid page 1.
 	writePage(0, 0xFFEE); // RECEIVE_DATA (0xEEEE) programmed over 0xFFFF, interrupted after the low byte
@@ -893,15 +922,15 @@ TEST_CASE_FIXTURE(EepromFixture, "EE_Init returns the status of a failed flash o
 		writePage(1, RECEIVE_DATA);
 		HostFlash::failNextAfter(2, 1, FLASH_FLAG_PGPERR, HostFlash::Target::Program);
 		CHECK(eeInit() == HAL_ERROR);
-		CHECK(pageStatus(1) == RECEIVE_DATA);
-		CHECK(HostFlash::state().eraseCalls == 0);
+		// No state check here: which of "mark page 1 valid" and "erase page 0" comes first is suspected bug V6
 	}
 	SUBCASE("page 0 valid, page 1 receiving: erasing page 0 fails") {
 		writePage(0, VALID_PAGE, {{ADR_CURRENT_CONFIG, 1}});
 		writePage(1, RECEIVE_DATA);
 		HostFlash::failNextWithStatus(1, HAL_TIMEOUT, HostFlash::Target::Erase);
 		CHECK(eeInit() == HAL_TIMEOUT);
-		CHECK(pageStatus(1) == VALID_PAGE);
+		// No state check here: today page 1 is already VALID when the erase fails, so both pages are VALID and the next
+		// EE_Init formats (suspected bug V6); with the safe order the erase fails before page 1 is marked
 	}
 	SUBCASE("page 0 invalid: the format fails") {
 		writePage(0, 0x1234);
@@ -982,7 +1011,7 @@ TEST_CASE_FIXTURE(EepromFixture, "EE_Init restores every variable after any fail
 	const uint32_t eraseStep = steps - 2;
 	for (uint32_t failing = 0; failing < steps; failing++) {
 		CAPTURE(failing);
-		HostFlash::reset();
+		resetFlashKeepingChecks();
 		const Values old = fullValidPage(0);
 		if (failing == eraseStep) {
 			HostFlash::failNext(1, FLASH_FLAG_OPERR, HostFlash::Target::Erase);
@@ -1054,45 +1083,102 @@ TEST_CASE_FIXTURE(EepromFixture, "a power loss at any step of a page transfer fr
 		});
 }
 
-TEST_CASE_FIXTURE(EepromFixture, "a power loss at any program step of the EE_Init recovery of an interrupted page transfer keeps every variable at its old or new value") {
-	// Erase cuts of the recovery are limited to those that erase the header of page 0: if the VALID header of page 0
-	// survives, both pages are VALID (suspected bug V6, KNOWN_ISSUE test below).
-	// Collect the states an interrupted transfer from page 0 to page 1 leaves behind (program cuts and erase cuts)
-	HostFlash::reset();
-	const Values old = fullValidPage(0);
-	REQUIRE(eeWrite(NEW_VAR, NEW_VALUE) == EE_OK);
-	const uint32_t transferPrograms = HostFlash::state().programsApplied;
+namespace {
+/** Memory images (both pages) an interrupted page transfer leaves behind, and the values before the write */
+struct TransferStates {
+	Values old;
 	std::vector<std::vector<uint8_t>> states;
+};
+} // namespace
+
+/**
+ * Collects the states of a transfer from `fromPage` (full and valid; the other page erased) interrupted at every program
+ * step and with every partial-erase variant of the old-page erase.
+ */
+static TransferStates interruptedTransferStates(EepromFixture &f, int fromPage) {
+	TransferStates result;
+	auto setup = [&] {
+		f.writePage(1 - fromPage, ERASED);
+		return f.fullValidPage(fromPage);
+	};
+	f.resetFlashKeepingChecks();
+	result.old = setup();
+	REQUIRE(f.eeWrite(NEW_VAR, NEW_VALUE) == EE_OK);
+	const uint32_t transferPrograms = HostFlash::state().programsApplied;
 	auto capture = [&] {
 		REQUIRE(HostFlash::powerLost());
-		states.push_back(HostFlash::snapshot(pageBase(0), 2 * HostFlash::EEPROM_PAGE_SIZE));
+		result.states.push_back(HostFlash::snapshot(f.pageBase(0), 2 * HostFlash::EEPROM_PAGE_SIZE));
 	};
 	for (uint32_t completed = 0; completed < transferPrograms; completed++) {
-		HostFlash::reset();
-		fullValidPage(0);
+		f.resetFlashKeepingChecks();
+		setup();
 		HostFlash::cutPowerAfterPrograms(completed);
-		eeWrite(NEW_VAR, NEW_VALUE);
+		f.eeWrite(NEW_VAR, NEW_VALUE);
 		capture();
 	}
-	for (EraseCut cut : eraseCuts()) {
-		HostFlash::reset();
-		fullValidPage(0);
+	for (EepromFixture::EraseCut cut : EepromFixture::eraseCuts()) {
+		f.resetFlashKeepingChecks();
+		setup();
 		HostFlash::cutPowerDuringErase(0, cut.offset, cut.length);
-		eeWrite(NEW_VAR, NEW_VALUE);
+		f.eeWrite(NEW_VAR, NEW_VALUE);
 		capture();
 	}
+	return result;
+}
 
-	for (size_t i = 0; i < states.size(); i++) {
+/** Power loss at every step of the EE_Init recovery of every interrupted transfer state, then power cycle and check */
+static void checkRecoveryPowerLoss(EepromFixture &f, const TransferStates &t, const std::vector<EepromFixture::EraseCut> &cuts,
+								   bool knownIssue) {
+	for (size_t i = 0; i < t.states.size(); i++) {
 		CAPTURE(i);
-		forEveryPowerCut(
-			[&] { HostFlash::restore(pageBase(0), states[i]); },
-			[] { eeInit(); },
+		f.forEveryPowerCut(
+			[&] { HostFlash::restore(f.pageBase(0), t.states[i]); },
+			[&] { f.eeInit(); },
 			[&] {
-				CHECK(validPages() == 1);
-				checkOldOrNew(old, NEW_VAR, NEW_VALUE);
+				if (knownIssue) {
+					REQUIRE_FLASH_ACCESSES_MODELLED();
+				}
+				CHECK(f.validPages() == 1);
+				f.checkOldOrNew(t.old, NEW_VAR, NEW_VALUE);
 			},
-			{0}, {{0, HostFlash::SECTOR_SIZE}, {0, PAGE_HEADER_SIZE}});
+			{0}, cuts);
 	}
+}
+
+TEST_CASE_FIXTURE(EepromFixture, "every step of a page transfer in both directions can be interrupted by the power-loss model") {
+	// Precondition check (passing) for the KNOWN_ISSUE recovery loops below: every cut point of the reference transfer
+	// is reached (interruptedTransferStates REQUIREs powerLost() for each)
+	for (int from = 0; from < 2; from++) {
+		CAPTURE(from);
+		const TransferStates t = interruptedTransferStates(*this, from);
+		CHECK(t.states.size() == 1 + 2 + 2 * VARS.size() + 1 + eraseCuts().size());
+	}
+}
+
+TEST_CASE_FIXTURE(EepromFixture, "a power loss at any program step of the EE_Init recovery of an interrupted page transfer keeps every variable at its old or new value") {
+	// Recovery of a transfer from page 0 to page 1 (EE_Init VALID / RECEIVE_DATA branch).
+	// Erase cuts of the recovery are limited to those that erase the header of page 0: if the VALID header of page 0
+	// survives the cut, both pages are VALID (suspected bug V6, KNOWN_ISSUE twin below with all erase cuts).
+	// Torn masks are limited to 0: with partly programmed half-words the failures come from torn page headers
+	// (NEEDS REVIEW 49 and 51), not from the recovery itself.
+	const TransferStates t = interruptedTransferStates(*this, 0);
+	checkRecoveryPowerLoss(*this, t, {{0, HostFlash::SECTOR_SIZE}, {0, PAGE_HEADER_SIZE}}, false);
+}
+
+TEST_CASE_FIXTURE(EepromFixture, "a power loss at any step of the EE_Init recovery of an interrupted page transfer to page 1 keeps every variable at its old or new value" *
+								 KNOWN_ISSUE("V6: EE_Init marks page 1 VALID before erasing page 0 (eeprom.c:286, 296); a cut in that erase leaves two VALID pages")) {
+	// Same as the passing test above with every erase-cut variant
+	const TransferStates t = interruptedTransferStates(*this, 0);
+	checkRecoveryPowerLoss(*this, t, eraseCuts(), true);
+}
+
+TEST_CASE_FIXTURE(EepromFixture, "a power loss at any step of the EE_Init recovery of an interrupted page transfer to page 0 keeps every variable at its old or new value" *
+								 KNOWN_ISSUE("V5 + V6: EE_Init marks page 0 VALID (eeprom.c:177) and then does not erase page 1 (V5, eeprom.c:187); "
+											 "with V5 fixed the order still leaves two VALID pages after a cut in that erase (V6)")) {
+	// Recovery of a transfer from page 1 to page 0 (EE_Init RECEIVE_DATA / VALID branch), every cut point. Passes only
+	// with both V5 and V6 fixed.
+	const TransferStates t = interruptedTransferStates(*this, 1);
+	checkRecoveryPowerLoss(*this, t, eraseCuts(), true);
 }
 
 TEST_CASE_FIXTURE(EepromFixture, "a power loss when the EE_Init recovery starts to erase page 0 keeps every variable at its old or new value" *
@@ -1101,6 +1187,8 @@ TEST_CASE_FIXTURE(EepromFixture, "a power loss when the EE_Init recovery starts 
 	// page 1 RECEIVE_DATA with all variables). EE_Init copies again, marks page 1 VALID, then erases page 0. A power loss
 	// before that erase changed anything leaves two VALID pages, and the next EE_Init formats (eeprom.c:233) -> every
 	// variable is lost. EE_PageTransfer itself uses the safe order (erase the old page, then mark the new one VALID).
+	// The REQUIRE preconditions below (cut points reached, page 1 receiving) are also checked by the passing tests
+	// "every step of a page transfer ... can be interrupted" and the passing recovery loop.
 	const Values old = fullValidPage(0);
 	HostFlash::cutPowerDuringErase(0, 0, 0);
 	eeWrite(NEW_VAR, NEW_VALUE);
@@ -1160,7 +1248,7 @@ TEST_CASE_FIXTURE(EepromFixture, "characterization: a power loss while erasing t
 }
 
 TEST_CASE_FIXTURE(EepromFixture, "characterization: a torn VALID header after the old page was erased makes EE_Init format the emulation") {
-	// NEEDS REVIEW: the last program of a page transfer (VALID_PAGE over RECEIVE_DATA) interrupted after some bits:
+	// NEEDS REVIEW 51: the last program of a page transfer (VALID_PAGE over RECEIVE_DATA) interrupted after some bits:
 	// page 1 status is neither RECEIVE_DATA nor VALID_PAGE and page 0 is erased, so EE_Init formats (eeprom.c:137) and
 	// every variable is lost. AN3969 treats any unknown header combination as corrupted.
 	fullValidPage(0);
@@ -1181,7 +1269,7 @@ TEST_CASE_FIXTURE(EepromFixture, "characterization: a torn VALID header after th
 }
 
 TEST_CASE_FIXTURE(EepromFixture, "characterization: a torn virtual address of an interrupted write can make the value appear under another variable") {
-	// NEEDS REVIEW: records have no checksum (AN3969). Programming ADR_HW_VERSION (0x0001) over 0xFFFF clears bits
+	// NEEDS REVIEW 52: records have no checksum (AN3969). Programming ADR_HW_VERSION (0x0001) over 0xFFFF clears bits
 	// 1..15; if only some of them are cleared the half-word can equal another listed address, here
 	// ADR_FFBWHEEL_BUTTONCONF (0x0101), which then reads the data of the interrupted write.
 	REQUIRE(inVirtAddVarTab(ADR_FFBWHEEL_BUTTONCONF));
