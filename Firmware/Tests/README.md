@@ -262,7 +262,7 @@ fake HAL FLASH with NOR semantics. The map-backed `Flash_*` replacement of `host
   hint (+ `MAP_FIXED_NOREPLACE` where available), never replacing an existing mapping; Windows: `VirtualAlloc` at the
   fixed address. If a range is in use the run aborts with a message (no fallback). Both ranges lie in ASan's
   application memory on x86-64 Linux (`LowMem` 0..0x7fff7fff). On 64-bit macOS the default 4 GiB `__PAGEZERO` covers
-  these addresses, so the executable is expected to abort there (not verified).
+  these addresses, so `ffb_flash_tests` is not built on macOS (CMake prints a message; the other executables are).
 * **Test control:** `support/HostFlash.h`: raw memory access (`read16`, `write16`, `fill`, `snapshot`, ...), recording
   (operations log, program/erase counts per sector, 0 -> 1 requests, unlock/lock, cache resets, unexpected accesses),
   error injection (`failNext` with an FLASH_SR error flag, `failNextWithStatus` for `HAL_TIMEOUT`/`HAL_BUSY`,

@@ -372,7 +372,11 @@ endif()
 #  - HOSTTEST_REAL_FLASH_HELPERS: host_platform.cpp leaves out its map-backed Flash_* replacement.
 # The fake flash memory is mapped at the target addresses (0x08000000 and 0x1FFF0000, 64 KiB each) when the
 # executable starts, see host_flash.cpp.
+# Not built on macOS: the default 4 GiB __PAGEZERO of macOS executables covers these addresses (decided 2026-10-24).
 # ===========================================================================
+if(APPLE)
+message(STATUS "OpenFFBoard tests: ffb_flash_tests is not built on macOS (fixed-address flash memory below 4 GiB)")
+else() # NOT APPLE: everything up to the matching endif() at the end of this section
 set(FLASH_FIRMWARE_SOURCES
 	# Under test (P3)
 	${FFBOARD_DIR}/Src/flash_helpers.cpp
@@ -449,3 +453,4 @@ if(FFB_FLASH_TESTS_EXCLUDED_ARG)
 else()
 	add_test(NAME ffb_flash_tests COMMAND ffb_flash_tests)
 endif()
+endif() # NOT APPLE (ffb_flash_tests)
