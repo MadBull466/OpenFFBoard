@@ -6,8 +6,8 @@
 
 ## Current state
 
-- **Current phase:** P3 done, **awaiting my approval** at the P3 gate. P4 not started.
-- **Phase status:** batch 0, module tests (A eeprom.c, B flash helpers), review (p3r1, p3r2) and fixes done; gate green in 6 variants (see "P3 results").
+- **Current phase:** P4 (system, callbacks, misc in `ffb_target_tests`), started 2026-10-24. P3 approved 2026-10-24.
+- **Phase status:** batch 0 (real `global_callbacks.cpp`, `cppmain.cpp`, `voltagesense.cpp`, `ledEffects.cpp` instead of the stubs/fakes, F6 fake ADC, fixtures) by one agent in the repo checkout, no commits by the agent.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** `52dce9ae` (P3 B review fixes).
 - **Last updated:** 2026-10-24
@@ -15,9 +15,7 @@
 
 ## Next action
 
-**Waiting for my review of P3** ("P3 results", "Review outcomes", "Suspected firmware bugs" 41, V5, V6, "NEEDS REVIEW items" 41-52). Do not start P4 without my go-ahead.
-
-After approval: P4 (system, callbacks and misc in `ffb_target_tests`: `SystemCommands`, `global_callbacks`, `cppmain` `micros()`, `ledEffects`, `voltagesense`, `USBdevice`, `AdcHandler`, USB descriptor tables; needs F6 fake ADC and the real `global_callbacks.cpp`/`cppmain.cpp`/`voltagesense.cpp` replacing the batch 0 stubs) per `Tests/TEST_PLAN.md`.
+**P4 batch 0 running.** Then: review and commit batch 0, P4 module plan, module agents, review, fixes, gate, coverage (85 % per file without hardware-only code), stop for approval.
 
 ## Phase checklist
 
@@ -29,8 +27,8 @@ After approval: P4 (system, callbacks and misc in `ffb_target_tests`: `SystemCom
 | P0 Safety net | `ffb_unit_tests` | 0 (measured baseline 2,136 lines, 26.2 %) | done | yes, 2026-10-22 | `2461c51e` |
 | P1 Gaps in compiled files | `ffb_unit_tests` | about 470 (measured +504: 2,640 lines, 32.4 %) | done | yes, 2026-10-23 | `a79ead3a` (tests), `7a35d2f1` (review fixes) |
 | P2 Axis and main classes | `ffb_target_tests` (new) | about 790 (measured: total 4,164 lines, 50.5 %) | done | yes, 2026-10-23 | `4aec799c` batch 0, `760f6f1a` tests, `76d89b40` infra review fixes, `41112d85` review fixes |
-| P3 Flash and persistence | `ffb_flash_tests` (new) | about 365 (measured: total 4,480 lines, 55.3 %) | done, awaiting approval | | `bfe6ed56` batch 0, `ac030b2c` B tests, `b93f230e` A tests, `6410fb07` macOS skip, `8b178bbf` A review fixes, `52dce9ae` B review fixes |
-| P4 System, callbacks, misc | `ffb_target_tests` | about 460 | not started | | |
+| P3 Flash and persistence | `ffb_flash_tests` (new) | about 365 (measured: total 4,480 lines, 55.3 %) | done | yes, 2026-10-24 | `bfe6ed56` batch 0, `ac030b2c` B tests, `b93f230e` A tests, `6410fb07` macOS skip, `8b178bbf` A review fixes, `52dce9ae` B review fixes |
+| P4 System, callbacks, misc | `ffb_target_tests` | about 460 | in progress (batch 0) | | |
 | P5 Buttons and analog | `ffb_target_tests` | about 775 | not started | | |
 | P6 Encoders and buses | `ffb_target_tests` | about 640 | not started | | |
 | P7 CAN and serial FFB | `ffb_target_tests` | about 420 | not started | | |
@@ -67,6 +65,7 @@ After approval: P4 (system, callbacks and misc in `ffb_target_tests`: `SystemCom
 | 2026-10-23 | Commit identity: author and committer `MadBull.Ben` with an **empty email** (`git -c user.name=MadBull.Ben -c user.email= commit`); the email must not appear anywhere. All 11 add-test-suite commits rewritten with `git filter-branch` (metadata and file contents), `refs/original` deleted. Hash map: `d12483c8`->`f46b31f5`, `1876353e`->`8861c911`, `2d91beed`->`ef4101cf`, `d08e0e1b`->`2461c51e`, `24417fa9`->`359c2a6a`, `d17cb295`->`124fa93e`, `93b82a32`->`a79ead3a`, `32cc2ce1`->`540d358a`, `17e09826`->`bfdadc7f`, `449b63ae`->`7a35d2f1`, `1568343e`->`9a0a7d05` (hashes elsewhere in this file are the new ones) | My decision (privacy) |
 | 2026-10-23 | P1 approved; start P2 | My go-ahead |
 | 2026-10-23 | P2 approved; start P3 | My go-ahead |
+| 2026-10-24 | P3 approved ("Continue"); start P4 | My go-ahead |
 | 2026-10-24 | `ffb_flash_tests` is not built on macOS (`if(APPLE)` in CMake, message at configure time): the 4 GiB `__PAGEZERO` covers the fixed flash addresses | My answer to open question 7 |
 | 2026-10-23 | Bug 24 (main class deletion UB): tests that delete an FFBHIDMain main class are marked `DELETES_FFBHIDMAIN` and skipped in sanitizer builds; ASan stays fully on (no `ASAN_OPTIONS` suppression) | My decision |
 | 2026-10-23 | Keep `-funsigned-char` for `ffb_target_tests` only (matches the ARM target; host-vs-target caveat for `ffb_unit_tests`) | My decision |
