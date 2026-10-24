@@ -315,6 +315,13 @@ def main():
 			rel = d + "/" + name
 			if is_source(rel) and classify(rel) in ("firmware", "A"):
 				in_scope.append(rel)
+	# A compiled file without executable lines (data only, e.g. eeprom_addresses.c) has a .gcno but no gcov data
+	gcno_paths = []
+	for root, _, files in os.walk(args.build_dir):
+		gcno_paths += [os.path.join(root, f).replace("\\", "/") for f in files if f.endswith(".gcno")]
+	for rel in in_scope:
+		if rel not in measured and any(p.endswith("/" + rel + ".gcno") for p in gcno_paths):
+			measured[rel] = (classify(rel), module_of(rel, classify(rel)), rel, 0, 0, 0, 0)
 	compiled = [rel for rel in in_scope if rel in measured]
 	not_compiled = [rel for rel in in_scope if rel not in measured]
 	code = {}
