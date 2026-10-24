@@ -133,6 +133,11 @@ enum class Target { Any, Program, Erase };
  */
 void failNext(uint32_t count, uint32_t srFlags = FLASH_FLAG_PGSERR, Target target = Target::Any);
 /**
+ * Like failNext, but the first `succeeding` operations of the given kind still work normally; the `count`
+ * operations after them fail. Used to fail a later step of a sequence (e.g. the second program of a record).
+ */
+void failNextAfter(uint32_t succeeding, uint32_t count, uint32_t srFlags = FLASH_FLAG_PGSERR, Target target = Target::Any);
+/**
  * Like failNext, but the operation returns `status` (HAL_TIMEOUT: BSY stays set; HAL_BUSY: the HAL process lock
  * is taken) and sets no flag. Nothing is written.
  */

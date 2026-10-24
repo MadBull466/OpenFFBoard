@@ -60,6 +60,7 @@ struct Injection {
 	uint32_t flags = 0;
 	HAL_StatusTypeDef status = HAL_OK; // != HAL_OK: returned instead of setting flags
 	HostFlash::Target target = HostFlash::Target::Any;
+	uint32_t skip = 0; // matching operations that still succeed before the first injected failure (failNextAfter)
 };
 Injection injection;
 HAL_StatusTypeDef forcedWaitStatus = HAL_OK; // Returned by the next FLASH_WaitForLastOperation (injected / power lost)
@@ -195,6 +196,10 @@ HAL_StatusTypeDef waitForLastOperation() {
 /** Consumes an armed injection for this kind of operation. True if the operation fails */
 bool takeInjection(HostFlash::Target kind) {
 	if (injection.count == 0 || (injection.target != HostFlash::Target::Any && injection.target != kind)) {
+		return false;
+	}
+	if (injection.skip > 0) {
+		injection.skip--;
 		return false;
 	}
 	injection.count--;
@@ -438,6 +443,9 @@ int sectorOf(uint32_t address) {
 
 void failNext(uint32_t count, uint32_t srFlags, Target target) {
 	injection = Injection{count, srFlags, HAL_OK, target};
+}
+void failNextAfter(uint32_t succeeding, uint32_t count, uint32_t srFlags, Target target) {
+	injection = Injection{count, srFlags, HAL_OK, target, succeeding};
 }
 void failNextWithStatus(uint32_t count, HAL_StatusTypeDef status, Target target) {
 	injection = Injection{count, 0, status, target};
