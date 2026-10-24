@@ -408,10 +408,17 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	}
 }
 
-/** main.c Error_Handler: switches the error LED off (LED_ERR reset) and returns */
+/**
+ * main.c Error_Handler: switches the error LED off (LED_ERR reset) and returns. Test extension: the
+ * state().errorHandlerLimit-th call throws HostTarget::ErrorHandlerLimitReached, so a firmware loop that calls
+ * Error_Handler forever (cppmain's wrong chip id check) can be left. Only C++ callers are expected while it is set.
+ */
 void Error_Handler(void) {
 	HostTarget::state().errorHandlerCalls++;
 	HAL_GPIO_WritePin(LED_ERR_GPIO_Port, LED_ERR_Pin, GPIO_PIN_RESET);
+	if (HostTarget::state().errorHandlerLimit != 0 && HostTarget::state().errorHandlerCalls >= HostTarget::state().errorHandlerLimit) {
+		throw HostTarget::ErrorHandlerLimitReached();
+	}
 }
 
 // ---------------- HAL tick (stm32f4xx_hal.c) ----------------

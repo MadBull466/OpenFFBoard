@@ -59,7 +59,11 @@ struct State {
 	uint32_t devId = 0x413;									//!< HAL_GetDEVID: STM32F405/407
 	uint32_t revId = 0x1007;								//!< HAL_GetREVID: revision 1
 	uint8_t usbSpeed = 0; //!< tud_speed_get() result (tusb_speed_t). 0 = TUSB_SPEED_FULL
+	uint32_t errorHandlerLimit = 0; //!< > 0: the Error_Handler call with this number throws ErrorHandlerLimitReached (ends an endless Error_Handler loop, e.g. cppmain's wrong chip id loop). 0 = Error_Handler always returns
 };
+
+/** Thrown by Error_Handler when state().errorHandlerLimit calls are reached (see State::errorHandlerLimit) */
+struct ErrorHandlerLimitReached {};
 State &state();
 
 /**
@@ -204,8 +208,9 @@ uint32_t canRxInterrupt(uint32_t fifo);
  * The created main class is owned by the fake: TargetFixture deletes it at the end (deleteCppmainMainclass). Deleting
  * an FFBHIDMain class (FFBWheel, FFBJoystick, FFBHIDExt) is undefined behaviour (bug 24): such tests need
  * DELETES_FFBHIDMAIN. Select the failsafe class (setPin(BUTTON_A..., true) or flash ADR_CURRENT_CONFIG = 0) otherwise.
- * Hardware-only: with a wrong chip id (state().devId != FW_DEVID) cppmain() loops forever calling Error_Handler (as
- * on the target); do not call it with a wrong id.
+ * With a wrong chip id (state().devId != FW_DEVID) cppmain() loops forever calling Error_Handler (as on the target):
+ * set state().errorHandlerLimit before, the limit-th Error_Handler call throws ErrorHandlerLimitReached out of
+ * runCppmain (nothing is created at that point).
  */
 void runCppmain(uint32_t loops);
 /** Main class created by the last runCppmain (nullptr if none or already deleted) */
