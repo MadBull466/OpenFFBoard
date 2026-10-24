@@ -123,7 +123,7 @@ not tested. It is listed with a reason in `tools/coverage_exclusions.txt` and le
 | `cpp_freertos` | `test_rtos_wrappers.cpp` | FreeRTOS C++ wrappers (vendor): thread, mutex, semaphore |
 | `UART`, `UartHandler` | `test_uart.cpp` | UART port transfers (blocking, IT, DMA), reservation, abort, completion dispatch |
 | `ringbuffer`, `RingBufferWrapper` | `test_ringbuffer.cpp` | Ring buffer append, get, peek, wrap-around, full buffer |
-| `CANPort`, `CanHandler` | `test_can_handler.cpp` | Port and handler registry, `handleToPort` (dispatch through `global_callbacks.cpp` is not compiled yet) |
+| `CANPort`, `CanHandler` | `test_can_handler.cpp` | Port and handler registry, `handleToPort` (dispatch through the real `global_callbacks.cpp` is in `ffb_target_tests`) |
 | `UsbHidHandler`, `CDCcomm` | `test_usb_hid_handler.cpp`, `test_cdc.cpp` | HID handler registration and descriptor, CDC send, retry and blocking |
 
 Test cases marked `KNOWN_ISSUE` and the suspected defects behind them are listed in `Tests/PROGRESS.md` (repository root).
@@ -203,8 +203,9 @@ grep -rn "KNOWN_ISSUE\|KNOWN ISSUE" cases/ cases_target/
 
 A second executable built by the same `CMakeLists.txt` and run by `ctest`. It compiles the firmware with the
 feature set of the F407 target without the motor drivers and MIDI, so `Axis.cpp`, `AxesManager`, the main classes
-(`FFBWheel`, `FFBJoystick`, `FFBHIDExt`, ...), the class registries, inputs and the USB device class are real code.
-Later phases add system, inputs, encoders, buses and CAN.
+(`FFBWheel`, `FFBJoystick`, `FFBHIDExt`, ...), the class registries, inputs, the USB device class and (since P4) the
+system sources `cppmain.cpp`, `global_callbacks.cpp`, `voltagesense.cpp` and `ledEffects.cpp` are real code.
+Later phases add inputs, encoders, buses and CAN.
 
 * **Test cases:** `cases_target/test_*.cpp` (own glob; `cases/` belongs to `ffb_unit_tests`).
 * **Feature header:** `platform/target_f407/target_constants.h` (copy of the F407 header without `TMC4671DRIVER`,
@@ -216,15 +217,43 @@ Later phases add system, inputs, encoders, buses and CAN.
   (`timerUpdate`, `timerRunning`), EXTI (`triggerExti`), GPIO levels (`setPin`, `outputPin`), chip ids, recorded
   resets and DFU requests, the USB device task (`queueUsbEvent`). `platform/src/host_target_config.cpp` replaces
   `cpp_target_config.cpp`: the same SPI/I2C/UART port objects, but the global `canport` is a `MockCANPort`
-  (`HostTarget::canPort()`) until the fake HAL CAN exists. `platform/src/host_stubs_target.cpp` stubs sources that are
-  not compiled yet (`cppmain.cpp`, `global_callbacks.cpp`, `voltagesense.cpp`: `getIntV`/`getExtV`/`getChipTemp`
-  return 0, do not assert them) and the SPI and I2C HAL functions.
+  (`HostTarget::canPort()`, handle `&hcan1` like `CANPort_2B`) until the fake HAL CAN exists.
+  `platform/src/host_stubs_target.cpp` stubs the SPI and I2C HAL functions (no fake yet).
+* **System part (P4)** (`platform/src/host_target_system.cpp`, control in `support/HostTarget.h`), each function citing
+  the ST HAL / main.c function it models:
+  * **Fake HAL ADC (F6):** `HAL_ADC_Start/_Stop/_PollForConversion/_GetValue/_Start_DMA/_Stop_DMA` with the ADC
+    registers and states of `stm32f4xx_hal_adc.c`; `hadc1`/`hadc2` as after `MX_ADCx_Init` (TIM4 trigger, DMA,
+    8 and 2 conversions). Test inputs per rank (`adcSetInput(s)`), `adcConversionComplete` = circular DMA transfer
+    into the buffer armed by `HAL_ADC_Start_DMA` (`ADC1_BUF`/`ADC2_BUF` of `global_callbacks.cpp`) and
+    `HAL_ADC_ConvCpltCallback` in interrupt context; `adcSetConversionResult` for polling. The LL ADC macros
+    (`__LL_ADC_CALC_DATA_TO_VOLTAGE`, `__LL_ADC_CALC_VREFANALOG_VOLTAGE`, `__LL_ADC_CALC_TEMPERATURE`) are copied from
+    `stm32f4xx_ll_adc.h` into the target `main.h`; the calibration values (`VREFINT_CAL`, `TS_CAL1/2`) come from
+    variables instead of the system memory addresses (`setAdcCalibration`, defaults 1500/950/1200).
+  * **HAL tick:** `htim7` as after `HAL_InitTick` (1 MHz, 1 ms update). `HAL_GetTick()` is the simulated time; the TIM7
+    counter follows it (time % 1000), so the real `micros()` of `cppmain.cpp` (= `HAL_GetTick()*1000 + TIM7->CNT`)
+    equals the simulated time. `timerUpdate(&htim7)` reaches main.c's `HAL_TIM_PeriodElapsedCallback` (modelled:
+    TIM7 -> `HAL_IncTick`, counted; other timers -> `HAL_TIM_PeriodElapsedCallback_CPP`).
+  * **IWDG** (`HAL_IWDG_Refresh`, counted), main.c's **`Error_Handler`** (error LED off, counted, returns),
+    **CAN receive FIFOs** of `hcan1` (`HAL_CAN_GetRxFifoFillLevel`, `HAL_CAN_GetRxMessage`; `canQueueRx` and the
+    level-triggered `canRxInterrupt` reach the CAN callbacks of `global_callbacks.cpp`).
+  * **Start-up:** `runCppmain(loops)` runs the real `cppmain()` with `loops` passes of its main loop (`taskYIELD()` is a
+    hook in this executable that ends the loop); the created main class is deleted by `TargetFixture`
+    (an FFBHIDMain class needs `DELETES_FFBHIDMAIN`; `BUTTON_A` high selects the failsafe class 0).
+  * **Compile adjustments (no firmware change):** `cppmain.cpp` is compiled through `platform/src/host_cppmain.cpp`,
+    which renames its `malloc`/`free` definitions (`hosttest_cppmain_malloc`/`_free`; they would replace the C
+    library allocator of the executable). `ledEffects.cpp` is compiled with its pulse/set functions renamed; the
+    public names in `host_platform.cpp` count the calls (`HostPlatform::leds()`) and forward to the real functions.
+    Guard macros `HOSTTEST_REAL_CPPMAIN` / `HOSTTEST_REAL_LED_EFFECTS` leave the corresponding fakes of
+    `host_platform.cpp` out of this executable only (`ffb_unit_tests` is unchanged).
 * **Unmodelled-HAL guard:** a HAL function without a fake (SPI, I2C) records its name in
   `HostTarget::state().unmodelledHalCalls` and returns `HAL_ERROR`; `TargetFixture` fails the test at the end if the
   list is not empty. In `KNOWN_ISSUE` tests use `REQUIRE_ALL_HAL_MODELLED()` before the defect assertion.
-* **Fixtures** (`support/AxisFixture.h`): `TargetFixture` resets everything (`FirmwareFixture` plus `HostTarget`,
-  `PersistentStorage` startup flag, global HID handler, `mainclass`, `usb_device`; `HostTarget.h` lists the global port
-  objects that can not be reset yet). `AxisFixture` creates real `Axis` objects with `MockMotorDriver` and
+* **Fixtures** (`support/AxisFixture.h`): `TargetFixture` resets everything (`FirmwareFixture` plus `HostTarget`
+  including the system part: fake ADC and ADC buffers, TIM7, IWDG, CAN FIFOs, the globals of `cppmain.cpp`,
+  `voltagesense.cpp` and `ledEffects.cpp`; the main class created by `runCppmain`, `PersistentStorage` startup flag,
+  `SystemCommands::errorPrintingEnabled`, global HID handler, `mainclass`, `usb_device`; `HostTarget.h` lists the
+  global port objects that can not be reset yet). After `HostTarget::reset` the three LEDs are on (main.c switches
+  them on before the scheduler starts). `AxisFixture` creates real `Axis` objects with `MockMotorDriver` and
   `MockEncoder` selected through the public `driverChooser` / `encoderChooser`, a real `EffectsCalculator`, `HidFFB`
   and a `PidHost`; `update()` / `run(ms)` run the FFB cycle like `FFBHIDMain::updateControl`.
 * **`DELETES_FFBHIDMAIN`:** test cases that delete an `FFBHIDMain` main class carry this marker. Deleting one is

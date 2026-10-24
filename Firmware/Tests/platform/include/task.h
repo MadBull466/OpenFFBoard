@@ -59,7 +59,13 @@ BaseType_t xTaskNotifyGive(TaskHandle_t task);
 void vTaskNotifyGiveFromISR(TaskHandle_t task, BaseType_t *higherPriorityTaskWoken);
 uint32_t ulTaskNotifyTake(BaseType_t clearOnExit, TickType_t ticksToWait);
 
+#ifdef HOSTTEST_REAL_CPPMAIN
+// ffb_target_tests: counted by the fake platform, ends the main loop of cppmain() (HostTarget::runCppmain)
+void hosttest_taskYield(void);
+#define taskYIELD() hosttest_taskYield()
+#else
 #define taskYIELD() ((void)0)
+#endif
 #define taskENTER_CRITICAL() ((void)0)
 #define taskEXIT_CRITICAL() ((void)0)
 #define taskENTER_CRITICAL_FROM_ISR() ((BaseType_t)0)

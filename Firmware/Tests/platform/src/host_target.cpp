@@ -3,7 +3,8 @@
  *
  * Fake HAL of the F407 target for ffb_target_tests (declarations in platform/target_f407/main.h):
  * GPIO ports, TIM base (F7), EXTI (F7), chip ids, reset requests and clocks (F10), and the TinyUSB device
- * functions used only by the F407 sources. Test control: support/HostTarget.h.
+ * functions used only by the F407 sources. ADC, IWDG, CAN receive FIFO, HAL tick and the main.c callbacks are in
+ * host_target_system.cpp. Test control: support/HostTarget.h.
  *
  * Every fake models the documented behaviour of the real function. The reference is the ST HAL source in
  * Targets/F407VG/Drivers/STM32F4xx_HAL_Driver (read only), cited per function.
@@ -69,10 +70,14 @@ void reset() {
 	setPin(DIN7_GPIO_Port, DIN7_Pin, true);
 	setPin(E_STOP_GPIO_Port, E_STOP_Pin, true);
 	HAL_GPIO_WritePin(SPI1_SS1_GPIO_Port, SPI1_SS1_Pin, GPIO_PIN_SET);
+	// main() (USER CODE BEGIN 2) switches the three LEDs on before the scheduler starts
+	HAL_GPIO_WritePin(LED_SYS_GPIO_Port, LED_SYS_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(LED_CLIP_GPIO_Port, LED_CLIP_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(LED_ERR_GPIO_Port, LED_ERR_Pin, GPIO_PIN_SET);
 	initTimer(htim3, tim3Regs, 0, 0xffff); // MX_TIM3_Init: encoder mode, Period 0xffff
 	initTimer(htim13, tim13Regs, 84 - 1, 100); // MX_TIM13_Init: 1 MHz, Period 100
 	resetTargetConfig();
-	resetStubs();
+	resetSystem();
 }
 
 void queueUsbEvent(TaskHandle_t usbTask) { xTaskNotifyGive(usbTask); }

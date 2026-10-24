@@ -5,6 +5,9 @@
  * Replaces the target specific code (Targets/<target>/Core) and the hardware bound
  * helpers (flash_helpers.cpp, ledEffects.cpp, parts of cppmain.cpp). ffb_flash_tests keeps the real
  * flash_helpers.cpp (HOSTTEST_REAL_FLASH_HELPERS, see the end of this file).
+ * ffb_target_tests compiles the real cppmain.cpp (HOSTTEST_REAL_CPPMAIN: micros(), refreshWatchdog(),
+ * getRunTimeCounterValue() and Error_Handler() are left out here) and the real ledEffects.cpp
+ * (HOSTTEST_REAL_LED_EFFECTS: the LED functions here only count the calls and forward them to the real code).
  * See support/HostPlatform.h for the test control interface.
  */
 #include "HostPlatform.h"
@@ -32,10 +35,19 @@ uint16_t uartRxSize = 0;  // Armed transfer size. Completion after this many byt
 uint16_t uartRxCount = 0; // Bytes stored in the armed buffer so far
 } // namespace
 
+#ifdef HOSTTEST_REAL_CPPMAIN
+// host_target_system.cpp: keeps the counter of the HAL tick timer (TIM7, read by the real micros()) in step with the
+// simulated time. Called after every change of the time.
+void hosttest_timeChanged(uint64_t us);
+#endif
+
 namespace HostPlatform {
 
 void reset() {
 	timeUs = 0;
+#ifdef HOSTTEST_REAL_CPPMAIN
+	hosttest_timeChanged(timeUs);
+#endif
 	hosttest_ipsr = 0;
 	flash().clear();
 	ledState = LedState();
@@ -78,8 +90,18 @@ void uartReceive(const std::string &data) {
 }
 
 uint64_t nowUs() { return timeUs; }
-void setTimeUs(uint64_t us) { timeUs = us; }
-void advanceUs(uint64_t us) { timeUs += us; }
+void setTimeUs(uint64_t us) {
+	timeUs = us;
+#ifdef HOSTTEST_REAL_CPPMAIN
+	hosttest_timeChanged(timeUs);
+#endif
+}
+void advanceUs(uint64_t us) {
+	timeUs += us;
+#ifdef HOSTTEST_REAL_CPPMAIN
+	hosttest_timeChanged(timeUs);
+#endif
+}
 void setInIsr(bool isr) { hosttest_ipsr = isr ? 1 : 0; }
 
 std::map<uint16_t, uint16_t> &flash() {
@@ -93,16 +115,25 @@ UartState &uart() { return uartState; }
 } // namespace HostPlatform
 
 // ---------------- Time base ----------------
+#ifndef HOSTTEST_REAL_CPPMAIN
 uint32_t micros() { return (uint32_t)timeUs; }
 void refreshWatchdog() {}
 unsigned long getRunTimeCounterValue(void) { return (unsigned long)timeUs; }
+#endif
 
 extern "C" {
 
 uint32_t HAL_GetTick(void) { return (uint32_t)(timeUs / 1000); }
-void HAL_Delay(uint32_t ms) { timeUs += (uint64_t)ms * 1000; }
+void HAL_Delay(uint32_t ms) {
+	timeUs += (uint64_t)ms * 1000;
+#ifdef HOSTTEST_REAL_CPPMAIN
+	hosttest_timeChanged(timeUs);
+#endif
+}
 void HAL_NVIC_SystemReset(void) {}
+#ifndef HOSTTEST_REAL_CPPMAIN
 void Error_Handler(void) {}
+#endif
 
 // ---------------- GPIO ----------------
 void HAL_GPIO_Init(GPIO_TypeDef *, GPIO_InitTypeDef *) {}
@@ -196,6 +227,7 @@ uint32_t HAL_UART_GetError(UART_HandleTypeDef *huart) { return huart->ErrorCode;
 } // extern "C"
 
 // ---------------- LEDs (ledEffects.h) ----------------
+#ifndef HOSTTEST_REAL_LED_EFFECTS
 void blinkLed(Ledstruct_t *, uint16_t, uint16_t) {}
 void pulseSysLed() { ledState.sysPulses++; }
 void pulseErrLed() { ledState.errPulses++; }
@@ -209,6 +241,40 @@ void setLed(Ledstruct_t *, uint8_t) {}
 void setClipLed(uint8_t on) { ledState.clipLed = on; }
 void setErrLed(uint8_t on) { ledState.errLed = on; }
 void setSysLed(uint8_t on) { ledState.sysLed = on; }
+#else
+// ffb_target_tests: real ledEffects.cpp, compiled with these six functions renamed (see CMakeLists.txt). The public
+// names count the calls (HostPlatform::leds(), used by the existing tests) and call the real functions.
+void hosttest_real_pulseSysLed();
+void hosttest_real_pulseErrLed();
+void hosttest_real_pulseClipLed();
+void hosttest_real_setSysLed(uint8_t on);
+void hosttest_real_setErrLed(uint8_t on);
+void hosttest_real_setClipLed(uint8_t on);
+void pulseSysLed() {
+	ledState.sysPulses++;
+	hosttest_real_pulseSysLed();
+}
+void pulseErrLed() {
+	ledState.errPulses++;
+	hosttest_real_pulseErrLed();
+}
+void pulseClipLed() {
+	ledState.clipPulses++;
+	hosttest_real_pulseClipLed();
+}
+void setClipLed(uint8_t on) {
+	ledState.clipLed = on;
+	hosttest_real_setClipLed(on);
+}
+void setErrLed(uint8_t on) {
+	ledState.errLed = on;
+	hosttest_real_setErrLed(on);
+}
+void setSysLed(uint8_t on) {
+	ledState.sysLed = on;
+	hosttest_real_setSysLed(on);
+}
+#endif // HOSTTEST_REAL_LED_EFFECTS
 
 // ---------------- Persistent storage (flash_helpers.h) ----------------
 // Map-backed replacement of flash_helpers.cpp. ffb_flash_tests compiles the real flash_helpers.cpp and eeprom.c on

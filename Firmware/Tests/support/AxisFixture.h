@@ -67,8 +67,8 @@ struct PersistentStorageStartup : PersistentStorage {
 	static void reset() { startupComplete = false; }
 };
 
-extern FFBoardMain *mainclass; // cppmain.cpp (stub in host_stubs_target.cpp)
-extern USBdevice *usb_device;  // global_callbacks.cpp (stub in host_stubs_target.cpp)
+extern FFBoardMain *mainclass; // cppmain.cpp
+extern USBdevice *usb_device;  // global_callbacks.cpp
 
 struct TargetFixture : FirmwareFixture {
 	TargetFixture() { resetTarget(); }
@@ -80,12 +80,16 @@ struct TargetFixture : FirmwareFixture {
 	}
 
 	/**
-	 * Resets the F407 part: HostTarget::reset (timers, GPIO, chip ids, canport, HAL handles, ADC stub buffers),
-	 * PersistentStorage::startupComplete (false like after boot), MockMotorDriver::creatable, the global HID
-	 * handler, mainclass and usb_device. See HostTarget::resetTargetConfig for global objects that are NOT reset.
+	 * Resets the F407 part: the main class created by HostTarget::runCppmain (deleted), HostTarget::reset (timers,
+	 * GPIO, chip ids, canport, HAL handles, fake ADC and ADC buffers, TIM7 tick, IWDG, CAN receive FIFOs, globals of
+	 * cppmain.cpp / voltagesense.cpp / ledEffects.cpp), PersistentStorage::startupComplete (false like after boot),
+	 * MockMotorDriver::creatable, SystemCommands::errorPrintingEnabled, the global HID handler, mainclass and
+	 * usb_device. See HostTarget::resetTargetConfig for global objects that are NOT reset.
 	 */
 	static void resetTarget() {
+		HostTarget::deleteCppmainMainclass();
 		HostTarget::reset();
+		SystemCommands::errorPrintingEnabled = true;
 		PersistentStorageStartup::reset();
 		MockMotorDriver::creatable() = true;
 		UsbHidHandler::globalHidHandler = nullptr; // Not reset by the firmware when a handler is deleted

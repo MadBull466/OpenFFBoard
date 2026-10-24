@@ -254,18 +254,34 @@ set(TARGET_FIRMWARE_SOURCES
 	${FFBOARD_DIR}/UserExtensions/Src/usb_hid_1ffb_desc.c
 	${FFBOARD_DIR}/UserExtensions/Src/usb_hid_2ffb_desc.c
 	${FFBOARD_DIR}/UserExtensions/Src/usb_hid_gamepad.c
+	# System: startup, interrupt callbacks, voltage sensing, status LEDs (P4).
+	# cppmain.cpp is compiled through platform/src/host_cppmain.cpp (TARGET_PLATFORM_SOURCES): it defines malloc() and
+	# free(), which the wrapper renames (see there).
+	${FFBOARD_DIR}/Src/global_callbacks.cpp
+	${FFBOARD_DIR}/Src/voltagesense.cpp
+	${FFBOARD_DIR}/Src/ledEffects.cpp
 )
 
 # Compiled again for this executable (they include main.h / target_constants.h). host_stubs.cpp is replaced by
-# the real SystemCommands.cpp; host_stubs_target.cpp holds the stubs of sources not compiled yet.
+# the real SystemCommands.cpp; host_stubs_target.cpp holds the link stubs of HAL functions without a fake (SPI, I2C).
+# host_target_system.cpp: fake HAL ADC (F6), IWDG, CAN receive FIFO, the TIM7 HAL tick and the main.c callbacks.
 set(TARGET_PLATFORM_SOURCES
 	platform/src/host_freertos.cpp
 	platform/src/host_platform.cpp
 	platform/src/host_usb.cpp
 	platform/src/host_target.cpp
 	platform/src/host_target_config.cpp
+	platform/src/host_target_system.cpp
 	platform/src/host_stubs_target.cpp
+	platform/src/host_cppmain.cpp
 )
+
+# ledEffects.cpp is real code in ffb_target_tests (HOSTTEST_REAL_LED_EFFECTS below). The existing tests count the
+# calls of the pulse and set functions (HostPlatform::leds()); these six functions are renamed for this source file
+# only and host_platform.cpp defines the public names as counting wrappers that call the real functions.
+set_property(SOURCE ${FFBOARD_DIR}/Src/ledEffects.cpp APPEND PROPERTY COMPILE_DEFINITIONS
+	pulseSysLed=hosttest_real_pulseSysLed pulseErrLed=hosttest_real_pulseErrLed pulseClipLed=hosttest_real_pulseClipLed
+	setSysLed=hosttest_real_setSysLed setErrLed=hosttest_real_setErrLed setClipLed=hosttest_real_setClipLed)
 
 # Axis.cpp: target include order and compile workarounds (no firmware change allowed, see Tests/PROGRESS.md F14):
 #  - -include math.h (both DSP variants): on the shipped targets (arm-none-eabi-g++, TMC4671DRIVER on) Axis.cpp gets
@@ -306,7 +322,11 @@ target_include_directories(ffb_target_tests PRIVATE
 	${FFBOARD_DIR}/USB/class/midi
 )
 
-target_compile_definitions(ffb_target_tests PRIVATE HOSTTEST)
+# HOSTTEST_REAL_CPPMAIN: host_platform.cpp leaves out its micros() / refreshWatchdog() / getRunTimeCounterValue() /
+#   Error_Handler() fakes (real cppmain.cpp, main.c model in host_target_system.cpp) and keeps the TIM7 counter of the
+#   HAL tick in step with the simulated time; platform/include/task.h routes taskYIELD() to a hook (cppmain loop).
+# HOSTTEST_REAL_LED_EFFECTS: host_platform.cpp leaves out its LED fake (real ledEffects.cpp, see above).
+target_compile_definitions(ffb_target_tests PRIVATE HOSTTEST HOSTTEST_REAL_CPPMAIN HOSTTEST_REAL_LED_EFFECTS)
 
 if(USE_DSP)
 	target_sources(ffb_target_tests PRIVATE

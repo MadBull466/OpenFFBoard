@@ -7,7 +7,7 @@
 ## Current state
 
 - **Current phase:** P4 (system, callbacks, misc in `ffb_target_tests`), started 2026-10-24. P3 approved 2026-10-24.
-- **Phase status:** batch 0 (real `global_callbacks.cpp`, `cppmain.cpp`, `voltagesense.cpp`, `ledEffects.cpp` instead of the stubs/fakes, F6 fake ADC, fixtures) by one agent in the repo checkout, no commits by the agent.
+- **Phase status:** batch 0 done (see "P4 batch 0"); module plan written ("P4 plan"); 3 module agents running.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** `52dce9ae` (P3 B review fixes).
 - **Last updated:** 2026-10-24
@@ -15,7 +15,7 @@
 
 ## Next action
 
-**P4 batch 0 running.** Then: review and commit batch 0, P4 module plan, module agents, review, fixes, gate, coverage (85 % per file without hardware-only code), stop for approval.
+**P4 batch 0 done; module agents running.** Then: review and commit batch 0, P4 module plan, module agents, review, fixes, gate, coverage (85 % per file without hardware-only code), stop for approval.
 
 ## Phase checklist
 
@@ -28,7 +28,7 @@
 | P1 Gaps in compiled files | `ffb_unit_tests` | about 470 (measured +504: 2,640 lines, 32.4 %) | done | yes, 2026-10-23 | `a79ead3a` (tests), `7a35d2f1` (review fixes) |
 | P2 Axis and main classes | `ffb_target_tests` (new) | about 790 (measured: total 4,164 lines, 50.5 %) | done | yes, 2026-10-23 | `4aec799c` batch 0, `760f6f1a` tests, `76d89b40` infra review fixes, `41112d85` review fixes |
 | P3 Flash and persistence | `ffb_flash_tests` (new) | about 365 (measured: total 4,480 lines, 55.3 %) | done | yes, 2026-10-24 | `bfe6ed56` batch 0, `ac030b2c` B tests, `b93f230e` A tests, `6410fb07` macOS skip, `8b178bbf` A review fixes, `52dce9ae` B review fixes |
-| P4 System, callbacks, misc | `ffb_target_tests` | about 460 | in progress (batch 0) | | |
+| P4 System, callbacks, misc | `ffb_target_tests` | about 460 | in progress (batch 0 done) | | |
 | P5 Buttons and analog | `ffb_target_tests` | about 775 | not started | | |
 | P6 Encoders and buses | `ffb_target_tests` | about 640 | not started | | |
 | P7 CAN and serial FFB | `ffb_target_tests` | about 420 | not started | | |
@@ -302,7 +302,7 @@ Hard gate for Batch 0: after every CMake change `ffb_unit_tests` must still give
 | F3 | Own feature header for the new executables: read the real F407 target's `target_constants.h`, copy its feature macros, remove the driver macros (`TMC4671DRIVER`, `PWMDRIVER`, `ODRIVE`, `VESC`, `SIMPLEMOTION`, `RMDCAN`, `TMCDEBUG`), leave `MIDI` off, add pin tables (`BUTTON_PINS`, `ADC_PINS`, ...). Show me the resulting diff before use. `ffb_unit_tests` keeps its current header | `platform/target_f407/target_constants.h` (its directory goes before `platform/include` in the new executables only) | Compile the in-scope modules without the drivers | **done**: diff approved, committed `ef4101cf`. Pin tables (`BUTTON_PINS`, `ADC_PINS`, ...) still to add in P2 batch 0 |
 | F4 | Fake HAL SPI (records TX, scripted RX, DMA/IT completion callbacks driven by the test) | `platform/` | SPIButtons, EncoderSSI, EncoderBissC, MtEncoderSPI, SPI.cpp | proposed |
 | F5 | Fake HAL I2C (scripted device register map per address, error injection) | `platform/` | PCF8574, ADS111X, I2C.cpp | proposed |
-| F6 | Fake HAL ADC (settable DMA buffer, conversion-complete callback) + LL ADC voltage/temperature macros | `platform/` | LocalAnalog, AdcHandler, voltagesense | proposed |
+| F6 | Fake HAL ADC (settable DMA buffer, conversion-complete callback) + LL ADC voltage/temperature macros | `platform/src/host_target_system.cpp`, `platform/target_f407/main.h` | LocalAnalog, AdcHandler, voltagesense | **done** P4 batch 0 |
 | F7 | Fake HAL TIM (settable `CNT`, base start/stop record) and EXTI trigger | `platform/src/host_target.cpp`, `support/HostTarget.h` | EncoderLocal, TimerHandler, ExtiHandler, Axis timers | **done** P2 batch 0 (models `HAL_TIM_Base_Start/_IT`, `_Stop/_IT`, `HAL_TIM_IRQHandler` update path, `HAL_GPIO_EXTI_IRQHandler`) |
 | F8 | Fake HAL CAN (filters, Tx mailboxes, Rx FIFO, error callbacks) | `platform/` | CANPort2B, global_callbacks | proposed |
 | F9 | Fake HAL FLASH: RAM-backed sectors with real NOR semantics (erase to 0xFFFF, programming can only clear bits, error flags injectable, power-loss injection), `__weak`, OTP area | `platform/` | flash_helpers + `eeprom.c` (Tier A), page-transfer and power-loss scenarios. **Constraint:** `eeprom.c` dereferences absolute addresses (`*(__IO uint16_t*)PAGE0_BASE_ADDRESS`, `EEPROM_START_ADDRESS = 0x08004000`, cast to `uint32_t`), so the fake must `mmap` 2 x 16 KiB at exactly 0x08004000 (`MAP_FIXED_NOREPLACE`, fail loudly if taken); the OTP area likewise at its fixed address. Host-only technique (Linux/macOS; needs a Windows alternative or a skip for MinGW), verify under ASan | proposed |
@@ -331,6 +331,27 @@ Executable `ffb_target_tests`, new files in `cases_target/` only. Coverage after
 | B axis config | `test_axis_config.cpp` | `Axis.cpp` (config, commands, flash) | `encodeConfToInt`/`decodeConfFromInt` round trip, save/restore flash (incl. empty flash, bug 23), every axis command get/set/info incl. limits and invalid values, driver/encoder selection via chooser and commands, zeroing/position commands, error handling |
 | C axes + integration | `test_axes_manager.cpp`, `test_ffb_integration.cpp` | `AxesManager.cpp`, path through `HidFFB`/`EffectsCalculator`/`Axis` | axis count changes, update/updateTorque, emergency stop over all axes, usb suspend/resume, commands; end to end: PID reports (constant, spring, damper, periodic, conditions per axis) -> effects -> axis -> `MockMotorDriver` torque with the position from `MockEncoder` |
 | D main classes | `test_ffbhidmain.cpp`, `test_main_classes.cpp` | `FFBHIDMain.cpp`, `FFBHIDMain_commmands.cpp`, `FFBWheel.cpp`, `FFBJoystick.cpp`, `FFBHIDExt.cpp`, `CustomMain.cpp`, `FFBoardMain.cpp`, `mainclass_chooser.cpp` | HID gamepad report packing (axes, buttons, double buffer), FFB on/off, update rate/timer, usb init/suspend/resume, button/analog source selection commands, main class info/ids unique and selectable, CustomMain |
+
+## P4 plan (2026-10-24)
+
+`ffb_target_tests`, new files in `cases_target/` only. 3 module agents in isolated scratch workspaces (`scratchpad/p4/<group>`), per-file goal 85 % without hardware-only code, mutation spot-check 80 %.
+
+| Group | Owns (new files) | Firmware | Behaviours |
+|---|---|---|---|
+| A system commands | `test_system_commands.cpp` | `SystemCommands.cpp` | every system command (help, info, hwtype, fw version, debug/heap/tasks, reset/dfu/erase recorded, UID/devid, main class selection and list, flash dump/raw read/write/format via the real flash map fake, vint/vext/temp, errors, log), access flags, invalid values |
+| B callbacks + startup | `test_global_callbacks.cpp`, `test_cppmain.cpp` | `global_callbacks.cpp`, `cppmain.cpp`, `AdcHandler.cpp`, `USBdevice.cpp` | every HAL callback dispatched to the registered handlers (UART, CAN Rx/Tx/error, ADC, TIM, EXTI, SPI/I2C completions if declared), TinyUSB `tud_*_cb` callbacks (mount, suspend with null `mainclass`, HID/CDC), `micros()`, `cppmain()` start-up paths (failsafe, flash default, forceErase/format, main class selection, watchdog), `refreshWatchdog`, `getRunTimeCounterValue`, `USBdevice` task and descriptors registration, `AdcHandler` registry |
+| C LEDs, voltage, descriptors | `test_led_effects.cpp`, `test_voltagesense.cpp`, `test_usb_descriptors.cpp` | `ledEffects.cpp`, `voltagesense.cpp`, `usb_descriptors.cpp`, `usb_hid_1ffb_desc.c`, `usb_hid_2ffb_desc.c`, `usb_hid_gamepad.c` | LED pulse/blink/update timing against simulated time, voltage scaling (`vSenseMult`), brake resistor hysteresis and emergency over-voltage, chip temperature average, descriptor tables self-consistent (`wTotalLength`, interface/endpoint counts, HID report descriptor lengths match the sizes used in the configuration descriptors, report IDs match `ffb_defs.h`, string descriptors) |
+
+## P4 batch 0 (2026-10-24)
+
+`ffb_target_tests` now compiles the real `global_callbacks.cpp`, `voltagesense.cpp`, `ledEffects.cpp` and `cppmain.cpp`; all batch 0 firmware stubs are gone (only SPI/I2C unmodelled-call recorders remain).
+- `cppmain.cpp` is compiled through `platform/src/host_cppmain.cpp`, which includes cppmain's headers, `#define`s `malloc`/`free` to `hosttest_cppmain_malloc`/`_free` and then `#include`s the unmodified `cppmain.cpp` (cppmain defines `malloc`/`free`, which on the host would replace the C library and ASan allocators; a `-D` rename does not survive `<cstdlib>`). gcov reports the lines under `cppmain.cpp`. Mach-O `CCRAM_SEC` override for macOS (unverified).
+- `ledEffects.cpp`: per-source defines rename `pulse*/set*Led` to `hosttest_real_*`; `host_platform.cpp` provides the public names (counting in `HostPlatform::leds()` for the existing tests, then calling the real functions). Guards `HOSTTEST_REAL_CPPMAIN`, `HOSTTEST_REAL_LED_EFFECTS` (only `ffb_target_tests`); `ffb_unit_tests` preprocessed output identical for all 60 TUs; compile commands of `ffb_unit_tests` and `ffb_flash_tests` identical.
+- **F6 fake ADC** (`platform/src/host_target_system.cpp`, modelled on `stm32f4xx_hal_adc.c`: start/stop/poll/get value/DMA, state and error codes, `__HAL_LOCK`; conversion complete via `HostTarget::adcConversionComplete`/`adcConvert`), LL ADC macros copied from `stm32f4xx_ll_adc.h`, calibration values from host variables (not 0x1FFF7A2A..). TIM7 HAL tick (CNT from simulated time: real `micros()` = simulated time), strong `HAL_TIM_PeriodElapsedCallback` like `main.c`, `Error_Handler` (counted, returns), IWDG refresh, CAN receive FIFOs (`HAL_CAN_GetRxFifoFillLevel`/`GetRxMessage`, overrun), `canport` mock with `getHandle() == &hcan1` so the real CAN callbacks dispatch to it.
+- Fixture: `HostTarget::resetSystem()` restores ADC/TIM7/IWDG/CAN fakes and the firmware globals of voltagesense, ledEffects and cppmain (snapshotted at static init); `TargetFixture` deletes the main class created by `runCppmain` and resets `SystemCommands::errorPrintingEnabled`.
+- 10 smoke cases (`SystemSetup`), 1 characterization (NEEDS REVIEW 53).
+- Gate: ctest 4/4 in all 6 dirs, baseline OK, `ffb_unit_tests` and `ffb_flash_tests` unchanged, `ffb_target_tests` 406/0/2 (default, clang23), 407/0/2 (nodsp), 307 + 101 skipped (san, clang23-san), 308 + 101 (nodsp-san); no sanitizer findings; no warnings from test files. Verified again by the main agent.
+- Hardware-only candidates: `cppmain.cpp:33-42` (wrong chip id: endless `Error_Handler` loop) - to be decided in the P4 review.
 
 ## P3 results (2026-10-24)
 
@@ -519,6 +540,7 @@ Functions never run by any test (counts of never-run / total): ErrorHandler 15/2
 | 50 | eeprom.c (vendor) | `EE_Init` with an invalid page 0 and a valid page 1 | Everything is formatted away (`eeprom.c:308`), e.g. after a torn RECEIVE_DATA header on page 0 | no |
 | 51 | eeprom.c (vendor) | torn VALID header after the old page was erased | `EE_Init` formats (`eeprom.c:137`): every variable lost | no |
 | 52 | eeprom.c (vendor) | records | No checksum: a torn virtual-address half-word can alias another listed address (0x0001 -> 0x0101), so the interrupted write's data appears under another variable. (eeprom.c never unlocks the flash itself: see NEEDS REVIEW 43 at the flash_helpers layer) | no |
+| 53 | cppmain | `cppmain.cpp:88-90` with `flash_helpers.cpp:105-120` | `Flash_ReadWriteDefault` returns false after writing a default, so `cppmain` calls `Error_Handler` on every first boot (empty flash); `Error_Handler` only switches the error LED off. Probably unintended | no |
 | 21 | HidFFB / CDC | `FirmwareFixture::resetGlobals` (test infrastructure) | Does not reset `CDCcomm`'s private `usb_busy_retry`; `test_cdc.cpp` works around it with its own fixture. Shared fix in `support/FirmwareFixture.h`? | no |
 
 New tests that describe unclear behaviour use the `characterization:` name prefix and get a row here. Tests that describe intended behaviour but fail use `KNOWN_ISSUE` and get a row under "Suspected firmware bugs".

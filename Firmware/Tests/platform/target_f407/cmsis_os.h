@@ -11,6 +11,8 @@
 extern "C" {
 #endif
 typedef void *osThreadId_t; // cmsis_os2.h: thread ID identifies the thread
+/** FreeRTOS.h: storage of a statically allocated task (cppmain.cpp defines usb_device_taskdef, unused). Opaque here */
+typedef struct { void *dummy[24]; } StaticTask_t;
 #ifdef __cplusplus
 }
 #endif
