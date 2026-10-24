@@ -9,7 +9,7 @@
 - **Current phase:** P3 done, **awaiting my approval** at the P3 gate. P4 not started.
 - **Phase status:** batch 0, module tests (A eeprom.c, B flash helpers), review (p3r1, p3r2) and fixes done; gate green in 6 variants (see "P3 results").
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
-- **Last commit:** P3 review fixes (see phase checklist) + this PROGRESS update.
+- **Last commit:** `52dce9ae` (P3 B review fixes).
 - **Last updated:** 2026-10-24
 - **Last session summary:** P3: new executable `ffb_flash_tests` (real `flash_helpers.cpp`, vendor `eeprom.c`, `eeprom_addresses.c`, `PersistentStorage` on a fake HAL FLASH with NOR semantics, error and power-loss injection, memory mapped at the target addresses; not built on macOS). 2 module agents, 2 fresh reviewers, fixes. `ffb_flash_tests` 158 cases. `eeprom.c` 93.7 % (rest unreachable, mostly because of V5), `flash_helpers.cpp` 98.9 %, `PersistentStorage.cpp` 100 %; all in-scope sources 55.3 % (was 50.5 %). New: bug 41, vendor bugs V5, V6, NEEDS REVIEW 41-52. `/tmp` was cleaned 3 more times; agents rebuilt workspaces, group B's files were merged early to protect them.
 
@@ -29,7 +29,7 @@ After approval: P4 (system, callbacks and misc in `ffb_target_tests`: `SystemCom
 | P0 Safety net | `ffb_unit_tests` | 0 (measured baseline 2,136 lines, 26.2 %) | done | yes, 2026-10-22 | `2461c51e` |
 | P1 Gaps in compiled files | `ffb_unit_tests` | about 470 (measured +504: 2,640 lines, 32.4 %) | done | yes, 2026-10-23 | `a79ead3a` (tests), `7a35d2f1` (review fixes) |
 | P2 Axis and main classes | `ffb_target_tests` (new) | about 790 (measured: total 4,164 lines, 50.5 %) | done | yes, 2026-10-23 | `4aec799c` batch 0, `760f6f1a` tests, `76d89b40` infra review fixes, `41112d85` review fixes |
-| P3 Flash and persistence | `ffb_flash_tests` (new) | about 365 (measured: total 4,480 lines, 55.3 %) | done, awaiting approval | | `bfe6ed56` batch 0, `ac030b2c` B tests, `b93f230e` A tests, `6410fb07` macOS skip, `8b178bbf` A review fixes, P3 final commit (git log `Tests: P3 flash helpers review fixes`) |
+| P3 Flash and persistence | `ffb_flash_tests` (new) | about 365 (measured: total 4,480 lines, 55.3 %) | done, awaiting approval | | `bfe6ed56` batch 0, `ac030b2c` B tests, `b93f230e` A tests, `6410fb07` macOS skip, `8b178bbf` A review fixes, `52dce9ae` B review fixes |
 | P4 System, callbacks, misc | `ffb_target_tests` | about 460 | not started | | |
 | P5 Buttons and analog | `ffb_target_tests` | about 775 | not started | | |
 | P6 Encoders and buses | `ffb_target_tests` | about 640 | not started | | |
