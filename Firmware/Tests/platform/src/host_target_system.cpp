@@ -24,6 +24,7 @@
 #include "FFBoardMain.h"
 #include "global_callbacks.h"
 #include "ledEffects.h"
+#include "flash_helpers.h"
 
 #include <algorithm>
 #include <array>
@@ -107,6 +108,32 @@ struct CanRxFrame {
 	std::array<uint8_t, 8> data;
 };
 std::array<std::deque<CanRxFrame>, 2> canFifos;
+
+// ---- OTP (HostTarget::otpByte ...) ----
+std::array<uint8_t, HostTarget::OTP_SIZE> otp;
+constexpr uint32_t OTP_BASE = 0x1FFF7800UL; // FLASH_OTP_BASE (stm32f407xx.h)
+constexpr uint32_t OTP_END = 0x1FFF7A0FUL;	// FLASH_OTP_END (stm32f407xx.h): last lock byte
+constexpr uint32_t OTP_BLOCK_SIZE = 32;
+
+/**
+ * One FLASH_TYPEPROGRAM_WORD step of OTP_Write (HAL_FLASH_Program, stm32f4xx_hal_flash.c): fails (HAL_ERROR, nothing
+ * programmed) when injected (state().otpFailProgram) or when the word is in a block whose lock byte is 0x00
+ * (RM0090 3.7, WRPERR). Programming clears bits only.
+ */
+bool otpProgramWord(uint32_t offset, uint32_t word) {
+	HostTarget::State &st = HostTarget::state();
+	st.otpPrograms++;
+	if (st.otpFailProgram != 0 && st.otpPrograms == st.otpFailProgram) {
+		return false;
+	}
+	if (offset < HostTarget::OTP_DATA_SIZE && otp[HostTarget::OTP_DATA_SIZE + offset / OTP_BLOCK_SIZE] == 0x00) {
+		return false;
+	}
+	for (uint32_t i = 0; i < 4; i++) {
+		otp[offset + i] &= (uint8_t)(word >> (8 * i));
+	}
+	return true;
+}
 constexpr size_t CAN_FIFO_DEPTH = 3; // RM0090 32.7.5: 3 mailboxes per receive FIFO
 
 // ---- cppmain ----
@@ -236,7 +263,7 @@ void resetSystem() {
 	iwdgRegs = IWDG_TypeDef();
 	hiwdg = IWDG_HandleTypeDef();
 	hiwdg.Instance = &iwdgRegs;
-	hiwdg.Init.Prescaler = 0x00000003U; // MX_IWDG_Init: IWDG_PRESCALER_32
+	hiwdg.Init.Prescaler = 0x00000002U; // MX_IWDG_Init (main.c:569): IWDG_PRESCALER_16 = IWDG_PR_PR_1
 	hiwdg.Init.Reload = 4095;			// MX_IWDG_Init
 	for (auto &fifo : canFifos) {
 		fifo.clear();
@@ -259,6 +286,23 @@ void resetSystem() {
 	minVoltage = initialValues.minVoltage;
 	brakeActiveTime = initialValues.brakeActiveTime;
 	chipTempAvg.clear();
+	otp.fill(0xFF); // OTP area erased
+}
+
+// ---- OTP ----
+uint8_t otpByte(uint32_t offset) { return otp.at(offset); }
+void setOtpByte(uint32_t offset, uint8_t value) { otp.at(offset) = value; }
+uint64_t otpSlot(uint16_t adroffset) {
+	uint64_t v = 0;
+	for (uint32_t i = 0; i < 8; i++) {
+		v |= (uint64_t)otp.at(adroffset * 8U + i) << (8 * i);
+	}
+	return v;
+}
+void setOtpSlot(uint16_t adroffset, uint64_t value) {
+	for (uint32_t i = 0; i < 8; i++) {
+		otp.at(adroffset * 8U + i) = (uint8_t)(value >> (8 * i));
+	}
 }
 
 // ---- ADC ----
@@ -596,3 +640,42 @@ HAL_StatusTypeDef HAL_CAN_GetRxMessage(CAN_HandleTypeDef *hcan, uint32_t RxFifo,
 }
 
 } // extern "C"
+
+// ---------------- OTP (flash_helpers.cpp:298-326, F407: FLASH_OTP_BASE / FLASH_OTP_END defined) ----------------
+// flash_helpers.cpp is not compiled in ffb_target_tests (map-backed Flash_* of host_platform.cpp); these reproduce
+// its OTP functions on the in-memory OTP area (see HostTarget.h). host_platform.cpp leaves out its stubs
+// (HOSTTEST_TARGET_OTP).
+
+/** Like OTP_Write of flash_helpers.cpp: bound check as coded (bug 41), only an all-ones slot, low word then high word */
+bool OTP_Write(uint16_t adroffset, uint64_t dat) {
+	HostTarget::State::OtpCall call;
+	call.write = true;
+	call.offset = adroffset;
+	call.value = dat;
+	uint32_t adr = (OTP_BASE + adroffset * sizeof(uint64_t));
+	bool success = false;
+	if (adr <= OTP_END && HostTarget::otpSlot(adroffset) == 0xffffffffffffffffULL) {
+		uint32_t offset = adr - OTP_BASE;
+		success = otpProgramWord(offset, (uint32_t)(dat));
+		success = otpProgramWord(offset + 4, (uint32_t)(dat >> 32)) && success;
+	}
+	call.result = success;
+	HostTarget::state().otpCalls.push_back(call);
+	return success;
+}
+
+/** Like OTP_Read of flash_helpers.cpp: bound check as coded (bug 41), reads the 8 bytes of the slot */
+bool OTP_Read(uint16_t adroffset, uint64_t *dat) {
+	HostTarget::State::OtpCall call;
+	call.offset = adroffset;
+	uint32_t adr = (OTP_BASE + adroffset * sizeof(uint64_t));
+	if (adr > OTP_END) {
+		HostTarget::state().otpCalls.push_back(call);
+		return false;
+	}
+	*dat = HostTarget::otpSlot(adroffset);
+	call.value = *dat;
+	call.result = true;
+	HostTarget::state().otpCalls.push_back(call);
+	return true;
+}

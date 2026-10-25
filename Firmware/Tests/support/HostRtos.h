@@ -85,6 +85,16 @@ struct ResumeStats {
 };
 ResumeStats &resumeStats();
 
+/** Calls of the RTOS heap functions since the last reset() (the fake heap forwards to the C library allocator) */
+struct HeapStats {
+	uint32_t mallocCalls = 0; //!< pvPortMalloc calls
+	uint32_t freeCalls = 0;	  //!< vPortFree calls
+	size_t lastMallocSize = 0; //!< Size of the last pvPortMalloc request
+	void *lastMallocResult = nullptr; //!< Pointer returned by the last pvPortMalloc
+	void *lastFreed = nullptr;		  //!< Pointer passed to the last vPortFree
+};
+HeapStats &heapStats();
+
 } // namespace HostRtos
 
 #endif

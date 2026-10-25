@@ -52,6 +52,14 @@ struct State {
 	uint32_t taskYields = 0;		  //!< taskYIELD() calls (cppmain loop, Thread::Yield)
 	uint32_t canRxOverruns[2] = {0, 0}; //!< Frames that overwrote the newest frame of a full CAN receive FIFO (canQueueRx)
 	uint32_t canRxStalls = 0;		  //!< canRxInterrupt stopped because a callback did not read the FIFO (the target would re-enter the interrupt forever)
+	struct OtpCall {
+		bool write = false;	  //!< OTP_Write (true) or OTP_Read (false)
+		uint16_t offset = 0;  //!< adroffset argument (8 byte slots)
+		uint64_t value = 0;	  //!< Written value, or the value read (only if result is true)
+		bool result = false;  //!< Return value
+	};
+	std::vector<OtpCall> otpCalls;	//!< OTP_Write / OTP_Read calls in order
+	uint32_t otpPrograms = 0;		//!< 32 bit programming steps of OTP_Write (HAL_FLASH_Program, FLASH_TYPEPROGRAM_WORD), including failed ones
 	std::vector<std::string> unmodelledHalCalls; //!< HAL functions without a fake that were called (see host_stubs_target.cpp), triggerExti on a pin without EXTI line, and HAL calls the fake can not complete (e.g. an endless wait)
 
 	// --- Controlled by the test ---
@@ -59,6 +67,7 @@ struct State {
 	uint32_t devId = 0x413;									//!< HAL_GetDEVID: STM32F405/407
 	uint32_t revId = 0x1007;								//!< HAL_GetREVID: revision 1
 	uint8_t usbSpeed = 0; //!< tud_speed_get() result (tusb_speed_t). 0 = TUSB_SPEED_FULL
+	uint32_t otpFailProgram = 0; //!< > 0: the OTP programming step with this number (counted in otpPrograms) fails like HAL_FLASH_Program returning HAL_ERROR (nothing programmed). 0 = no failure
 	uint32_t errorHandlerLimit = 0; //!< > 0: the Error_Handler call with this number throws ErrorHandlerLimitReached (ends an endless Error_Handler loop, e.g. cppmain's wrong chip id loop). 0 = Error_Handler always returns
 };
 
@@ -96,6 +105,8 @@ void resetTargetConfig();
  *    temperature average), ledEffects.cpp (sysled, errled, clipled), cppmain.cpp (running, mainclassChosen,
  *    forceErase, main_id) and the cppmain loop budget (runCppmain)
  * Not reset here: `mainclass` / `usb_device` (TargetFixture), a main class created by runCppmain (deleteCppmainMainclass).
+ * Note: on the target `mainclass` lives in the NOLOAD .ccmram section (STM32F407VGTX_FLASH.ld:150) and is not zeroed
+ * by the startup code (only .bss is); on the host it starts as nullptr and TargetFixture sets it to nullptr.
  */
 void resetSystem();
 
@@ -197,6 +208,23 @@ size_t canRxPending(uint32_t fifo);
  * CANPort_2B::start). @return number of callback calls
  */
 uint32_t canRxInterrupt(uint32_t fifo);
+
+// --- OTP area (fake of OTP_Write / OTP_Read of flash_helpers.cpp, host_target_system.cpp) ---
+/**
+ * F407 OTP area (RM0090 3.7): 16 blocks of 32 data bytes (offsets 0..511) followed by 16 lock bytes (512..527);
+ * erased = 0xFF, a block whose lock byte is 0x00 can not be programmed. Offsets are byte offsets from FLASH_OTP_BASE.
+ * OTP_Write / OTP_Read reproduce flash_helpers.cpp:298-326 (the firmware source is not compiled in this
+ * executable): slot address FLASH_OTP_BASE + adroffset * 8, rejected only if beyond FLASH_OTP_END (so offsets 64 and
+ * 65 reach the lock bytes: bug 41), write only if all 8 bytes are 0xFF, two 32 bit programming steps (low word, then
+ * high word; the second runs even if the first failed), programming clears bits only (old & new). Unlock / lock of
+ * the flash are not modelled (always succeed). Calls recorded in state().otpCalls, failures with state().otpFailProgram.
+ */
+constexpr uint32_t OTP_DATA_SIZE = 512;
+constexpr uint32_t OTP_SIZE = 528; // data + 16 lock bytes
+uint8_t otpByte(uint32_t offset);
+void setOtpByte(uint32_t offset, uint8_t value); //!< Raw write (no OTP rules), e.g. to prepare a programmed or locked area
+uint64_t otpSlot(uint16_t adroffset);			  //!< Raw little endian 64 bit value of a slot (adroffset 0..65)
+void setOtpSlot(uint16_t adroffset, uint64_t value); //!< Raw write of a slot
 
 // --- Start-up code (cppmain.cpp) ---
 /**

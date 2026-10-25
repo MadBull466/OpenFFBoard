@@ -276,6 +276,27 @@ set(TARGET_PLATFORM_SOURCES
 	platform/src/host_cppmain.cpp
 )
 
+# Configure-time guard for platform/src/host_cppmain.cpp: every #include of cppmain.cpp must be in the wrapper's
+# pre-include list (the lines before "End of the pre-include list"). Otherwise the malloc/free rename of the wrapper
+# would apply to a newly included header.
+file(STRINGS ${FFBOARD_DIR}/Src/cppmain.cpp FFB_CPPMAIN_INCLUDES REGEX "^[ \t]*#[ \t]*include")
+file(READ ${CMAKE_CURRENT_SOURCE_DIR}/platform/src/host_cppmain.cpp FFB_CPPMAIN_WRAPPER)
+string(FIND "${FFB_CPPMAIN_WRAPPER}" "// End of the pre-include list" FFB_CPPMAIN_WRAPPER_END)
+if(FFB_CPPMAIN_WRAPPER_END LESS 0)
+	message(FATAL_ERROR "platform/src/host_cppmain.cpp: marker '// End of the pre-include list' not found")
+endif()
+string(SUBSTRING "${FFB_CPPMAIN_WRAPPER}" 0 ${FFB_CPPMAIN_WRAPPER_END} FFB_CPPMAIN_WRAPPER_HEAD)
+string(REGEX MATCHALL "#[ \t]*include[ \t]*[\"<][^\">]+[\">]" FFB_CPPMAIN_WRAPPER_INCLUDES "${FFB_CPPMAIN_WRAPPER_HEAD}")
+string(REGEX REPLACE "[ \t]" "" FFB_CPPMAIN_WRAPPER_INCLUDES "${FFB_CPPMAIN_WRAPPER_INCLUDES}")
+foreach(inc IN LISTS FFB_CPPMAIN_INCLUDES)
+	string(REGEX MATCH "#[ \t]*include[ \t]*[\"<][^\">]+[\">]" inc "${inc}")
+	string(REGEX REPLACE "[ \t]" "" inc "${inc}")
+	if(NOT inc IN_LIST FFB_CPPMAIN_WRAPPER_INCLUDES)
+		message(FATAL_ERROR "FFBoard/Src/cppmain.cpp has '${inc}', which is missing in the pre-include list of "
+			"Firmware/Tests/platform/src/host_cppmain.cpp. Add it there (before the malloc/free rename).")
+	endif()
+endforeach()
+
 # ledEffects.cpp is real code in ffb_target_tests (HOSTTEST_REAL_LED_EFFECTS below). The existing tests count the
 # calls of the pulse and set functions (HostPlatform::leds()); these six functions are renamed for this source file
 # only and host_platform.cpp defines the public names as counting wrappers that call the real functions.
@@ -326,7 +347,9 @@ target_include_directories(ffb_target_tests PRIVATE
 #   Error_Handler() fakes (real cppmain.cpp, main.c model in host_target_system.cpp) and keeps the TIM7 counter of the
 #   HAL tick in step with the simulated time; platform/include/task.h routes taskYIELD() to a hook (cppmain loop).
 # HOSTTEST_REAL_LED_EFFECTS: host_platform.cpp leaves out its LED fake (real ledEffects.cpp, see above).
-target_compile_definitions(ffb_target_tests PRIVATE HOSTTEST HOSTTEST_REAL_CPPMAIN HOSTTEST_REAL_LED_EFFECTS)
+# HOSTTEST_TARGET_OTP: host_platform.cpp leaves out its OTP_Write / OTP_Read stubs; host_target_system.cpp models them
+#   like flash_helpers.cpp on an in-memory OTP area (SystemCommands "signature").
+target_compile_definitions(ffb_target_tests PRIVATE HOSTTEST HOSTTEST_REAL_CPPMAIN HOSTTEST_REAL_LED_EFFECTS HOSTTEST_TARGET_OTP)
 
 if(USE_DSP)
 	target_sources(ffb_target_tests PRIVATE
@@ -355,6 +378,10 @@ target_compile_options(ffb_target_tests PRIVATE -Wall $<$<COMPILE_LANGUAGE:CXX>:
 if(MINGW)
 	target_compile_options(ffb_target_tests PRIVATE -mno-ms-bitfields)
 	target_link_options(ffb_target_tests PRIVATE -static)
+	# SystemCommands.cpp uses struct mallinfo / mallinfo() from <malloc.h>, which mingw-w64 does not declare:
+	# shim header (#include_next) and a stub returning zeros. Unverified (no MinGW toolchain available).
+	target_include_directories(ffb_target_tests BEFORE PRIVATE platform/mingw)
+	target_sources(ffb_target_tests PRIVATE platform/mingw/host_mallinfo.cpp)
 endif()
 
 if(FFB_TESTS_SANITIZE)

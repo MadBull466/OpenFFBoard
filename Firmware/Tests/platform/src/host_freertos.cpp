@@ -40,6 +40,7 @@ uint32_t delayBudgetMs = 1000;
 uint32_t delayBudgetRemaining = 0;
 size_t liveSemaphores = 0; //!< Created and not deleted semaphores (HostRtos::semaphoreCount)
 HostRtos::ResumeStats resumeCalls; //!< Calls of the task resume functions (HostRtos::resumeStats)
+HostRtos::HeapStats heapCalls; //!< Calls of the heap functions (HostRtos::heapStats)
 
 bool isRegistered(HostTask *task) {
 	return std::find(tasks().begin(), tasks().end(), task) != tasks().end();
@@ -56,6 +57,7 @@ void reset() {
 	delayBudgetMs = 1000;
 	currentTask = nullptr;
 	resumeCalls = ResumeStats();
+	heapCalls = HeapStats();
 }
 
 bool runUntilBlocked(TaskHandle_t task) {
@@ -123,13 +125,27 @@ ResumeStats &resumeStats() {
 	return resumeCalls;
 }
 
+HeapStats &heapStats() {
+	return heapCalls;
+}
+
 } // namespace HostRtos
 
 // ---------------- Kernel API ----------------
 extern "C" {
 
-void *pvPortMalloc(size_t size) { return malloc(size); }
-void vPortFree(void *ptr) { free(ptr); }
+void *pvPortMalloc(size_t size) {
+	void *p = malloc(size);
+	heapCalls.mallocCalls++;
+	heapCalls.lastMallocSize = size;
+	heapCalls.lastMallocResult = p;
+	return p;
+}
+void vPortFree(void *ptr) {
+	heapCalls.freeCalls++;
+	heapCalls.lastFreed = ptr;
+	free(ptr);
+}
 size_t xPortGetFreeHeapSize(void) { return 0x10000; }
 size_t xPortGetMinimumEverFreeHeapSize(void) { return 0x8000; }
 

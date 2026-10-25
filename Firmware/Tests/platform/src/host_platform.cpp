@@ -317,6 +317,8 @@ bool Flash_Format() {
 }
 
 void Flash_Write_Defaults() {}
+#ifndef HOSTTEST_TARGET_OTP
 bool OTP_Write(uint16_t, uint64_t) { return false; }
 bool OTP_Read(uint16_t, uint64_t *) { return false; }
+#endif // HOSTTEST_TARGET_OTP: ffb_target_tests models the OTP area (host_target_system.cpp)
 #endif // HOSTTEST_REAL_FLASH_HELPERS

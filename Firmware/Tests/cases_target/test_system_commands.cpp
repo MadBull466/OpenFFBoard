@@ -363,6 +363,7 @@ TEST_CASE_FIXTURE(SysFixture, "signature with a negative address is rejected") {
 }
 
 TEST_CASE_FIXTURE(SysFixture, "a signature write that the OTP memory does not accept is reported as error") {
+	HostTarget::setOtpSlot(SIGBNATUREBASEADR, 0); // already programmed: OTP_Write only writes an erased slot
 	CHECK(run(FFBoardMain_commands::signature, CMDtype::setat, 0x1234, 0) == CommandStatus::ERR);
 	CHECK(replies.empty());
 }

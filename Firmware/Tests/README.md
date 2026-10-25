@@ -244,7 +244,22 @@ Later phases add inputs, encoders, buses and CAN.
     library allocator of the executable). `ledEffects.cpp` is compiled with its pulse/set functions renamed; the
     public names in `host_platform.cpp` count the calls (`HostPlatform::leds()`) and forward to the real functions.
     Guard macros `HOSTTEST_REAL_CPPMAIN` / `HOSTTEST_REAL_LED_EFFECTS` leave the corresponding fakes of
-    `host_platform.cpp` out of this executable only (`ffb_unit_tests` is unchanged).
+    `host_platform.cpp` out of this executable only (`ffb_unit_tests` is unchanged). CMake checks at configure time
+    that every `#include` of `cppmain.cpp` is in the wrapper's pre-include list (configuration fails otherwise).
+    On the target `mainclass` is in the NOLOAD `.ccmram` section and not zeroed at start; on the host it starts as
+    `nullptr`.
+  * **OTP** (`HOSTTEST_TARGET_OTP`): `OTP_Write` / `OTP_Read` reproduce `flash_helpers.cpp:298-326` (not compiled
+    here) on an in-memory OTP area (16 x 32 bytes + 16 lock bytes, erased 0xFF): 8 byte slots, the bound check as
+    coded (bug 41), write only into an all-ones slot, two 32 bit programming steps that only clear bits, locked
+    blocks (lock byte 0x00) refuse programming. Control: `HostTarget::otpByte` / `setOtpByte` / `otpSlot` /
+    `setOtpSlot`, `state().otpCalls` (recorded calls), `state().otpPrograms`, `state().otpFailProgram` (the n-th
+    programming step fails). Used by the `signature` command of `SystemCommands` (`OTPMEMORY` stays off in this
+    executable, so there is no `otp` command, unlike the F407 target).
+  * **RTOS heap:** `HostRtos::heapStats()` counts `pvPortMalloc` / `vPortFree` calls (all executables; reset by
+    `HostRtos::reset()`), e.g. to check that the `malloc`/`free` of `cppmain.cpp` forward to the RTOS heap.
+  * **MinGW (unverified, no MinGW toolchain here):** `SystemCommands.cpp` uses `struct mallinfo` / `mallinfo()` from
+    `<malloc.h>`, which mingw-w64 does not declare. Under `if(MINGW)` the include path gets `platform/mingw`
+    (`malloc.h` shim with `#include_next`) and `platform/mingw/host_mallinfo.cpp` (returns zeros) is compiled.
 * **Unmodelled-HAL guard:** a HAL function without a fake (SPI, I2C) records its name in
   `HostTarget::state().unmodelledHalCalls` and returns `HAL_ERROR`; `TargetFixture` fails the test at the end if the
   list is not empty. In `KNOWN_ISSUE` tests use `REQUIRE_ALL_HAL_MODELLED()` before the defect assertion.
