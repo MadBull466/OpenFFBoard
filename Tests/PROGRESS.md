@@ -565,6 +565,7 @@ Functions never run by any test (counts of never-run / total): ErrorHandler 15/2
 | 73 | voltagesense | `voltagesense.cpp:85-88` | The brake-resistor shutdown reports no error (the error defined at line 24 is never added) and triggers no emergency stop: over-voltage protection stays off until reboot without indication | no |
 | 74 | voltagesense / FastAvg | `FastAvg.h:93` | Chip temperature average is an integer average: stops up to 2 C short of a constant reading | no |
 | 75 | usb descriptors / HidFFB | 1-axis descriptor | `FFB_SetEffect_t::directionY` receives the X "type specific block offset"; the 2-axis descriptors add 4 bytes of offsets that `HidFFB` ignores (copies `min(sizeof, bufsize)`) | no |
+| 64 | SystemCommands | `flashraw` setat | Address and value (int64) are truncated to 16 bits for `Flash_Write(uint16_t, uint16_t)`: `flashraw=0x10005?0x10007` stores 5 at 7, address -1 stores at 0xFFFF, both with OK (same class as 58) | no |
 | 53 | cppmain | `cppmain.cpp:88-90` with `flash_helpers.cpp:105-120` | `Flash_ReadWriteDefault` returns false after writing a default, so `cppmain` calls `Error_Handler` on every first boot (empty flash); `Error_Handler` only switches the error LED off. Probably unintended | no |
 | 21 | HidFFB / CDC | `FirmwareFixture::resetGlobals` (test infrastructure) | Does not reset `CDCcomm`'s private `usb_busy_retry`; `test_cdc.cpp` works around it with its own fixture. Shared fix in `support/FirmwareFixture.h`? | no |
 

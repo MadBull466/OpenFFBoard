@@ -12,8 +12,9 @@
  *    the code after them (the reply of reboot, dfu and a main class change) only runs on the host.
  *  - taskstats / tasklist (configGENERATE_RUN_TIME_STATS, configUSE_TRACE_FACILITY) and otp (OTPMEMORY, needs
  *    FLASH_OTP_BASE) are registered on the F407 target but not compiled in ffb_target_tests.
- *  - The map-backed Flash_* fake (host_platform.cpp) never fails Flash_Format and has no OTP memory (OTP_Read and
- *    OTP_Write return false), so only the error paths of the signature command are tested.
+ *  - The map-backed Flash_* fake (host_platform.cpp) never fails Flash_Format, so the format error path is not tested.
+ *  - The signature command runs on the OTP model of ffb_target_tests (HostTarget::otpSlot / setOtpSlot), which
+ *    reproduces OTP_Write / OTP_Read of flash_helpers.cpp (the real source is not compiled in this executable).
  */
 #include "doctest.h"
 #include "AxisFixture.h"
@@ -35,6 +36,7 @@
 #include "FFBWheel.h"
 
 #include <algorithm>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -120,6 +122,62 @@ struct CountingStorage : PersistentStorage {
 	void saveFlash() override { saves++; }
 	uint32_t saves = 0;
 };
+
+// Test registry for lsmain: a visible, a hidden, a debug and a (later) not creatable main class (ClassChooser.h:129-143)
+ClassIdentifier visibleInfo = {.name = "Visible", .id = 0x100, .visibility = ClassVisibility::visible};
+ClassIdentifier hiddenInfo = {.name = "Hidden", .id = 0x101, .visibility = ClassVisibility::hidden};
+ClassIdentifier debugInfo = {.name = "Debug", .id = 0x102, .visibility = ClassVisibility::debug};
+ClassIdentifier lockedInfo = {.name = "Locked", .id = 0x103, .visibility = ClassVisibility::visible};
+bool lockedCreatable = true;
+
+const std::vector<class_entry<FFBoardMain>> &testRegistry() {
+	static const std::vector<class_entry<FFBoardMain>> registry = {
+		{visibleInfo, 0x10, []() -> FFBoardMain * { return new FFBoardMain(); }},
+		{hiddenInfo, 0x11, []() -> FFBoardMain * { return new FFBoardMain(); }},
+		{debugInfo, 0x12, []() -> FFBoardMain * { return new FFBoardMain(); }},
+		{lockedInfo, 0x13, []() -> FFBoardMain * { return new FFBoardMain(); }, []() -> bool { return lockedCreatable; }},
+	};
+	return registry;
+}
+
+/**
+ * Replaces the global main class chooser of cppmain.cpp with the test registry (restored at the end) and creates the
+ * running main class with the given selection id through it, like cppmain.cpp does.
+ */
+struct TestRegistryFixture : TargetFixture {
+	void start(uint16_t selectionId) {
+		lockedCreatable = true;
+		mainchooser = ClassChooser<FFBoardMain>(testRegistry());
+		main.reset(mainchooser.Create(selectionId));
+		REQUIRE(main != nullptr);
+		REQUIRE(main->getSelectionID() == selectionId);
+		mainclass = main.get();
+	}
+	~TestRegistryFixture() override {
+		mainclass = nullptr;
+		main.reset();
+		mainchooser = ClassChooser<FFBoardMain>(class_registry);
+		lockedCreatable = true;
+	}
+	std::vector<CommandReply> lsmain() {
+		std::vector<CommandReply> replies;
+		ParsedCommand parsed;
+		parsed.cmdId = static_cast<uint32_t>(FFBoardMain_commands::lsmain);
+		parsed.type = CMDtype::get;
+		parsed.target = &main->systemCommands;
+		CHECK(main->systemCommands.internalCommand(parsed, replies) == CommandStatus::OK);
+		return replies;
+	}
+	std::unique_ptr<FFBoardMain> main;
+};
+
+std::vector<std::string> texts(const std::vector<CommandReply> &replies) {
+	std::vector<std::string> t;
+	for (const CommandReply &r : replies) {
+		t.push_back(r.reply);
+	}
+	return t;
+}
 
 uint32_t id(FFBoardMain_commands cmd) { return static_cast<uint32_t>(cmd); }
 
@@ -288,6 +346,8 @@ TEST_CASE_FIXTURE(SysFixture, "swver returns the firmware version as text and as
 	CHECK(replies[0].type == CommandReplyType::STRING_OR_INT);
 	CHECK(replies[0].reply == std::to_string(SW_VERSION_INT[0]) + "." + std::to_string(SW_VERSION_INT[1]) + "." + std::to_string(SW_VERSION_INT[2]));
 	CHECK(replies[0].val == ((SW_VERSION_INT[0] << 16) | (SW_VERSION_INT[1] << 8) | SW_VERSION_INT[2]));
+	CHECK(replies[0].reply == "1.17.1"); // SW_VERSION_INT of constants.h at the time of writing
+	CHECK(replies[0].val == 0x011101);
 }
 
 TEST_CASE_FIXTURE(SysFixture, "hwtype returns the hardware name and number of the target") {
@@ -342,6 +402,8 @@ TEST_CASE_FIXTURE(SysFixture, "uid as info request returns the 96 bit unique id 
 	HostTarget::state().uid[0] = 0x0000ABCD;
 	HostTarget::state().uid[1] = 0x12345678;
 	HostTarget::state().uid[2] = 0x9ABCDEF0;
+	// SystemCommands.cpp:307 prints the uint32_t words with %08lx: correct on ARM and MinGW (uint32_t is unsigned long
+	// there); on LP64 Linux it only works because the 32 bit argument is passed zero-extended in a 64 bit register
 	CHECK(run(FFBoardMain_commands::uid, CMDtype::info) == CommandStatus::OK);
 	REQUIRE(replies.size() == 1);
 	CHECK(replies[0].type == CommandReplyType::STRING);
@@ -349,7 +411,7 @@ TEST_CASE_FIXTURE(SysFixture, "uid as info request returns the 96 bit unique id 
 }
 
 // ---------------------------------------------------------------------------
-// Signature (OTP). The host fake has no OTP memory: OTP_Write fails, OTP_Read fails without writing.
+// Signature (OTP model of ffb_target_tests: erased slots read 0xFFFFFFFFFFFFFFFF, OTP_Write only writes erased slots)
 // ---------------------------------------------------------------------------
 
 TEST_CASE_FIXTURE(SysFixture, "signature with an address beyond the signature length is rejected") {
@@ -366,6 +428,70 @@ TEST_CASE_FIXTURE(SysFixture, "a signature write that the OTP memory does not ac
 	HostTarget::setOtpSlot(SIGBNATUREBASEADR, 0); // already programmed: OTP_Write only writes an erased slot
 	CHECK(run(FFBoardMain_commands::signature, CMDtype::setat, 0x1234, 0) == CommandStatus::ERR);
 	CHECK(replies.empty());
+}
+
+TEST_CASE_FIXTURE(SysFixture, "signature with an address writes the value to that slot of the signature area") {
+	CHECK(run(FFBoardMain_commands::signature, CMDtype::setat, 0x0123456789ABCDEFLL, 3) == CommandStatus::OK);
+	CHECK(replies.empty());
+	CHECK(HostTarget::otpSlot(SIGBNATUREBASEADR + 3) == 0x0123456789ABCDEFULL);
+	CHECK(HostTarget::otpSlot(SIGBNATUREBASEADR + 2) == 0xFFFFFFFFFFFFFFFFULL);
+	CHECK(HostTarget::otpSlot(SIGBNATUREBASEADR + 4) == 0xFFFFFFFFFFFFFFFFULL);
+}
+
+TEST_CASE_FIXTURE(SysFixture, "signature returns the 8 signature slots as value with the slot number as second value") {
+	for (uint16_t i = 0; i < SIGNATURELEN; i++) {
+		HostTarget::setOtpSlot(SIGBNATUREBASEADR + i, 0x1111111111111111ULL * (i + 1));
+	}
+	CHECK(run(FFBoardMain_commands::signature, CMDtype::get) == CommandStatus::OK);
+	REQUIRE(replies.size() == SIGNATURELEN);
+	for (uint16_t i = 0; i < SIGNATURELEN; i++) {
+		CAPTURE(i);
+		CHECK(replies[i].type == CommandReplyType::DOUBLEINTS);
+		CHECK(static_cast<uint64_t>(replies[i].val) == 0x1111111111111111ULL * (i + 1));
+		CHECK(replies[i].adr == i);
+	}
+}
+
+TEST_CASE_FIXTURE(SysFixture, "signature with an address returns that slot with the slot number as second value") {
+	HostTarget::setOtpSlot(SIGBNATUREBASEADR + 7, 0x8000000000000001ULL);
+	CHECK(run(FFBoardMain_commands::signature, CMDtype::getat, 0, 7) == CommandStatus::OK);
+	REQUIRE(replies.size() == 1);
+	CHECK(replies[0].type == CommandReplyType::DOUBLEINTS);
+	CHECK(static_cast<uint64_t>(replies[0].val) == 0x8000000000000001ULL);
+	CHECK(replies[0].adr == 7);
+}
+
+TEST_CASE_FIXTURE(SysFixture, "signature as info request returns the 8 slots as one hex string of 16 digits per slot") {
+	HostTarget::setOtpSlot(SIGBNATUREBASEADR + 0, 0x0123456789ABCDEFULL);
+	HostTarget::setOtpSlot(SIGBNATUREBASEADR + 7, 0x1ULL);
+	// %016llx with uint64_t is correct on every ABI (unsigned long long is 64 bit everywhere)
+	CHECK(run(FFBoardMain_commands::signature, CMDtype::info) == CommandStatus::OK);
+	REQUIRE(replies.size() == 1);
+	CHECK(replies[0].type == CommandReplyType::STRING);
+	std::string expected = "0123456789abcdef";
+	for (int i = 1; i < 7; i++) {
+		expected += "ffffffffffffffff";
+	}
+	expected += "0000000000000001";
+	CHECK(replies[0].reply == expected);
+}
+
+TEST_CASE_FIXTURE(SysFixture, "signature reads only the signature slots") {
+	run(FFBoardMain_commands::signature, CMDtype::get);
+	const auto &calls = HostTarget::state().otpCalls;
+	REQUIRE(calls.size() == SIGNATURELEN);
+	for (uint16_t i = 0; i < SIGNATURELEN; i++) {
+		CHECK_FALSE(calls[i].write);
+		CHECK(calls[i].offset == SIGBNATUREBASEADR + i);
+		CHECK(calls[i].result); // OTP_Read never fails for these offsets, so dat is always written
+	}
+}
+
+// NEEDS REVIEW 55: unlike getat, setat has no range check against SIGNATURELEN: any OTP slot can be written, up to the
+// lock bytes at offsets 64/65 (bug 41)
+TEST_CASE_FIXTURE(SysFixture, "characterization: signature with an address beyond the signature length writes that OTP slot (NEEDS REVIEW 55)") {
+	CHECK(run(FFBoardMain_commands::signature, CMDtype::setat, 0x55, SIGNATURELEN) == CommandStatus::OK);
+	CHECK(HostTarget::otpSlot(SIGBNATUREBASEADR + SIGNATURELEN) == 0x55);
 }
 
 // NEEDS REVIEW 55: the help text says "set=1 to lock", but a plain set is rejected and nothing locks the OTP blocks
@@ -438,6 +564,14 @@ TEST_CASE_FIXTURE(SysFixture, "debug=1 enables the debug mode") {
 	CHECK(replies.empty());
 }
 
+TEST_CASE_FIXTURE(SysFixture, "debug with a value other than 0 or 1 enables the debug mode") {
+	CHECK(run(FFBoardMain_commands::debug, CMDtype::set, 2) == CommandStatus::OK);
+	CHECK(SystemCommands::debugMode);
+	run(FFBoardMain_commands::debug, CMDtype::get);
+	REQUIRE(replies.size() == 1);
+	CHECK(replies[0].val == 1);
+}
+
 TEST_CASE_FIXTURE(SysFixture, "debug=0 disables the debug mode") {
 	SystemCommands::debugMode = true;
 	CHECK(run(FFBoardMain_commands::debug, CMDtype::set, 0) == CommandStatus::OK);
@@ -471,7 +605,7 @@ TEST_CASE_FIXTURE(SysFixture, "reboot resets the chip") {
 TEST_CASE_FIXTURE(SysFixture, "dfu reboots into the DFU bootloader") {
 	CHECK(run(FFBoardMain_commands::dfu, CMDtype::get) == CommandStatus::OK); // host only: RebootDFU returns
 	CHECK(HostTarget::state().dfuReboots == 1);
-	CHECK(HostTarget::state().systemResets == 1); // RebootDFU ends in NVIC_SystemReset like main.c
+	CHECK(HostTarget::state().systemResets == 1); // property of the fake: its RebootDFU ends in NVIC_SystemReset like main.c
 }
 
 TEST_CASE_FIXTURE(SysFixture, "save writes the settings of every persistent storage handler to flash") {
@@ -501,6 +635,45 @@ TEST_CASE_FIXTURE(SysFixture, "lsmain lists every main class of the registry wit
 	}
 	CHECK(replies[0].reply == "0:1:Basic (Failsafe)");
 	CHECK(replies[1].reply == "1:1:FFB Wheel (1 Axis)");
+}
+
+TEST_CASE_FIXTURE(TestRegistryFixture, "lsmain leaves out hidden and debug main classes") {
+	start(0x10);
+	std::vector<CommandReply> replies = lsmain();
+	CHECK(texts(replies) == std::vector<std::string>{"16:1:Visible", "19:1:Locked"});
+	REQUIRE(replies.size() == 2);
+	CHECK(replies[0].type == CommandReplyType::STRING_OR_DOUBLEINT);
+	CHECK(replies[0].adr == 0x10);
+	CHECK(replies[0].val == 0x100);
+}
+
+TEST_CASE_FIXTURE(TestRegistryFixture, "lsmain lists debug main classes in debug mode") {
+	start(0x10);
+	SystemCommands::debugMode = true;
+	CHECK(texts(lsmain()) == std::vector<std::string>{"16:1:Visible", "18:1:Debug", "19:1:Locked"});
+}
+
+TEST_CASE_FIXTURE(TestRegistryFixture, "lsmain lists a hidden main class while it is running") {
+	start(0x11);
+	CHECK(texts(lsmain()) == std::vector<std::string>{"16:1:Visible", "17:1:Hidden", "19:1:Locked"});
+}
+
+TEST_CASE_FIXTURE(TestRegistryFixture, "lsmain lists a main class that can not be created as text only with creatable flag 0") {
+	start(0x10);
+	lockedCreatable = false;
+	std::vector<CommandReply> replies = lsmain();
+	REQUIRE(replies.size() == 2);
+	CHECK(replies[1].reply == "19:0:Locked");
+	CHECK(replies[1].type == CommandReplyType::STRING);
+}
+
+TEST_CASE_FIXTURE(TestRegistryFixture, "lsmain lists the running main class as creatable even if it can not be created again") {
+	start(0x13);
+	lockedCreatable = false;
+	std::vector<CommandReply> replies = lsmain();
+	REQUIRE(replies.size() == 2);
+	CHECK(replies[1].reply == "19:1:Locked");
+	CHECK(replies[1].type == CommandReplyType::STRING);
 }
 
 TEST_CASE_FIXTURE(TargetFixture, "main returns the id of the running main class when none is stored in flash") {
@@ -547,6 +720,14 @@ TEST_CASE_FIXTURE(SysFixture, "characterization: selecting a main class id that 
 	CHECK(run(FFBoardMain_commands::main, CMDtype::set, 200) == CommandStatus::OK);
 	CHECK(HostPlatform::flash().at(ADR_CURRENT_CONFIG) == FFBWheel::info.id);
 	CHECK(HostTarget::state().systemResets == 0);
+}
+
+// NEEDS REVIEW 58: the stored id is the lower 16 bits (0), but SystemCommands.cpp:161 compares the 64 bit value with
+// the running id 0, so selecting the running class this way still resets the chip
+TEST_CASE_FIXTURE(SysFixture, "characterization: selecting the running main class with an id above 16 bits resets the chip (NEEDS REVIEW 58)") {
+	CHECK(run(FFBoardMain_commands::main, CMDtype::set, 0x10000) == CommandStatus::OK);
+	CHECK(HostPlatform::flash().at(ADR_CURRENT_CONFIG) == 0);
+	CHECK(HostTarget::state().systemResets == 1);
 }
 
 // NEEDS REVIEW 58: isValidClassId takes a uint16_t, so 0x10001 is accepted as class 1 and stored as 1; it then differs
@@ -602,6 +783,14 @@ TEST_CASE_FIXTURE(SysFixture, "characterization: flashraw reading an address tha
 	REQUIRE(replies.size() == 1);
 	CHECK(replies[0].type == CommandReplyType::INT);
 	CHECK(replies[0].val == 0);
+}
+
+// NEEDS REVIEW 64: flashraw passes the 64 bit address and value to Flash_Write(uint16_t, uint16_t) without a range
+// check: 0x10005?0x10007 silently stores 5 at address 7 and a negative address wraps, both with OK
+TEST_CASE_FIXTURE(SysFixture, "characterization: flashraw truncates address and value to 16 bits (NEEDS REVIEW 64)") {
+	CHECK(run(FFBoardMain_commands::flashraw, CMDtype::setat, 0x10005, 0x10007) == CommandStatus::OK);
+	CHECK(run(FFBoardMain_commands::flashraw, CMDtype::setat, 9, -1) == CommandStatus::OK);
+	CHECK(HostPlatform::flash() == std::map<uint16_t, uint16_t>{{7, 5}, {0xFFFF, 9}});
 }
 
 TEST_CASE_FIXTURE(SysFixture, "flashraw without an address neither reads nor writes") {
@@ -745,20 +934,26 @@ TEST_CASE_FIXTURE(SysFixture, "sys.flashraw=value?address on the CDC port writes
 
 TEST_CASE_FIXTURE(SysFixture, "sys.format? on the CDC port is not executed because format is write only") {
 	HostPlatform::flash()[0x10] = 7;
-	cdc("sys.format?\n");
+	CHECK(cdc("sys.format?\n") == ""); // not executed: no reply at all (executed it would be "[sys.format?|OK]")
 	CHECK(HostPlatform::flash().size() == 1);
 }
 
 TEST_CASE_FIXTURE(SysFixture, "sys.reboot=1 on the CDC port is not executed because reboot is read only") {
 	cdc("sys.reboot=1\n");
 	CHECK(HostTarget::state().systemResets == 0);
+}
+
+TEST_CASE_FIXTURE(SysFixture, "sys.reboot? on the CDC port resets the chip") {
+	// Positive control of the access flag cases: the same command with an allowed type is executed
 	cdc("sys.reboot?\n");
 	CHECK(HostTarget::state().systemResets == 1);
 }
 
-TEST_CASE_FIXTURE(SysFixture, "sys.flashraw=value without address on the CDC port does not write the flash") {
-	cdc("sys.flashraw=42\n");
-	CHECK(HostPlatform::flash().empty());
+TEST_CASE_FIXTURE(SysFixture, "sys.errorsclr=1 on the CDC port is not executed because errorsclr is read only") {
+	// errorsclr ignores the command type, so only the access flag check of the command thread keeps the errors
+	ErrorHandler::addError(overtempError);
+	CHECK(cdc("sys.errorsclr=1\n") == "");
+	CHECK(ErrorHandler::getErrors().size() == 1);
 }
 
 } // TEST_SUITE
