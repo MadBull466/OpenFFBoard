@@ -584,14 +584,21 @@ TEST_CASE("the device descriptor sets subclass 2 and protocol 1 of the interface
 // Configuration descriptors
 // ---------------------------------------------------------------------------------------------------------------------
 
-TEST_CASE("every configuration descriptor's wTotalLength equals the sum of the lengths of its descriptors") {
+TEST_CASE("the descriptor chain of every configuration ends exactly at wTotalLength") {
 	for (const NamedConfig &nc : allConfigs()) {
 		INFO(nc.name);
 		const ConfigDesc c = parseConfig(nc.conf);
-		CHECK(c.error.empty());
+		CHECK(c.error.empty()); // no descriptor crosses wTotalLength, every bLength >= 2
 		INFO(c.error);
 		CHECK(c.parsedLength == c.totalLength);
 	}
+}
+
+TEST_CASE("the wTotalLength of the configurations built in this file equals the size of their arrays") {
+	// usb_descriptors.cpp's own arrays are declared without a size (extern const uint8_t[]): see the hand sums below
+	CHECK(parseConfig(conf_1axis).totalLength == sizeof(conf_1axis));
+	CHECK(parseConfig(conf_2axis_32b).totalLength == sizeof(conf_2axis_32b));
+	CHECK(parseConfig(conf_gamepad_32b).totalLength == sizeof(conf_gamepad_32b));
 }
 
 TEST_CASE("the configuration descriptors have the expected total lengths") {
@@ -600,6 +607,9 @@ TEST_CASE("the configuration descriptors have the expected total lengths") {
 	CHECK(parseConfig(usb_cdc_conf).totalLength == 9 + 66);
 	CHECK(parseConfig(usb_cdc_hid_conf_2axis).totalLength == 9 + 66 + 32);
 	CHECK(parseConfig(usb_cdc_hid_conf_gamepad).totalLength == 9 + 66 + 32);
+	// MIDI: audio control interface 9 + AC header 9 + MIDI streaming interface 9 + MS header 7 + jacks (in 6 + 6, out
+	// 9 + 9) + 2 x (audio endpoint 9 + class specific endpoint 5) = 92
+	CHECK(parseConfig(usb_cdc_midi_conf).totalLength == 9 + 66 + 92);
 }
 
 TEST_CASE("every configuration declares as many interfaces as it contains, numbered from 0 without gaps or duplicates") {
@@ -987,12 +997,10 @@ TEST_CASE("the FFB report sizes of the descriptors match the structs HidFFB copi
 	}
 }
 
-TEST_CASE("the set effect report is FFB_SetEffect_t with the directions of its axes followed by one 16 bit block offset per axis (NEEDS REVIEW 75)") {
+TEST_CASE("the set effect report of the 2 axis descriptors is FFB_SetEffect_t followed by one 16 bit block offset per axis") {
 	// The descriptors end the set effect report with the "type specific block offset" of each axis (2 bytes each),
 	// which FFB_SetEffect_t does not contain: HidFFB::hidOut copies min(sizeof(FFB_SetEffect_t), bufsize) and ignores
 	// them. The 1 axis descriptor has no Y direction, so its offset lands in FFB_SetEffect_t::directionY.
-	// NEEDS REVIEW 75: with the 1 axis descriptor (FFBWHEEL_USE_1AXIS_DESC, not used by the F407) FFB_SetEffect_t::directionY
-	// receives the type specific block offset of X. Is directionY ignored for 1 axis devices?
 	struct Expected {
 		const uint8_t *desc;
 		size_t size;
@@ -1001,7 +1009,6 @@ TEST_CASE("the set effect report is FFB_SetEffect_t with the directions of its a
 	const Expected expected[] = {
 		{hid_2ffb_desc, sizeof(hid_2ffb_desc), 2},
 		{variant_2axis::hid_2ffb_desc_32b, sizeof(variant_2axis::hid_2ffb_desc_32b), 2},
-		{variant_1axis::hid_1ffb_desc, sizeof(variant_1axis::hid_1ffb_desc), 1},
 	};
 	const size_t directions = 2 * sizeof(uint16_t); // directionX, directionY
 	for (const Expected &e : expected) {
@@ -1011,6 +1018,15 @@ TEST_CASE("the set effect report is FFB_SetEffect_t with the directions of its a
 		CHECK(reportBytes(r, MainKind::output, HID_ID_EFFREP) + 1 ==
 			  sizeof(FFB_SetEffect_t) - directions + e.axes * sizeof(uint16_t) + e.axes * sizeof(uint16_t));
 	}
+}
+
+TEST_CASE("characterization: the set effect report of the 1 axis descriptor puts the X block offset where FFB_SetEffect_t has directionY (NEEDS REVIEW 75)") {
+	// NEEDS REVIEW 75: the 1 axis descriptor (FFBWHEEL_USE_1AXIS_DESC, not used by the F407) has no Y direction, so the
+	// type specific block offset of X lands in FFB_SetEffect_t::directionY (HidFFB::hidOut copies min(sizeof, bufsize)).
+	// Is directionY ignored for 1 axis devices?
+	const HidReportDesc r = parseHidReport(variant_1axis::hid_1ffb_desc, sizeof(variant_1axis::hid_1ffb_desc));
+	REQUIRE(r.error.empty());
+	CHECK(reportBytes(r, MainKind::output, HID_ID_EFFREP) + 1 == sizeof(FFB_SetEffect_t)); // directionY replaced by the offset
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -1069,7 +1085,9 @@ TEST_CASE_FIXTURE(DescriptorFixture, "the interface strings end with the last 4 
 	const std::string serial = decodeString(tud_descriptor_string_cb(3, 0x0409));
 	REQUIRE(serial.size() == 24);
 	// Default uid: serial 30383632 34385111 00410032, so the suffix is (0032). Today: (4259) = first digits of 4259890
-	CHECK(decodeString(tud_descriptor_string_cb(4, 0x0409)) == "FFBoard CDC(" + serial.substr(20) + ")");
+	const std::string cdc = decodeString(tud_descriptor_string_cb(4, 0x0409)); // reaches HAL_GetUIDw0
+	REQUIRE_ALL_HAL_MODELLED();
+	CHECK(cdc == "FFBoard CDC(" + serial.substr(20) + ")"); // first failing assertion
 }
 
 TEST_CASE_FIXTURE(DescriptorFixture, "every string index used by the device and configuration descriptors has a string") {

@@ -16,6 +16,7 @@
 
 #include "ErrorHandler.h"
 #include "global_callbacks.h"
+#include "ledEffects.h"
 #include "voltagesense.h"
 
 #include <cstdint>
@@ -100,14 +101,14 @@ TEST_CASE_FIXTURE(TargetFixture, "without a VREFINT conversion all voltages are 
 	REQUIRE(ADC1_BUF[7] == 0);
 	CHECK(adcValToVoltage(4095) == 0.0f);
 	startADC();
-	HostTarget::adcConvert(&hadc2, {1000, 2000});
+	REQUIRE(HostTarget::adcConvert(&hadc2, {1000, 2000}));
 	CHECK(getExtV() == 0);
 	CHECK(getIntV() == 0);
 }
 
 TEST_CASE_FIXTURE(Vref3300Fixture, "getExtV and getIntV read ADC2 rank 0 and 1 times the default multiplier 30.67") {
 	setVSenseMult(30.67f); // VOLTAGE_MULT_DEFAULT (the fixture changed it)
-	HostTarget::adcConvert(&hadc2, {1241, 2482}); // 1000 mV and 2000 mV at the pins
+	REQUIRE(HostTarget::adcConvert(&hadc2, {1241, 2482})); // 1000 mV and 2000 mV at the pins
 	CHECK(getExtV() == 30670);
 	CHECK(getIntV() == 61340);
 }
@@ -115,13 +116,13 @@ TEST_CASE_FIXTURE(Vref3300Fixture, "getExtV and getIntV read ADC2 rank 0 and 1 t
 TEST_CASE_FIXTURE(TargetFixture, "the default multiplier is VOLTAGE_MULT_DEFAULT 30.67") {
 	HostTarget::setAdcCalibration(1500, 950, 1200);
 	startADC();
-	HostTarget::adcConvert(&hadc1, {0, 0, 0, 0, 0, 0, 950, 1500});
-	HostTarget::adcConvert(&hadc2, {1241, 0});
+	REQUIRE(HostTarget::adcConvert(&hadc1, {0, 0, 0, 0, 0, 0, 950, 1500}));
+	REQUIRE(HostTarget::adcConvert(&hadc2, {1241, 0}));
 	CHECK(getExtV() == 30670);
 }
 
 TEST_CASE_FIXTURE(VoltageFixture, "setVSenseMult changes the scaling of both voltages") {
-	HostTarget::adcConvert(&hadc2, {1000, 500});
+	REQUIRE(HostTarget::adcConvert(&hadc2, {1000, 500}));
 	CHECK(getExtV() == 20000);
 	CHECK(getIntV() == 10000);
 	setVSenseMult(2.5f);
@@ -131,7 +132,7 @@ TEST_CASE_FIXTURE(VoltageFixture, "setVSenseMult changes the scaling of both vol
 
 TEST_CASE_FIXTURE(VoltageFixture, "the scaled voltage is truncated to whole millivolts") {
 	setVSenseMult(1.99f);
-	HostTarget::adcConvert(&hadc2, {1, 3}); // 1.99 mV and 5.97 mV
+	REQUIRE(HostTarget::adcConvert(&hadc2, {1, 3})); // 1.99 mV and 5.97 mV
 	CHECK(getExtV() == 1);
 	CHECK(getIntV() == 5);
 }
@@ -160,7 +161,11 @@ TEST_CASE_FIXTURE(VoltageFixture, "the brake is checked from 6.5 V internal volt
 }
 
 TEST_CASE_FIXTURE(VoltageFixture, "a supply voltage of 6.5 V enables the brake check") {
-	convert(6500, 12000); // VINT 5.5 V above VEXT
+	// Negative differences: brake when VINT > VEXT - 2 V, so a VINT below 6.5 V can switch the brake
+	setupBrakePin(-2000, -3000, 65000);
+	convert(6400, 6000); // both below 6.5 V: not checked (pin not written)
+	CHECK_FALSE(brakeOn());
+	convert(6500, 6000); // the supply reaches 6.5 V: checked, 6 V > 6.5 V - 2 V
 	CHECK(brakeOn());
 }
 
@@ -276,16 +281,34 @@ TEST_CASE_FIXTURE(VoltageFixture, "a brake that switched off normally is still a
 	CHECK(brakeOn());
 }
 
-TEST_CASE_FIXTURE(VoltageFixture, "characterization: the brake resistor shut down reports no error and triggers no emergency stop (NEEDS REVIEW 73)") {
-	// NEEDS REVIEW 73: voltagesense.cpp:24 defines the critical error "Brake resistor stuck on" but line 88 does not add it
-	// ("can not create error here in ISR") and nothing adds it later. The over-voltage protection is then disabled
-	// until reboot without any indication. Should the error be reported from thread context (and the motor stopped)?
+TEST_CASE_FIXTURE(VoltageFixture, "a brake resistor shutdown reports the critical error Brake resistor stuck on" *
+		  KNOWN_ISSUE("voltagesense.cpp:24 defines the critical error 'Brake resistor stuck on', but the addError call at line 88 "
+					  "is commented out (ISR context) and nothing reports it later: the shutdown is silent")) {
 	convert(12000, 20000);
 	HostPlatform::advanceMs(5001);
 	convert(12000, 20000);
 	REQUIRE_FALSE(brakeOn());
-	CHECK(ErrorHandler::getErrors().empty());
-	CHECK(HostPlatform::leds().errPulses == 0);
+	REQUIRE_ALL_HAL_MODELLED();
+	bool reported = false;
+	for (const Error &e : ErrorHandler::getErrors()) {
+		reported |= e.code == ErrorCode::brakeResistorFailure && e.type == ErrorType::critical;
+	}
+	CHECK(reported); // first failing assertion: no error
+}
+
+TEST_CASE_FIXTURE(VoltageFixture, "characterization: a brake resistor shutdown does not signal on the err LED and stops nothing (NEEDS REVIEW 73)") {
+	// NEEDS REVIEW 73: besides the missing error (KNOWN_ISSUE above), voltagesense.cpp:83-88 only switches the brake
+	// pin off: no emergency stop of the motors and no err LED pulse; the over-voltage protection stays disabled until
+	// reboot. Should the motors be stopped?
+	setErrLed(0);
+	convert(12000, 20000);
+	HostPlatform::advanceMs(5001);
+	convert(12000, 20000);
+	REQUIRE_FALSE(brakeOn());
+	CHECK_FALSE(HostTarget::outputPin(LED_ERR_GPIO_Port, LED_ERR_Pin));
+	HostPlatform::advanceMs(1);
+	updateLeds();
+	CHECK_FALSE(HostTarget::outputPin(LED_ERR_GPIO_Port, LED_ERR_Pin));
 }
 
 TEST_CASE_FIXTURE(VoltageFixture, "braking that starts at tick 0 is also shut down after 5 s" *
@@ -323,7 +346,7 @@ TEST_CASE_FIXTURE(Vref3300Fixture, "the chip temperature at the first calibratio
 }
 
 TEST_CASE_FIXTURE(Vref3300Fixture, "chip temperatures below the first calibration point are negative offsets from 30 C") {
-	convertTemp(700); // (700 - 950) * 80 / 250 = -80
+	convertTemp(700); // (700 - 950) * 80 / 250 = -80 C from 30 C: -50 C
 	CHECK(getChipTemp() == -50);
 }
 
@@ -360,18 +383,18 @@ TEST_CASE_FIXTURE(TargetFixture, "the chip temperature is 0 without a temperatur
 	HostTarget::setAdcCalibration(1500, 950, 1200);
 	startADC();
 	CHECK(getChipTemp() == 0); // nothing converted
-	HostTarget::adcConvert(&hadc1, {0, 0, 0, 0, 0, 0, 1075, 0});
+	REQUIRE(HostTarget::adcConvert(&hadc1, {0, 0, 0, 0, 0, 0, 1075, 0}));
 	CHECK(getChipTemp() == 0); // no VREFINT
-	HostTarget::adcConvert(&hadc1, {0, 0, 0, 0, 0, 0, 0, 1500});
+	REQUIRE(HostTarget::adcConvert(&hadc1, {0, 0, 0, 0, 0, 0, 0, 1500}));
 	CHECK(getChipTemp() == 0); // no temperature reading
 }
 
 TEST_CASE_FIXTURE(TargetFixture, "a missing reading does not enter the chip temperature average") {
 	HostTarget::setAdcCalibration(1500, 950, 1200);
 	startADC();
-	HostTarget::adcConvert(&hadc1, {0, 0, 0, 0, 0, 0, 0, 1500});
+	REQUIRE(HostTarget::adcConvert(&hadc1, {0, 0, 0, 0, 0, 0, 0, 1500}));
 	CHECK(getChipTemp() == 0);
-	HostTarget::adcConvert(&hadc1, {0, 0, 0, 0, 0, 0, 1200, 1500});
+	REQUIRE(HostTarget::adcConvert(&hadc1, {0, 0, 0, 0, 0, 0, 1200, 1500}));
 	CHECK(getChipTemp() == 110); // first value of the average, not (0 + 110) / 2
 }
 

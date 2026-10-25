@@ -135,11 +135,12 @@ TEST_CASE_FIXTURE(TargetFixture, "a sys LED pulse ends after its 25 ms period an
 	pulseSysLed();
 	CHECK(HostTarget::outputPin(LED_SYS_GPIO_Port, LED_SYS_Pin)); // blinkLed: on (state 0)
 
-	HostPlatform::advanceMs(25);
+	// The exact switch time (25 or 26 ms: strict > in ledEffects.cpp:85) is NEEDS REVIEW 70, checked in test_led_effects.cpp
+	HostPlatform::advanceMs(24);
 	updateLeds();
-	CHECK(HostTarget::outputPin(LED_SYS_GPIO_Port, LED_SYS_Pin)); // HAL_GetTick() > tick + period is not yet true
+	CHECK(HostTarget::outputPin(LED_SYS_GPIO_Port, LED_SYS_Pin)); // still within the 25 ms period
 
-	HostPlatform::advanceMs(1);
+	HostPlatform::advanceMs(3);
 	updateLeds();
 	CHECK_FALSE(HostTarget::outputPin(LED_SYS_GPIO_Port, LED_SYS_Pin)); // toggled off, last blink step
 	CHECK(sysled.period == 25);
