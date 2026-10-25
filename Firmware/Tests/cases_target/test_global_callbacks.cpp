@@ -47,15 +47,21 @@
  */
 extern "C" __attribute__((weak)) void tud_suspend_cb(bool remote_wakeup_en) { (void)remote_wakeup_en; }
 
-/** The firmware's suspend callback (global_callbacks.cpp:357): an overload with C++ linkage, declared by no header */
-void tud_suspend_cb();
+// The firmware's own tud_suspend_cb() (global_callbacks.cpp:365, a C++ overload without the bool parameter, bug 42) is
+// deliberately not declared or called here, so the file still links when the firmware is fixed.
+
 /**
- * The firmware's HID transfer complete callback (global_callbacks.cpp:340) takes `uint8_t len`, TinyUSB declares and
- * calls tud_hid_report_complete_cb(uint8_t, uint8_t const*, uint16_t) (hid_device.h:146, hid_device.c:389): the
- * firmware function is a C++ overload that TinyUSB never calls. Without effect today (both transferComplete
- * implementations are empty). Called directly here.
+ * Model of TinyUSB's weak default of the HID transfer complete callback (USB/class/hid/hid_device.c:87, declared in
+ * hid_device.h:146 with `uint16_t len`, called at hid_device.c:389). The firmware defines it with `uint8_t len`
+ * (global_callbacks.cpp:340, bug 43): a C++ overload that TinyUSB never calls, so today this stand-in runs. A firmware
+ * definition with the TinyUSB signature overrides it. Without effect today (both transferComplete implementations are
+ * empty).
  */
-void tud_hid_report_complete_cb(uint8_t itf, uint8_t const *report, uint8_t len);
+extern "C" __attribute__((weak)) void tud_hid_report_complete_cb(uint8_t instance, uint8_t const *report, uint16_t len) {
+	(void)instance;
+	(void)report;
+	(void)len;
+}
 
 namespace {
 
@@ -785,14 +791,15 @@ TEST_CASE_FIXTURE(HidCallbackFixture, "a get report request without a HID handle
 TEST_CASE_FIXTURE(HidCallbackFixture, "a completed HID IN transfer is accepted with and without HID command interface and handler") {
 	// NEEDS REVIEW 61: UsbHidHandler::transferComplete (UsbHidHandler.h:27) is not virtual, so global_callbacks.cpp:345 always
 	// calls the empty base version; a HID handler can not get the completion. No current handler needs it. TinyUSB
-	// does not call this function at all (len parameter type, see the declaration above).
+	// does not call the firmware function at all (len parameter type, bug 43): today this reaches the weak stand-in
+	// above, after a fix the firmware function.
 	const uint8_t report[] = {1, 2, 3};
-	tud_hid_report_complete_cb(0, report, static_cast<uint8_t>(sizeof(report)));
+	tud_hid_report_complete_cb(0, report, static_cast<uint16_t>(sizeof(report))); // As hid_device.c:389 calls it
 
 	HID_CommandInterface hidCmd;
 	RecordingHidHandler handler;
 	handler.registerHidCallback();
-	tud_hid_report_complete_cb(0, report, static_cast<uint8_t>(sizeof(report)));
+	tud_hid_report_complete_cb(0, report, static_cast<uint16_t>(sizeof(report))); // As hid_device.c:389 calls it
 
 	CHECK(handler.outs.empty());
 	CHECK(handler.gets.empty());
@@ -812,6 +819,8 @@ TEST_CASE_FIXTURE(CdcFixture, "received CDC data pulses the system LED and tells
 }
 
 TEST_CASE_FIXTURE(CdcFixture, "received CDC data before a main class exists only pulses the system LED") {
+	// On the host mainclass starts as nullptr. On the target mainclass is in the NOLOAD .ccmram section and not zeroed
+	// before cppmain sets it, so this null check only helps once cppmain has run (see NEEDS REVIEW 63).
 	REQUIRE(mainclass == nullptr);
 	uint32_t pulses = HostPlatform::leds().sysPulses;
 
@@ -831,26 +840,25 @@ TEST_CASE_FIXTURE(CdcFixture, "a CDC transmit complete sends the remainder of a 
 	CHECK(HostUsb::state().cdcTx == "abcdef");
 }
 
-TEST_CASE_FIXTURE(CallbackFixture, "USB mount and resume resume the main class, unmount and suspend suspend it") {
-	// tud_suspend_cb() here is the firmware function (global_callbacks.cpp:357), called directly; TinyUSB calls
-	// tud_suspend_cb(bool) instead (see the KNOWN_ISSUE below)
-	// NEEDS REVIEW 63: the four callbacks (global_callbacks.cpp:356-372) dereference mainclass without the null check of
+TEST_CASE_FIXTURE(CallbackFixture, "USB mount and resume resume the main class and unmount suspends it") {
+	// Suspend is covered by the KNOWN_ISSUE below (bug 42): TinyUSB calls tud_suspend_cb(bool), which the firmware
+	// does not define.
+	// NEEDS REVIEW 63: the four callbacks (global_callbacks.cpp:365-380) dereference mainclass without the null check of
 	// tud_cdc_rx_cb. Not tested with nullptr (crash): unreachable today, the USB task is only started by
 	// mainclass->usbInit() after cppmain has set mainclass (cppmain.cpp:93-100). A null check would make it robust.
 	RecordingMain main;
 	mainclass = &main;
 
 	tud_mount_cb();
-	tud_suspend_cb();
-	tud_resume_cb();
 	tud_umount_cb();
+	tud_resume_cb();
 
-	CHECK(main.events == std::vector<std::string>{"resume", "suspend", "resume", "suspend"});
+	CHECK(main.events == std::vector<std::string>{"resume", "suspend", "resume"});
 	mainclass = nullptr;
 }
 
 TEST_CASE_FIXTURE(CallbackFixture, "a USB bus suspend reported by TinyUSB suspends the main class" *
-	KNOWN_ISSUE("global_callbacks.cpp:357 defines tud_suspend_cb() without the bool parameter of TinyUSB's "
+	KNOWN_ISSUE("global_callbacks.cpp:365 defines tud_suspend_cb() without the bool parameter of TinyUSB's "
 				"tud_suspend_cb(bool remote_wakeup_en) (usbd.h:162, called at usbd.c:659): a C++ overload, so TinyUSB "
 				"keeps its empty weak default and the main class is never suspended on a bus suspend")) {
 	RecordingMain main;

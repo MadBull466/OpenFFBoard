@@ -266,11 +266,21 @@ TEST_CASE_FIXTURE(CppmainFixture, "the RTOS run time counter is the microsecond 
 }
 
 TEST_CASE_FIXTURE(CppmainFixture, "malloc and free of cppmain allocate usable memory from the RTOS heap") {
+	const HostRtos::HeapStats before = HostRtos::heapStats();
+
 	auto *p = static_cast<uint8_t *>(hosttest_cppmain_malloc(64));
+
 	REQUIRE(p != nullptr);
+	CHECK(HostRtos::heapStats().mallocCalls == before.mallocCalls + 1);
+	CHECK(HostRtos::heapStats().lastMallocSize == 64);
+	CHECK(HostRtos::heapStats().lastMallocResult == p);
 	std::memset(p, 0xA5, 64);
 	CHECK(p[63] == 0xA5);
+
 	hosttest_cppmain_free(p);
+
+	CHECK(HostRtos::heapStats().freeCalls == before.freeCalls + 1);
+	CHECK(HostRtos::heapStats().lastFreed == p);
 }
 
 } // TEST_SUITE cppmain
@@ -355,14 +365,15 @@ TEST_CASE_FIXTURE(UsbFixture, "interface strings start at index 4 without serial
 	CHECK(descString(device.getUsbStringDesc(5, 0x0409)) == "HID");
 }
 
-TEST_CASE_FIXTURE(UsbFixture, "characterization: interface strings get the first appendSerial decimal digits of unique id word 0 in brackets") {
-	// NEEDS REVIEW 62: USBdevice.h documents appendSerial as "adds the last n chars of the serial number", but
-	// USBdevice.cpp:93 appends the FIRST n characters of the DECIMAL string of HAL_GetUIDw0() (the serial number is
-	// hex, words 2..0). 0x00410032 = 4259890 -> "4259". Intended?
-	HostTarget::state().uid[0] = 0x00410032;
+TEST_CASE_FIXTURE(UsbFixture, "with appendSerial 4 an interface string is followed by 4 characters in brackets") {
+	// Which 4 characters is bug 47 (USBdevice.cpp:81, KNOWN_ISSUE in test_usb_descriptors.cpp); this holds either way
 	USBdevice device(&compositeDesc(), usb_cdc_conf, &strings); // appendSerial default 4
 
-	CHECK(descString(device.getUsbStringDesc(4, 0x0409)) == "CDC(4259)");
+	const std::string s = descString(device.getUsbStringDesc(4, 0x0409));
+
+	CHECK(s.size() == 9); // "CDC" + "(" + 4 + ")"
+	CHECK(s.rfind("CDC(", 0) == 0);
+	CHECK(s.back() == ')');
 }
 
 TEST_CASE_FIXTURE(UsbFixture, "a string index beyond the interface strings has no string descriptor") {
@@ -392,7 +403,7 @@ TEST_CASE_FIXTURE(UsbFixture, "a string longer than the descriptor buffer is cut
 }
 
 TEST_CASE_FIXTURE(UsbFixture, "a string of 256 characters is cut to 31 characters" *
-	KNOWN_ISSUE("USBdevice.cpp:102 std::min<uint8_t>(USB_STRING_DESC_BUF_SIZE-1, field.length()) truncates the length to "
+	KNOWN_ISSUE("USBdevice.cpp:87 std::min<uint8_t>(USB_STRING_DESC_BUF_SIZE-1, field.length()) truncates the length to "
 				"8 bit before the comparison: a 256 character string becomes 0 characters (latent: no current string "
 				"has 256 characters or more)")) {
 	usb_string_desc_t longStrings{0x0409, "Maker", std::string(256, 'x'), {}};
