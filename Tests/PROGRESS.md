@@ -9,7 +9,7 @@
 - **Current phase:** P4 done, **awaiting my approval** at the P4 gate. P5 not started.
 - **Phase status:** batch 0, module tests (A system commands, B callbacks/start-up, C LEDs/voltage/descriptors), review (p4r1-p4r3) and fixes done; gate green in 6 variants (see "P4 results").
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
-- **Last commit:** P4 final commit (see phase checklist).
+- **Last commit:** `8e807f05` (P4 final).
 - **Last updated:** 2026-10-25
 - **Last session summary:** P4: the real `global_callbacks.cpp`, `cppmain.cpp` (through a wrapper renaming its malloc/free), `voltagesense.cpp`, `ledEffects.cpp` replace the stubs in `ffb_target_tests`; F6 fake ADC, CAN rx FIFOs, TIM7 tick, IWDG, OTP model, RTOS heap counters, MinGW `mallinfo` shim (unverified). 3 module agents, 3 fresh reviewers, fixes. `ffb_target_tests` 675 cases. P4 files 93.8-100 %; all in-scope sources 62.6 % (was 55.3 %). New bugs 42-52 (incl. USB bus suspend never reaching the main class), NEEDS REVIEW 53-75. Usage limits interrupted agents several times and `/tmp` was cleaned again; work was merged early each time, nothing lost.
 
@@ -30,7 +30,7 @@ After approval: P5 (buttons and analog inputs in `ffb_target_tests`: LocalButton
 | P1 Gaps in compiled files | `ffb_unit_tests` | about 470 (measured +504: 2,640 lines, 32.4 %) | done | yes, 2026-10-23 | `a79ead3a` (tests), `7a35d2f1` (review fixes) |
 | P2 Axis and main classes | `ffb_target_tests` (new) | about 790 (measured: total 4,164 lines, 50.5 %) | done | yes, 2026-10-23 | `4aec799c` batch 0, `760f6f1a` tests, `76d89b40` infra review fixes, `41112d85` review fixes |
 | P3 Flash and persistence | `ffb_flash_tests` (new) | about 365 (measured: total 4,480 lines, 55.3 %) | done | yes, 2026-10-24 | `bfe6ed56` batch 0, `ac030b2c` B tests, `b93f230e` A tests, `6410fb07` macOS skip, `8b178bbf` A review fixes, `52dce9ae` B review fixes |
-| P4 System, callbacks, misc | `ffb_target_tests` | about 460 (measured: total 5,078 lines, 62.6 %) | done, awaiting approval | | `0644984e` batch 0, `00a1e00b`/`e7d467d4`/`61a20f9f` tests, `90554aaa` infra review fixes, `c00b7e2b` B fixes, `e51bc104` A fixes, P4 final commit (git log `Tests: P4 LED, voltage and descriptor review fixes`) |
+| P4 System, callbacks, misc | `ffb_target_tests` | about 460 (measured: total 5,078 lines, 62.6 %) | done, awaiting approval | | `0644984e` batch 0, `00a1e00b`/`e7d467d4`/`61a20f9f` tests, `90554aaa` infra review fixes, `c00b7e2b` B fixes, `e51bc104` A fixes, `8e807f05` C fixes + results |
 | P5 Buttons and analog | `ffb_target_tests` | about 775 | not started | | |
 | P6 Encoders and buses | `ffb_target_tests` | about 640 | not started | | |
 | P7 CAN and serial FFB | `ffb_target_tests` | about 420 | not started | | |
