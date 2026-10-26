@@ -137,6 +137,7 @@ Test cases marked `KNOWN_ISSUE` and the suspected defects behind them are listed
 | `MockMotorDriver` | `MotorDriver` recording torque, start/stop, emergency stop. Readiness and slew rate are controlled by the test. |
 | `MockEncoder` | `Encoder` with a position set by the test in counts, rotations or degrees. |
 | `MockCANPort` | `CANPort` recording sent frames. Received frames are injected in interrupt context. |
+| `MockButtonSource`, `MockAnalogSource` | `ButtonSource` / `AnalogSource` with test-set buttons / axis values (`ffb_target_tests`), selectable through the real choosers (`registry()`, `support/InputSources.h`). |
 | `PidHost` | Simulates the PID driver of the host: create effect, set effect/condition/periodic..., effect operation, device control. |
 | `Axis` (fake) | Replaces the real axis for the effect calculation: metrics are set by the test, the effect torque is recorded. |
 | `CommandSystemFixture` | Resets everything, owns the command thread. `process()` runs all threads until idle. |
@@ -205,7 +206,7 @@ A second executable built by the same `CMakeLists.txt` and run by `ctest`. It co
 feature set of the F407 target without the motor drivers and MIDI, so `Axis.cpp`, `AxesManager`, the main classes
 (`FFBWheel`, `FFBJoystick`, `FFBHIDExt`, ...), the class registries, inputs, the USB device class and (since P4) the
 system sources `cppmain.cpp`, `global_callbacks.cpp`, `voltagesense.cpp` and `ledEffects.cpp` are real code.
-Later phases add inputs, encoders, buses and CAN.
+Later phases add encoders, buses and CAN; since P5 the SPI and I2C HAL are faked (inputs).
 
 * **Test cases:** `cases_target/test_*.cpp` (own glob; `cases/` belongs to `ffb_unit_tests`).
 * **Feature header:** `platform/target_f407/target_constants.h` (copy of the F407 header without `TMC4671DRIVER`,
@@ -217,8 +218,40 @@ Later phases add inputs, encoders, buses and CAN.
   (`timerUpdate`, `timerRunning`), EXTI (`triggerExti`), GPIO levels (`setPin`, `outputPin`), chip ids, recorded
   resets and DFU requests, the USB device task (`queueUsbEvent`). `platform/src/host_target_config.cpp` replaces
   `cpp_target_config.cpp`: the same SPI/I2C/UART port objects, but the global `canport` is a `MockCANPort`
-  (`HostTarget::canPort()`, handle `&hcan1` like `CANPort_2B`) until the fake HAL CAN exists.
-  `platform/src/host_stubs_target.cpp` stubs the SPI and I2C HAL functions (no fake yet).
+  (`HostTarget::canPort()`, handle `&hcan1` like `CANPort_2B`) until the fake HAL CAN exists. The SPI/I2C handles
+  start as after `MX_SPIx_Init` / `MX_I2C1_Init` of `main.c` (master, 2 lines, 8 bit, the CPOL/CPHA/prescaler of each
+  port; I2C1 100 kHz, 7 bit).
+* **Bus part (P5)** (`platform/src/host_target_bus.cpp`, control in `support/HostTarget.h`), each function citing the
+  `stm32f4xx_hal_spi.c` / `stm32f4xx_hal_i2c.c` function it models:
+  * **Fake HAL SPI (F4):** `HAL_SPI_Init`, `HAL_SPI_Transmit/_Receive/_TransmitReceive` (blocking, `_IT`, `_DMA`),
+    `HAL_SPI_GetState/_GetError`: State machine (READY, BUSY_TX/RX/TX_RX; `HAL_BUSY` while not READY, `__HAL_LOCK`),
+    the master 2-line receive as `TransmitReceive(pData, pData)` (the buffer is clocked out as dummy bytes),
+    `HAL_ERROR` for missing buffers. Every transfer is recorded (`spiTransfers`: call, mode, size, tx/rx bytes, the
+    port configuration, CS pin levels at start and end, result). MISO bytes: queued responses (`spiQueueRx`), a
+    responder function (`spiSetResponder`), the idle response (`spiSetIdleRx`), padded with 0x00. IT/DMA transfers
+    stay pending until `spiComplete` (rx data, State READY, for DMA the half transfer callback, then
+    `HAL_SPI_TxCpltCallback` / `RxCplt` / `TxRxCplt` in interrupt context) or `spiFail` (`HAL_SPI_ErrorCallback`).
+    Injection: `spiFailNextBlocking` (`HAL_TIMEOUT` / `HAL_ERROR`), `spiFailNextDmaStart` (State stays busy like
+    the HAL). Slave, 1-line, rx-only and 16-bit transfers are not modelled (recorded as unmodelled, `HAL_ERROR`).
+  * **Fake HAL I2C (F5):** `HAL_I2C_Init/_DeInit`, `HAL_I2C_Master_Transmit/_Receive` (blocking, `_IT`, `_DMA`),
+    `HAL_I2C_Mem_Write/_Read` (blocking, `_IT`), `HAL_I2C_IsDeviceReady`, `HAL_I2C_GetState/_GetMode/_GetError` on a
+    bus with scripted devices per 7-bit address (`i2cDevice`): register model with pointer register (width, auto
+    increment, `setRegister16` big endian) or plain model (PCF8574: reads return `registers[0]`), scripted reads
+    (`readQueue`), NACK of the address (`nackAddress`, `nackAddressCount` for busy devices) or of a written byte
+    (`nackWriteByte`): `HAL_ERROR` / `HAL_I2C_ERROR_AF`, and a hook (`onTransfer`) for device behaviour. IT transfers
+    stay pending until `i2cComplete` (`HAL_I2C_MasterTx/RxCpltCallback`, `MemTx/RxCpltCallback`, or
+    `HAL_I2C_ErrorCallback` with AF on a NACK) or `i2cFail` (BERR, ARLO, ...). `i2cSetBusBusy` (BUSY flag stuck:
+    `HAL_BUSY`, TIMEOUT), `i2cFailNextBlocking`. `hi2c1` has no DMA stream (`stm32f4xx_hal_msp.c`): its `_DMA` calls
+    return `HAL_ERROR` with `HAL_I2C_ERROR_DMA_PARAM` like the HAL (`i2cSetDmaLinked` for a linked handle).
+  * **CAN frames to input sources:** `HostTarget::canReceive(id, data)` applies the filters of the `canport` mock
+    (started, active filter matches, FIFO of the filter), then `canQueueRx` + `canRxInterrupt`: the frame reaches every
+    `CanHandler` (e.g. `CanButtons`, `CanAnalog`) through `global_callbacks.cpp` like on the target.
+  * Timing is not modelled: blocking calls take no simulated time; timeouts are injected.
+* **Input source mocks (P5, F12):** `mocks/MockButtonSource.h`, `mocks/MockAnalogSource.h` implement `ButtonSource` /
+  `AnalogSource` (test sets the bits / axis values, records the reads); `registry()` is the firmware registry
+  (`all_buttonsources` / `all_analogsources`) plus the mock with selection id 15. `support/InputSources.h` replaces the
+  choosers of `SelectableInputs` (also the private base of `FFBHIDMain`): `useMockRegistries(InputSources::of(wheel))`,
+  then `btntypes` / `aintypes` with bit 15 create the mock through the real `ClassChooser`.
 * **System part (P4)** (`platform/src/host_target_system.cpp`, control in `support/HostTarget.h`), each function citing
   the ST HAL / main.c function it models:
   * **Fake HAL ADC (F6):** `HAL_ADC_Start/_Stop/_PollForConversion/_GetValue/_Start_DMA/_Stop_DMA` with the ADC
@@ -260,15 +293,20 @@ Later phases add inputs, encoders, buses and CAN.
   * **MinGW (unverified, no MinGW toolchain here):** `SystemCommands.cpp` uses `struct mallinfo` / `mallinfo()` from
     `<malloc.h>`, which mingw-w64 does not declare. Under `if(MINGW)` the include path gets `platform/mingw`
     (`malloc.h` shim with `#include_next`) and `platform/mingw/host_mallinfo.cpp` (returns zeros) is compiled.
-* **Unmodelled-HAL guard:** a HAL function without a fake (SPI, I2C) records its name in
+* **Unmodelled-HAL guard:** every HAL function the compiled sources call has a fake. A call the fake does not model
+  (e.g. SPI slave mode, I2C 10-bit addressing, `triggerExti` on a pin without EXTI line) records a description in
   `HostTarget::state().unmodelledHalCalls` and returns `HAL_ERROR`; `TargetFixture` fails the test at the end if the
   list is not empty. In `KNOWN_ISSUE` tests use `REQUIRE_ALL_HAL_MODELLED()` before the defect assertion.
 * **Fixtures** (`support/AxisFixture.h`): `TargetFixture` resets everything (`FirmwareFixture` plus `HostTarget`
   including the system part: fake ADC and ADC buffers, TIM7, IWDG, CAN FIFOs, the globals of `cppmain.cpp`,
   `voltagesense.cpp` and `ledEffects.cpp`; the main class created by `runCppmain`, `PersistentStorage` startup flag,
-  `SystemCommands::errorPrintingEnabled`, global HID handler, `mainclass`, `usb_device`; `HostTarget.h` lists the
-  global port objects that can not be reset yet). After `HostTarget::reset` the three LEDs are on (main.c switches
-  them on before the scheduler starts). `AxisFixture` creates real `Axis` objects with `MockMotorDriver` and
+  `SystemCommands::errorPrintingEnabled`, global HID handler, `mainclass`, `usb_device`; since P5 also the fake HAL
+  SPI/I2C, the global ports `external_spi` / `motor_spi` / `ext3_spi` (CS pins free, no current device, not exclusive,
+  semaphore free) and `i2cport` (no users, no current device, speed preset 0, delayed restore pending; private members
+  reached through explicit-instantiation member pointers in `host_target_config.cpp` only), the SPI/I2C handler lists
+  (back to the static-init handlers: `~I2CHandler` does not unregister, suspected bug), `MockButtonSource` /
+  `MockAnalogSource::creatable`; not reset: the device pointer of `motor_uart`). Delete devices that use a port inside
+  the test. After `HostTarget::reset` the three LEDs are on (main.c switches them on before the scheduler starts). `AxisFixture` creates real `Axis` objects with `MockMotorDriver` and
   `MockEncoder` selected through the public `driverChooser` / `encoderChooser`, a real `EffectsCalculator`, `HidFFB`
   and a `PidHost`; `update()` / `run(ms)` run the FFB cycle like `FFBHIDMain::updateControl`.
 * **`DELETES_FFBHIDMAIN`:** test cases that delete an `FFBHIDMain` main class carry this marker. Deleting one is

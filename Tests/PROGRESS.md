@@ -7,7 +7,7 @@
 ## Current state
 
 - **Current phase:** P5 (buttons and analog inputs in `ffb_target_tests`), started 2026-10-25. P4 approved 2026-10-25.
-- **Phase status:** batch 0 (F4 fake SPI, F5 fake I2C, CAN pieces, MockButtonSource/MockAnalogSource, fixtures, smoke tests) by one agent in the repo checkout, no commits by the agent.
+- **Phase status:** batch 0 done (see "P5 batch 0"); module plan written ("P5 plan"); 2 module agents running.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** `8e807f05` (P4 final).
 - **Last updated:** 2026-10-25
@@ -15,7 +15,7 @@
 
 ## Next action
 
-**P5 batch 0 running.** Then: review and commit batch 0, P5 module plan (buttons; analog), module agents, review, fixes, gate, coverage (85 % per file without hardware-only code), stop for approval.
+**P5 batch 0 done; module agents running.** Then: review and commit batch 0, P5 module plan (buttons; analog), module agents, review, fixes, gate, coverage (85 % per file without hardware-only code), stop for approval.
 
 ## Phase checklist
 
@@ -301,8 +301,8 @@ Hard gate for Batch 0: after every CMake change `ffb_unit_tests` must still give
 | F1 | `FFB_TESTS_EXCLUDE` cache variable (default: the `effectsForces` case name) passed to `add_test` as `--test-case-exclude=` | `CMakeLists.txt` | Make `ctest` green and the exclusion visible in one place. Check CI impact first (older compilers do not abort on this case) | **done** `8861c911` (2026-10-21). Excluding the case on older compilers only skips a `KNOWN_ISSUE_UB` case; no CI runs the tests (P0) |
 | F2 | Keep `ffb_unit_tests` exactly as is (same sources, same feature set, same fake `Axis.h`). Add `ffb_target_tests` (real `Axis.cpp`/`Axis.h`, `AxesManager`, `FFBHIDMain`, inputs, encoders, buses, CAN, system; no `fakes/Axis.h`), `ffb_rtos_tests` (the `cpp_freertos` wrappers), `ffb_flash_tests` (real `flash_helpers.cpp` + `eeprom.c` on fake HAL FLASH, without the `Flash_*` fake) and `ffb_usb_tests` (Tier B, real TinyUSB device code + fake USB controller). Firmware sources are compiled per executable; only the platform fakes are shared (static library). New cases go in separate directories (e.g. `cases_axis/`, `cases_flash/`, `cases_usb/`) outside the existing `cases/test_*.cpp` glob. Update `CMakePresets.json` so `cmake --preset host` builds all and `ctest` runs all | `CMakeLists.txt`, `CMakePresets.json` | The fake `Axis.h` and fake `Flash_*` cannot coexist with the real code in one binary. The README says every `cases/test_*.cpp` is picked up automatically, so new executables must not share that directory | approved |
 | F3 | Own feature header for the new executables: read the real F407 target's `target_constants.h`, copy its feature macros, remove the driver macros (`TMC4671DRIVER`, `PWMDRIVER`, `ODRIVE`, `VESC`, `SIMPLEMOTION`, `RMDCAN`, `TMCDEBUG`), leave `MIDI` off, add pin tables (`BUTTON_PINS`, `ADC_PINS`, ...). Show me the resulting diff before use. `ffb_unit_tests` keeps its current header | `platform/target_f407/target_constants.h` (its directory goes before `platform/include` in the new executables only) | Compile the in-scope modules without the drivers | **done**: diff approved, committed `ef4101cf`. Pin tables (`BUTTON_PINS`, `ADC_PINS`, ...) still to add in P2 batch 0 |
-| F4 | Fake HAL SPI (records TX, scripted RX, DMA/IT completion callbacks driven by the test) | `platform/` | SPIButtons, EncoderSSI, EncoderBissC, MtEncoderSPI, SPI.cpp | proposed |
-| F5 | Fake HAL I2C (scripted device register map per address, error injection) | `platform/` | PCF8574, ADS111X, I2C.cpp | proposed |
+| F4 | Fake HAL SPI (records TX, scripted RX, DMA/IT completion callbacks driven by the test) | `platform/src/host_target_bus.cpp` | SPIButtons, EncoderSSI, EncoderBissC, MtEncoderSPI, SPI.cpp | **done** P5 batch 0 |
+| F5 | Fake HAL I2C (scripted device register map per address, error injection) | `platform/src/host_target_bus.cpp` | PCF8574, ADS111X, I2C.cpp | **done** P5 batch 0 |
 | F6 | Fake HAL ADC (settable DMA buffer, conversion-complete callback) + LL ADC voltage/temperature macros | `platform/src/host_target_system.cpp`, `platform/target_f407/main.h` | LocalAnalog, AdcHandler, voltagesense | **done** P4 batch 0 |
 | F7 | Fake HAL TIM (settable `CNT`, base start/stop record) and EXTI trigger | `platform/src/host_target.cpp`, `support/HostTarget.h` | EncoderLocal, TimerHandler, ExtiHandler, Axis timers | **done** P2 batch 0 (models `HAL_TIM_Base_Start/_IT`, `_Stop/_IT`, `HAL_TIM_IRQHandler` update path, `HAL_GPIO_EXTI_IRQHandler`) |
 | F8 | Fake HAL CAN (filters, Tx mailboxes, Rx FIFO, error callbacks) | `platform/` | CANPort2B, global_callbacks | proposed |
@@ -332,6 +332,24 @@ Executable `ffb_target_tests`, new files in `cases_target/` only. Coverage after
 | B axis config | `test_axis_config.cpp` | `Axis.cpp` (config, commands, flash) | `encodeConfToInt`/`decodeConfFromInt` round trip, save/restore flash (incl. empty flash, bug 23), every axis command get/set/info incl. limits and invalid values, driver/encoder selection via chooser and commands, zeroing/position commands, error handling |
 | C axes + integration | `test_axes_manager.cpp`, `test_ffb_integration.cpp` | `AxesManager.cpp`, path through `HidFFB`/`EffectsCalculator`/`Axis` | axis count changes, update/updateTorque, emergency stop over all axes, usb suspend/resume, commands; end to end: PID reports (constant, spring, damper, periodic, conditions per axis) -> effects -> axis -> `MockMotorDriver` torque with the position from `MockEncoder` |
 | D main classes | `test_ffbhidmain.cpp`, `test_main_classes.cpp` | `FFBHIDMain.cpp`, `FFBHIDMain_commmands.cpp`, `FFBWheel.cpp`, `FFBJoystick.cpp`, `FFBHIDExt.cpp`, `CustomMain.cpp`, `FFBoardMain.cpp`, `mainclass_chooser.cpp` | HID gamepad report packing (axes, buttons, double buffer), FFB on/off, update rate/timer, usb init/suspend/resume, button/analog source selection commands, main class info/ids unique and selectable, CustomMain |
+
+## P5 plan (2026-10-26)
+
+`ffb_target_tests`, new files in `cases_target/` only. 2 module agents in isolated scratch workspaces (`scratchpad/p5/<group>`), per-file goal 85 % without hardware-only code, mutation spot-check 80 %.
+
+| Group | Owns (new files) | Firmware | Behaviours |
+|---|---|---|---|
+| A buttons | `test_local_buttons.cpp`, `test_spi_buttons.cpp`, `test_shifter_analog.cpp`, `test_can_buttons.cpp`, `test_pcf8574.cpp`, `test_selectable_inputs.cpp` | `LocalButtons.cpp`, `SPIButtons.cpp`, `ShifterAnalog.cpp`, `CanButtons.cpp`, `PCF8574.cpp`, `SelectableInputs.cpp`, `ButtonSource.cpp`, `ButtonSources.cpp` | pin masks and polarity, SPI shift register modes (bit order, CS polarity, chain length, TM mode, 74xx165), shifter H-pattern and sequential decoding incl. reverse button and thresholds, CAN frame decoding (bug 54), PCF8574 chains, source selection/save/restore, commands of every class, flash config |
+| B analog | `test_analog_axis_processing.cpp`, `test_local_analog.cpp`, `test_can_analog.cpp`, `test_ads111x.cpp` | `AnalogAxisProcessing.cpp`, `LocalAnalog.cpp`, `CanAnalog.cpp`, `ADS111X.cpp`, `AnalogSource.cpp`, `AnalogSources.cpp` | autoscale, manual min/max, invert, filters, raw mode, config encode/decode round trip, save/restore, local channel mask and mapping, CAN frame decoding, ADS111X register sequence (config, gain, data rate, single ended/differential), conversion and error handling, commands |
+
+## P5 batch 0 (2026-10-26)
+
+- F4 fake HAL SPI and F5 fake HAL I2C in `platform/src/host_target_bus.cpp` (each function modelled on `stm32f4xx_hal_spi.c` / `stm32f4xx_hal_i2c.c`: blocking/IT/DMA, state machine, `__HAL_LOCK`, error paths; completion and error callbacks in ISR context via `HostTarget::spiComplete/i2cComplete`; scripted MISO / I2C device models with register maps, NACK and bus-busy injection; `hi2c1` has no DMA like the target). Slave, 1-line, 16-bit SPI and 10-bit I2C recorded as unmodelled. `host_stubs_target.cpp` deleted (no stubs left). SPI/I2C handles initialised like `MX_SPIx_Init`/`MX_I2C1_Init`.
+- F8 piece: `HostTarget::canReceive(id, data)` checks the started mock port and an active filter, then delivers through the P4 FIFOs and the real `global_callbacks.cpp`.
+- F12 mocks: `mocks/MockButtonSource.h`, `mocks/MockAnalogSource.h` (selection id 15), `support/InputSources.h` (access to the `SelectableInputs` part of a main class and its choosers).
+- Resets: SPI ports (CS pins, current device, exclusive flag, semaphore), `i2cport`, SPI/I2C handler lists restored to their static-init state (private members via explicit-instantiation member pointers in `host_target_config.cpp`). Still not reset: `motor_uart` device pointer.
+- 10 smoke cases (`InputSetup`), 1 KNOWN_ISSUE (bug 53).
+- Gate: ctest 4/4 in all 6 dirs, baseline OK, `ffb_unit_tests`/`ffb_flash_tests` unchanged (compile commands identical), `ffb_target_tests` 683/0/2 (default, clang23), 684/0/2 (nodsp), 580 + 105 skipped (sanitizer); no findings, no warnings from test files. Verified again by the main agent.
 
 ## P4 results (2026-10-25)
 
@@ -573,6 +591,7 @@ Functions never run by any test (counts of never-run / total): ErrorHandler 15/2
 | 75 | usb descriptors / HidFFB | 1-axis descriptor | `FFB_SetEffect_t::directionY` receives the X "type specific block offset"; the 2-axis descriptors add 4 bytes of offsets that `HidFFB` ignores (copies `min(sizeof, bufsize)`) | no |
 | 64 | SystemCommands | `flashraw` setat | Address and value (int64) are truncated to 16 bits for `Flash_Write(uint16_t, uint16_t)`: `flashraw=0x10005?0x10007` stores 5 at 7, address -1 stores at 0xFFFF, both with OK (same class as 58) | no |
 | 65 | cppmain | `cppmain.cpp:126` `micros()` | Reads `HAL_GetTick()` and `TIM7->CNT` without making them consistent: if TIM7 wraps between the reads (or `micros()` runs with interrupts masked / in a higher-priority ISR while the update is pending) the result jumps back about 1000 us. Not observable with the atomic fake (review p4r2) | no |
+| 76 | SPI | `main.c:1377-1388` | All external and ext3 SPI CS pins start low after `MX_GPIO_Init` (the asserted level of active-low devices) until a device's first transfer. Intended? | no |
 | 53 | cppmain | `cppmain.cpp:88-90` with `flash_helpers.cpp:105-120` | `Flash_ReadWriteDefault` returns false after writing a default, so `cppmain` calls `Error_Handler` on every first boot (empty flash); `Error_Handler` only switches the error LED off. Probably unintended | no |
 | 21 | HidFFB / CDC | `FirmwareFixture::resetGlobals` (test infrastructure) | Does not reset `CDCcomm`'s private `usb_busy_retry`; `test_cdc.cpp` works around it with its own fixture. Shared fix in `support/FirmwareFixture.h`? | no |
 
@@ -633,6 +652,12 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 | 50 | voltagesense | `voltagesense.h:28` vs `voltagesense.cpp:40` | `setupBrakePin(uint32_t, ...)` declared, `(int32_t, ...)` defined: any call through the header fails to link | Build (test declares the defined signature) |
 | 51 | usb descriptors | `usb_hid_ffb_desc.h:757`, `usb_descriptors.h`, `FFBWheel.cpp:40` | The 1-axis 32-bit build (`FFBWHEEL_USE_1AXIS_DESC` + `HIDAXISRES_USE_32B_DESC`) does not compile: wrong size macro name, `usb_cdc_hid_conf_1axis_32b` not declared | Build (not a shipped configuration) |
 | 52 | voltagesense | `voltagesense.cpp:24, 85-88` | A brake-resistor shutdown (stuck-on protection) does not report the defined critical error "Brake resistor stuck on" (the `addError` call is commented out, apparently because of ISR context): over-voltage protection stays off until reboot without indication (was NEEDS REVIEW 73) | KNOWN_ISSUE "a brake resistor shutdown reports the critical error Brake resistor stuck on" (`test_voltagesense.cpp`) |
+| 53 | I2CHandler | `I2CHandler.cpp:15-17` | `~I2CHandler` calls `addCallbackHandler` instead of `removeCallbackHandler`: a deleted handler stays in the list and the next I2C callback calls a dead object. Confirmed in source | KNOWN_ISSUE "a destroyed I2C handler is removed from the I2C handler list" (`test_input_setup.cpp`); the fixture restores the handler list |
+| 54 | CanButtons | `CanButtons.h:50` with the constructor | `mask` defaults to 0xff while `btnnum` is 32: without a stored config only 8 of the 32 reported buttons work. Confirmed in source | P5 module tests |
+| 55 | SPIButtons | `SPIButtons.h:81` `spi_buf[4]` | `bytes` can be up to 9 (TM mode above 29 buttons, PISOSR above 32): the DMA writes past the buffer and the `memcpy` reads past it (heap overflow) | P5 module tests (KNOWN_ISSUE_UB expected) |
+| 56 | SPIButtons | `setSpiSpeed` / `setConfig` | Clip to `speedPresets.size()` allows index 3 of a 3-entry array (command and stored `spi_speed`): out-of-bounds read (same class as bug 37) | P5 module tests |
+| 57 | SPIDevice | destructor | Does not clear the port's `current_device`: deleting a source while its DMA read is pending (e.g. a `btntypes` change) makes the completion call a deleted object (the fixture clears it) | P6 |
+| 58 | I2C | `I2C.cpp` `_IT`/`_DMA` wrappers | Take the semaphore before the HAL call and never release it when the HAL returns an error: the port stays blocked (like bug 16). `transmitMasterDMA`/`receiveMasterDMA` always fail on the F407 (no DMA stream, `DMA_PARAM`) | P6 |
 | V1 | FreeRTOS wrappers (**vendor, tier A**) | `csemaphore.cpp:117-131` | `CountingSemaphore(0, x)` or initial > max throws before `handle` is set; `~Semaphore` then deletes an uninitialised handle (UB). Exception builds only (target uses `CPP_FREERTOS_NO_EXCEPTIONS`/`configASSERT`) | Seen with mutants; no test (would crash) |
 | V2 | FreeRTOS wrappers (**vendor, tier A**) | `cthread.cpp:184-187` | `~Thread` of a never-started thread calls `vTaskDelete` with an uninitialised handle (NULL deletes the calling task on FreeRTOS). Also on target | Code reading; no test (UB) |
 | V3 | FreeRTOS wrappers (**vendor, tier A**) | `cmutex.cpp`, `csemaphore.cpp` | On a kernel create failure (NULL), the destructors call `vSemaphoreDelete(NULL)` (real FreeRTOS asserts) | Code reading; no test |

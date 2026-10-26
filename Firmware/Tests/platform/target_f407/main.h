@@ -12,8 +12,8 @@
  * CMSIS device headers (stm32f407xx.h).
  *
  * Implementations: platform/src/host_target.cpp (TIM, EXTI, system, CMSIS),
- * platform/src/host_target_system.cpp (ADC, IWDG, CAN receive FIFO, TIM7 HAL tick, main.c callbacks) and
- * platform/src/host_platform.cpp (GPIO, UART, tick). Test control: support/HostTarget.h.
+ * platform/src/host_target_system.cpp (ADC, IWDG, CAN receive FIFO, TIM7 HAL tick, main.c callbacks),
+ * platform/src/host_target_bus.cpp (SPI, I2C) and platform/src/host_platform.cpp (GPIO, UART, tick). Test control: support/HostTarget.h.
  * ffb_flash_tests additionally gets the FLASH HAL (host_flash_hal.h, see the end of this file).
  *
  * If a newly tested source file needs more of the HAL add it here. Keep it minimal.
@@ -311,7 +311,7 @@ extern IWDG_HandleTypeDef hiwdg;
 /** Models HAL_IWDG_Refresh (stm32f4xx_hal_iwdg.c): writes IWDG_KEY_RELOAD to KR, HAL_OK. Counted (HostTarget::state().watchdogRefreshes) */
 HAL_StatusTypeDef HAL_IWDG_Refresh(IWDG_HandleTypeDef *hiwdg);
 
-// ---------------- SPI (link stubs only. Fake SPI: F4, later phase) ----------------
+// ---------------- SPI (stm32f4xx_hal_spi.h). Fake HAL SPI (F4): platform/src/host_target_bus.cpp ----------------
 typedef struct {
 	uint32_t Mode;
 	uint32_t Direction;
@@ -335,16 +335,34 @@ typedef enum {
 	HAL_SPI_STATE_ERROR = 0x06U,
 	HAL_SPI_STATE_ABORT = 0x07U
 } HAL_SPI_StateTypeDef;
+/**
+ * SPI_HandleTypeDef of stm32f4xx_hal_spi.h with the fields the firmware and the fake use. The transfer pointers and
+ * counters (pTxBuffPtr, TxXferCount, ...) and the DMA handles are kept by the fake (host_target_bus.cpp) instead.
+ */
 typedef struct {
 	void *Instance;
 	SPI_InitTypeDef Init;
 	__IO HAL_SPI_StateTypeDef State;
 	__IO uint32_t ErrorCode;
+	HAL_LockTypeDef Lock;
 } SPI_HandleTypeDef;
 
+#define HAL_SPI_ERROR_NONE 0x00000000U
+#define HAL_SPI_ERROR_MODF 0x00000001U
+#define HAL_SPI_ERROR_CRC 0x00000002U
+#define HAL_SPI_ERROR_OVR 0x00000004U
+#define HAL_SPI_ERROR_FRE 0x00000008U
+#define HAL_SPI_ERROR_DMA 0x00000010U
+#define HAL_SPI_ERROR_FLAG 0x00000020U
+#define HAL_SPI_ERROR_ABORT 0x00000040U
+
+#define SPI_MODE_SLAVE 0x00000000U
 #define SPI_MODE_MASTER 0x00000104U
 #define SPI_DIRECTION_2LINES 0x00000000U
+#define SPI_DIRECTION_2LINES_RXONLY 0x00000400U // SPI_CR1_RXONLY
+#define SPI_DIRECTION_1LINE 0x00008000U			// SPI_CR1_BIDIMODE
 #define SPI_DATASIZE_8BIT 0x00000000U
+#define SPI_DATASIZE_16BIT 0x00000800U // SPI_CR1_DFF
 #define SPI_POLARITY_LOW 0x00000000U
 #define SPI_POLARITY_HIGH 0x00000002U // SPI_CR1_CPOL
 #define SPI_PHASE_1EDGE 0x00000000U
@@ -373,8 +391,10 @@ HAL_StatusTypeDef HAL_SPI_TransmitReceive_IT(SPI_HandleTypeDef *hspi, uint8_t *p
 HAL_StatusTypeDef HAL_SPI_Transmit_DMA(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_t Size);
 HAL_StatusTypeDef HAL_SPI_Receive_DMA(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_t Size);
 HAL_StatusTypeDef HAL_SPI_TransmitReceive_DMA(SPI_HandleTypeDef *hspi, uint8_t *pTxData, uint8_t *pRxData, uint16_t Size);
+HAL_SPI_StateTypeDef HAL_SPI_GetState(const SPI_HandleTypeDef *hspi);
+uint32_t HAL_SPI_GetError(const SPI_HandleTypeDef *hspi);
 
-// ---------------- I2C (link stubs only. Fake I2C: F5, later phase) ----------------
+// ---------------- I2C (stm32f4xx_hal_i2c.h). Fake HAL I2C (F5): platform/src/host_target_bus.cpp ----------------
 typedef struct {
 	uint32_t ClockSpeed;
 	uint32_t DutyCycle;
@@ -398,12 +418,37 @@ typedef enum {
 	HAL_I2C_STATE_TIMEOUT = 0xA0U,
 	HAL_I2C_STATE_ERROR = 0xE0U
 } HAL_I2C_StateTypeDef;
+typedef enum {
+	HAL_I2C_MODE_NONE = 0x00U,
+	HAL_I2C_MODE_MASTER = 0x10U,
+	HAL_I2C_MODE_SLAVE = 0x20U,
+	HAL_I2C_MODE_MEM = 0x40U
+} HAL_I2C_ModeTypeDef;
+/**
+ * I2C_HandleTypeDef of stm32f4xx_hal_i2c.h with the fields the firmware and the fake use. The transfer pointers and
+ * counters (pBuffPtr, XferCount, Devaddress, ...) and the DMA handles are kept by the fake (host_target_bus.cpp).
+ */
 typedef struct {
 	void *Instance;
 	I2C_InitTypeDef Init;
 	__IO HAL_I2C_StateTypeDef State;
 	__IO uint32_t ErrorCode;
+	HAL_LockTypeDef Lock;
+	__IO HAL_I2C_ModeTypeDef Mode;
 } I2C_HandleTypeDef;
+
+#define HAL_I2C_ERROR_NONE 0x00000000U
+#define HAL_I2C_ERROR_BERR 0x00000001U
+#define HAL_I2C_ERROR_ARLO 0x00000002U
+#define HAL_I2C_ERROR_AF 0x00000004U
+#define HAL_I2C_ERROR_OVR 0x00000008U
+#define HAL_I2C_ERROR_DMA 0x00000010U
+#define HAL_I2C_ERROR_TIMEOUT 0x00000020U
+#define HAL_I2C_ERROR_SIZE 0x00000040U
+#define HAL_I2C_ERROR_DMA_PARAM 0x00000080U
+#define HAL_I2C_WRONG_START 0x00000200U // stm32f4xx_hal_i2c.c
+#define I2C_MEMADD_SIZE_8BIT 0x00000001U
+#define I2C_MEMADD_SIZE_16BIT 0x00000010U
 
 #define I2C_DUTYCYCLE_2 0x00000000U
 #define I2C_ADDRESSINGMODE_7BIT 0x00004000U
@@ -425,6 +470,9 @@ HAL_StatusTypeDef HAL_I2C_Mem_Read(I2C_HandleTypeDef *hi2c, uint16_t DevAddress,
 HAL_StatusTypeDef HAL_I2C_Mem_Write_IT(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint16_t MemAddress, uint16_t MemAddSize, uint8_t *pData, uint16_t Size);
 HAL_StatusTypeDef HAL_I2C_Mem_Read_IT(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint16_t MemAddress, uint16_t MemAddSize, uint8_t *pData, uint16_t Size);
 HAL_StatusTypeDef HAL_I2C_IsDeviceReady(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint32_t Trials, uint32_t Timeout);
+HAL_I2C_StateTypeDef HAL_I2C_GetState(I2C_HandleTypeDef *hi2c);
+HAL_I2C_ModeTypeDef HAL_I2C_GetMode(I2C_HandleTypeDef *hi2c);
+uint32_t HAL_I2C_GetError(I2C_HandleTypeDef *hi2c);
 
 // ---------------- UART (same as platform/include/main.h) ----------------
 typedef struct { uint32_t SR; uint32_t DR; } USART_TypeDef;

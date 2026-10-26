@@ -4,8 +4,9 @@
  * Fixtures of ffb_target_tests (F407 feature set, real Axis.h). Use with TEST_CASE_FIXTURE(...).
  *
  * TargetFixture  Resets the fake platform (FirmwareFixture) and the F407 part of it (HostTarget): timers,
- *                GPIO idle levels, chip ids, the CAN port. Checks at the end that the test did not reach a HAL
- *                function without a fake (HostTarget::state().unmodelledHalCalls).
+ *                GPIO idle levels, chip ids, the CAN port, the fake HAL ADC / SPI / I2C and the global bus ports.
+ *                Checks at the end that the test did not reach a HAL function or path without a fake
+ *                (HostTarget::state().unmodelledHalCalls).
  *                That check is a CHECK in the fixture destructor. In a KNOWN_ISSUE (should_fail) test it would
  *                count as the expected failure, so such tests call REQUIRE_ALL_HAL_MODELLED() right before the
  *                assertion that describes the defect whenever they could reach a HAL call (see below).
@@ -19,6 +20,8 @@
 
 #include "FirmwareFixture.h"
 #include "HostTarget.h"
+#include "MockAnalogSource.h"
+#include "MockButtonSource.h"
 #include "MockCANPort.h"
 #include "MockEncoder.h"
 #include "MockMotorDriver.h"
@@ -75,7 +78,7 @@ struct TargetFixture : FirmwareFixture {
 	~TargetFixture() override {
 		const auto &calls = HostTarget::state().unmodelledHalCalls;
 		INFO("first HAL function without a fake: " << (calls.empty() ? std::string() : calls.front()));
-		CHECK_MESSAGE(calls.empty(), "the test reached HAL functions that have no fake (see host_stubs_target.cpp)");
+		CHECK_MESSAGE(calls.empty(), "the test reached HAL functions or HAL paths that have no fake (HostTarget::state().unmodelledHalCalls)");
 		resetTarget();
 	}
 
@@ -83,8 +86,10 @@ struct TargetFixture : FirmwareFixture {
 	 * Resets the F407 part: the main class created by HostTarget::runCppmain (deleted), HostTarget::reset (timers,
 	 * GPIO, chip ids, canport, HAL handles, fake ADC and ADC buffers, TIM7 tick, IWDG, CAN receive FIFOs, globals of
 	 * cppmain.cpp / voltagesense.cpp / ledEffects.cpp), PersistentStorage::startupComplete (false like after boot),
-	 * MockMotorDriver::creatable, SystemCommands::errorPrintingEnabled, the global HID handler, mainclass and
-	 * usb_device. See HostTarget::resetTargetConfig for global objects that are NOT reset.
+	 * MockMotorDriver::creatable, MockButtonSource::creatable, MockAnalogSource::creatable,
+	 * SystemCommands::errorPrintingEnabled, the global HID handler, mainclass and usb_device. Also (resetTargetConfig):
+	 * the fake HAL SPI / I2C, the global SPI ports and i2cport, the SPI / I2C handler lists. See
+	 * HostTarget::resetTargetConfig for what is NOT reset.
 	 */
 	static void resetTarget() {
 		HostTarget::deleteCppmainMainclass();
@@ -92,6 +97,8 @@ struct TargetFixture : FirmwareFixture {
 		SystemCommands::errorPrintingEnabled = true;
 		PersistentStorageStartup::reset();
 		MockMotorDriver::creatable() = true;
+		MockButtonSource::creatable() = true;
+		MockAnalogSource::creatable() = true;
 		UsbHidHandler::globalHidHandler = nullptr; // Not reset by the firmware when a handler is deleted
 		mainclass = nullptr;
 		usb_device = nullptr;

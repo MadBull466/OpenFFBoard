@@ -5,7 +5,8 @@
  * timers (fake HAL TIM), external interrupts (EXTI), GPIO pins, chip ids, reset requests and the
  * peripheral objects of the target configuration (platform/src/host_target.cpp, host_target_config.cpp),
  * the fake HAL ADC (F6), IWDG, the CAN receive FIFOs, the TIM7 HAL tick, the main.c callbacks and the start-up
- * code of cppmain.cpp (platform/src/host_target_system.cpp).
+ * code of cppmain.cpp (platform/src/host_target_system.cpp), the fake HAL SPI (F4) and I2C (F5)
+ * (platform/src/host_target_bus.cpp).
  *
  * Reset with HostTarget::reset() (done by AxisFixture / TargetFixture).
  */
@@ -19,7 +20,11 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <deque>
+#include <functional>
+#include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 class MockCANPort;
@@ -60,7 +65,7 @@ struct State {
 	};
 	std::vector<OtpCall> otpCalls;	//!< OTP_Write / OTP_Read calls in order
 	uint32_t otpPrograms = 0;		//!< 32 bit programming steps of OTP_Write (HAL_FLASH_Program, FLASH_TYPEPROGRAM_WORD), including failed ones
-	std::vector<std::string> unmodelledHalCalls; //!< HAL functions without a fake that were called (see host_stubs_target.cpp), triggerExti on a pin without EXTI line, and HAL calls the fake can not complete (e.g. an endless wait)
+	std::vector<std::string> unmodelledHalCalls; //!< HAL calls the fakes do not model (e.g. SPI slave mode or I2C 10 bit addressing, see host_target_bus.cpp), triggerExti on a pin without EXTI line, and HAL calls the fake can not complete (e.g. an endless wait)
 
 	// --- Controlled by the test ---
 	uint32_t uid[3] = {0x00410032, 0x34385111, 0x30383632}; //!< HAL_GetUIDw0/1/2 (96 bit unique id)
@@ -87,14 +92,29 @@ void reset();
 /**
  * Resets the objects of the host target configuration (host_target_config.cpp), called by reset():
  *  - the global `canport` (MockCANPort::resetForTest: records, speed, start/stop, port users, semaphores)
- *  - the HAL handles hspi1-3, hi2c1, huart3, hadc1/2 (Init and State as after the CubeMX init)
+ *  - the HAL handles hspi1-3, hi2c1, huart3, hadc1/2 (Init, State, ErrorCode, Lock as after MX_SPIx_Init /
+ *    MX_I2C1_Init / MX_ADCx_Init of main.c) and the fake HAL SPI / I2C (resetBus: scripts, devices, records)
  *  - the transfer semaphores of motor_uart
- * NOT reset (private firmware state, no public reset): the SPI ports external_spi / motor_spi / ext3_spi
- * (freePins, current_device, takenExclusive, isTakenFlag), i2cport (port users, config) and the device pointer of
- * motor_uart. A test that takes a CS pin or a port must release it again (freeCsPin / freePort). To be replaced by
- * a full reset when the fake HAL SPI (F4) and I2C (F5) arrive in P5/P6.
+ *  - the SPI ports external_spi / motor_spi / ext3_spi to their state after construction: all CS pins free (pin list
+ *    as constructed), no current device, not taken exclusively, semaphore available
+ *  - i2cport to its state after construction: no port users, no current device, speed preset 0, semaphore available,
+ *    delayed flash restore pending (restoreFlashDelayed in the constructor)
+ *  - the SPI and I2C handler lists (SpiHandler::getSPIHandlers, I2CHandler::getI2CHandlers) to the handlers registered
+ *    during the static initialisation (the three SPI ports, i2cport). Needed because ~I2CHandler does not unregister
+ *    (I2CHandler.cpp: it calls addCallbackHandler; suspected bug), so a destroyed test handler would stay in the list
+ * The private members of SPIPort / I2CPort are reset through member pointers obtained by explicit template
+ * instantiation (host_target_config.cpp); tests never access them.
+ * NOT reset: the device pointer of motor_uart (UARTPort, out of scope until P7). Firmware objects that still use a port
+ * when the fixture resets (a device a test did not delete) keep dangling state: delete devices inside the test.
  */
 void resetTargetConfig();
+
+/**
+ * Resets the fake HAL SPI and I2C (host_target_bus.cpp), called by resetTargetConfig(): no pending transfers, no
+ * records, no scripted responses or injected failures, CS pins of hspi1-3 as in cpp_target_config.cpp, no I2C devices,
+ * bus idle, hi2c1 without DMA (like stm32f4xx_hal_msp.c).
+ */
+void resetBus();
 
 /**
  * Resets the system part (host_target_system.cpp), called by reset():
@@ -208,6 +228,191 @@ size_t canRxPending(uint32_t fifo);
  * CANPort_2B::start). @return number of callback calls
  */
 uint32_t canRxInterrupt(uint32_t fifo);
+/**
+ * Delivers a received data frame to the firmware the way the hardware does it with the global `canport`
+ * (MockCANPort with the handle &hcan1 until the CANPort_2B fake of P7): the frame is only accepted while the port is
+ * started and an active filter of the port matches (MockCANPort::passesFilter: (id & mask) == (filter_id & mask), same
+ * id type); it goes into the receive FIFO selected by the matching filter (CAN_filter::buffer 0/1, like
+ * CANPort_2B::addCanFilter's FilterFIFOAssignment), then canRxInterrupt raises HAL_CAN_RxFifoXMsgPendingCallback of
+ * global_callbacks.cpp, which reads the FIFO with HAL_CAN_GetRxMessage and calls every CanHandler.
+ * The DLC is data.size() (at most 8 bytes are used); extId selects a 29 bit id; rtr a remote frame.
+ * @return number of message pending interrupts raised (0 = frame not accepted)
+ */
+uint32_t canReceive(uint32_t id, const std::vector<uint8_t> &data, bool extId = false, bool rtr = false);
+
+// --- SPI (fake HAL SPI F4, host_target_bus.cpp) ---
+/**
+ * The fake models stm32f4xx_hal_spi.c for the F407 configuration: master, 2 lines, 8 bit, no CRC (USE_SPI_CRC 0),
+ * DMA streams linked for SPI1-3 in normal (not circular) mode (stm32f4xx_hal_msp.c). Other configurations (slave,
+ * 1 line, rx only, 16 bit) are not modelled: such a call is recorded in state().unmodelledHalCalls and returns HAL_ERROR.
+ *
+ *  - Blocking calls (HAL_SPI_Transmit / _Receive / _TransmitReceive) complete before they return.
+ *  - IT and DMA calls (_IT / _DMA) start the transfer and return; the transfer stays pending until the test calls
+ *    spiComplete (end of transfer: data delivered, State READY, the HAL callback in interrupt context) or spiFail.
+ *    While a transfer is pending State is BUSY_TX / BUSY_RX / BUSY_TX_RX and every new call returns HAL_BUSY.
+ *  - Received bytes (MISO) of a transfer, in this order of priority: the next response queued with spiQueueRx, the
+ *    responder function (spiSetResponder), the idle response (spiSetIdleRx). A response shorter than the transfer is
+ *    padded with 0x00 (MISO driven low); a longer one is cut.
+ *  - HAL_SPI_Receive(_IT/_DMA) as master in 2 line mode transmits the receive buffer as dummy bytes (the HAL calls
+ *    TransmitReceive(pData, pData)); the recorded tx bytes are the buffer content at the start.
+ */
+enum class BusMode : uint8_t { Blocking, Interrupt, Dma };
+enum class SpiCall : uint8_t { Transmit, Receive, TransmitReceive };
+struct SpiTransfer {
+	SpiCall call = SpiCall::Transmit;
+	BusMode mode = BusMode::Blocking;
+	uint16_t size = 0;
+	uint32_t timeout = 0;		   //!< Timeout argument (blocking calls)
+	std::vector<uint8_t> tx;	   //!< Bytes clocked out on MOSI (read from the tx buffer when the transfer started)
+	std::vector<uint8_t> rx;	   //!< Bytes clocked in on MISO. Written into the rx buffer (Transmit: discarded by the HAL)
+	SPI_InitTypeDef init{};		   //!< Port configuration (hspi->Init) when the transfer started
+	std::vector<bool> csAtStart;   //!< Output levels of the CS pins of the port (spiCsPins) when the transfer started
+	std::vector<bool> csAtEnd;	   //!< ... when it ended (blocking: before the call returns; IT/DMA: before the callback)
+	HAL_StatusTypeDef result = HAL_OK; //!< Return value of the HAL call that started the transfer
+	bool completed = false;		   //!< Data delivered and completion callback raised (blocking: returned HAL_OK)
+	uint32_t errorCode = 0;		   //!< ErrorCode of the handle at the end (spiFail, injected failures)
+	/** Index of the only CS pin at its active level when the transfer started, -1 if none or several */
+	int selectedCs(bool activeLow = true) const;
+};
+/** Responder: returns the MISO bytes for a transfer from its MOSI bytes (tx) and the port state (e.g. a register read) */
+using SpiResponder = std::function<std::vector<uint8_t>(const SpiTransfer &)>;
+
+void spiQueueRx(SPI_HandleTypeDef *hspi, const std::vector<uint8_t> &bytes); //!< MISO bytes of the next transfer (FIFO)
+void spiSetIdleRx(SPI_HandleTypeDef *hspi, const std::vector<uint8_t> &bytes); //!< MISO bytes of every transfer without queued response
+void spiSetResponder(SPI_HandleTypeDef *hspi, SpiResponder responder);			//!< nullptr removes it
+size_t spiQueuedRx(const SPI_HandleTypeDef *hspi);								//!< Responses still queued
+/** All transfers started on the port since the last reset (including rejected calls: result != HAL_OK, no data) */
+const std::deque<SpiTransfer> &spiTransfers(const SPI_HandleTypeDef *hspi);
+void spiClearTransfers(const SPI_HandleTypeDef *hspi);
+/** True while an IT or DMA transfer is pending (started, not yet completed or failed) */
+bool spiTransferPending(const SPI_HandleTypeDef *hspi);
+/**
+ * Ends the pending IT/DMA transfer like the end of transfer interrupt (SPI_CloseTx_ISR / SPI_CloseRx_ISR /
+ * SPI_CloseRxTx_ISR) or the DMA transfer complete interrupt (SPI_DMATransmitCplt / SPI_DMAReceiveCplt /
+ * SPI_DMATransmitReceiveCplt): the received bytes are written into the rx buffer, State READY, then in interrupt
+ * context: for DMA transfers the half transfer callback (HAL_SPI_TxHalfCpltCallback / RxHalfCplt / TxRxHalfCplt, the
+ * HAL enables the DMA half transfer interrupt; assumed also for 1 byte transfers) and then HAL_SPI_TxCpltCallback
+ * (transmit), HAL_SPI_RxCpltCallback (receive) or HAL_SPI_TxRxCpltCallback (transmit/receive).
+ * @return false if no transfer was pending
+ */
+bool spiComplete(SPI_HandleTypeDef *hspi);
+/**
+ * Ends the pending IT/DMA transfer with an error like HAL_SPI_IRQHandler's error branch (OVR, MODF, FRE) or
+ * SPI_DMAError (HAL_SPI_ERROR_DMA): nothing is written into the rx buffer, ErrorCode |= errorCode, State READY,
+ * HAL_SPI_ErrorCallback in interrupt context. @return false if no transfer was pending
+ */
+bool spiFail(SPI_HandleTypeDef *hspi, uint32_t errorCode = HAL_SPI_ERROR_OVR);
+/**
+ * The next blocking call fails: HAL_TIMEOUT (TXE/RXNE never set: nothing transferred, State READY, like the timeout
+ * branches of HAL_SPI_TransmitReceive) or HAL_ERROR (the transfer happens but SPI_EndRxTxTransaction times out:
+ * ErrorCode HAL_SPI_ERROR_FLAG).
+ */
+void spiFailNextBlocking(SPI_HandleTypeDef *hspi, HAL_StatusTypeDef status);
+/**
+ * The next DMA call fails to start its DMA stream (HAL_DMA_Start_IT != HAL_OK): like the HAL, ErrorCode |=
+ * HAL_SPI_ERROR_DMA, the handle is unlocked, HAL_ERROR is returned and State stays BUSY_xx (the HAL does not restore
+ * it, so every later call returns HAL_BUSY until HAL_SPI_Init).
+ */
+void spiFailNextDmaStart(SPI_HandleTypeDef *hspi);
+/** HAL_SPI_Init calls since the reset; the configuration of the last one is hspi->Init */
+uint32_t spiInitCount(const SPI_HandleTypeDef *hspi);
+/** The CS pins of a port (hspi1-3: the pin lists of cpp_target_config.cpp) and their current output levels */
+void spiSetCsPins(SPI_HandleTypeDef *hspi, const std::vector<std::pair<GPIO_TypeDef *, uint16_t>> &pins);
+std::vector<bool> spiCsLevels(const SPI_HandleTypeDef *hspi);
+
+// --- I2C (fake HAL I2C F5, host_target_bus.cpp) ---
+/**
+ * The fake models stm32f4xx_hal_i2c.c (master and memory transfers, 7 bit addressing) on a bus with scripted devices.
+ * Addresses: the HAL functions take the 8 bit form (7 bit address << 1); devices are registered by their 7 bit address.
+ *
+ *  - Blocking calls complete before they return. A missing device or a device that does not acknowledge its address
+ *    (NACK) gives HAL_ERROR with ErrorCode HAL_I2C_ERROR_AF (I2C_WaitOnMasterAddressFlagUntilTimeout), a NACKed data
+ *    byte HAL_ERROR / AF (I2C_IsAcknowledgeFailed); State READY, Mode NONE.
+ *  - IT calls (and DMA calls on a handle with DMA, see i2cSetDmaLinked) start the transfer and return HAL_OK; the
+ *    transfer stays pending until i2cComplete (the device is accessed then; completion callback, or on a NACK
+ *    HAL_I2C_ErrorCallback with AF like HAL_I2C_ER_IRQHandler) or i2cFail. hi2c1 has no DMA stream
+ *    (stm32f4xx_hal_msp.c): its _DMA calls return HAL_ERROR with HAL_I2C_ERROR_DMA_PARAM like the HAL.
+ *  - Any call while State is not READY returns HAL_BUSY. A busy bus (i2cSetBusBusy) gives HAL_BUSY with ErrorCode
+ *    HAL_I2C_ERROR_TIMEOUT (the BUSY flag wait; no simulated time passes).
+ *  - HAL_I2C_Init / HAL_I2C_DeInit drop a pending transfer (the peripheral is reset; no callback).
+ */
+enum class I2cCall : uint8_t { MasterTransmit, MasterReceive, MemWrite, MemRead, IsDeviceReady };
+struct I2cTransfer {
+	I2cCall call = I2cCall::MasterTransmit;
+	BusMode mode = BusMode::Blocking;
+	uint16_t devAddress = 0;  //!< DevAddress argument (8 bit form)
+	uint8_t address = 0;	  //!< 7 bit address (devAddress >> 1)
+	uint16_t memAddress = 0;  //!< MemAddress argument (Mem_Write / Mem_Read)
+	uint16_t memAddSize = 0;  //!< Memory address size in bytes (1 or 2; I2C_MEMADD_SIZE_8BIT / _16BIT)
+	uint16_t size = 0;		  //!< Size argument
+	uint32_t timeout = 0;	  //!< Timeout argument (blocking calls)
+	uint32_t trials = 0;	  //!< IsDeviceReady: Trials argument
+	std::vector<uint8_t> data; //!< Written bytes that the device acknowledged (transmit / mem write), bytes read (receive / mem read)
+	bool acknowledged = false; //!< The device acknowledged its address (IsDeviceReady: in one of the trials)
+	HAL_StatusTypeDef result = HAL_OK; //!< Return value of the HAL call that started the transfer
+	bool completed = false;	  //!< Blocking: returned HAL_OK; IT/DMA: completion callback raised
+	uint32_t errorCode = 0;	  //!< ErrorCode of the handle at the end of the transfer
+};
+/**
+ * Scripted I2C device. Register model (pointerRegister = true): a register pointer (pointerSize bytes) is set by the
+ * memory address of Mem_Write / Mem_Read or by the first byte(s) of a Master_Transmit; data bytes are written to /
+ * read from the register at the pointer. A register holds registerWidth bytes (bus order, e.g. big endian for the
+ * ADS111X); after its last byte the pointer moves to the next register (autoIncrement, EEPROM like) or wraps to the
+ * first byte of the same register (ADS111X). Registers never written read as 0xFF.
+ * Plain model (pointerRegister = false, e.g. PCF8574): Master_Receive returns the bytes of registers[0] (repeated), a
+ * Master_Transmit is only recorded.
+ * readQueue: scripted read responses, consumed one per read transfer before the register model (padded with 0xFF).
+ */
+struct I2cDevice {
+	bool pointerRegister = true;
+	uint8_t pointerSize = 1;	//!< Bytes of the register pointer sent by Master_Transmit (Mem_* use MemAddSize)
+	uint8_t registerWidth = 1;	//!< Bytes per register
+	bool autoIncrement = true;
+	uint16_t pointer = 0;		//!< Current register pointer
+	std::map<uint16_t, std::vector<uint8_t>> registers;
+	std::deque<std::vector<uint8_t>> readQueue;
+	bool nackAddress = false;	 //!< Never acknowledges its address (absent / defective)
+	uint32_t nackAddressCount = 0; //!< Does not acknowledge the next n address phases (busy, e.g. EEPROM write cycle)
+	int32_t nackWriteByte = -1;	 //!< Index of the written byte (counted from the first byte after the address, memory address included) that is not acknowledged; -1 = none
+	/** Called after the device took part in a transfer (also NACKed ones), before the HAL returns / the callback runs */
+	std::function<void(I2cDevice &, const I2cTransfer &)> onTransfer;
+
+	void setRegister(uint16_t reg, const std::vector<uint8_t> &bytes) { registers[reg] = bytes; }
+	void setRegister16(uint16_t reg, uint16_t value) { registers[reg] = {static_cast<uint8_t>(value >> 8), static_cast<uint8_t>(value)}; } //!< Big endian
+	uint16_t register16(uint16_t reg) const; //!< Big endian value of a 2 byte register (0xFFFF if never written)
+	std::vector<uint8_t> registerBytes(uint16_t reg) const; //!< registerWidth bytes (0xFF if never written)
+};
+/** The device with this 7 bit address on the bus of hi2c (created on first use: acknowledges, register model) */
+I2cDevice &i2cDevice(I2C_HandleTypeDef *hi2c, uint8_t address);
+void i2cRemoveDevice(I2C_HandleTypeDef *hi2c, uint8_t address);
+/** All transfers on the bus since the last reset (including rejected calls: result != HAL_OK) */
+const std::deque<I2cTransfer> &i2cTransfers(const I2C_HandleTypeDef *hi2c);
+void i2cClearTransfers(const I2C_HandleTypeDef *hi2c);
+bool i2cTransferPending(const I2C_HandleTypeDef *hi2c);
+/**
+ * Ends the pending IT/DMA transfer: the device is accessed (address and data acknowledge, read data written into the
+ * buffer), State READY, Mode NONE, then in interrupt context HAL_I2C_MasterTxCpltCallback / MasterRxCplt /
+ * MemTxCplt / MemRxCplt (I2C_MasterTransmit_BTF, I2C_MasterReceive_RXNE/BTF, I2C_MemoryTransmit_TXE_BTF,
+ * I2C_DMAXferCplt), or on a NACK ErrorCode |= AF and HAL_I2C_ErrorCallback (HAL_I2C_ER_IRQHandler -> I2C_ITError).
+ * @return false if no transfer was pending
+ */
+bool i2cComplete(I2C_HandleTypeDef *hi2c);
+/**
+ * Ends the pending IT/DMA transfer with a bus error (HAL_I2C_ER_IRQHandler: BERR, ARLO, AF, OVR; I2C_DMAError: DMA):
+ * no data, ErrorCode |= errorCode, State READY, Mode NONE, HAL_I2C_ErrorCallback in interrupt context.
+ */
+bool i2cFail(I2C_HandleTypeDef *hi2c, uint32_t errorCode = HAL_I2C_ERROR_BERR);
+/** BUSY flag stuck (another master, SDA held low): every call returns HAL_BUSY with ErrorCode |= TIMEOUT */
+void i2cSetBusBusy(I2C_HandleTypeDef *hi2c, bool busy);
+/**
+ * The next blocking call fails without data: returns `status` (HAL_ERROR or HAL_TIMEOUT), ErrorCode |= errorCode,
+ * State READY, Mode NONE, unlocked (the timeout branches of I2C_WaitOnFlagUntilTimeout & co.).
+ */
+void i2cFailNextBlocking(I2C_HandleTypeDef *hi2c, HAL_StatusTypeDef status, uint32_t errorCode = HAL_I2C_ERROR_TIMEOUT);
+/** Whether the handle has DMA streams linked (hdmatx / hdmarx). hi2c1: false (stm32f4xx_hal_msp.c) */
+void i2cSetDmaLinked(I2C_HandleTypeDef *hi2c, bool linked);
+uint32_t i2cInitCount(const I2C_HandleTypeDef *hi2c);   //!< HAL_I2C_Init calls since the reset
+uint32_t i2cDeInitCount(const I2C_HandleTypeDef *hi2c); //!< HAL_I2C_DeInit calls since the reset
 
 // --- OTP area (fake of OTP_Write / OTP_Read of flash_helpers.cpp, host_target_system.cpp) ---
 /**

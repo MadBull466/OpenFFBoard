@@ -263,8 +263,9 @@ set(TARGET_FIRMWARE_SOURCES
 )
 
 # Compiled again for this executable (they include main.h / target_constants.h). host_stubs.cpp is replaced by
-# the real SystemCommands.cpp; host_stubs_target.cpp holds the link stubs of HAL functions without a fake (SPI, I2C).
-# host_target_system.cpp: fake HAL ADC (F6), IWDG, CAN receive FIFO, the TIM7 HAL tick and the main.c callbacks.
+# the real SystemCommands.cpp. host_target_system.cpp: fake HAL ADC (F6), IWDG, CAN receive FIFO, the TIM7 HAL tick and
+# the main.c callbacks. host_target_bus.cpp: fake HAL SPI (F4) and I2C (F5). Every HAL function the compiled sources
+# call has a fake; paths a fake does not model are recorded in HostTarget::state().unmodelledHalCalls.
 set(TARGET_PLATFORM_SOURCES
 	platform/src/host_freertos.cpp
 	platform/src/host_platform.cpp
@@ -272,7 +273,7 @@ set(TARGET_PLATFORM_SOURCES
 	platform/src/host_target.cpp
 	platform/src/host_target_config.cpp
 	platform/src/host_target_system.cpp
-	platform/src/host_stubs_target.cpp
+	platform/src/host_target_bus.cpp
 	platform/src/host_cppmain.cpp
 )
 
