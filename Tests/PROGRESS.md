@@ -9,7 +9,7 @@
 - **Current phase:** P6 (encoders and buses in `ffb_target_tests`), started 2026-10-26. P5 approved 2026-10-26.
 - **Phase status:** P6 complete (batch 0, 3 module groups, 3 fresh reviews, fixes, gate, coverage). **Waiting for my approval.**
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
-- **Last commit:** see "Phase checklist" (P6 final).
+- **Last commit:** `e69fb8ec` (P6 final).
 - **Last updated:** 2026-10-26
 - **Last session summary:** P6: resumable fake tasks (for encoder threads that wait twice per loop), encoder-mode timer fake, SPI/I2C device mocks, would-block kernel faults; 3 module agents (local/SSI encoders + handlers 109, BiSS-C/MT/CRC 151, SPI/I2C ports 128 cases), 3 fresh reviewers, fixes. `ffb_target_tests` 1,480 cases. P6 files 99.4-100 %; all in-scope sources **6,988 of about 8,108 (86.2 %)**: 85 % goal reached. New bugs 76-105 and a bug 57 extension, NEEDS REVIEW 93-115. Usage limits interrupted agents twice and `/tmp` was cleaned several times; work was merged early, nothing lost.
 
@@ -30,7 +30,7 @@
 | P3 Flash and persistence | `ffb_flash_tests` (new) | about 365 (measured: total 4,480 lines, 55.3 %) | done | yes, 2026-10-24 | `bfe6ed56` batch 0, `ac030b2c` B tests, `b93f230e` A tests, `6410fb07` macOS skip, `8b178bbf` A review fixes, `52dce9ae` B review fixes |
 | P4 System, callbacks, misc | `ffb_target_tests` | about 460 (measured: total 5,078 lines, 62.6 %) | done | yes, 2026-10-25 | `0644984e` batch 0, `00a1e00b`/`e7d467d4`/`61a20f9f` tests, `90554aaa` infra review fixes, `c00b7e2b` B fixes, `e51bc104` A fixes, `8e807f05` C fixes + results |
 | P5 Buttons and analog | `ffb_target_tests` | about 775 (measured: total 6,206 lines, 76.5 %) | done | yes, 2026-10-26 | `73d4e482` batch 0, `3e36fdfd` analog, `663bce67` buttons, `2a18521a` A + infra review fixes, `13cb14a8` B review fixes + results |
-| P6 Encoders and buses | `ffb_target_tests` | about 640 (measured: total 6,988 lines, 86.2 %) | done | | `cd92abd9` batch 0, `3e39a144` A, `7f5b4557` C, `a8317dbb` B, `ac6eadd1` infra + C review fixes, P6 final (A + B review fixes + results) |
+| P6 Encoders and buses | `ffb_target_tests` | about 640 (measured: total 6,988 lines, 86.2 %) | done | | `cd92abd9` batch 0, `3e39a144` A, `7f5b4557` C, `a8317dbb` B, `ac6eadd1` infra + C review fixes, `e69fb8ec` A + B review fixes + results |
 | P7 CAN and serial FFB | `ffb_target_tests` | about 420 | not started | | |
 | P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 | not started | | |
 | P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder | not started | | |
