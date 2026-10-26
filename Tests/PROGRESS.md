@@ -333,6 +333,11 @@ Executable `ffb_target_tests`, new files in `cases_target/` only. Coverage after
 | C axes + integration | `test_axes_manager.cpp`, `test_ffb_integration.cpp` | `AxesManager.cpp`, path through `HidFFB`/`EffectsCalculator`/`Axis` | axis count changes, update/updateTorque, emergency stop over all axes, usb suspend/resume, commands; end to end: PID reports (constant, spring, damper, periodic, conditions per axis) -> effects -> axis -> `MockMotorDriver` torque with the position from `MockEncoder` |
 | D main classes | `test_ffbhidmain.cpp`, `test_main_classes.cpp` | `FFBHIDMain.cpp`, `FFBHIDMain_commmands.cpp`, `FFBWheel.cpp`, `FFBJoystick.cpp`, `FFBHIDExt.cpp`, `CustomMain.cpp`, `FFBoardMain.cpp`, `mainclass_chooser.cpp` | HID gamepad report packing (axes, buttons, double buffer), FFB on/off, update rate/timer, usb init/suspend/resume, button/analog source selection commands, main class info/ids unique and selectable, CustomMain |
 
+## P5 results (2026-10-26, build step; review pending)
+
+- **Group B** (analog) merged early: `test_analog_axis_processing.cpp` (73, 2 skipped crash cases), `test_local_analog.cpp` (32), `test_can_analog.cpp` (35), `test_ads111x.cpp` (62, 1 skipped crash case), `test_analog_source.cpp` (10) = 212 cases. No shared-helper change. Coverage: `AnalogAxisProcessing.cpp` 40/112 -> 110/112 (98.2 %; 58/60 an empty, undeclared free function `registerCommands(CommandHandler*)`: dead code), `LocalAnalog.cpp` 49/49, `CanAnalog.cpp` 70/70, `ADS111X.cpp` 206/206, `AnalogSource.cpp` 6/6. Filter checked against an independent double biquad in both DSP builds. Mutation 52/54 (2 equivalent). Bugs 59-66, NEEDS REVIEW 85-92. Gate after merge: `ffb_target_tests` 892/0/5 (default, clang23), 893/0/5 (nodsp), 789 + 108 skipped (san, clang23-san), 790 + 108 (nodsp-san); ctest 4/4; baseline OK.
+- Group A (buttons) still running.
+
 ## P5 plan (2026-10-26)
 
 `ffb_target_tests`, new files in `cases_target/` only. 2 module agents in isolated scratch workspaces (`scratchpad/p5/<group>`), per-file goal 85 % without hardware-only code, mutation spot-check 80 %.
@@ -592,6 +597,14 @@ Functions never run by any test (counts of never-run / total): ErrorHandler 15/2
 | 64 | SystemCommands | `flashraw` setat | Address and value (int64) are truncated to 16 bits for `Flash_Write(uint16_t, uint16_t)`: `flashraw=0x10005?0x10007` stores 5 at 7, address -1 stores at 0xFFFF, both with OK (same class as 58) | no |
 | 65 | cppmain | `cppmain.cpp:126` `micros()` | Reads `HAL_GetTick()` and `TIM7->CNT` without making them consistent: if TIM7 wraps between the reads (or `micros()` runs with interrupts masked / in a higher-priority ISR while the update is pending) the result jumps back about 1000 us. Not observable with the atomic fake (review p4r2) | no |
 | 76 | SPI | `main.c:1377-1388` | All external and ext3 SPI CS pins start low after `MX_GPIO_Init` (the asserted level of active-low devices) until a device's first transfer. Intended? | no |
+| 85 | AnalogAxisProcessing | `AnalogAxisProcessing.cpp:159` | Without manual scaling every `autocal` command (also get or set 0) resets the learned range (latent: both users allow manual scaling) | no |
+| 86 | AnalogAxisProcessing | `autorangeScale` 1.05 (`AnalogAxisProcessing.h:96`) | Margin only on the top side: minimum -> -0x7fff, middle -> about +1638, output saturates at about 95 % of the range; also for a manual range | no |
+| 87 | AnalogAxisProcessing | `AnalogAxisProcessing.cpp:97-99` | Filter sample counter shared by all axes: with 2 axes autorange starts after 251 calls instead of 500 | no |
+| 88 | LocalAnalog | `LocalAnalog.cpp:79-87` | min/max and filter belong to the n-th enabled pin, not pin n: changing the mask moves every stored range to another pin | no |
+| 89 | AnalogAxisProcessing | manual range min > max | Values stay unscaled (neither inverted nor rejected) | no |
+| 90 | AnalogAxisProcessing | restore | With autorange restored on, a manual range still in flash becomes the starting range | no |
+| 91 | ADS111X | `ADS111X.cpp:327` | 4 s timeout counts from the last finished cycle: after more than 4 s without requests the next `getAxes` resets the I2C port (all devices) instead of converting | no |
+| 92 | CanAnalog | receive | No receive timeout: the axes keep the last values forever | no |
 | 53 | cppmain | `cppmain.cpp:88-90` with `flash_helpers.cpp:105-120` | `Flash_ReadWriteDefault` returns false after writing a default, so `cppmain` calls `Error_Handler` on every first boot (empty flash); `Error_Handler` only switches the error LED off. Probably unintended | no |
 | 21 | HidFFB / CDC | `FirmwareFixture::resetGlobals` (test infrastructure) | Does not reset `CDCcomm`'s private `usb_busy_retry`; `test_cdc.cpp` works around it with its own fixture. Shared fix in `support/FirmwareFixture.h`? | no |
 
@@ -658,6 +671,14 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 | 56 | SPIButtons | `setSpiSpeed` / `setConfig` | Clip to `speedPresets.size()` allows index 3 of a 3-entry array (command and stored `spi_speed`): out-of-bounds read (same class as bug 37) | P5 module tests |
 | 57 | SPIDevice | destructor | Does not clear the port's `current_device`: deleting a source while its DMA read is pending (e.g. a `btntypes` change) makes the completion call a deleted object (the fixture clears it) | P6 |
 | 58 | I2C | `I2C.cpp` `_IT`/`_DMA` wrappers | Take the semaphore before the HAL call and never release it when the HAL returns an error: the port stays blocked (like bug 16). `transmitMasterDMA`/`receiveMasterDMA` always fail on the F407 (no DMA stream, `DMA_PARAM`) | P6 |
+| 59 | CanAnalog | `CanAnalog.cpp:110-121` | `extId` never checked: an extended frame whose low 11 bits equal the CAN id (accepted by another filter on the port) becomes axis values | KNOWN_ISSUE (`test_can_analog.cpp`) |
+| 60 | CanAnalog | `CanAnalog.cpp:97` | `canid` limit `0x7FF - axes/4` instead of `0x7FF - (packets-1)`: with 8 axes 0x7FE is refused (0x7FD stored), with 4 axes 0x7FF is refused | KNOWN_ISSUE |
+| 61 | CanAnalog | `amount` command | Does not re-check the id: `canid` 0x7FF then amount 8 needs a second frame id 0x800, axes 5-8 can never be received | KNOWN_ISSUE |
+| 62 | ADS111X | `ADS111X.cpp:24-29` `readReg` | Returns the bytes in bus order without swapping (0x8583 reads as 0x8385). Latent: no caller | KNOWN_ISSUE |
+| 63 | AnalogAxisProcessing | `AnalogAxisProcessing.cpp:174/187` | `min`/`max` check `adr <= axisAmount`: adr == axisAmount reads/writes one past the vector (reachable by a command; aborts under `_GLIBCXX_ASSERTIONS`). Confirmed in source | Skipped KNOWN ISSUE (crash) |
+| 64 | AnalogAxisProcessing | `AnalogAxisProcessing.cpp:44-48` | Constructor dereferences a null `cmdHandler` for `values`/`rawval` although nullptr is documented to disable commands (SIGSEGV). Latent | Skipped KNOWN ISSUE (crash) |
+| 65 | ADS111X | `ADS111X.cpp:336-341` with `:296` | `setAxes` (`inputs`/`diff` commands) during a conversion read: `rawbuf[lastAxis]` written out of bounds (host abort; on the target into vector spare capacity) | Skipped KNOWN ISSUE (crash) |
+| 66 | ADS111X | `ADS111X.cpp:31-40` `writeRegIT`/`writeReg` | Write the shared `writeItBuffer` before taking the port semaphore: a second write overwrites a pending IT transfer's bytes (the real HAL reads the buffer byte by byte in the ISR; the fake copies at start, so not observable). Latent: `setThresh` not called | Code reading |
 | V1 | FreeRTOS wrappers (**vendor, tier A**) | `csemaphore.cpp:117-131` | `CountingSemaphore(0, x)` or initial > max throws before `handle` is set; `~Semaphore` then deletes an uninitialised handle (UB). Exception builds only (target uses `CPP_FREERTOS_NO_EXCEPTIONS`/`configASSERT`) | Seen with mutants; no test (would crash) |
 | V2 | FreeRTOS wrappers (**vendor, tier A**) | `cthread.cpp:184-187` | `~Thread` of a never-started thread calls `vTaskDelete` with an uninitialised handle (NULL deletes the calling task on FreeRTOS). Also on target | Code reading; no test (UB) |
 | V3 | FreeRTOS wrappers (**vendor, tier A**) | `cmutex.cpp`, `csemaphore.cpp` | On a kernel create failure (NULL), the destructors call `vSemaphoreDelete(NULL)` (real FreeRTOS asserts) | Code reading; no test |
