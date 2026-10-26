@@ -6,7 +6,7 @@
  * peripheral objects of the target configuration (platform/src/host_target.cpp, host_target_config.cpp),
  * the fake HAL ADC (F6), IWDG, the CAN receive FIFOs, the TIM7 HAL tick, the main.c callbacks and the start-up
  * code of cppmain.cpp (platform/src/host_target_system.cpp), the fake HAL SPI (F4) and I2C (F5)
- * (platform/src/host_target_bus.cpp).
+ * (platform/src/host_target_bus.cpp), the fake HAL CAN (F8, platform/src/host_target_can.cpp).
  *
  * Reset with HostTarget::reset() (done by AxisFixture / TargetFixture).
  */
@@ -18,6 +18,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -28,6 +29,7 @@
 #include <vector>
 
 class MockCANPort;
+class CANPort_2B;
 class FFBoardMain;
 
 // Peripheral handles of the target (normally defined by the CubeMX code in main.c)
@@ -56,7 +58,7 @@ struct State {
 	uint32_t errorHandlerCalls = 0;	  //!< Error_Handler calls (main.c: error LED off, returns)
 	uint32_t taskYields = 0;		  //!< taskYIELD() calls (cppmain loop, Thread::Yield)
 	uint32_t canRxOverruns[2] = {0, 0}; //!< Frames that overwrote the newest frame of a full CAN receive FIFO (canQueueRx)
-	uint32_t canRxStalls = 0;		  //!< canRxInterrupt stopped because a callback did not read the FIFO (the target would re-enter the interrupt forever)
+	uint32_t canRxStalls = 0;		  //!< canRxInterrupt or a raised CAN interrupt (fake HAL CAN) stopped because the handler changed nothing, e.g. a callback did not read the FIFO (the target would re-enter the interrupt forever)
 	struct OtpCall {
 		bool write = false;	  //!< OTP_Write (true) or OTP_Read (false)
 		uint16_t offset = 0;  //!< adroffset argument (8 byte slots)
@@ -91,7 +93,11 @@ void reset();
 
 /**
  * Resets the objects of the host target configuration (host_target_config.cpp), called by reset():
- *  - the global `canport` (MockCANPort::resetForTest: records, speed, start/stop, port users, semaphores)
+ *  - the fake HAL CAN (resetCan: CAN1 and hcan1 as after MX_CAN1_Init, no frames, no records)
+ *  - the global `canport` (the real CANPort_2B) to its state after construction: speed preset 4 (500k), no filters, no
+ *    transmit mailboxes, silent, not active, lastSentTime 0, nextLen 8, no port users, not waiting, semaphores
+ *    available, delayed flash restore pending; its view canPort() (MockCANPort::resetForTest: records, start/stop
+ *    counters, filters)
  *  - the HAL handles hspi1-3, hi2c1, huart3, hadc1/2 (Init, State, ErrorCode, Lock as after MX_SPIx_Init /
  *    MX_I2C1_Init / MX_ADCx_Init of main.c) and the fake HAL SPI / I2C (resetBus: scripts, devices, records)
  *  - the transfer semaphores of motor_uart
@@ -121,7 +127,7 @@ void resetBus();
  * Resets the system part (host_target_system.cpp), called by reset():
  *  - fake ADC: DMA transfers stopped, inputs 0, calibration values default (setAdcCalibration); ADC1_BUF / ADC2_BUF 0
  *  - TIM7 (HAL tick) as after HAL_InitTick: 1 MHz, Period 999, running with update interrupt, CNT = time % 1000
- *  - IWDG handle, CAN receive FIFOs empty
+ *  - IWDG handle (the CAN receive FIFOs are reset by resetTargetConfig -> resetCan)
  *  - firmware globals to their initial values: voltagesense.cpp (brake thresholds and state, vSenseMult, chip
  *    temperature average), ledEffects.cpp (sysled, errled, clipled), cppmain.cpp (running, mainclassChosen,
  *    forceErase, main_id) and the cppmain loop budget (runCppmain)
@@ -240,35 +246,139 @@ void setAdcCalibration(uint16_t vrefintCal, uint16_t tsCal1, uint16_t tsCal2);
  */
 uint32_t tickTimerCounter();
 
-// --- CAN receive FIFOs of hcan1 (fake HAL CAN, receive path only; the rest of F8 follows in P7) ---
+// --- bxCAN CAN1 / hcan1 (fake HAL CAN F8, host_target_can.cpp) ---
 /**
- * Puts a received frame into receive FIFO 0 or 1 of hcan1 (3 frames deep). The acceptance filters are not modelled:
- * the frame counts as accepted (FilterMatchIndex as given). A full FIFO (not locked, MX_CAN1_Init
- * ReceiveFifoLocked = DISABLE) overwrites its newest frame (RM0090 32.7.5, counted in state().canRxOverruns).
- * Fields are stored like the mailbox registers: StdId 11 bit, ExtId 29 bit, DLC 4 bit, Timestamp 16 bit.
+ * The fake models stm32f4xx_hal_can.c (every HAL CAN function the firmware calls, plus Init/DeInit, sleep/wake-up,
+ * DeactivateNotification, GetState/GetError) on the CAN1 registers (`*CAN1`, readable by tests: BTR, IER, TSR, ESR,
+ * FA1R, sFilterRegister ...). The peripheral side follows RM0090 chapter 32:
+ *  - After reset (resetCan) CAN1 is as after MX_CAN1_Init (main.c:486-511, HAL_CAN_Init): State READY, initialisation
+ *    mode, BTR 0x001A0005 (500 kbit/s), automatic retransmission, no automatic bus-off recovery, FIFOs not locked.
+ *    Mode changes (start, stop, init) are acknowledged at once; canFailNextModeChange injects the HAL timeout.
+ *  - Transmit: HAL_CAN_AddTxMessage puts the frame into the lowest empty of the 3 mailboxes (recorded in canTxFrames)
+ *    and it stays pending (a bus without another node never acknowledges) until the test completes it (canTxComplete,
+ *    canTxCompleteAll, canSetTxAutoComplete) or reports a failed attempt (canTxError). Only in normal mode (started,
+ *    not sleeping, not bus-off). HAL_CAN_AbortTxRequest empties a pending mailbox at once.
+ *  - Receive: canReceive passes a frame through the filter banks into the FIFO of the matching filter (3 frames deep).
+ *  - Interrupts: HAL_CAN_IRQHandler (modelled step by step) runs in interrupt context while an event is pending whose
+ *    interrupt is enabled in IER and whose NVIC line is enabled. As in HAL_CAN_MspInit (stm32f4xx_hal_msp.c:291-294)
+ *    only CAN1_TX and CAN1_RX0 are enabled: FIFO 1 frames and the status change / error interrupt (bus-off, error
+ *    warning / passive, last error code) raise nothing on the F407 (canSetIrqLineEnabled to model other boards).
+ *    Transmit, abort and FIFO 0 interrupts are raised right after the event (inside the fake call that caused it).
+ * Not modelled: bit timing / bus speed, time-triggered mode, the error counters TEC/REC, automatic bus-off recovery
+ * (ABOM) and wake-up (AWUM), loop back / silent mode (BTR LBKM / SILM: recorded in state().unmodelledHalCalls at
+ * HAL_CAN_Start), a frame that is being sent while it is aborted, the ownership of the filter banks by CAN1 / CAN2
+ * (FMR CAN2SB is written like the HAL, all 28 banks filter CAN1), CAN2. HAL calls with another handle than hcan1 and
+ * filter banks above 27 are recorded as unmodelled.
+ */
+/** Resets the fake HAL CAN: CAN1 / hcan1 as after MX_CAN1_Init, no frames, no records, NVIC lines as HAL_CAN_MspInit, no injections. Called by resetTargetConfig */
+void resetCan();
+
+enum class CanTxResult : uint8_t { Pending, Sent, Aborted, Failed };
+/** A frame put into a transmit mailbox by HAL_CAN_AddTxMessage. id / extId / rtr / dlc / data are decoded from the mailbox registers (what goes on the bus) */
+struct CanTxFrame {
+	CAN_TxHeaderTypeDef header{};	//!< Header as passed to HAL_CAN_AddTxMessage
+	uint32_t mailbox = 0;			//!< 0..2 (*pTxMailbox = 1 << mailbox)
+	uint32_t id = 0;				//!< Identifier in the mailbox (11 bit standard / 29 bit extended; the HAL does not mask StdId / ExtId: higher bits are lost)
+	bool extId = false;				//!< IDE
+	bool rtr = false;				//!< Remote frame
+	uint8_t dlc = 0;				//!< DLC field (4 bit, the HAL writes header.DLC unmasked; 9..15 means 8 data bytes on the bus)
+	std::array<uint8_t, 8> data{};	//!< The 8 data bytes of the mailbox (the HAL always copies 8)
+	uint32_t time = 0;				//!< HAL_GetTick() at HAL_CAN_AddTxMessage
+	CanTxResult result = CanTxResult::Pending;
+	/** The first min(dlc, 8) data bytes */
+	std::vector<uint8_t> payload() const { return std::vector<uint8_t>(data.begin(), data.begin() + (dlc > 8 ? 8 : dlc)); }
+	/** The 8 data bytes as little endian 64 bit value (byte 0 = bits 7:0) */
+	uint64_t value() const {
+		uint64_t v = 0;
+		for (int i = 7; i >= 0; i--) {
+			v = (v << 8) | data[i];
+		}
+		return v;
+	}
+};
+/** Every frame accepted by HAL_CAN_AddTxMessage since the reset, in order (also aborted ones, see result) */
+const std::vector<CanTxFrame> &canTxFrames();
+void canClearTxFrames();
+/** Mailboxes with a pending transmit request: bit m = mailbox m (TME clear) */
+uint32_t canTxPending();
+/**
+ * The pending frame of a mailbox (0..2) was sent and acknowledged: TSR RQCP, TXOK, TME set, then the transmit
+ * interrupt (if TMEIE and the NVIC line): HAL_CAN_TxMailboxXCompleteCallback (global_callbacks.cpp -> every
+ * CanHandler::canTxCpltCallback with mailbox index X). @return false if the mailbox is not pending or the peripheral
+ * can not transmit (not started, sleeping, bus-off)
+ */
+bool canTxComplete(uint32_t mailbox);
+/** canTxComplete for every pending mailbox (0, 1, 2), one interrupt for all. @return number of completed frames */
+uint32_t canTxCompleteAll();
+/**
+ * A transmission attempt of the pending frame failed (TERR, or ALST with arbitrationLost). With automatic
+ * retransmission (MX_CAN1_Init) the request stays pending and no interrupt is raised; an abort then reports the error
+ * (HAL_CAN_ErrorCallback with HAL_CAN_ERROR_TX_TERRx / ALSTx instead of the abort callback). With MCR NART set the
+ * request completes with that error. @return false like canTxComplete
+ */
+bool canTxError(uint32_t mailbox, bool arbitrationLost = false);
+/**
+ * Auto-complete: another node acknowledges every frame. Pending frames are completed (canTxCompleteAll) at the start
+ * of the next HAL CAN call and of canIrq, i.e. some time after the firmware queued them, never inside the call that
+ * queued them. Off after reset.
+ */
+void canSetTxAutoComplete(bool on);
+
+/** Error state of the node (RM0090 32.7.6): sets CAN_ESR EWGF / EPVF / BOFF (cumulative), ERRI if the matching interrupt (CAN_IT_ERROR_WARNING / _PASSIVE / _BUSOFF) is enabled, then raises the status change interrupt (CAN1_SCE: disabled in the F407 NVIC). Bus-off stops transmission and reception until the peripheral leaves the initialisation mode again (HAL_CAN_Stop + HAL_CAN_Start, recovery assumed at once) */
+enum class CanErrorState : uint8_t { Active, Warning, Passive, BusOff };
+void canSetErrorState(CanErrorState errorState);
+/** Last error code CAN_ESR LEC (1 stuff, 2 form, 3 ack, 4 bit recessive, 5 bit dominant, 6 CRC), ERRI if CAN_IT_LAST_ERROR_CODE is enabled, raises CAN1_SCE */
+void canSetLastErrorCode(uint8_t lec);
+/** NVIC lines of CAN1. After reset: Tx and Rx0 enabled, Rx1 and Sce disabled (HAL_CAN_MspInit, stm32f4xx_hal_msp.c:291-294) */
+enum class CanIrqLine : uint8_t { Tx, Rx0, Rx1, Sce };
+void canSetIrqLineEnabled(CanIrqLine line, bool enabled);
+bool canIrqLineEnabled(CanIrqLine line);
+/** Raises the CAN interrupt for every pending enabled event (after auto-complete). @return number of HAL_CAN_IRQHandler runs */
+uint32_t canIrq();
+/** The next mode change (HAL_CAN_Init / _Start / _Stop) is not acknowledged: HAL_ERROR, ErrorCode |= TIMEOUT, State ERROR (no time passes) */
+void canFailNextModeChange();
+
+/** Whether the active filter banks of CAN1 accept a frame (see canReceive), with the FIFO and filter match index */
+bool canAccepts(uint32_t id, bool extId = false, bool rtr = false, uint32_t *fifo = nullptr, uint32_t *filterMatchIndex = nullptr);
+/** Every HAL_CAN_ConfigFilter argument since the reset (also rejected calls) */
+const std::vector<CAN_FilterTypeDef> &canFilterConfigs();
+/** A HAL CAN call: function name, argument (ConfigFilter: FilterBank, AbortTxRequest / IsTxMessagePending: mailboxes, (De)ActivateNotification: interrupts, AddTxMessage: *pTxMailbox) and result (status or returned value) */
+struct CanHalCall {
+	std::string function;
+	uint32_t arg = 0;
+	uint32_t result = 0;
+};
+/** HAL CAN calls of the firmware since the reset in order (not recorded: GetRxFifoFillLevel, GetRxMessage) */
+const std::vector<CanHalCall> &canHalCalls();
+void canClearHalCalls();
+
+/**
+ * Puts a received frame into receive FIFO 0 or 1 of hcan1 (3 frames deep) without filters and without raising an
+ * interrupt (FilterMatchIndex as given). The third frame sets FULL; a full FIFO (not locked, MX_CAN1_Init
+ * ReceiveFifoLocked = DISABLE) overwrites its newest frame and sets FOVR (RM0090 32.7.5, counted in
+ * state().canRxOverruns). Fields are stored like the mailbox registers: StdId 11 bit, ExtId 29 bit, DLC 4 bit, Timestamp 16 bit.
  */
 void canQueueRx(uint32_t fifo, const CAN_RxHeaderTypeDef &header, const uint8_t data[8]);
 /** Frames waiting in a receive FIFO of hcan1 */
 size_t canRxPending(uint32_t fifo);
 /**
- * Raises the "message pending" interrupt of a receive FIFO of hcan1 in interrupt context (HAL_CAN_IRQHandler:
- * HAL_CAN_RxFifo0MsgPendingCallback / ..Fifo1..). The interrupt is level triggered: it is raised again while frames
- * are pending. Stops (state().canRxStalls) if a callback reads nothing. The notifications are assumed active (like
- * CANPort_2B::start). @return number of callback calls
+ * Calls HAL_CAN_RxFifo0MsgPendingCallback / ..Fifo1.. directly in interrupt context while frames are pending in the
+ * FIFO, regardless of IER and the NVIC (a forced "message pending" interrupt, P4). Stops (state().canRxStalls) if a
+ * callback reads nothing. HAL calls of the callbacks raise no further interrupt. @return number of callback calls
  */
 uint32_t canRxInterrupt(uint32_t fifo);
 /**
- * Delivers a received data frame to the firmware the way the hardware does it with the global `canport`
- * (MockCANPort with the handle &hcan1 until the CANPort_2B fake of P7): the frame is only accepted while the port is
- * started and an active filter of the port matches with the bxCAN 32 bit mask filter semantics (RM0090 32.7.4) of the
- * filter registers CANPort_2B::addCanFilter builds: a standard filter compares STID / EXID[28:18] only, so it also
- * accepts extended frames whose upper 11 id bits match; an extended filter rejects standard frames. (This differs from
- * MockCANPort::passesFilter, which keeps the generic mock semantics of ffb_unit_tests.) The frame goes into the receive
- * FIFO selected by the first matching filter (CAN_filter::buffer 0/1, like
- * CANPort_2B::addCanFilter's FilterFIFOAssignment), then canRxInterrupt raises HAL_CAN_RxFifoXMsgPendingCallback of
- * global_callbacks.cpp, which reads the FIFO with HAL_CAN_GetRxMessage and calls every CanHandler.
+ * Delivers a data frame from the bus the way the hardware does it: only in normal mode (HAL_CAN_Start called, not
+ * sleeping, not bus-off), the active filter banks of CAN1 decide (RM0090 32.7.4: 32 / 16 bit, mask / list, priority
+ * 32 bit > 16 bit > list > mask > lower bank; filter match index per FIFO). The frame goes into the FIFO of the matching
+ * bank and the receive interrupt is raised if enabled (CANPort_2B::start enables it): HAL_CAN_IRQHandler ->
+ * HAL_CAN_RxFifo0MsgPendingCallback of global_callbacks.cpp reads the FIFO and calls every CanHandler. A FIFO 1 frame
+ * raises nothing on the F407 (CAN1_RX1 is not enabled in the NVIC) and stays in the FIFO.
+ * With the filters built by CANPort_2B::addCanFilter (CANPort2B.cpp:272-287) a standard filter compares STID /
+ * EXID[28:18] only, so it also accepts extended frames whose upper 11 id bits match; an extended filter rejects
+ * standard frames. (MockCANPort::passesFilter keeps its generic mock semantics.)
  * The DLC is data.size() (at most 8 bytes are used); extId selects a 29 bit id; rtr a remote frame.
- * @return number of message pending interrupts raised (0 = frame not accepted)
+ * @return number of message pending callbacks raised (0 = frame not accepted or not delivered)
  */
 uint32_t canReceive(uint32_t id, const std::vector<uint8_t> &data, bool extId = false, bool rtr = false);
 
@@ -492,10 +602,15 @@ void deleteCppmainMainclass();
 
 // --- Target configuration (host replacement of cpp_target_config.cpp) ---
 /**
- * The global `canport` of the firmware. A MockCANPort until the fake HAL CAN exists (P7). Its handle is &hcan1 like
- * CANPort_2B, so CANPort::handleToPort(&hcan1) and the CAN callbacks of global_callbacks.cpp find it.
+ * The global `canport` of the firmware is the real CANPort_2B on hcan1 (F407 presets 50k..1000k, silent pin CAN_S),
+ * like cpp_target_config.cpp:51-56. canPort2B() returns it.
+ * canPort() returns a view of it for the P5 tests: a MockCANPort whose fields record what the firmware did with
+ * canport (started, startCalls, stopCalls, filters = the CAN_filter values passed to addCanFilter, active cleared by
+ * removeCanFilter) and whose CANPort functions forward to canport. Its `sent`, `speed`, `silent` and `sendResult` are
+ * not used. New tests use canPort2B() / canport and the fake HAL CAN (canTxFrames, canReceive, CAN1 registers).
  */
 MockCANPort &canPort();
+CANPort_2B &canPort2B();
 
 } // namespace HostTarget
 

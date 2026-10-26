@@ -5,8 +5,8 @@
  * control in support/HostTarget.h):
  *  - fake HAL ADC (F6): HAL_ADC_Start/_Stop/_PollForConversion/_GetValue/_Start_DMA/_Stop_DMA and the DMA conversion
  *    complete interrupt (ADC_DMAConvCplt -> HAL_ADC_ConvCpltCallback); LL ADC calibration values
- *  - IWDG (HAL_IWDG_Refresh), the HAL time base TIM7 (HAL_InitTick, HAL_IncTick), the receive FIFOs of bxCAN
- *    (HAL_CAN_GetRxFifoFillLevel, HAL_CAN_GetRxMessage, message pending interrupt)
+ *  - IWDG (HAL_IWDG_Refresh), the HAL time base TIM7 (HAL_InitTick, HAL_IncTick). The receive FIFOs of bxCAN moved to
+ *    the fake HAL CAN in host_target_can.cpp (P7)
  *  - the callbacks main.c defines: HAL_TIM_PeriodElapsedCallback (TIM7 -> HAL_IncTick) and Error_Handler
  *  - control of the real start-up code (cppmain.cpp): taskYIELD hook, runCppmain, reset of its globals and of the
  *    globals of voltagesense.cpp and ledEffects.cpp
@@ -102,13 +102,6 @@ struct AdcFake {
 };
 std::map<const ADC_HandleTypeDef *, AdcFake> adcs;
 
-// ---- CAN ----
-struct CanRxFrame {
-	CAN_RxHeaderTypeDef header;
-	std::array<uint8_t, 8> data;
-};
-std::array<std::deque<CanRxFrame>, 2> canFifos;
-
 // ---- OTP (HostTarget::otpByte ...) ----
 std::array<uint8_t, HostTarget::OTP_SIZE> otp;
 constexpr uint32_t OTP_BASE = 0x1FFF7800UL; // FLASH_OTP_BASE (stm32f407xx.h)
@@ -134,7 +127,6 @@ bool otpProgramWord(uint32_t offset, uint32_t word) {
 	}
 	return true;
 }
-constexpr size_t CAN_FIFO_DEPTH = 3; // RM0090 32.7.5: 3 mailboxes per receive FIFO
 
 // ---- cppmain ----
 uint32_t cppmainLoopsLeft = 0;
@@ -258,16 +250,13 @@ void resetSystem() {
 	for (auto &v : ADC2_BUF) {
 		v = 0;
 	}
-	// HAL tick, watchdog, CAN
+	// HAL tick, watchdog (the CAN receive FIFOs are reset with the fake HAL CAN by resetTargetConfig -> resetCan)
 	initTickTimer();
 	iwdgRegs = IWDG_TypeDef();
 	hiwdg = IWDG_HandleTypeDef();
 	hiwdg.Instance = &iwdgRegs;
 	hiwdg.Init.Prescaler = 0x00000002U; // MX_IWDG_Init (main.c:569): IWDG_PRESCALER_16 = IWDG_PR_PR_1
 	hiwdg.Init.Reload = 4095;			// MX_IWDG_Init
-	for (auto &fifo : canFifos) {
-		fifo.clear();
-	}
 	// Firmware globals
 	running = initialValues.running;
 	mainclassChosen = initialValues.mainclassChosen;
@@ -373,51 +362,6 @@ void setAdcCalibration(uint16_t vrefintCal, uint16_t tsCal1, uint16_t tsCal2) {
 
 // ---- HAL tick ----
 uint32_t tickTimerCounter() { return hosttest_tim7.CNT; }
-
-// ---- CAN ----
-void canQueueRx(uint32_t fifo, const CAN_RxHeaderTypeDef &header, const uint8_t data[8]) {
-	std::deque<CanRxFrame> &queue = canFifos.at(fifo);
-	CanRxFrame frame;
-	frame.header = header;
-	// Stored like the mailbox registers CAN_RIxR / CAN_RDTxR (stm32f407xx.h field widths)
-	frame.header.StdId &= 0x7FFU;
-	frame.header.ExtId &= 0x1FFFFFFFU;
-	frame.header.IDE &= CAN_ID_EXT;
-	frame.header.RTR &= CAN_RTR_REMOTE;
-	frame.header.DLC &= 0xFU;
-	frame.header.FilterMatchIndex &= 0xFFU;
-	frame.header.Timestamp &= 0xFFFFU;
-	std::copy(data, data + 8, frame.data.begin());
-	if (queue.size() >= CAN_FIFO_DEPTH) {
-		queue.back() = frame; // FIFO not locked: the newest frame is overwritten (FOVR)
-		state().canRxOverruns[fifo]++;
-		return;
-	}
-	queue.push_back(frame);
-}
-
-size_t canRxPending(uint32_t fifo) { return canFifos.at(fifo).size(); }
-
-uint32_t canRxInterrupt(uint32_t fifo) {
-	uint32_t calls = 0;
-	while (!canFifos.at(fifo).empty()) {
-		size_t before = canFifos[fifo].size();
-		{
-			HostPlatform::IsrContext isr;
-			if (fifo == CAN_RX_FIFO0) {
-				HAL_CAN_RxFifo0MsgPendingCallback(&hcan1);
-			} else {
-				HAL_CAN_RxFifo1MsgPendingCallback(&hcan1);
-			}
-		}
-		calls++;
-		if (canFifos[fifo].size() >= before) {
-			state().canRxStalls++; // The target would re-enter the interrupt forever
-			break;
-		}
-	}
-	return calls;
-}
 
 // ---- cppmain ----
 void runCppmain(uint32_t loops) {
@@ -593,50 +537,6 @@ HAL_StatusTypeDef HAL_ADC_Stop_DMA(ADC_HandleTypeDef *hadc) {
 uint32_t HAL_ADC_GetValue(ADC_HandleTypeDef *hadc) {
 	hadc->Instance->SR &= ~ADC_SR_EOC;
 	return hadc->Instance->DR;
-}
-
-// ---------------- CAN receive FIFOs (stm32f4xx_hal_can.c) ----------------
-
-/** Models HAL_CAN_GetRxFifoFillLevel: number of pending frames (FMPx) if State is READY or LISTENING, else 0 */
-uint32_t HAL_CAN_GetRxFifoFillLevel(const CAN_HandleTypeDef *hcan, uint32_t RxFifo) {
-	if (hcan->State != HAL_CAN_STATE_READY && hcan->State != HAL_CAN_STATE_LISTENING) {
-		return 0;
-	}
-	if (hcan != &hcan1) {
-		return 0; // Only CAN1 exists on the F407 configuration
-	}
-	return (uint32_t)canFifos.at(RxFifo == CAN_RX_FIFO0 ? 0 : 1).size();
-}
-
-/**
- * Models HAL_CAN_GetRxMessage: State must be READY or LISTENING (else ErrorCode |= NOT_INITIALIZED, HAL_ERROR); an
- * empty FIFO gives ErrorCode |= PARAM, HAL_ERROR. Otherwise the oldest frame is copied (StdId or ExtId depending on
- * IDE, RTR, DLC truncated to 8, FilterMatchIndex, Timestamp, 8 data bytes) and the FIFO released (RFOM).
- */
-HAL_StatusTypeDef HAL_CAN_GetRxMessage(CAN_HandleTypeDef *hcan, uint32_t RxFifo, CAN_RxHeaderTypeDef *pHeader, uint8_t aData[]) {
-	if (hcan->State != HAL_CAN_STATE_READY && hcan->State != HAL_CAN_STATE_LISTENING) {
-		hcan->ErrorCode |= HAL_CAN_ERROR_NOT_INITIALIZED;
-		return HAL_ERROR;
-	}
-	std::deque<CanRxFrame> *queue = hcan == &hcan1 ? &canFifos.at(RxFifo == CAN_RX_FIFO0 ? 0 : 1) : nullptr;
-	if (queue == nullptr || queue->empty()) {
-		hcan->ErrorCode |= HAL_CAN_ERROR_PARAM;
-		return HAL_ERROR;
-	}
-	const CanRxFrame &frame = queue->front();
-	pHeader->IDE = frame.header.IDE;
-	if (pHeader->IDE == CAN_ID_STD) {
-		pHeader->StdId = frame.header.StdId;
-	} else {
-		pHeader->ExtId = frame.header.ExtId;
-	}
-	pHeader->RTR = frame.header.RTR;
-	pHeader->DLC = frame.header.DLC >= 8U ? 8U : frame.header.DLC;
-	pHeader->FilterMatchIndex = frame.header.FilterMatchIndex;
-	pHeader->Timestamp = frame.header.Timestamp;
-	std::copy(frame.data.begin(), frame.data.end(), aData);
-	queue->pop_front();
-	return HAL_OK;
 }
 
 } // extern "C"

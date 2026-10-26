@@ -260,11 +260,13 @@ set(TARGET_FIRMWARE_SOURCES
 	${FFBOARD_DIR}/Src/global_callbacks.cpp
 	${FFBOARD_DIR}/Src/voltagesense.cpp
 	${FFBOARD_DIR}/Src/ledEffects.cpp
+	# CAN port of the F407 (P7): the global canport is the real CANPort_2B on the fake HAL CAN (host_target_can.cpp)
+	${FFBOARD_DIR}/Src/CANPort2B.cpp
 )
 
 # Compiled again for this executable (they include main.h / target_constants.h). host_stubs.cpp is replaced by
-# the real SystemCommands.cpp. host_target_system.cpp: fake HAL ADC (F6), IWDG, CAN receive FIFO, the TIM7 HAL tick and
-# the main.c callbacks. host_target_bus.cpp: fake HAL SPI (F4) and I2C (F5). Every HAL function the compiled sources
+# the real SystemCommands.cpp. host_target_system.cpp: fake HAL ADC (F6), IWDG, the TIM7 HAL tick and
+# the main.c callbacks. host_target_bus.cpp: fake HAL SPI (F4) and I2C (F5). host_target_can.cpp: fake HAL CAN (F8). Every HAL function the compiled sources
 # call has a fake; paths a fake does not model are recorded in HostTarget::state().unmodelledHalCalls.
 set(TARGET_PLATFORM_SOURCES
 	platform/src/host_freertos.cpp
@@ -274,6 +276,7 @@ set(TARGET_PLATFORM_SOURCES
 	platform/src/host_target_config.cpp
 	platform/src/host_target_system.cpp
 	platform/src/host_target_bus.cpp
+	platform/src/host_target_can.cpp
 	platform/src/host_cppmain.cpp
 )
 

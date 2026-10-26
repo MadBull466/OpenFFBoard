@@ -7,7 +7,7 @@
 ## Current state
 
 - **Current phase:** P7 (CAN and serial FFB in `ffb_target_tests`), started 2026-10-26. P6 approved 2026-10-26.
-- **Phase status:** P7 plan written ("P7 plan"); batch 0 running.
+- **Phase status:** batch 0 done ("P7 batch 0"); 3 module agents running.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** `e69fb8ec` (P6 final).
 - **Last updated:** 2026-10-26
@@ -15,7 +15,7 @@
 
 ## Next action
 
-**P7 batch 0 running.** Then: review and commit batch 0, 3 module agents (see "P7 plan"), fresh reviewers, fixes, gate, coverage (85 % per file without hardware-only code), stop for approval.
+**P7 batch 0 done.** Then: 3 module agents (see "P7 plan"), fresh reviewers, fixes, gate, coverage (85 % per file without hardware-only code), stop for approval.
 
 ## Phase checklist
 
@@ -31,7 +31,7 @@
 | P4 System, callbacks, misc | `ffb_target_tests` | about 460 (measured: total 5,078 lines, 62.6 %) | done | yes, 2026-10-25 | `0644984e` batch 0, `00a1e00b`/`e7d467d4`/`61a20f9f` tests, `90554aaa` infra review fixes, `c00b7e2b` B fixes, `e51bc104` A fixes, `8e807f05` C fixes + results |
 | P5 Buttons and analog | `ffb_target_tests` | about 775 (measured: total 6,206 lines, 76.5 %) | done | yes, 2026-10-26 | `73d4e482` batch 0, `3e36fdfd` analog, `663bce67` buttons, `2a18521a` A + infra review fixes, `13cb14a8` B review fixes + results |
 | P6 Encoders and buses | `ffb_target_tests` | about 640 (measured: total 6,988 lines, 86.2 %) | done | yes, 2026-10-26 | `cd92abd9` batch 0, `3e39a144` A, `7f5b4557` C, `a8317dbb` B, `ac6eadd1` infra + C review fixes, `e69fb8ec` A + B review fixes + results |
-| P7 CAN and serial FFB | `ffb_target_tests` | about 420 (uncovered now: about 577 in the P7 files) | in progress (batch 0) | | |
+| P7 CAN and serial FFB | `ffb_target_tests` | about 420 (uncovered now: about 577 in the P7 files) | in progress (modules) | | |
 | P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 | not started | | |
 | P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder | not started | | |
 
@@ -307,7 +307,7 @@ Hard gate for Batch 0: after every CMake change `ffb_unit_tests` must still give
 | F5 | Fake HAL I2C (scripted device register map per address, error injection) | `platform/src/host_target_bus.cpp` | PCF8574, ADS111X, I2C.cpp | **done** P5 batch 0 |
 | F6 | Fake HAL ADC (settable DMA buffer, conversion-complete callback) + LL ADC voltage/temperature macros | `platform/src/host_target_system.cpp`, `platform/target_f407/main.h` | LocalAnalog, AdcHandler, voltagesense | **done** P4 batch 0 |
 | F7 | Fake HAL TIM (settable `CNT`, base start/stop record) and EXTI trigger | `platform/src/host_target.cpp`, `support/HostTarget.h` | EncoderLocal, TimerHandler, ExtiHandler, Axis timers | **done** P2 batch 0 (models `HAL_TIM_Base_Start/_IT`, `_Stop/_IT`, `HAL_TIM_IRQHandler` update path, `HAL_GPIO_EXTI_IRQHandler`) |
-| F8 | Fake HAL CAN (filters, Tx mailboxes, Rx FIFO, error callbacks) | `platform/` | CANPort2B, global_callbacks | proposed |
+| F8 | Fake HAL CAN (filters, Tx mailboxes, Rx FIFO, error callbacks) | `platform/src/host_target_can.cpp` | CANPort2B, global_callbacks | **done** P7 batch 0 (rx FIFOs P4, `canReceive` P5) |
 | F9 | Fake HAL FLASH: RAM-backed sectors with real NOR semantics (erase to 0xFFFF, programming can only clear bits, error flags injectable, power-loss injection), `__weak`, OTP area | `platform/` | flash_helpers + `eeprom.c` (Tier A), page-transfer and power-loss scenarios. **Constraint:** `eeprom.c` dereferences absolute addresses (`*(__IO uint16_t*)PAGE0_BASE_ADDRESS`, `EEPROM_START_ADDRESS = 0x08004000`, cast to `uint32_t`), so the fake must `mmap` 2 x 16 KiB at exactly 0x08004000 (`MAP_FIXED_NOREPLACE`, fail loudly if taken); the OTP area likewise at its fixed address. Host-only technique (Linux/macOS; needs a Windows alternative or a skip for MinGW), verify under ASan | proposed |
 | F10 | Misc CMSIS/HAL: `__REVSH`, `NVIC_SystemReset` (recorded, no exit), `HAL_GetUIDw0/1/2`, `HAL_GetDEVID/REVID`, IWDG refresh, `HAL_RCC_GetHCLKFreq`, LED pins | `platform/src/host_target.cpp`, `platform/target_f407/main.h` | CRC, SystemCommands, USBdevice, cppmain, ledEffects | **done** P2 batch 0 (IWDG/LED: existing no-op fakes kept; GPIO ports A-E with `MX_GPIO_Init` idle levels; `__REV/__REV16/__REVSH`; tinyusb `tusb_rhport_init`, `tud_task_ext`, `tud_speed_get`) |
 | F11 | FreeRTOS: `xQueue*`, `xTimer*`, `xEventGroup*`, `xTimerPendFunctionCall`, `tskIDLE_PRIORITY`, recursive mutex, counting semaphores (simple non-preemptive implementations, with create-failure injection) | `platform/` | RTOS wrappers (Tier A) and modules that use cqueue/ctimer | proposed |
@@ -354,6 +354,15 @@ Executable `ffb_target_tests`, new files in `cases_target/` only. Coverage after
 | A CAN port | `test_canport2b.cpp` | `CANPort2B.cpp` (+ `CAN.cpp` callers) | init/start/stop, speed presets and bit timing, filters (add/remove, standard/extended, FIFO), send with free/full mailboxes and timeout, receive dispatch, error and bus-off callbacks, silent mode, commands, flash config, port users |
 | B CAN main classes | `test_canbridge.cpp`, `test_caninputmain.cpp` | `CanBridge.cpp`, `CanInputMain.cpp` | GVRET/SavvyCAN-style frame protocol to the host over CDC, filters and speed commands, rx/tx forwarding; CAN input main class: button/analog sources to CAN frames, ids, rates, commands, flash |
 | C serial FFB | `test_serial_ffb.cpp` | `SerialFFB.cpp` | effect commands over the string interface (create, set parameters, start/stop, free, gain, reset), validation of ids and parameter ranges, interplay with `EffectsCalculator` |
+
+## P7 batch 0 (2026-10-26)
+
+- **F8 fake HAL CAN** (`platform/src/host_target_can.cpp`, new): CAN1 register model (3 Tx mailboxes, 2 Rx FIFOs of 3, 28 filter banks, NVIC lines per `HAL_CAN_MspInit`: only CAN1_TX and CAN1_RX0 enabled) with the HAL functions `Init`, `DeInit`, `ConfigFilter`, `Start`, `Stop`, sleep/wake-up, `AddTxMessage`, `AbortTxRequest`, `GetTxMailboxesFreeLevel`, `IsTxMessagePending`, `GetRxMessage`, `GetRxFifoFillLevel`, `Activate/DeactivateNotification`, `IRQHandler`, `GetState`, `GetError`, `ResetError` (each citing `stm32f4xx_hal_can.c`). The P4 rx FIFO helpers and the P5 `canReceive` moved here (now through the fake filter banks and interrupt). Real HAL CAN types in `platform/target_f407/main.h`. Unmodelled (recorded): handles other than `hcan1`, banks > 27, loop-back/silent at start; documented only: bit timing, TEC/REC, ABOM/AWUM, CAN2 bank ownership.
+- **`canport` is now the real `CANPort_2B`** on `hcan1` (as `cpp_target_config.cpp:46-57`), compiled from `CANPort2B.cpp`. `HostTarget::canPort()` returns a `MockCANPort` view that records `start`/`stop`/filters as the firmware passed them (a thin `HostCANPort_2B` override calls the real function first), so the P5 tests are unchanged; `HostTarget::canPort2B()` gives the real port. No P2-P6 case changed outcome (per-case XML comparison); 2 cases gained assertions because `can.0` is now a registered command handler like on the target. `MockCANPort.h` and `ffb_unit_tests` unchanged.
+- Helpers: `canTxFrames()`, `canTxComplete(m)`, `canTxError`, `canSetTxAutoComplete`, `canSetErrorState`, `canSetIrqLineEnabled`, `canAccepts`, `canHalCalls()`; `support/CommandHelpers.h` (`CommandHelpers::run/get`, `CdcConsole(main).send("cmd\n")`). Resets: `resetCan()`, `resetCanPort()`.
+- 14 smoke cases (`CanSetup`): KNOWN_ISSUE bugs 106-108, characterization NEEDS REVIEW 116. Bug 109 by code reading.
+- Gate: ctest 4/4 and baseline OK in all 6 dirs; `ffb_unit_tests`/`ffb_flash_tests` compile commands identical to copies saved before the first CMake change (`../ffb-test-build/p7b0-ref/`); `ffb_target_tests` 1,481/0/13 (default, clang23), 1,482/0/13 (nodsp), 1,372 + 122 (san, clang23-san), 1,373 + 122 (nodsp-san); no findings, no warnings from test files. Verified by the main agent.
+- Workspaces and briefs of module agents now live outside /tmp: `../ffb-test-build/briefs/`, `../ffb-test-build/ws/`.
 
 ## P6 results (2026-10-26)
 
@@ -699,6 +708,7 @@ Functions never run by any test (counts of never-run / total): ErrorHandler 15/2
 | 111 | - | - | Unused | n/a |
 | 114 | MtEncoderSPI | `MtEncoderSPI.cpp:226-227`, `242-243` | `nomag`/`overspeed` written but never read. Should a status flag invalidate the angle or be reported (like 99)? | no |
 | 115 | EncoderBissC | `EncoderBissC.cpp:175-185` | Frames decode only with 1 or 2 high bits before the acknowledge; with 0 or >= 3 (longer line delay at higher clock) every frame is a CRC error. Documented limit, or should the decoder search for the start bit? | no |
+| 116 | CANPort2B | `CANPort2B.cpp` `start` with `stm32f4xx_hal_msp.c:291-294` | `start` enables `CAN_IT_ERROR | CAN_IT_BUSOFF` and the FIFO1 interrupts, but `HAL_CAN_MspInit` enables only CAN1_TX and CAN1_RX0 (no SCE/RX1 handler in `stm32f4xx_it.c`): on the F407 bus-off/error states never reach `HAL_CAN_ErrorCallback` and FIFO1 frames are never read. Intended? | no |
 | 53 | cppmain | `cppmain.cpp:88-90` with `flash_helpers.cpp:105-120` | `Flash_ReadWriteDefault` returns false after writing a default, so `cppmain` calls `Error_Handler` on every first boot (empty flash); `Error_Handler` only switches the error LED off. Probably unintended | no |
 | 21 | HidFFB / CDC | `FirmwareFixture::resetGlobals` (test infrastructure) | Does not reset `CDCcomm`'s private `usb_busy_retry`; `test_cdc.cpp` works around it with its own fixture. Shared fix in `support/FirmwareFixture.h`? | no |
 
@@ -812,6 +822,10 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 | 103 | EncoderSSI | `EncoderSSI.cpp:44` with `126`, `179` | 31 and 32 bits restored from flash (layout allows 1..32): `(1<<31)-1` overflows, `1<<32` in `getCpr` (UBSan: shift exponent 32). x86 masks the shift count, ARM LSL by >= 32 gives 0 | code reading + UBSan finding (the raw read-length case stops at 30 bits) |
 | 104 | EncoderSSI | `EncoderSSI.cpp:233` | `mode` command stores any value 0..15; an unknown mode decodes nothing | KNOWN_ISSUE "the mode command rejects a mode that does not exist" |
 | 105 | EncoderSSI | `EncoderSSI.cpp:214`, `:105` | AMT23 bits clamp 12..14 keeps 13 although only 12 and 14 are valid (comment at 214); at 13 bits `newPos >>= 1` misaligns the check-bit pairs (half of valid frames counted as errors) | KNOWN_ISSUE "in AMT23 mode the bits command accepts only 12 or 14 bits" |
+| 106 | CANPort2B | `CANPort2B.cpp:233`, `:241` (with `global_callbacks.cpp:155-183`) | `txMailboxes &= ~mailbox` clears with the mailbox index 0..2, but `txMailboxes` holds the `1 << index` bits from `HAL_CAN_AddTxMessage`: after mailbox 1 completes, `abortTxRequests()` leaves mailbox 0 pending | KNOWN_ISSUE (`test_can_setup.cpp`) |
+| 107 | CANPort2B | `CANPort2B.cpp:107-108` | `start()` calls `setSpeedPreset` (stops and starts CAN1), then `HAL_CAN_Start` again, which fails (State LISTENING, `ErrorCode |= NOT_READY`): `start()` always returns false and the stale NOT_READY bit appears in the next error callback | KNOWN_ISSUE |
+| 108 | CANPort2B | `CANPort2B.cpp:295-320` (doc `:259`) | With all 14 banks used, `foundId` ends at 13: bank 13 is overwritten and 13 returned instead of the documented -1 | KNOWN_ISSUE |
+| 109 | CANPort2B | `CANPort2B.cpp:264` (`stm32f4xx_hal_can.c:905-908`) | `CAN_FilterTypeDef sFilterConfig;` never sets `SlaveStartFilterBank`; the F407 HAL writes it into FMR CAN2SB, so stack garbage decides which banks belong to CAN1 | code reading (not deterministic; the fake does not apply CAN2SB) |
 | 57 (ext.) | SPIDevice / MtEncoderSPI | `MtEncoderSPI.cpp:49-52`, `193`; `SPI.cpp` `beginSpiTransfer` | Deleting the MT encoder during its DMA read leaves the port semaphore taken (only the completion through the deleted object gives it back) | KNOWN_ISSUE "deleting the MT encoder during its DMA read leaves the encoder SPI port free" |
 | V1 | FreeRTOS wrappers (**vendor, tier A**) | `csemaphore.cpp:117-131` | `CountingSemaphore(0, x)` or initial > max throws before `handle` is set; `~Semaphore` then deletes an uninitialised handle (UB). Exception builds only (target uses `CPP_FREERTOS_NO_EXCEPTIONS`/`configASSERT`) | Seen with mutants; no test (would crash) |
 | V2 | FreeRTOS wrappers (**vendor, tier A**) | `cthread.cpp:184-187` | `~Thread` of a never-started thread calls `vTaskDelete` with an uninitialised handle (NULL deletes the calling task on FreeRTOS). Also on target | Code reading; no test (UB) |

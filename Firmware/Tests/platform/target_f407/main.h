@@ -4,7 +4,7 @@
  *
  * The generic fake HAL of ffb_unit_tests (platform/include/main.h) is not changed and not included:
  * the F407 sources need handles with more fields (timer registers, SPI/I2C/TIM state). The declarations
- * shared with platform/include/main.h (GPIO, UART, CAN, system) are identical, so the platform sources
+ * shared with platform/include/main.h (GPIO, UART, system; CAN only partly, see the bxCAN section) are identical, so the platform sources
  * (host_platform.cpp, ...) compile against both.
  *
  * Types follow the real STM32F4 HAL (Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc, read only) but only
@@ -12,7 +12,7 @@
  * CMSIS device headers (stm32f407xx.h).
  *
  * Implementations: platform/src/host_target.cpp (TIM, EXTI, system, CMSIS),
- * platform/src/host_target_system.cpp (ADC, IWDG, CAN receive FIFO, TIM7 HAL tick, main.c callbacks),
+ * platform/src/host_target_system.cpp (ADC, IWDG, TIM7 HAL tick, main.c callbacks), platform/src/host_target_can.cpp (bxCAN),
  * platform/src/host_target_bus.cpp (SPI, I2C) and platform/src/host_platform.cpp (GPIO, UART, tick). Test control: support/HostTarget.h.
  * ffb_flash_tests additionally gets the FLASH HAL (host_flash_hal.h, see the end of this file).
  *
@@ -490,15 +490,63 @@ HAL_StatusTypeDef HAL_UART_AbortReceive(UART_HandleTypeDef *huart);
 HAL_StatusTypeDef HAL_UART_AbortTransmit(UART_HandleTypeDef *huart);
 uint32_t HAL_UART_GetError(UART_HandleTypeDef *huart);
 
-// ---------------- bxCAN (same as platform/include/main.h). Selects the CAN 2.0B variant of CAN.h ----------------
-#define CAN1 ((void *)0x40006400)
+// ---------------- bxCAN (fake HAL CAN F8, platform/src/host_target_can.cpp) ----------------
+// Selects the CAN 2.0B variant of CAN.h (defined(CAN1)). Unlike platform/include/main.h, CAN1 is a register block
+// (CANPort2B.cpp writes hcan->Instance->BTR) and the handle has the fields of the real CAN_HandleTypeDef
+// (stm32f4xx_hal_can.h, USE_HAL_CAN_REGISTER_CALLBACKS 0). Registers and bit positions: stm32f407xx.h.
+typedef struct { __IO uint32_t TIR; __IO uint32_t TDTR; __IO uint32_t TDLR; __IO uint32_t TDHR; } CAN_TxMailBox_TypeDef;
+typedef struct { __IO uint32_t FR1; __IO uint32_t FR2; } CAN_FilterRegister_TypeDef;
+/** CAN_TypeDef of stm32f407xx.h without the reserved words and the receive FIFO mailboxes (the fake keeps the received frames in a queue) */
+typedef struct {
+	__IO uint32_t MCR;	//!< Master control: INRQ bit 0, SLEEP 1, TXFP 2, RFLM 3, NART 4, AWUM 5, ABOM 6, TTCM 7, RESET 15, DBF 16
+	__IO uint32_t MSR;	//!< Master status: INAK bit 0, SLAK 1, ERRI 2, WKUI 3, SLAKI 4
+	__IO uint32_t TSR;	//!< Transmit status: RQCPx/TXOKx/ALSTx/TERRx/ABRQx per mailbox (bits 0-7, 8-15, 16-23), CODE 25:24, TME 28:26
+	__IO uint32_t RF0R; //!< Receive FIFO 0: FMP0 1:0, FULL0 3, FOVR0 4, RFOM0 5
+	__IO uint32_t RF1R; //!< Receive FIFO 1
+	__IO uint32_t IER;	//!< Interrupt enable (CAN_IT_xxx)
+	__IO uint32_t ESR;	//!< Error status: EWGF 0, EPVF 1, BOFF 2, LEC 6:4, TEC 23:16, REC 31:24
+	__IO uint32_t BTR;	//!< Bit timing
+	CAN_TxMailBox_TypeDef sTxMailBox[3];
+	__IO uint32_t FMR;	 //!< Filter master: FINIT bit 0, CAN2SB 13:8
+	__IO uint32_t FM1R;	 //!< Filter mode (bit set = identifier list)
+	__IO uint32_t FS1R;	 //!< Filter scale (bit set = 32 bit)
+	__IO uint32_t FFA1R; //!< Filter FIFO assignment (bit set = FIFO 1)
+	__IO uint32_t FA1R;	 //!< Filter activation
+	CAN_FilterRegister_TypeDef sFilterRegister[28];
+} CAN_TypeDef;
+extern CAN_TypeDef hosttest_can1; //!< Registers of CAN1 (host_target_can.cpp)
+#define CAN1 (&hosttest_can1)
 #define CAN_ID_STD (0x00000000U)
 #define CAN_ID_EXT (0x00000004U)
 #define CAN_RTR_DATA (0x00000000U)
 #define CAN_RTR_REMOTE (0x00000002U)
 typedef struct { uint32_t StdId; uint32_t ExtId; uint32_t IDE; uint32_t RTR; uint32_t DLC; uint32_t Timestamp; uint32_t FilterMatchIndex; } CAN_RxHeaderTypeDef;
-// ffb_target_tests: State and ErrorCode of the real CAN_HandleTypeDef (stm32f4xx_hal_can.h), used by the receive FIFO
-// fake (host_target_system.cpp) and the error callback of global_callbacks.cpp
+typedef struct { uint32_t StdId; uint32_t ExtId; uint32_t IDE; uint32_t RTR; uint32_t DLC; FunctionalState TransmitGlobalTime; } CAN_TxHeaderTypeDef;
+typedef struct {
+	uint32_t FilterIdHigh;
+	uint32_t FilterIdLow;
+	uint32_t FilterMaskIdHigh;
+	uint32_t FilterMaskIdLow;
+	uint32_t FilterFIFOAssignment;
+	uint32_t FilterBank;
+	uint32_t FilterMode;
+	uint32_t FilterScale;
+	uint32_t FilterActivation;
+	uint32_t SlaveStartFilterBank;
+} CAN_FilterTypeDef;
+typedef struct {
+	uint32_t Prescaler;
+	uint32_t Mode;
+	uint32_t SyncJumpWidth;
+	uint32_t TimeSeg1;
+	uint32_t TimeSeg2;
+	FunctionalState TimeTriggeredMode;
+	FunctionalState AutoBusOff;
+	FunctionalState AutoWakeUp;
+	FunctionalState AutoRetransmission;
+	FunctionalState ReceiveFifoLocked;
+	FunctionalState TransmitFifoPriority;
+} CAN_InitTypeDef;
 typedef enum {
 	HAL_CAN_STATE_RESET = 0x00U,
 	HAL_CAN_STATE_READY = 0x01U,
@@ -507,14 +555,84 @@ typedef enum {
 	HAL_CAN_STATE_SLEEP_ACTIVE = 0x04U,
 	HAL_CAN_STATE_ERROR = 0x05U
 } HAL_CAN_StateTypeDef;
-typedef struct { void *Instance; __IO HAL_CAN_StateTypeDef State; __IO uint32_t ErrorCode; } CAN_HandleTypeDef;
+typedef struct { CAN_TypeDef *Instance; CAN_InitTypeDef Init; __IO HAL_CAN_StateTypeDef State; __IO uint32_t ErrorCode; } CAN_HandleTypeDef;
 #define CAN_RX_FIFO0 (0x00000000U)
 #define CAN_RX_FIFO1 (0x00000001U)
+#define CAN_FILTER_FIFO0 (0x00000000U)
+#define CAN_FILTER_FIFO1 (0x00000001U)
+#define CAN_FILTERMODE_IDMASK (0x00000000U)
+#define CAN_FILTERMODE_IDLIST (0x00000001U)
+#define CAN_FILTERSCALE_16BIT (0x00000000U)
+#define CAN_FILTERSCALE_32BIT (0x00000001U)
+#define CAN_FILTER_DISABLE (0x00000000U)
+#define CAN_FILTER_ENABLE (0x00000001U)
+#define CAN_TX_MAILBOX0 (0x00000001U)
+#define CAN_TX_MAILBOX1 (0x00000002U)
+#define CAN_TX_MAILBOX2 (0x00000004U)
+#define CAN_MODE_NORMAL (0x00000000U)
+#define CAN_MODE_LOOPBACK (0x40000000U)		  // CAN_BTR_LBKM
+#define CAN_MODE_SILENT (0x80000000U)		  // CAN_BTR_SILM
+#define CAN_MODE_SILENT_LOOPBACK (0xC0000000U) // CAN_BTR_LBKM | CAN_BTR_SILM
+#define CAN_SJW_1TQ (0x00000000U)
+#define CAN_BS1_11TQ (0x000A0000U) // CAN_BTR_TS1_3 | CAN_BTR_TS1_1
+#define CAN_BS2_2TQ (0x00100000U)  // CAN_BTR_TS2_0
+// Interrupts (CAN_IER bits, stm32f407xx.h)
+#define CAN_IT_TX_MAILBOX_EMPTY (0x00000001U)	  // TMEIE
+#define CAN_IT_RX_FIFO0_MSG_PENDING (0x00000002U) // FMPIE0
+#define CAN_IT_RX_FIFO0_FULL (0x00000004U)		  // FFIE0
+#define CAN_IT_RX_FIFO0_OVERRUN (0x00000008U)	  // FOVIE0
+#define CAN_IT_RX_FIFO1_MSG_PENDING (0x00000010U) // FMPIE1
+#define CAN_IT_RX_FIFO1_FULL (0x00000020U)		  // FFIE1
+#define CAN_IT_RX_FIFO1_OVERRUN (0x00000040U)	  // FOVIE1
+#define CAN_IT_ERROR_WARNING (0x00000100U)		  // EWGIE
+#define CAN_IT_ERROR_PASSIVE (0x00000200U)		  // EPVIE
+#define CAN_IT_BUSOFF (0x00000400U)				  // BOFIE
+#define CAN_IT_LAST_ERROR_CODE (0x00000800U)	  // LECIE
+#define CAN_IT_ERROR (0x00008000U)				  // ERRIE
+#define CAN_IT_WAKEUP (0x00010000U)				  // WKUIE
+#define CAN_IT_SLEEP_ACK (0x00020000U)			  // SLKIE
+// Error codes (stm32f4xx_hal_can.h)
 #define HAL_CAN_ERROR_NONE (0x00000000U)
+#define HAL_CAN_ERROR_EWG (0x00000001U)
+#define HAL_CAN_ERROR_EPV (0x00000002U)
+#define HAL_CAN_ERROR_BOF (0x00000004U)
+#define HAL_CAN_ERROR_STF (0x00000008U)
+#define HAL_CAN_ERROR_FOR (0x00000010U)
+#define HAL_CAN_ERROR_ACK (0x00000020U)
+#define HAL_CAN_ERROR_BR (0x00000040U)
+#define HAL_CAN_ERROR_BD (0x00000080U)
+#define HAL_CAN_ERROR_CRC (0x00000100U)
 #define HAL_CAN_ERROR_RX_FOV0 (0x00000200U)
 #define HAL_CAN_ERROR_RX_FOV1 (0x00000400U)
+#define HAL_CAN_ERROR_TX_ALST0 (0x00000800U)
+#define HAL_CAN_ERROR_TX_TERR0 (0x00001000U)
+#define HAL_CAN_ERROR_TX_ALST1 (0x00002000U)
+#define HAL_CAN_ERROR_TX_TERR1 (0x00004000U)
+#define HAL_CAN_ERROR_TX_ALST2 (0x00008000U)
+#define HAL_CAN_ERROR_TX_TERR2 (0x00010000U)
+#define HAL_CAN_ERROR_TIMEOUT (0x00020000U)
 #define HAL_CAN_ERROR_NOT_INITIALIZED (0x00040000U)
+#define HAL_CAN_ERROR_NOT_READY (0x00080000U)
+#define HAL_CAN_ERROR_NOT_STARTED (0x00100000U)
 #define HAL_CAN_ERROR_PARAM (0x00200000U)
+HAL_StatusTypeDef HAL_CAN_Init(CAN_HandleTypeDef *hcan);
+HAL_StatusTypeDef HAL_CAN_DeInit(CAN_HandleTypeDef *hcan);
+HAL_StatusTypeDef HAL_CAN_ConfigFilter(CAN_HandleTypeDef *hcan, const CAN_FilterTypeDef *sFilterConfig);
+HAL_StatusTypeDef HAL_CAN_Start(CAN_HandleTypeDef *hcan);
+HAL_StatusTypeDef HAL_CAN_Stop(CAN_HandleTypeDef *hcan);
+HAL_StatusTypeDef HAL_CAN_RequestSleep(CAN_HandleTypeDef *hcan);
+HAL_StatusTypeDef HAL_CAN_WakeUp(CAN_HandleTypeDef *hcan);
+uint32_t HAL_CAN_IsSleepActive(const CAN_HandleTypeDef *hcan);
+HAL_StatusTypeDef HAL_CAN_AddTxMessage(CAN_HandleTypeDef *hcan, const CAN_TxHeaderTypeDef *pHeader, const uint8_t aData[], uint32_t *pTxMailbox);
+HAL_StatusTypeDef HAL_CAN_AbortTxRequest(CAN_HandleTypeDef *hcan, uint32_t TxMailboxes);
+uint32_t HAL_CAN_GetTxMailboxesFreeLevel(const CAN_HandleTypeDef *hcan);
+uint32_t HAL_CAN_IsTxMessagePending(const CAN_HandleTypeDef *hcan, uint32_t TxMailboxes);
+HAL_StatusTypeDef HAL_CAN_ActivateNotification(CAN_HandleTypeDef *hcan, uint32_t ActiveITs);
+HAL_StatusTypeDef HAL_CAN_DeactivateNotification(CAN_HandleTypeDef *hcan, uint32_t InactiveITs);
+void HAL_CAN_IRQHandler(CAN_HandleTypeDef *hcan);
+HAL_CAN_StateTypeDef HAL_CAN_GetState(const CAN_HandleTypeDef *hcan);
+uint32_t HAL_CAN_GetError(const CAN_HandleTypeDef *hcan);
+HAL_StatusTypeDef HAL_CAN_ResetError(CAN_HandleTypeDef *hcan);
 uint32_t HAL_CAN_GetRxFifoFillLevel(const CAN_HandleTypeDef *hcan, uint32_t RxFifo);
 HAL_StatusTypeDef HAL_CAN_GetRxMessage(CAN_HandleTypeDef *hcan, uint32_t RxFifo, CAN_RxHeaderTypeDef *pHeader, uint8_t aData[]);
 // CAN interrupt callbacks (weak in stm32f4xx_hal_can.c), defined by the firmware (global_callbacks.cpp)

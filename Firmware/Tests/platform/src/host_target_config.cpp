@@ -4,9 +4,11 @@
  * Host replacement of Targets/F407VG/Core/Src/cpp_target_config.cpp (target hardware configuration, not
  * tested) and of the peripheral handles defined by the CubeMX code in main.c, for ffb_target_tests.
  *
- * Same objects and parameters as the F407 file, with one difference: `canport` is a MockCANPort instead of
- * CANPort_2B (CANPort2B.cpp needs the fake HAL CAN F8, planned for P7). Like CANPort_2B its handle is &hcan1, so the
- * CAN interrupt callbacks of global_callbacks.cpp find it with CANPort::handleToPort. huart1, hcan1 and
+ * Same objects and parameters as the F407 file. Since P7 `canport` is the real CANPort_2B on hcan1 with the F407 presets
+ * and the silent pin CAN_S, like cpp_target_config.cpp:51-56, on the fake HAL CAN (host_target_can.cpp). The object is
+ * a HostCANPort_2B: a CANPort_2B whose start / stop / addCanFilter / removeCanFilter call the real functions and then
+ * record the call in the MockCANPort returned by HostTarget::canPort() (the view used by the tests of P5: started,
+ * filters as passed by the firmware, passesFilter; its CANPort functions forward to canport). huart1, hcan1 and
  * external_uart are defined in host_platform.cpp.
  *
  * resetTargetConfig() also restores the global SPI ports and i2cport to their state after construction. A few of their
@@ -17,6 +19,7 @@
 #include "cpp_target_config.h"
 #include "HostTarget.h"
 #include "MockCANPort.h"
+#include "CANPort2B.h"
 #include "I2CHandler.h"
 #include "SpiHandler.h"
 #include "EncoderBissC.h"
@@ -131,16 +134,108 @@ const auto i2cpresets = std::to_array<I2CPortHardwareConfig::I2CPortHardwareConf
 const I2CPortHardwareConfig i2cHwConf = I2CPortHardwareConfig(true, i2cpresets);
 I2CPort i2cport{I2C_PORT, i2cHwConf};
 
-// CANPort_2B in the F407 configuration (see file comment)
+// CANPort_2B in the F407 configuration (cpp_target_config.cpp:46-57; see the file comment)
+const auto canpresetentries = std::to_array<CANPortHardwareConfig::PresetEntry>({{0x001b0037, 50000, "50k"}, {0x001b001b, 100000, "100k"}, {0x001c0014, 125000, "125k"}, {0x001a000b, 250000, "250k"}, {0x001a0005, 500000, "500k"}, {0x001a0002, 1000000, "1000k"}});
+CANPortHardwareConfig canpresets = CANPortHardwareConfig(true, canpresetentries);
+const OutputPin canSilentPin = OutputPin(*CAN_S_GPIO_Port, CAN_S_Pin);
 namespace {
-/** MockCANPort with the handle of CANPort_2B (CANPort2B.h: getHandle() returns its CAN_HandleTypeDef, here &hcan1) */
-class HostCanPort : public MockCANPort {
-protected:
-	void *getHandle() override { return &hcan1; }
+class HostCANPort_2B;
+/**
+ * The view of canport for the tests of P5 (HostTarget::canPort()): a MockCANPort whose fields record the calls of the
+ * firmware on canport (started, startCalls, stopCalls, filters with the CAN_filter values passed to addCanFilter, active
+ * cleared by removeCanFilter of their bank). Its CANPort functions forward to canport, so a test that adds a filter
+ * through the view adds it to the real port. Its own handle is itself (MockCANPort), so CANPort::handleToPort(&hcan1)
+ * finds canport.
+ */
+class CanPortView : public MockCANPort {
+public:
+	bool start() override;
+	bool stop() override;
+	bool sendMessage(CAN_tx_msg &msg) override;
+	bool sendMessage(CAN_msg_header_tx *pHeader, uint8_t aData[], uint32_t *pTxMailbox = nullptr) override;
+	void abortTxRequests() override;
+	int32_t addCanFilter(CAN_filter filter) override;
+	void removeCanFilter(uint8_t filterId) override;
+	void setSpeed(uint32_t speed) override;
+	void setSpeedPreset(uint8_t preset) override;
+	uint32_t getSpeed() override;
+	uint8_t getSpeedPreset() override;
+	void setSilentMode(bool silent) override;
+	bool isWaiting() override;
+	int32_t getPortUsers() override;
+	void takePort() override;
+	void freePort() override;
+
+	void reset() {
+		resetForTest();
+		banks.clear();
+	}
+	std::vector<int32_t> banks; //!< Filter bank returned by canport.addCanFilter, parallel to `filters`
 };
-HostCanPort hostCanPort;
+CanPortView canPortView;
+
+/** CANPort_2B that records start / stop / filters in canPortView after calling the real function (no other change) */
+class HostCANPort_2B : public CANPort_2B {
+public:
+	using CANPort_2B::CANPort_2B;
+	bool start() override {
+		bool result = CANPort_2B::start();
+		canPortView.started = true;
+		canPortView.startCalls++;
+		return result;
+	}
+	bool stop() override {
+		bool result = CANPort_2B::stop();
+		canPortView.started = false;
+		canPortView.stopCalls++;
+		return result;
+	}
+	int32_t addCanFilter(CAN_filter filter) override {
+		int32_t bank = CANPort_2B::addCanFilter(filter);
+		canPortView.filters.push_back(filter);
+		canPortView.banks.push_back(bank);
+		return bank;
+	}
+	void removeCanFilter(uint8_t filterId) override {
+		CANPort_2B::removeCanFilter(filterId);
+		for (size_t i = 0; i < canPortView.filters.size(); i++) {
+			if (canPortView.filters[i].active && canPortView.banks[i] == filterId) {
+				canPortView.filters[i].active = false;
+				break;
+			}
+		}
+	}
+	/** Members of the CANPort base and the PersistentStorage flag as after construction (private ones: see resetCanPort) */
+	void resetBase() {
+		portUsers = 0;
+		isWaitingFlag = false;
+		semaphore.Give(); // Binary semaphores: available again (no effect if they already are)
+		configSem.Give();
+		restoreDelayedFlag = true; // restoreFlashDelayed() in the constructor (PersistentStorage::startupComplete is false at static init)
+	}
+};
 } // namespace
-CANPort &canport = hostCanPort;
+HostCANPort_2B canport_base{hcan1, canpresets, &canSilentPin};
+CANPort &canport = static_cast<CANPort &>(canport_base);
+
+namespace {
+bool CanPortView::start() { return canport_base.start(); }
+bool CanPortView::stop() { return canport_base.stop(); }
+bool CanPortView::sendMessage(CAN_tx_msg &msg) { return canport_base.sendMessage(msg); }
+bool CanPortView::sendMessage(CAN_msg_header_tx *pHeader, uint8_t aData[], uint32_t *pTxMailbox) { return canport_base.sendMessage(pHeader, aData, pTxMailbox); }
+void CanPortView::abortTxRequests() { canport_base.abortTxRequests(); }
+int32_t CanPortView::addCanFilter(CAN_filter filter) { return canport_base.addCanFilter(filter); }
+void CanPortView::removeCanFilter(uint8_t filterId) { canport_base.removeCanFilter(filterId); }
+void CanPortView::setSpeed(uint32_t speed) { canport_base.setSpeed(speed); }
+void CanPortView::setSpeedPreset(uint8_t preset) { canport_base.setSpeedPreset(preset); }
+uint32_t CanPortView::getSpeed() { return canport_base.getSpeed(); }
+uint8_t CanPortView::getSpeedPreset() { return canport_base.getSpeedPreset(); }
+void CanPortView::setSilentMode(bool silent) { canport_base.setSilentMode(silent); }
+bool CanPortView::isWaiting() { return canport_base.isWaiting(); }
+int32_t CanPortView::getPortUsers() { return canport_base.getPortUsers(); }
+void CanPortView::takePort() { canport_base.takePort(); }
+void CanPortView::freePort() { canport_base.freePort(); }
+} // namespace
 
 const OutputPin debugpin = OutputPin(*GP1_GPIO_Port, GP1_Pin);
 
@@ -171,7 +266,48 @@ struct EncoderBissCInUse {
 	using type = bool *;
 	friend type privateMember(EncoderBissCInUse);
 };
+// CANPort_2B (P7): private members reset by resetCanPort
+struct Can2BSpeedPreset {
+	using type = uint8_t CANPort_2B::*;
+	friend type privateMember(Can2BSpeedPreset);
+};
+struct Can2BFilters {
+	using type = std::vector<CAN_FilterTypeDef> CANPort_2B::*;
+	friend type privateMember(Can2BFilters);
+};
+struct Can2BTxMailboxes {
+	using type = uint32_t CANPort_2B::*;
+	friend type privateMember(Can2BTxMailboxes);
+};
+struct Can2BSilent {
+	using type = bool CANPort_2B::*;
+	friend type privateMember(Can2BSilent);
+};
+struct Can2BActive {
+	using type = bool CANPort_2B::*;
+	friend type privateMember(Can2BActive);
+};
+struct Can2BLastSentTime {
+	using type = uint32_t CANPort_2B::*;
+	friend type privateMember(Can2BLastSentTime);
+};
+struct Can2BHeader {
+	using type = CAN_TxHeaderTypeDef CANPort_2B::*;
+	friend type privateMember(Can2BHeader);
+};
+struct Can2BNextLen {
+	using type = uint8_t CANPort_2B::*;
+	friend type privateMember(Can2BNextLen);
+};
 // Explicit instantiations in the namespace of the template (here the unnamed namespace of this file)
+template struct PrivateMember<Can2BSpeedPreset, &CANPort_2B::speedPreset>;
+template struct PrivateMember<Can2BFilters, &CANPort_2B::canFilters>;
+template struct PrivateMember<Can2BTxMailboxes, &CANPort_2B::txMailboxes>;
+template struct PrivateMember<Can2BSilent, &CANPort_2B::silent>;
+template struct PrivateMember<Can2BActive, &CANPort_2B::active>;
+template struct PrivateMember<Can2BLastSentTime, &CANPort_2B::lastSentTime>;
+template struct PrivateMember<Can2BHeader, &CANPort_2B::header>;
+template struct PrivateMember<Can2BNextLen, &CANPort_2B::nextLen>;
 template struct PrivateMember<SpiPortCurrentDevice, &SPIPort::current_device>;
 template struct PrivateMember<EncoderSSIInUse, &EncoderSSI::inUse>;
 template struct PrivateMember<EncoderBissCInUse, &EncoderBissC::inUse>;
@@ -182,6 +318,24 @@ template struct PrivateMember<I2CPortUsers, &I2CPort::portUsers>;
 struct PersistentStorageAccess : PersistentStorage {
 	static bool PersistentStorage::*restoreDelayedFlagMember() { return &PersistentStorageAccess::restoreDelayedFlag; }
 };
+
+/**
+ * canport as constructed (CANPort2B.h member initialisers, CANPort2B.cpp:19-26): speed preset 4 (500 kbit/s), no
+ * filters, no transmit mailboxes, silent, not active, lastSentTime 0, header {0, 0, 0, CAN_RTR_DATA, 8, DISABLE},
+ * nextLen 8; CANPort base: no port users, not waiting, semaphores available; delayed flash restore pending.
+ */
+void resetCanPort() {
+	canport_base.*privateMember(Can2BSpeedPreset()) = canport_base.speedToPreset(500000);
+	(canport_base.*privateMember(Can2BFilters())).clear();
+	canport_base.*privateMember(Can2BTxMailboxes()) = 0;
+	canport_base.*privateMember(Can2BSilent()) = true;
+	canport_base.*privateMember(Can2BActive()) = false;
+	canport_base.*privateMember(Can2BLastSentTime()) = 0;
+	canport_base.*privateMember(Can2BHeader()) = CAN_TxHeaderTypeDef{0, 0, 0, CAN_RTR_DATA, 8, (FunctionalState)0};
+	canport_base.*privateMember(Can2BNextLen()) = 8;
+	canport_base.resetBase();
+	canPortView.reset();
+}
 
 /** SPI port as constructed in cpp_target_config.cpp: all CS pins free, no current device, not exclusive, semaphore free */
 void resetSpiPort(SPIPort &port, const std::vector<OutputPin> &csPins) {
@@ -208,7 +362,8 @@ const std::vector<I2CHandler *> initialI2cHandlers = I2CHandler::getI2CHandlers(
 } // namespace
 
 namespace HostTarget {
-MockCANPort &canPort() { return hostCanPort; }
+MockCANPort &canPort() { return canPortView; }
+CANPort_2B &canPort2B() { return canport_base; }
 
 void resetTargetConfig() {
 	// Handles: back to the state after MX_SPIx_Init / MX_I2C1_Init / MX_ADCx_Init (HAL_xxx_Init sets State READY)
@@ -223,11 +378,11 @@ void resetTargetConfig() {
 	huart3 = {};
 	initAdc(hadc1, hosttest_adc1, ADC1_CHANNELS, ADC_EXTERNALTRIGCONVEDGE_RISING);		   // MX_ADC1_Init: 8 conversions
 	initAdc(hadc2, hosttest_adc2, ADC2_CHANNELS, ADC_EXTERNALTRIGCONVEDGE_RISINGFALLING); // MX_ADC2_Init: 2 conversions
-	hcan1 = {CAN1, HAL_CAN_STATE_READY, HAL_CAN_ERROR_NONE}; // MX_CAN1_Init: HAL_CAN_Init sets State READY
+	resetCan(); // fake HAL CAN: CAN1 and hcan1 as after MX_CAN1_Init (HAL_CAN_Init: State READY, initialisation mode)
 	// Release the motor uart in case a test left a transfer unfinished (like external_uart in HostPlatform::reset)
 	motor_uart.giveSemaphore(true);
 	motor_uart.giveSemaphore(false);
-	hostCanPort.resetForTest();
+	resetCanPort();
 	// Global bus ports: state after construction
 	resetSpiPort(external_spi, external_spi_cspins);
 	resetSpiPort(motor_spi, motor_spi_cspins);
@@ -248,46 +403,4 @@ void resetTargetConfig() {
 	// Not reset: the device pointer of motor_uart (see HostTarget.h)
 }
 
-uint32_t canReceive(uint32_t id, const std::vector<uint8_t> &data, bool extId, bool rtr) {
-	if (!hostCanPort.started) {
-		return 0; // CANPort_2B::stop: HAL_CAN_Stop, nothing is received
-	}
-	// bxCAN 32 bit identifier mask filters (RM0090 32.7.4, register layout of CAN_FxR1/2 = CAN_RIxR): STID[10:0] or
-	// EXID[28:18] in bits 31:21, EXID[17:0] in bits 20:3, IDE bit 2, RTR bit 1. The filter and mask registers are built
-	// like CANPort_2B::addCanFilter (CANPort2B.cpp:272-287): a standard filter leaves IDE and RTR unmasked (FilterMaskIdLow
-	// = 0), so it also accepts extended frames whose EXID[28:18] match; an extended filter masks IDE = 1, so it rejects
-	// standard frames. The first matching active filter decides the FIFO.
-	// (MockCANPort::passesFilter keeps its simpler generic semantics: no extended frame passes a standard filter.)
-	const uint32_t frameReg = extId ? (((id & 0x1FFFFFFFU) << 3) | 0x4U | (rtr ? 0x2U : 0U)) : (((id & 0x7FFU) << 21) | (rtr ? 0x2U : 0U));
-	const CAN_filter *match = nullptr;
-	for (const CAN_filter &f : hostCanPort.filters) {
-		uint32_t filterReg, maskReg;
-		if (!f.extid) {
-			filterReg = ((f.filter_id << 5) & 0xFFFFU) << 16;
-			maskReg = ((f.filter_mask << 5) & 0xFFFFU) << 16;
-		} else {
-			filterReg = (((f.filter_id >> 13) & 0xFFFFU) << 16) | ((f.filter_id << 3) & 0xFFF8U) | 0x4U;
-			maskReg = (((f.filter_mask >> 13) & 0xFFFFU) << 16) | ((f.filter_mask << 3) & 0xFFF8U) | 0x4U;
-		}
-		if (f.active && ((frameReg ^ filterReg) & maskReg) == 0U) {
-			match = &f;
-			break;
-		}
-	}
-	if (match == nullptr) {
-		return 0; // No acceptance filter matches: the frame is not stored (RM0090 32.7.4)
-	}
-	const uint32_t fifo = match->buffer == 0 ? CAN_RX_FIFO0 : CAN_RX_FIFO1;
-	CAN_RxHeaderTypeDef header = {};
-	header.StdId = extId ? 0 : id;
-	header.ExtId = extId ? id : 0;
-	header.IDE = extId ? CAN_ID_EXT : CAN_ID_STD;
-	header.RTR = rtr ? CAN_RTR_REMOTE : CAN_RTR_DATA;
-	header.DLC = static_cast<uint32_t>(std::min<size_t>(data.size(), 8));
-	header.FilterMatchIndex = static_cast<uint32_t>(match - hostCanPort.filters.data());
-	uint8_t bytes[8] = {};
-	std::copy(data.begin(), data.begin() + header.DLC, bytes);
-	canQueueRx(fifo, header, bytes);
-	return canRxInterrupt(fifo);
-}
 } // namespace HostTarget
