@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <exception>
 #include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -57,6 +58,7 @@ struct HostTask {
 struct HostSemaphore {
 	UBaseType_t count = 0;
 	UBaseType_t maxCount = 1;
+	uint64_t generation = 0; //!< Unique per created semaphore: a parked task's wait survives a reused address
 };
 
 namespace {
@@ -70,9 +72,25 @@ uint32_t delayBudgetRemaining = 0;
 size_t liveSemaphores = 0; //!< Created and not deleted semaphores (HostRtos::semaphoreCount)
 HostRtos::ResumeStats resumeCalls; //!< Calls of the task resume functions (HostRtos::resumeStats)
 HostRtos::HeapStats heapCalls; //!< Calls of the heap functions (HostRtos::heapStats)
-std::set<const HostSemaphore *> &semaphores() { //!< Created and not deleted semaphores (a parked task may wait for a deleted one)
-	static std::set<const HostSemaphore *> live;
+std::map<const HostSemaphore *, uint64_t> &semaphores() { //!< Created and not deleted semaphores with their generation (a parked task may wait for a deleted one)
+	static std::map<const HostSemaphore *, uint64_t> live;
 	return live;
+}
+uint64_t semaphoreGenerations = 0;
+/** True if `sem` is the live semaphore of this generation (not deleted, address not reused by a newer one) */
+bool semaphoreLive(const HostSemaphore *sem, uint64_t generation) {
+	auto it = semaphores().find(sem);
+	return it != semaphores().end() && it->second == generation;
+}
+
+std::vector<std::string> kernelFaultList; //!< HostRtos::kernelFaults
+HostRtos::FaultReporter faultReporter = nullptr;
+/** Records a kernel call the fake can not complete (HostRtos::kernelFaults) and passes it to the reporter */
+void kernelFault(const std::string &what) {
+	kernelFaultList.push_back(what);
+	if (faultReporter != nullptr) {
+		faultReporter(what);
+	}
 }
 
 bool isRegistered(HostTask *task) {
@@ -101,10 +119,20 @@ void handToTask(ResumableContext &ctx) {
 /**
  * Task side: parks the calling resumable task until its next activation (the thread that activated it continues).
  * `ready` tells runUntilIdle whether the task can continue. Throws ResumableTaskKilled if the task was deleted meanwhile.
+ * Once the task is being killed it never parks again (killResumable waits for the thread to end): code running during
+ * the unwind (a destructor taking a semaphore, a catch(...) that continues) gets ResumableTaskKilled again, or, while an
+ * exception is already propagating (throwing would terminate), `false`: the caller ends its wait without the resource.
+ * @return true after a normal activation
  */
-void parkCurrentTask(std::function<bool()> ready) {
+bool parkCurrentTask(std::function<bool()> ready) {
 	HostTask *self = currentTask;
 	ResumableContext &ctx = *self->resumable;
+	if (ctx.kill) {
+		if (std::uncaught_exceptions() > 0) {
+			return false;
+		}
+		throw ResumableTaskKilled();
+	}
 	ctx.ready = std::move(ready);
 	{
 		std::unique_lock<std::mutex> lock(ctx.mutex);
@@ -114,8 +142,12 @@ void parkCurrentTask(std::function<bool()> ready) {
 	}
 	ctx.ready = nullptr;
 	if (ctx.kill) {
+		if (std::uncaught_exceptions() > 0) {
+			return false;
+		}
 		throw ResumableTaskKilled();
 	}
+	return true;
 }
 
 /** Body of the host thread of a resumable task */
@@ -191,6 +223,18 @@ void killResumable(HostTask *task) {
 	if (ctx.thread.joinable()) {
 		ctx.thread.join();
 	}
+	if (ctx.error) {
+		// Called from vTaskDelete, usually in ~cpp_freertos::Thread (noexcept): rethrowing would terminate. Recorded instead
+		std::string what = "exception left the function of a resumable task while it was deleted";
+		try {
+			std::rethrow_exception(ctx.error);
+		} catch (const std::exception &e) {
+			what += std::string(": ") + e.what();
+		} catch (...) {
+		}
+		ctx.error = nullptr;
+		kernelFault(what);
+	}
 }
 } // namespace
 
@@ -205,7 +249,11 @@ void reset() {
 	currentTask = nullptr;
 	resumeCalls = ResumeStats();
 	heapCalls = HeapStats();
+	kernelFaultList.clear();
 }
+
+const std::vector<std::string> &kernelFaults() { return kernelFaultList; }
+void setFaultReporter(FaultReporter reporter) { faultReporter = reporter; }
 
 bool runUntilBlocked(TaskHandle_t task) {
 	if (!isRegistered(task) || currentTask != nullptr) {
@@ -395,8 +443,7 @@ void vTaskSuspend(TaskHandle_t task) {
 	if (task != nullptr && task == currentTask) {
 		// A task that suspends itself blocks until another task resumes it
 		if (resumableCurrent() == task) {
-			while (task->suspended) {
-				parkCurrentTask([task] { return !task->suspended; });
+			while (task->suspended && parkCurrentTask([task] { return !task->suspended; })) {
 			}
 			return;
 		}
@@ -457,9 +504,8 @@ uint32_t ulTaskNotifyTake(BaseType_t clearOnExit, TickType_t ticksToWait) {
 		// Resumable task: waits (parks) until a notification is pending. With a finite timeout it parks once: an
 		// activation without a pending notification ends the wait as a timeout (returns 0). No simulated time passes
 		if (self->notifications == 0 && ticksToWait != 0) {
-			do {
-				parkCurrentTask([self] { return self->notifications > 0; });
-			} while (self->notifications == 0 && ticksToWait == portMAX_DELAY);
+			while (parkCurrentTask([self] { return self->notifications > 0; }) && self->notifications == 0 && ticksToWait == portMAX_DELAY) {
+			}
 		}
 		uint32_t count = self->notifications;
 		if (count > 0) {
@@ -479,8 +525,8 @@ uint32_t ulTaskNotifyTake(BaseType_t clearOnExit, TickType_t ticksToWait) {
 // ---------------- Semaphores ----------------
 static SemaphoreHandle_t createSemaphore(UBaseType_t count, UBaseType_t maxCount) {
 	liveSemaphores++;
-	HostSemaphore *sem = new HostSemaphore{count, maxCount};
-	semaphores().insert(sem);
+	HostSemaphore *sem = new HostSemaphore{count, maxCount, ++semaphoreGenerations};
+	semaphores()[sem] = sem->generation;
 	return sem;
 }
 SemaphoreHandle_t xSemaphoreCreateBinary(void) { return createSemaphore(0, 1); }
@@ -499,9 +545,17 @@ BaseType_t xSemaphoreTake(SemaphoreHandle_t sem, TickType_t ticksToWait) {
 	if (sem->count == 0 && ticksToWait != 0 && resumableCurrent() != nullptr) {
 		// Resumable task: waits (parks) until the semaphore is available. With a finite timeout it parks once: an
 		// activation while the semaphore is still taken ends the wait as a timeout. No simulated time passes
-		do {
-			parkCurrentTask([sem] { return semaphores().count(sem) != 0 && sem->count > 0; });
-		} while (sem->count == 0 && ticksToWait == portMAX_DELAY);
+		const uint64_t generation = sem->generation;
+		bool parked = true;
+		while (parked) {
+			parked = parkCurrentTask([sem, generation] { return semaphoreLive(sem, generation) && sem->count > 0; });
+			if (!parked) {
+				return pdFALSE; // Killed while an exception propagates (see parkCurrentTask)
+			}
+			if (sem->count > 0 || ticksToWait != portMAX_DELAY) {
+				break;
+			}
+		}
 	}
 	if (sem->count > 0) {
 		sem->count--;
@@ -509,6 +563,10 @@ BaseType_t xSemaphoreTake(SemaphoreHandle_t sem, TickType_t ticksToWait) {
 	}
 	if (currentTask != nullptr && ticksToWait == portMAX_DELAY) {
 		throw HostRtos::TaskBlocked(); // Would wait forever
+	}
+	if (currentTask == nullptr && ticksToWait == portMAX_DELAY) {
+		// Test thread (no task): the calling task would block forever on the target. Returns pdFALSE, recorded
+		kernelFault("would block forever: xSemaphoreTake(portMAX_DELAY) of an unavailable semaphore outside a task");
 	}
 	return pdFALSE;
 }

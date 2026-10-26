@@ -44,6 +44,20 @@
 #endif
 
 /**
+ * For a defect causing undefined behaviour whose intended result happens to occur on the host (e.g. an out of bounds
+ * read that finds the expected value, a shift whose x86 result equals the intended one). The test asserts the intended
+ * result: it is a plain passing case in normal builds (should_fail would report "should have failed") and is skipped
+ * in sanitizer builds like KNOWN_ISSUE_UB (the sanitizer would abort the run). The defect itself is only visible on a
+ * sanitizer build with --no-skip. The description contains "KNOWN ISSUE" so the inventory
+ * (grep "KNOWN_ISSUE\|KNOWN ISSUE") lists it.
+ */
+#ifdef HOSTTEST_SANITIZERS
+#define KNOWN_ISSUE_UB_HIDDEN(text) doctest::description("KNOWN ISSUE (undefined behaviour, intended result on the host): " text) * doctest::skip()
+#else
+#define KNOWN_ISSUE_UB_HIDDEN(text) doctest::description("KNOWN ISSUE (undefined behaviour, intended result on the host): " text)
+#endif
+
+/**
  * Runs a function in a separate thread and waits for it to finish.
  * Use for code that is suspected to never return. The state used by the function
  * must be owned by the function object (capture shared_ptr by value) because the

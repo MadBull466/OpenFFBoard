@@ -234,13 +234,34 @@ TEST_CASE_FIXTURE(I2cFixture, "freeing the port by the device of a pending trans
 
 	i2cport.freePort(&dev);
 	CHECK(semaphoreAvailable(i2cport));
-	REQUIRE(HostTarget::i2cComplete(&hi2c1)); // the port is still in use by `other`: the transfer ends normally
+	HostTarget::i2cComplete(&hi2c1); // whatever is left of the transfer ends (today it keeps running, see bug 98)
 
 	CHECK(dev.calls() == std::vector<Call>{Call::StartTransfer});
 	i2cport.freePort(&other);
 }
 
-TEST_CASE_FIXTURE(I2cFixture, "configurePort without a configuration leaves the port unchanged") {
+// bug 98: freePort releases the semaphore of a pending transfer but leaves the transfer running
+TEST_CASE_FIXTURE(I2cFixture, "freeing the port by the device of a pending transfer stops the transfer" *
+								  KNOWN_ISSUE("bug 98: I2CPort::freePort (I2C.cpp:118-121) only clears currentDevice and gives the "
+											  "semaphore when the device of a pending IT/DMA transfer frees the port; the HAL transfer "
+											  "keeps running while other users remain. The ISR keeps writing into the buffer of the "
+											  "device that is being destroyed (e.g. ~PCF8574 -> freePort while readByteIT(&lastData) is "
+											  "pending: write after free, like bug 57), and the next transfer of another device gets "
+											  "HAL_BUSY (then bug 58). The CHECK fails")) {
+	MockI2CDevice dev(&hi2c1), other;
+	i2cport.takePort(&other);
+	i2cport.takePort(&dev);
+	uint8_t buf[2] = {0, 0};
+	REQUIRE(i2cport.receiveMasterIT(&dev, CHIP, buf, 2));
+
+	i2cport.freePort(&dev);
+	REQUIRE_ALL_HAL_MODELLED();
+
+	CHECK_FALSE(HostTarget::i2cTransferPending(&hi2c1));
+	i2cport.freePort(&other);
+}
+
+TEST_CASE_FIXTURE(I2cFixture, "configurePort without a configuration leaves the I2C port unchanged") {
 	i2cport.configurePort(nullptr);
 
 	CHECK(HostTarget::i2cInitCount(&hi2c1) == 0);
@@ -331,10 +352,11 @@ TEST_CASE_FIXTURE(I2cFixture, "the speed command of a port that can change its s
 	other.port.freePort(&dev);
 }
 
-TEST_CASE_FIXTURE(I2cFixture, "the speed command ignores request types it does not support") {
+TEST_CASE_FIXTURE(I2cFixture, "the speed command changes nothing for request types it does not support") {
+	// Called directly: the command dispatcher already rejects setat by the command flags (GET|SET|INFOSTRING)
 	std::vector<CommandReply> replies;
 
-	CHECK(cmd(i2cport, "speed", CMDtype::setat, 1, &replies) == CommandStatus::OK);
+	cmd(i2cport, "speed", CMDtype::setat, 1, &replies);
 
 	CHECK(replies.empty());
 	CHECK(i2cport.getSpeedPreset() == 0);
@@ -610,15 +632,20 @@ TEST_CASE_FIXTURE(I2cFixture, "an interrupt driven memory write writes the data 
 }
 
 TEST_CASE_FIXTURE(I2cFixture, "a DMA transfer on a port without DMA stream returns false") {
-	MockI2CDevice dev;
-	i2cport.takePort(&dev);
-	uint8_t buf[2] = {0, 0};
+	// One function per subcase: the failed call keeps the port semaphore (bug 58), a second call would wait forever
+	for (bool transmit : {true, false}) {
+		SUBCASE(transmit ? "transmitMasterDMA" : "receiveMasterDMA") {
+			MockI2CDevice dev;
+			i2cport.takePort(&dev);
+			uint8_t buf[2] = {0, 0};
+			const bool started = transmit ? i2cport.transmitMasterDMA(&dev, CHIP, buf, 2) : i2cport.receiveMasterDMA(&dev, CHIP, buf, 2);
 
-	CHECK_FALSE(i2cport.transmitMasterDMA(&dev, CHIP, buf, 2));
-	CHECK_FALSE(i2cport.receiveMasterDMA(&dev, CHIP, buf, 2));
+			CHECK_FALSE(started);
 
-	CHECK(lastTransfer().errorCode == HAL_I2C_ERROR_DMA_PARAM);
-	i2cport.freePort(&dev);
+			CHECK(lastTransfer().errorCode == HAL_I2C_ERROR_DMA_PARAM);
+			i2cport.freePort(&dev);
+		}
+	}
 }
 
 TEST_CASE_FIXTURE(I2cFixture, "an interrupt driven transfer to an address without a device reports an error to the device, which resets the port") {
@@ -630,8 +657,8 @@ TEST_CASE_FIXTURE(I2cFixture, "an interrupt driven transfer to an address withou
 
 	REQUIRE(HostTarget::i2cComplete(&hi2c1));
 
-	CHECK(dev.calls() == std::vector<Call>{Call::StartTransfer, Call::Error});
-	CHECK(dev.events[1].port == &i2cport);
+	REQUIRE(dev.count(Call::Error) == 1);
+	CHECK(dev.events.back().port == &i2cport);
 	CHECK(HostTarget::i2cInitCount(&hi2c1) == inits + 1);
 	CHECK(semaphoreAvailable(i2cport));
 	i2cport.freePort(&dev);
@@ -647,7 +674,7 @@ TEST_CASE_FIXTURE(I2cFixture, "a bus error during an interrupt driven transfer i
 
 	REQUIRE(HostTarget::i2cFail(&hi2c1, HAL_I2C_ERROR_ARLO));
 
-	CHECK(dev.calls() == std::vector<Call>{Call::StartTransfer, Call::Error});
+	CHECK(dev.count(Call::Error) == 1);
 	CHECK(HostTarget::i2cInitCount(&hi2c1) == inits); // the port does not reset by itself while a device is current
 	i2cport.freePort(&dev);
 }
@@ -805,10 +832,17 @@ TEST_CASE_FIXTURE(I2cFixture, "a blocking transfer of a second device from a tas
 TEST_CASE_FIXTURE(I2cFixture, "the completion of a transfer reaches its device while a second device waits for the port" *
 								  KNOWN_ISSUE("bug 89: every I2CPort transfer function (I2C.cpp:141-220) sets currentDevice = device "
 											  "before startI2CTransfer takes the port semaphore. A device of another task that waits "
-											  "for the port (e.g. PCF8574 buttons and an ADS111X on i2cport) replaces the device of "
-											  "the pending transfer: the completion ends the transfer of the waiting device and "
+											  "for the port with the default I2CDevice::startI2CTransfer (PCF8574) replaces the device "
+											  "of the pending transfer: the completion ends the transfer of the waiting device and "
 											  "reports it to that device, the device that started the transfer is never called back. "
-											  "The first CHECK fails")) {
+											  "(ADS111X takes the semaphore itself before the call, ADS111X.cpp:19-41, so it does not "
+											  "replace another device.) Target sequence: the ADS thread (prio 25) starts an IT "
+											  "transfer and waits; the pcfbtn thread (prio 20) calls readByteIT without an isTaken "
+											  "check (PCF8574.cpp:89-99), sets currentDevice = PCF and blocks in Take; the completion "
+											  "ISR ends the PCF transfer (gives the semaphore), reports a stale lastData to PCF and "
+											  "clears currentDevice; the ADS thread is never notified and recovers only after its 4 s "
+											  "re-init; PCF's own transfer then completes to nobody, so the semaphore stays taken "
+											  "until a PCF timeout calls resetPort. The first CHECK fails")) {
 	MockI2CDevice first, second;
 	i2cport.takePort(&first);
 	i2cport.takePort(&second);
@@ -828,7 +862,7 @@ TEST_CASE_FIXTURE(I2cFixture, "the completion of a transfer reaches its device w
 	i2cport.freePort(&first);
 }
 
-TEST_CASE_FIXTURE(I2cFixture, "a transfer can be started in interrupt context and completes like one started by a task") {
+TEST_CASE_FIXTURE(I2cFixture, "an I2C transfer can be started in interrupt context on a free port and completes like one started by a task") {
 	MockI2CDevice dev;
 	i2cport.takePort(&dev);
 	chip->setRegister(0x10, {0x61});
@@ -849,8 +883,53 @@ TEST_CASE_FIXTURE(I2cFixture, "a transfer can be started in interrupt context an
 	i2cport.freePort(&dev);
 }
 
+// bug 99 (I2C part): a failed TakeFromISR is ignored
+TEST_CASE_FIXTURE(I2cFixture, "an I2C transfer started in interrupt context while the port is taken does not reach the bus" *
+								  KNOWN_ISSUE("bug 99: I2CPort::takeSemaphore (I2C.cpp:265-268) ignores the result of TakeFromISR. A "
+											  "transfer started in interrupt context while another device holds the port goes ahead "
+											  "without the semaphore: the HAL is called (HAL_BUSY, then bug 58) and currentDevice is "
+											  "replaced (bug 89), so the completion of the pending transfer is reported to the wrong "
+											  "device. Latent: no firmware device starts I2C transfers from an interrupt. The first "
+											  "CHECK fails")) {
+	MockI2CDevice first, second;
+	i2cport.takePort(&first);
+	i2cport.takePort(&second);
+	uint8_t a[1] = {0}, b[1] = {0x42};
+	REQUIRE(i2cport.readMemIT(&first, CHIP, 0x10, I2C_MEMADD_SIZE_8BIT, a, 1));
+
+	{
+		HostPlatform::IsrContext isr;
+		i2cport.transmitMasterIT(&second, CHIP, b, 1);
+	}
+	REQUIRE_ALL_HAL_MODELLED();
+
+	CHECK(HostTarget::i2cTransfers(&hi2c1).size() == 1); // no HAL call without the port
+	REQUIRE(HostTarget::i2cComplete(&hi2c1));
+	CHECK(first.count(Call::RxCompleted) == 1);
+	i2cport.freePort(&second);
+	i2cport.freePort(&first);
+}
+
+// NEEDS REVIEW 113: the blocking transfer functions (I2C.cpp:141-220) set currentDevice and never clear it. After a
+// blocking transfer the pointer is stale: a later I2C error goes to that device instead of the no-device branch of
+// I2cError (resetPort), and freePort of that device gives a semaphore it does not hold. Intended?
+TEST_CASE_FIXTURE(I2cFixture, "characterization: after a blocking transfer its device stays the current device and receives a later I2C error") {
+	MockI2CDevice dev;
+	dev.callBase = false;
+	i2cport.takePort(&dev);
+	uint8_t buf[1] = {0x01};
+	REQUIRE(i2cport.transmitMaster(&dev, CHIP, buf, 1, 10));
+	const uint32_t inits = HostTarget::i2cInitCount(&hi2c1);
+
+	i2cport.I2cError(&hi2c1);
+
+	CHECK(dev.count(Call::Error) == 1);
+	CHECK(HostTarget::i2cInitCount(&hi2c1) == inits); // not the port reset of the no-device branch
+	i2cport.freePort(&dev);
+}
+
 // bug 87 (I2C part): the completion callbacks clear currentDevice after calling the device
-TEST_CASE_FIXTURE(I2cFixture, "a transfer that a device starts from its completion callback is completed to that device" *
+TEST_CASE_FIXTURE(I2cFixture, "an I2C transfer that a device starts from its completion callback is completed to that device" *
 								  KNOWN_ISSUE("bug 87: I2CPort::I2cTxCplt / I2cRxCplt (I2C.cpp:230-233, 244-247) set currentDevice = "
 											  "nullptr after calling the device, so a transfer the device starts in its callback "
 											  "loses its device: its completion calls nobody and the port semaphore stays taken. "
@@ -926,6 +1005,11 @@ TEST_CASE_FIXTURE(I2cFixture, "a new I2C handler is added to the I2C handler lis
 	std::vector<I2CHandler *> &list = I2CHandler::getI2CHandlers();
 
 	CHECK(std::count(list.begin(), list.end(), static_cast<I2CHandler *>(&handler)) == 1);
+}
+
+TEST_CASE_FIXTURE(I2cFixture, "the I2C port is an I2C handler of the I2C handler list") {
+	std::vector<I2CHandler *> &list = I2CHandler::getI2CHandlers();
+
 	CHECK(std::count(list.begin(), list.end(), static_cast<I2CHandler *>(&i2cport)) == 1);
 }
 

@@ -154,6 +154,8 @@ bool timerUpdateIrqEnabled(const TIM_HandleTypeDef *htim);
  * update branch (stm32f4xx_hal_tim.c) runs in interrupt context: UIF cleared, HAL_TIM_PeriodElapsedCallback(htim)
  * (main.c -> HAL_TIM_PeriodElapsedCallback_CPP -> TimerHandler::timerElapsed). The interrupt is raised right at the
  * wrap (CNT = 0 after an overflow, ARR after an underflow), i.e. with no interrupt latency, before the counter moves on.
+ * MX_TIM3_Init configures centre-aligned mode 1 (CMS) together with encoder mode; EncoderLocal's constructor clears it
+ * with CR1 = 1. Only the encoder mode behaviour is modelled: one update event per overflow / underflow (RM0090).
  * Not modelled (recorded in state().unmodelledHalCalls, nothing counted): a counter above ARR (16 bit counter of TIM3
  * counting beyond ARR), a pending UIF raising the interrupt when UIE is enabled later.
  * @return number of update events (wraps)

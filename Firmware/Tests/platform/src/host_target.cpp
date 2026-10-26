@@ -11,6 +11,7 @@
  */
 #include "HostTarget.h"
 #include "HostPlatform.h"
+#include "HostRtos.h"
 #include "MockCANPort.h"
 
 #include "main.h"
@@ -45,6 +46,15 @@ void initTimer(TIM_HandleTypeDef &htim, TIM_TypeDef &regs, uint32_t prescaler, u
 	regs.ARR = period;
 	htim.State = HAL_TIM_STATE_READY;
 }
+} // namespace
+
+namespace {
+/** Kernel calls the fake RTOS can not complete (HostRtos::kernelFaults) count as unmodelled calls in this executable */
+struct KernelFaultsAsUnmodelled {
+	KernelFaultsAsUnmodelled() {
+		HostRtos::setFaultReporter([](const std::string &what) { targetState.unmodelledHalCalls.push_back(what); });
+	}
+} kernelFaultsAsUnmodelled;
 } // namespace
 
 namespace HostTarget {

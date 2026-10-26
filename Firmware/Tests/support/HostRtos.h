@@ -25,6 +25,8 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <string>
+#include <vector>
 #include "FreeRTOS.h"
 #include "task.h"
 
@@ -87,6 +89,13 @@ bool isSuspended(TaskHandle_t task);
  *  - vTaskSuspend(self): park until resumed. vTaskDelay beyond the delay budget: park (continues after the delay at
  *    the next runUntilBlocked; runUntilIdle does not activate it).
  * runUntilIdle activates a parked resumable task when the condition it waits for is met (not only on notifications).
+ * A resumable task that was never activated is started by runUntilIdle only if a notification is pending (like the
+ * restart model); a first wait on a semaphore needs an explicit runUntilBlocked. A wait for a semaphore that is
+ * deleted (or whose address is reused by a newer semaphore: checked with a creation generation) never becomes ready.
+ * A task being deleted never parks again: blocking calls made while its function unwinds (destructors, catch(...))
+ * leave immediately (ResumableTaskKilled, or "not available / timeout" while an exception propagates). An exception
+ * that leaves the function during the delete can not be rethrown (vTaskDelete runs in ~Thread): it is recorded in
+ * kernelFaults().
  * Deleting the task (vTaskDelete, e.g. ~cpp_freertos::Thread when the firmware object is deleted) unwinds the parked
  * function on its host thread and joins the thread. Exceptions leaving the task function are rethrown by
  * runUntilBlocked; HostRtos::TaskBlocked leaving it means "start again at the next activation".
@@ -103,6 +112,20 @@ bool isResumable(TaskHandle_t task);
  * it is treated as blocked. Prevents endless polling loops. Default 1000.
  */
 void setDelayBudgetMs(uint32_t ms);
+
+/**
+ * Kernel calls the fake can not complete, cleared by reset():
+ *  - "would block forever: xSemaphoreTake(portMAX_DELAY) ... outside a task": an infinite take of an unavailable
+ *    semaphore from the test thread (no current task). On the target the calling task would block forever; the fake
+ *    returns pdFALSE. (ulTaskNotifyTake outside a task throws TaskBlocked into the test, as before.)
+ *  - an exception that left a resumable task's function while the task was deleted.
+ * ffb_target_tests passes every entry to HostTarget::state().unmodelledHalCalls (setFaultReporter in host_target.cpp),
+ * so REQUIRE_ALL_HAL_MODELLED() and the TargetFixture check fail on it. ffb_unit_tests / ffb_flash_tests only record.
+ */
+const std::vector<std::string> &kernelFaults();
+using FaultReporter = void (*)(const std::string &what);
+/** Called for every new kernelFaults() entry (not reset by reset()). nullptr: only recorded */
+void setFaultReporter(FaultReporter reporter);
 
 /** Amount of currently existing kernel semaphores and mutexes (created and not deleted with vSemaphoreDelete) */
 size_t semaphoreCount();

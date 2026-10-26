@@ -268,8 +268,13 @@ TEST_CASE_FIXTURE(SpiFixture, "a port used exclusively has no free pins") {
 	external_spi.takeExclusive(true);
 
 	CHECK_FALSE(external_spi.hasFreePins());
+}
+
+TEST_CASE_FIXTURE(SpiFixture, "ending the exclusive use gives a port its free pins back") {
+	external_spi.takeExclusive(true);
 
 	external_spi.takeExclusive(false);
+
 	CHECK(external_spi.hasFreePins());
 }
 
@@ -296,7 +301,7 @@ TEST_CASE_FIXTURE(SpiFixture, "a port whose CS pins are all reserved has no free
 
 // --- Configuration and clock ---
 
-TEST_CASE_FIXTURE(SpiFixture, "configurePort without a configuration leaves the port unchanged") {
+TEST_CASE_FIXTURE(SpiFixture, "configurePort without a configuration leaves the SPI port unchanged") {
 	const SPI_InitTypeDef before = hspi2.Init;
 
 	external_spi.configurePort(nullptr);
@@ -349,6 +354,10 @@ TEST_CASE_FIXTURE(SpiFixture, "a clock between two prescaler clocks selects the 
 TEST_CASE_FIXTURE(SpiFixture, "the closest prescaler depends on the base clock of the port") {
 	// 84 MHz / 8 = 10.5 MHz on motor_spi; on external_spi (42 MHz) that is prescaler 4
 	CHECK(motor_spi.getClosestPrescaler(10500000).first == SPI_BAUDRATEPRESCALER_8);
+	CHECK(external_spi.getClosestPrescaler(10500000).first == SPI_BAUDRATEPRESCALER_4);
+}
+
+TEST_CASE_FIXTURE(SpiFixture, "a clock beyond the reachable range selects the smallest or the largest prescaler") {
 	CHECK(motor_spi.getClosestPrescaler(1e9f).first == SPI_BAUDRATEPRESCALER_2);
 	CHECK(motor_spi.getClosestPrescaler(1.0f).first == SPI_BAUDRATEPRESCALER_256);
 }
@@ -587,7 +596,8 @@ TEST_CASE_FIXTURE(SpiFixture, "the port is taken during every interrupt driven o
 }
 
 // NEEDS REVIEW 106: the blocking transfer functions return void (SPI.cpp:158-183): a HAL_TIMEOUT / HAL_ERROR of the HAL
-// is not reported to the caller (e.g. SPIButtons, ShifterAnalog use the buffer as if it was received). Intended?
+// is not reported to the caller: MtEncoderSPI (MtEncoderSPI.cpp:133-164, the blocking transmit / transmitReceive of its
+// register accesses) uses the received buffer as if the transfer succeeded. Intended?
 TEST_CASE_FIXTURE(SpiFixture, "a blocking transfer that fails in the HAL still releases the CS pin and the port") {
 	MockSPIDevice dev(external_spi, external_spi.getFreeCsPins()[0]);
 	idleDevice(dev);
@@ -609,7 +619,12 @@ TEST_CASE_FIXTURE(SpiFixture, "a DMA transfer that the HAL fails to start releas
 											  "HAL_SPI_*_DMA / _IT. When the HAL fails to start the transfer (HAL_ERROR: DMA stream "
 											  "start failed; HAL_BUSY) no completion or error callback follows, so the device keeps its "
 											  "CS pin asserted, the port semaphore stays taken and current_device stays set: the next "
-											  "transfer of any device waits forever. The first CHECK fails")) {
+											  "transfer of any device waits forever. "
+											  "A complete fix must also recover the handle: after a failed DMA start HAL_SPI_Transmit_DMA / "
+											  "_TransmitReceive_DMA (stm32f4xx_hal_spi.c:1713-1716, 1823, 1941, 1962) unlock it but "
+											  "leave State BUSY_*, so every later transfer returns HAL_BUSY until HAL_SPI_Init, and "
+											  "configurePort only reinitialises when the configuration differs: checking the return "
+											  "value alone is not enough, the port must reinit or abort. The first CHECK fails")) {
 	MockSPIDevice dev(external_spi, external_spi.getFreeCsPins()[0]);
 	idleDevice(dev);
 	uint8_t tx[2] = {1, 2};
@@ -629,7 +644,11 @@ TEST_CASE_FIXTURE(SpiFixture, "an interrupt driven transfer rejected by a busy H
 								  KNOWN_ISSUE("bug 86: SPIPort::receive_IT (SPI.cpp:148-156) ignores HAL_BUSY of HAL_SPI_Receive_IT "
 											  "(the handle is still busy, e.g. after a failed DMA start the HAL leaves State BUSY_xx): "
 											  "no callback follows, the CS pin stays asserted and the port semaphore stays taken. "
-											  "The first CHECK fails")) {
+											  "A complete fix must also recover the handle: after a failed DMA start HAL_SPI_Transmit_DMA / "
+											  "_TransmitReceive_DMA (stm32f4xx_hal_spi.c:1713-1716, 1823, 1941, 1962) unlock it but "
+											  "leave State BUSY_*, so every later transfer returns HAL_BUSY until HAL_SPI_Init, and "
+											  "configurePort only reinitialises when the configuration differs: checking the return "
+											  "value alone is not enough, the port must reinit or abort. The first CHECK fails")) {
 	MockSPIDevice dev(external_spi, external_spi.getFreeCsPins()[0]);
 	idleDevice(dev);
 	uint8_t rx[2] = {0, 0};
@@ -794,7 +813,7 @@ TEST_CASE_FIXTURE(SpiFixture, "a transfer of a second device from a task waits u
 	CHECK_FALSE(external_spi.isTaken());
 }
 
-TEST_CASE_FIXTURE(SpiFixture, "a transfer can be started in interrupt context and completes like one started by a task") {
+TEST_CASE_FIXTURE(SpiFixture, "an SPI transfer can be started in interrupt context on a free port and completes like one started by a task") {
 	MockSPIDevice dev(external_spi, external_spi.getFreeCsPins()[0]);
 	uint8_t rx[1] = {0};
 	HostTarget::spiQueueRx(&hspi2, {0x99});
@@ -812,8 +831,38 @@ TEST_CASE_FIXTURE(SpiFixture, "a transfer can be started in interrupt context an
 	CHECK(semaphoreAvailable(external_spi));
 }
 
+// bug 99: a failed TakeFromISR is ignored
+TEST_CASE_FIXTURE(SpiFixture, "an SPI transfer started in interrupt context while the port is taken does not reach the bus" *
+								  KNOWN_ISSUE("bug 99: SPIPort::takeSemaphore (SPI.cpp:189-192) ignores the result of TakeFromISR. A "
+											  "transfer started in interrupt context while another device holds the port goes ahead "
+											  "without the semaphore: the second device asserts its CS pin while the first transfer "
+											  "runs (two slaves selected), the HAL rejects the call with HAL_BUSY (then bug 86) and "
+											  "current_device is replaced, so the completion of the first transfer is reported to the "
+											  "second device and the first device keeps its CS pin asserted. Latent: no firmware device "
+											  "starts SPI transfers from an interrupt. The first CHECK fails")) {
+	MockSPIDevice first(external_spi, external_spi.getFreeCsPins()[0]);
+	MockSPIDevice second(external_spi, external_spi.getFreeCsPins()[0]);
+	idleDevice(first);
+	idleDevice(second);
+	uint8_t a[1] = {0x11}, b[1] = {0x22};
+	external_spi.transmit_IT(a, 1, &first);
+	REQUIRE(external_spi.isTaken());
+
+	{
+		HostPlatform::IsrContext isr;
+		external_spi.transmit_IT(b, 1, &second);
+	}
+	REQUIRE_ALL_HAL_MODELLED();
+
+	CHECK(HostTarget::spiTransfers(&hspi2).size() == 1); // no HAL call without the port
+	CHECK(level(second.config().cs));					 // second slave not selected during the first transfer
+	REQUIRE(HostTarget::spiComplete(&hspi2));
+	CHECK(first.count(Call::TxCompleted) == 1);
+	CHECK(second.count(Call::TxCompleted) == 0);
+}
+
 // bug 87: the completion callbacks clear current_device after calling the device
-TEST_CASE_FIXTURE(SpiFixture, "a transfer that a device starts from its completion callback is completed to that device" *
+TEST_CASE_FIXTURE(SpiFixture, "an SPI transfer that a device starts from its completion callback is completed to that device" *
 								  KNOWN_ISSUE("bug 87: SPIPort::SpiTxCplt / SpiRxCplt / SpiTxRxCplt / SpiError (SPI.cpp:240-243, "
 											  "254-257, 267-270, 281-284) set current_device = nullptr after calling the device. A "
 											  "transfer the device starts in its callback sets current_device first, so it is lost: "

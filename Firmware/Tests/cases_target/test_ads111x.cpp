@@ -279,6 +279,13 @@ TEST_CASE_FIXTURE(AdsFixture, "setting the thresholds starts the write of the lo
 	REQUIRE(HostTarget::i2cComplete(&hi2c1));
 	const HostTarget::I2cTransfer &t = HostTarget::i2cTransfers(&hi2c1).front();
 	CHECK(t.memAddress == 0x02);
+	// The second write's port semaphore take (portMAX_DELAY, held by the pending first write) would block the calling
+	// task on the target; the test thread can not block, the fake kernel records it. Expected here: removed before the
+	// check that no other unmodelled call was reached
+	auto &unmodelled = HostTarget::state().unmodelledHalCalls;
+	REQUIRE(unmodelled.size() == 1);
+	REQUIRE(unmodelled.front().rfind("would block forever: xSemaphoreTake", 0) == 0);
+	unmodelled.clear();
 	REQUIRE_ALL_HAL_MODELLED();
 	CHECK(adc.register16(0x02) == 0x1000);
 }

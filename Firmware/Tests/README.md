@@ -27,7 +27,11 @@ Properties of the fake platform:
   (`HostRtos::runUntilBlocked`, `HostRtos::runUntilIdle` or `process()` of the fixtures). A blocked thread is restarted
   at the beginning of its function the next time; threads that wait in several places per loop are made resumable
   (`HostRtos::makeResumable`: the thread runs on its own host thread, strictly one at a time, and continues after the
-  blocking call).
+  blocking call). `std::thread` was already required before P6 (`TestHelpers.h` `finishesWithin`, `Threads::Threads`
+  linked by every executable), so the MinGW thread-model requirement is unchanged. Secondary threads have smaller
+  stacks than the main thread on some hosts (macOS: 512 KiB). An infinite semaphore take from the test thread that
+  would block forever on the target is recorded (`HostRtos::kernelFaults()`; in `ffb_target_tests` it fails the test
+  like an unmodelled HAL call).
 * **Everything sent to the outside is recorded**: CDC data and HID reports (`HostUsb`), uart bytes,
   flash content and LEDs (`HostPlatform`), CAN frames (`MockCANPort`), motor torque (`MockMotorDriver`).
 
@@ -184,6 +188,10 @@ Rules:
   defect in the firmware. The suite stays green while the defect exists. When the firmware is fixed the test
   is reported as *"Should have failed but didn't"* and the marker must be removed.
   `KNOWN_ISSUE_UB` is the same for undefined behaviour and is skipped in sanitizer builds.
+  `KNOWN_ISSUE_UB_HIDDEN` is for undefined behaviour whose intended result happens to occur on the host: the test
+  asserts the intended result and passes in normal builds, and is skipped in sanitizer builds. The defect is only
+  visible on a sanitizer build run with `--no-skip`. Its description starts with "KNOWN ISSUE", so the inventory below
+  lists it.
 
   In `ffb_target_tests` the fixture checks for HAL functions without a fake with a `CHECK` in its destructor. In a
   `KNOWN_ISSUE` test that check would also count as the expected failure, so such tests call
