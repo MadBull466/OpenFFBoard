@@ -52,8 +52,8 @@ uint16_t amt23Frame(uint16_t position) {
 }
 
 /**
- * Same port and pin. (GpioPin::operator== is a non-const member: inside doctest's expression decomposition
- * `CHECK(a == b)` does not reach it, so pins are compared explicitly)
+ * Same port and pin. `GpioPin::operator==` is non-const: under C++20 doctest does not decompose the comparison and
+ * `CHECK_FALSE(a == b)` is not negated; compare explicitly.
  */
 bool samePin(const OutputPin &a, const OutputPin &b) { return a.getPort() == b.getPort() && a.getPin() == b.getPin(); }
 
@@ -159,7 +159,7 @@ TEST_CASE_FIXTURE(SsiFixture, "the SSI encoder reserves the first CS pin and tak
 }
 
 TEST_CASE_FIXTURE(SsiFixture, "an SSI encoder is not created on a CS pin another device holds" *
-				  KNOWN_ISSUE("EncoderSSI::isCreatable (EncoderSSI.cpp:93) uses hasFreePins, which counts all CS pins of "
+				  KNOWN_ISSUE("bug 80: EncoderSSI::isCreatable (EncoderSSI.cpp:93) uses hasFreePins, which counts all CS pins of "
 							  "the port (SPI.cpp:220-222), and the constructor (EncoderSSI.cpp:23) always takes getCsPins()[0] "
 							  "even if it is reserved (reserveCsPin fails silently): the encoder and the other device drive "
 							  "one CS pin (bug 67 pattern)")) {
@@ -174,7 +174,7 @@ TEST_CASE_FIXTURE(SsiFixture, "an SSI encoder is not created on a CS pin another
 }
 
 TEST_CASE_FIXTURE(SsiFixture, "deleting an SSI encoder keeps the CS pin of another device reserved" *
-				  KNOWN_ISSUE("EncoderSSI.cpp:23 takes CS pin 0 although another device holds it; ~SPIDevice "
+				  KNOWN_ISSUE("bug 80: EncoderSSI.cpp:23 takes CS pin 0 although another device holds it; ~SPIDevice "
 							  "(SPI.cpp:338-340) then frees the other device's pin")) {
 	MockSPIDevice other(ext3_spi, ext3_spi.getCsPins()[0]);
 	storeConfig(14, 0, MODE_AMT23);
@@ -198,7 +198,7 @@ TEST_CASE_FIXTURE(SsiFixture, "deleting the SSI encoder frees its CS pin and the
 }
 
 TEST_CASE_FIXTURE(SsiFixture, "the mode of an SSI encoder created without a stored configuration is a defined mode" *
-				  KNOWN_ISSUE_UB("EncoderSSI.h:73 `EncoderSSI_modes mode;` has no initialiser and the constructor sets it only "
+				  KNOWN_ISSUE_UB("bug 77: EncoderSSI.h:73 `EncoderSSI_modes mode;` has no initialiser and the constructor sets it only "
 								 "from a stored ADR_SSI_CONF1 (EncoderSSI.cpp:43-47): without flash the mode is indeterminate "
 								 "(spiRxCompleted / bits / mode read it). The object is built on storage filled with 0xAA to "
 								 "make the indeterminate value visible")) {
@@ -263,7 +263,8 @@ TEST_CASE_FIXTURE(SsiFixture, "the AMT23 mode reads 2 bytes per frame") {
 }
 
 TEST_CASE_FIXTURE(SsiFixture, "the raw mode reads as many bytes as the resolution needs") {
-	// Up to 30 bits: with 31 and 32 bits the decoding mask `(1<<lenghtDataBit) - 1` and getCpr overflow (bug 77)
+	// Up to 30 bits: with 31 and 32 bits restored from flash the decoding mask `(1<<lenghtDataBit) - 1` (line 126) and
+	// with 32 bits getCpr (line 179) shift out of range (bug 103)
 	const int bits[] = {1, 8, 9, 16, 17, 22, 24, 25, 30};
 	const uint16_t sizes[] = {1, 1, 2, 2, 3, 3, 3, 4, 4};
 	for (size_t i = 0; i < sizeof(bits) / sizeof(bits[0]); i++) {
@@ -331,7 +332,7 @@ TEST_CASE_FIXTURE(SsiFixture, "an AMT23 frame with both check bits wrong is coun
 }
 
 TEST_CASE_FIXTURE(SsiFixture, "an AMT23 frame with one wrong check bit is counted as an error and keeps the position" *
-				  KNOWN_ISSUE("EncoderSSI.cpp:110 accepts a frame if `parity` is not 0: both check bits must be right "
+				  KNOWN_ISSUE("bug 78: EncoderSSI.cpp:110 accepts a frame if `parity` is not 0: both check bits must be right "
 							  "(parity == 3), a frame with only K1 or only K0 right is decoded as a position")) {
 	storeConfig(14, 0, MODE_AMT23);
 	EncoderSSI enc;
@@ -371,10 +372,22 @@ TEST_CASE_FIXTURE(SsiFixture, "a move of less than half a turn is not counted as
 	CHECK(enc.getPosAbs() == 0x0100 - 0x2000);
 }
 
+TEST_CASE_FIXTURE(SsiFixture, "characterization: a first raw frame above half a turn counts as one turn backwards") {
+	// NEEDS REVIEW 110: lastPos starts at 0 (EncoderSSI.h:77) and the turn detection (EncoderSSI.cpp:133-137) runs on the
+	// first frame too: a raw 16 bit encoder first read at 0x9000 reports 0x9000 - 65536 = -28672. Raw positions are not
+	// centred (AMT23 positions are, so its first frame never differs from 0 by more than half a turn). The frame 0x90 0x00
+	// decodes to 0x9000 also with the defective raw decoding of bug 76 (the second byte is 0), so this shows only the
+	// first-frame effect. Intended (start in turn -1 or 0)?
+	storeConfig(16, 0, MODE_RAW);
+	EncoderSSI enc;
+	feed(enc, {0x90, 0x00});
+	CHECK(enc.getPosAbs() == 0x9000 - 65536);
+}
+
 // ---------------- Raw decoding ----------------
 
 TEST_CASE_FIXTURE(SsiFixture, "a raw frame one count higher gives a position one count higher" *
-				  KNOWN_ISSUE("EncoderSSI.cpp:123-124 ORs every byte shifted by `bytes` (8) and loops over all 8 buffer "
+				  KNOWN_ISSUE("bug 76: EncoderSSI.cpp:123-124 ORs every byte shifted by `bytes` (8) and loops over all 8 buffer "
 							  "bytes instead of shifting the result MSB first over transferlen bytes: 0x1234 and 0x1235 "
 							  "decode as 0x3600 and 0x3700 (16 bit)")) {
 	storeConfig(16, 0, MODE_RAW);
@@ -387,7 +400,7 @@ TEST_CASE_FIXTURE(SsiFixture, "a raw frame one count higher gives a position one
 }
 
 TEST_CASE_FIXTURE(SsiFixture, "changing the resolution in raw mode changes the number of bytes read" *
-				  KNOWN_ISSUE("the bits command (EncoderSSI.cpp:211-216) only stores lenghtDataBit; transferlen is computed "
+				  KNOWN_ISSUE("bug 96: the bits command (EncoderSSI.cpp:211-216) only stores lenghtDataBit; transferlen is computed "
 							  "by setMode only (EncoderSSI.cpp:190-197), so the read length stays that of the old resolution")) {
 	storeConfig(8, 0, MODE_RAW);
 	EncoderSSI enc;
@@ -465,7 +478,7 @@ TEST_CASE_FIXTURE(SsiFixture, "a new SSI encoder restores the saved configuratio
 }
 
 TEST_CASE_FIXTURE(SsiFixture, "characterization: an offset of a resolution above 16 bits is restored in steps of 2^(bits-16) counts") {
-	// NEEDS REVIEW 96 (part 1): the offset is stored as offset >> (bits - 16) (EncoderSSI.cpp:58, 48): with 22 bits it is
+	// NEEDS REVIEW 96: the offset is stored as offset >> (bits - 16) (EncoderSSI.cpp:58, 48): with 22 bits it is
 	// restored rounded down to a multiple of 64 counts (1000 -> 960). Intended to keep 16 bit flash words?
 	{
 		storeConfig(22, 0, MODE_AMT23); // AMT23 decoding with 22 bit bookkeeping: frame 0x2000 + 1000 -> position 1000 - 2^21 + 0x2000
@@ -485,7 +498,7 @@ TEST_CASE_FIXTURE(SsiFixture, "characterization: an offset of a resolution above
 }
 
 TEST_CASE_FIXTURE(SsiFixture, "a negative position offset is restored as the same offset" *
-				  KNOWN_ISSUE("bug 77 (flash part): saveFlash writes the int32 offset as uint16 (EncoderSSI.cpp:58) and "
+				  KNOWN_ISSUE("bug 97: saveFlash writes the int32 offset as uint16 (EncoderSSI.cpp:58) and "
 							  "restoreFlash reads it back unsigned (line 48): an offset of -5 (14 bit) is restored as "
 							  "65531, the position after a restart is 4 turns (65536 counts) off")) {
 	{
@@ -530,14 +543,25 @@ TEST_CASE_FIXTURE(SsiFixture, "in AMT23 mode the bits command limits the resolut
 	CHECK(get(enc, "bits") == 14);
 	CHECK(cmd(enc, "bits", CMDtype::set, 8) == CommandStatus::OK);
 	CHECK(get(enc, "bits") == 12);
-	CHECK(cmd(enc, "bits", CMDtype::set, 13) == CommandStatus::OK);
-	CHECK(get(enc, "bits") == 13);
+}
+
+TEST_CASE_FIXTURE(SsiFixture, "in AMT23 mode the bits command accepts only 12 or 14 bits" *
+				  KNOWN_ISSUE("bug 105: EncoderSSI.cpp:214 clamps to 12..14 although its comment says \"Only 12b and 14b "
+							  "valid\": 13 bits are kept, then line 105 shifts the frame by 1 (`newPos >>= 14-13`), which "
+							  "misaligns the check-bit pairs (about half of the valid frames are counted as errors)")) {
+	storeConfig(14, 0, MODE_AMT23);
+	EncoderSSI enc;
+	cmd(enc, "bits", CMDtype::set, 13);
+	const int64_t bits = get(enc, "bits");
+	REQUIRE_ALL_HAL_MODELLED();
+	CHECK((bits == 12 || bits == 14));
 }
 
 TEST_CASE_FIXTURE(SsiFixture, "the bits command keeps the resolution within 1 to 32 bits" *
-				  KNOWN_ISSUE("bug 77 (range part): the bits command stores any value in raw mode (EncoderSSI.cpp:212); "
+				  KNOWN_ISSUE("bug 102: the bits command stores any value in raw mode (EncoderSSI.cpp:212); "
 							  "40 bits make getCpr / spiRxCompleted shift 1 by 40 (undefined, `1<<lenghtDataBit`, lines 111, 126, "
-							  "133, 179). The flash layout holds 1 to 32 bits")) {
+							  "133, 179). The flash layout holds 1 to 32 bits, but 31 and 32 bits are undefined too (bug 103; "
+							  "host vs target: x86 masks the shift count, ARM LSL by 32 or more gives 0)")) {
 	storeConfig(22, 0, MODE_RAW);
 	EncoderSSI enc;
 	cmd(enc, "bits", CMDtype::set, 40);
@@ -611,7 +635,7 @@ TEST_CASE_FIXTURE(SsiFixture, "the mode command rejects a request other than get
 }
 
 TEST_CASE_FIXTURE(SsiFixture, "the mode command rejects a mode that does not exist" *
-				  KNOWN_ISSUE("bug 77 (range part): the mode command stores any value 0..15 (EncoderSSI.cpp:233); with mode 5 "
+				  KNOWN_ISSUE("bug 104: the mode command stores any value 0..15 (EncoderSSI.cpp:233); with mode 5 "
 							  "spiRxCompleted decodes nothing and the position never changes")) {
 	storeConfig(14, 0, MODE_AMT23);
 	EncoderSSI enc;

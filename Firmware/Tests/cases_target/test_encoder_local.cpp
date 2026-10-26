@@ -303,8 +303,8 @@ TEST_CASE_FIXTURE(LocalEncoderFixture, "the index offset restored from flash is 
 	CHECK(enc.getPos() == 0);
 }
 
-TEST_CASE_FIXTURE(LocalEncoderFixture, "with the index restored from flash creating the encoder does not reset the position") {
-	// EncoderLocal.cpp:29-30: setPos(0) only without index. Both paths start at position 0 (pos = 0 at line 26)
+TEST_CASE_FIXTURE(LocalEncoderFixture, "a local encoder with the index restored from flash starts at position 0") {
+	// EncoderLocal.cpp:26, 29-30: pos = 0, setPos(0) is skipped with the index
 	REQUIRE(Flash_Write(ADR_ENCLOCAL_OFS, 10));
 	EncoderLocal enc;
 	CHECK(enc.getPos() == 0);
@@ -336,7 +336,7 @@ TEST_CASE_FIXTURE(LocalEncoderFixture, "zeroing before the index makes the resto
 }
 
 TEST_CASE_FIXTURE(LocalEncoderFixture, "zeroing after the index with a counts per turn that is not a power of two restores the index position modulo a turn" *
-				  KNOWN_ISSUE("EncoderLocal.cpp:85 `(idxpos-cnt-pos) % this->cpr` converts the negative int32 to uint32 "
+				  KNOWN_ISSUE("bug 93: EncoderLocal.cpp:85 `(idxpos-cnt-pos) % this->cpr` converts the negative int32 to uint32 "
 							  "(cpr is uint32_t): with cpr 1000 the offset of an index 100 counts before the zero point "
 							  "becomes (2^32 - 100) % 1000 = 196 instead of 900 (or -100)")) {
 	const int32_t atIndex = indexPositionAfterRestart(1000, 100, 0);
@@ -344,18 +344,42 @@ TEST_CASE_FIXTURE(LocalEncoderFixture, "zeroing after the index with a counts pe
 }
 
 TEST_CASE_FIXTURE(LocalEncoderFixture, "setting a nonzero position after the index restores the index position modulo a turn" *
-				  KNOWN_ISSUE("EncoderLocal.cpp:85 subtracts the new position (`idxpos-cnt-pos`, `pos` is the parameter): "
+				  KNOWN_ISSUE("bug 94: EncoderLocal.cpp:85 subtracts the new position (`idxpos-cnt-pos`, `pos` is the parameter): "
 							  "the index is at newPos - moved in the user's frame, the stored offset is -moved - newPos. "
 							  "With setPos(500) 100 counts after the index the restored index reads 3496 instead of 400 (mod 4096)")) {
 	const int32_t atIndex = indexPositionAfterRestart(4096, 100, 500);
 	CHECK(mod(atIndex - 400, 4096) == 0);
 }
 
+TEST_CASE_FIXTURE(LocalEncoderFixture, "zeroing more than half a timer range after the index restores the index position modulo a turn" *
+				  KNOWN_ISSUE("bug 95: EncoderLocal.cpp:80, 84-85 compute the offset from the timer count only "
+							  "(`idxpos-cnt-pos`) and ignore the overflows summed in `this->pos`: with cpr 4000, 40100 counts "
+							  "after the index (one timer overflow) setPos(0) stores 25436 % 4000 = 1436, the restored index "
+							  "reads 1436 instead of -100 (mod 4000). Only visible with a cpr that does not divide 65536")) {
+	// 40100 rather than 40000: the intended offset of 40000 counts is 0, which saveFlash stores as "index off" (NEEDS REVIEW 93)
+	const int32_t atIndex = indexPositionAfterRestart(4000, 40100, 0);
+	CHECK(mod(atIndex - (-40100), 4000) == 0);
+}
+
+TEST_CASE_FIXTURE(LocalEncoderFixture, "characterization: a stored index offset above 32767 is restored as a negative offset") {
+	// NEEDS REVIEW 98: the offset is an int16_t (EncoderLocal.h:61) stored as a 16 bit word (EncoderLocal.cpp:49, 60).
+	// With cpr above 32768 an offset of 32768 or more (computed at line 85 and truncated by the assignment) wraps: 35000
+	// becomes -30536, not congruent to 35000 modulo cpr 40000. Is the index meant to work with more than 32768 counts
+	// per turn?
+	REQUIRE(Flash_Write(ADR_ENCLOCAL_CPR, 40000));
+	REQUIRE(Flash_Write(ADR_ENCLOCAL_OFS, 35000));
+	EncoderLocal enc;
+	turn(123);
+	HostTarget::encoderIndexPulse();
+	CHECK(enc.getPos() == 35000 - 65536);
+}
+
 TEST_CASE_FIXTURE(LocalEncoderFixture, "setting the position after the index with 0 counts per turn is safe" * doctest::skip() *
-				  doctest::description("KNOWN ISSUE (crash): EncoderLocal.cpp:85 `% this->cpr` with cpr 0 (the default "
-									   "without a stored cpr) is a division by zero (SIGFPE on x86; on the Cortex-M4 UDIV "
-									   "returns 0 unless DIV_0_TRP is set). Reachable: index on, index pulse, zeroenc / pos "
-									   "command. Skipped")) {
+				  doctest::description("KNOWN ISSUE (host-only crash, SIGFPE; undefined behaviour): bug 79: "
+									   "EncoderLocal.cpp:85 `% this->cpr` with cpr 0 (the default without a stored cpr) is a "
+									   "division by zero. On the Cortex-M4 (DIV_0_TRP clear) `x % 0` gives the dividend "
+									   "(UDIV gives 0, MLS), so the offset becomes the raw distance truncated to int16. "
+									   "Reachable: index on, index pulse, zeroenc / pos command. Skipped")) {
 	EncoderLocal enc;
 	REQUIRE(cmd(enc, "index", CMDtype::set, 1) == CommandStatus::OK);
 	HostTarget::encoderIndexPulse();
@@ -510,18 +534,21 @@ TEST_CASE_FIXTURE(LocalEncoderFixture, "the command handler of the local encoder
 // ---------------- Deletion and the axis ----------------
 
 TEST_CASE_FIXTURE(LocalEncoderFixture, "a local encoder registers itself for timer and external interrupts") {
+	const size_t timersBefore = TimerHandler::timerHandlers.size();
 	EncoderLocal enc;
 	CHECK(listed(ExtiHandler::extiHandlers, reinterpret_cast<std::uintptr_t>(static_cast<ExtiHandler *>(&enc))));
-	CHECK(TimerHandler::timerHandlers.size() == 1);
+	CHECK(TimerHandler::timerHandlers.size() == timersBefore + 1);
 }
 
 TEST_CASE_FIXTURE(LocalEncoderFixture, "a deleted local encoder no longer reacts to timer and index interrupts") {
 	const size_t extiBefore = ExtiHandler::extiHandlers.size();
+	const size_t timersBefore = TimerHandler::timerHandlers.size();
 	auto enc = std::make_unique<EncoderLocal>();
 	REQUIRE(ExtiHandler::extiHandlers.size() == extiBefore + 1);
+	REQUIRE(TimerHandler::timerHandlers.size() == timersBefore + 1);
 	enc.reset();
 	CHECK(ExtiHandler::extiHandlers.size() == extiBefore);
-	CHECK(TimerHandler::timerHandlers.empty());
+	CHECK(TimerHandler::timerHandlers.size() == timersBefore);
 	CHECK_FALSE(HostTarget::timerRunning(&htim3));
 	HostTarget::encoderIndexPulse(); // nothing left to call
 	CHECK(HostTarget::encoderTimerCount(&htim3, 0x20000) == 0); // stopped counter: no counts, no interrupt
@@ -538,12 +565,14 @@ TEST_CASE_FIXTURE(TwoAxisFixture, "the encoder chooser of a second axis does not
 }
 
 TEST_CASE_FIXTURE(AxisFixture, "selecting no encoder on the axis deletes the local encoder and stops the encoder timer") {
+	const size_t timersBefore = TimerHandler::timerHandlers.size();
 	Encoder *enc = selectFirmwareEncoder(2);
 	REQUIRE(dynamic_cast<EncoderLocal *>(enc) != nullptr);
 	REQUIRE(HostTarget::timerRunning(&htim3));
+	REQUIRE(TimerHandler::timerHandlers.size() == timersBefore + 1);
 	selectFirmwareEncoder(0);
 	CHECK_FALSE(HostTarget::timerRunning(&htim3));
-	CHECK(TimerHandler::timerHandlers.empty());
+	CHECK(TimerHandler::timerHandlers.size() == timersBefore);
 	CHECK(EncoderLocal::isCreatable());
 	CHECK(CommandHandler::getHandlerFromClassName("localenc") == nullptr);
 }

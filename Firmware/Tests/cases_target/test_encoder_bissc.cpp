@@ -28,13 +28,6 @@
 #include <string>
 #include <vector>
 
-#ifdef HOSTTEST_SANITIZERS
-/** Undefined behaviour that has no visible effect on the host (the intended result is reached): the sanitizer aborts the run, so skipped there */
-#define UB_SKIPPED_WITH_SANITIZERS(text) doctest::description("Undefined behaviour (skipped with sanitizers): " text) * doctest::skip()
-#else
-#define UB_SKIPPED_WITH_SANITIZERS(text) doctest::description("Undefined behaviour (skipped with sanitizers): " text)
-#endif
-
 namespace {
 
 constexpr int DEFAULT_BITS = 22;
@@ -342,6 +335,22 @@ TEST_CASE_FIXTURE(BissFixture, "dir set 0 makes the position count up") {
 	CHECK(enc->getPos() == 0x12345);
 }
 
+TEST_CASE_FIXTURE(BissFixture, "characterization: a frame with three idle bits before the acknowledge fails the CRC check") {
+	// NEEDS REVIEW 115: updateFrame aligns at the first 1, drops it and the next bit (mask at EncoderBissC.cpp:176) and
+	// then takes the next 1 as the start bit (line 182). This only works with 1 or 2 high bits before the acknowledge:
+	// with 0 or 3 and more (e.g. a longer line delay at a higher clock) every frame is a CRC error. Is the supported
+	// line delay documented, or should the decoder search for the start bit after the acknowledge?
+	create();
+	REQUIRE(cmd("dir", CMDtype::set, 0) == CommandStatus::OK);
+	readPosition(0x100);
+	Frame f;
+	f.position = 0x2A5A5;
+	f.idle = 3;
+	read(f);
+	CHECK(get("errors") == 1);
+	CHECK(enc->getPosAbs() == 0x100);
+}
+
 TEST_CASE_FIXTURE(BissFixture, "a frame with two idle bits before the acknowledge is decoded") {
 	create();
 	REQUIRE(cmd("dir", CMDtype::set, 0) == CommandStatus::OK);
@@ -417,7 +426,7 @@ TEST_CASE_FIXTURE(BissFixture, "a frame of all ones (line stuck high) is counted
 }
 
 TEST_CASE_FIXTURE(BissFixture, "a frame of all zeros (no encoder answer) is counted as an error" *
-								   UB_SKIPPED_WITH_SANITIZERS("updateFrame calls __builtin_clzll(0) (EncoderBissC.cpp:175 and 182), "
+								   KNOWN_ISSUE_UB_HIDDEN("updateFrame calls __builtin_clzll(0) (EncoderBissC.cpp:175 and 182), "
 															  "which is undefined (UBSan: 'passing zero to __builtin_clz()'); the "
 															  "same happens at line 182 for a frame with only the first bit set. On "
 															  "the host and on ARM the shifted value stays 0, so the CRC check fails as "
@@ -502,7 +511,8 @@ TEST_CASE_FIXTURE(BissFixture, "bits set above 32 is not accepted" *
 												  "setPos(0)) and updateFrame computes (1 << (bits + 2)) - 1 (line 188, undefined "
 												  "from 29 bits on); saveFlash keeps only 5 bits (bits 40 is restored as 8). Bug 84")) {
 	create();
-	REQUIRE(cmd("bits", CMDtype::set, 40) == CommandStatus::OK);
+	const CommandStatus st = cmd("bits", CMDtype::set, 40); // a fix may clip (OK) or reject (ERR)
+	CHECK((st == CommandStatus::OK || st == CommandStatus::ERR));
 	REQUIRE_ALL_HAL_MODELLED();
 
 	CHECK(get("bits") <= 32);
@@ -513,7 +523,8 @@ TEST_CASE_FIXTURE(BissFixture, "bits set to 0 is not accepted" *
 											   "halfres = 1 << -1 (line 52, undefined) and saveFlash stores max(-1, 0) = 0, restored "
 											   "as 1 bit. Bug 84")) {
 	create();
-	REQUIRE(cmd("bits", CMDtype::set, 0) == CommandStatus::OK);
+	const CommandStatus st = cmd("bits", CMDtype::set, 0); // a fix may clip (OK) or reject (ERR)
+	CHECK((st == CommandStatus::OK || st == CommandStatus::ERR));
 	REQUIRE_ALL_HAL_MODELLED();
 
 	CHECK(get("bits") >= 1);

@@ -102,7 +102,7 @@ TEST_CASE_FIXTURE(HandlerFixture, "a deleted timer handler is no longer called a
 	CHECK(TimerHandler::timerHandlers.size() == timersBefore + 2);
 }
 
-TEST_CASE_FIXTURE(HandlerFixture, "a timer handler without its own callback ignores update interrupts") {
+TEST_CASE_FIXTURE(HandlerFixture, "a timer handler without its own callback does not stop the dispatch to later handlers") {
 	TimerHandler plain; // TimerHandler::timerElapsed: empty default
 	TimerRecorder after(1);
 	REQUIRE(HostTarget::timerUpdate(&htim13));
@@ -153,7 +153,7 @@ TEST_CASE_FIXTURE(HandlerFixture, "a deleted EXTI handler is no longer called an
 	CHECK(ExtiHandler::extiHandlers.size() == extisBefore + 2);
 }
 
-TEST_CASE_FIXTURE(HandlerFixture, "an EXTI handler without its own callback ignores external interrupts") {
+TEST_CASE_FIXTURE(HandlerFixture, "an EXTI handler without its own callback does not stop the dispatch to later handlers") {
 	ExtiHandler plain; // ExtiHandler::exti: empty default
 	ExtiRecorder after(1);
 	HostTarget::triggerExti(BUTTON_A_Pin);

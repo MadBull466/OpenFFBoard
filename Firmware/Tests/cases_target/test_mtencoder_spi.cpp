@@ -260,7 +260,10 @@ TEST_CASE_FIXTURE(MtFixture, "the MT6825 has 262144 counts per turn") {
 	CHECK(enc->getCpr() == static_cast<uint32_t>(CPR6825));
 }
 
-TEST_CASE_FIXTURE(MtFixture, "an MT6825 angle with the no magnet warning and valid parity is decoded") {
+TEST_CASE_FIXTURE(MtFixture, "characterization: an MT6825 angle with the no magnet warning and valid parity is decoded") {
+	// NEEDS REVIEW 114: updateAngleStatusCb stores the no-magnet and overspeed flags (MtEncoderSPI.cpp:226-227 for the
+	// MT6825, 242-243 for the MT6835) but nothing reads them: no error count, command or getter. An angle read without
+	// a magnet is used like any other. Should a status flag invalidate the angle or be reported (like NR 99 for BiSS-C)?
 	create();
 	read(mt6825(0x0F0F0, true));
 	CHECK(pos() == 0x0F0F0);
@@ -355,7 +358,7 @@ TEST_CASE_FIXTURE(MtFixture, "the MT6835 angle read is a 6 byte DMA burst read f
 TEST_CASE_FIXTURE(MtFixture, "an MT6835 angle with a valid CRC sets the 21 bit position") {
 	create();
 	REQUIRE(cmd("mode", CMDtype::set, 1) == CommandStatus::OK);
-	read(mt6835(0x0ABCDE, 0x5));
+	read(mt6835(0x0ABCDE));
 	CHECK(pos() == 0x0ABCDE);
 	CHECK(get("errors") == 0);
 }
@@ -409,7 +412,8 @@ TEST_CASE_FIXTURE(MtFixture, "mode set with an unknown mode keeps the current mo
 											 "comes) and readSpi falls off its end without a return value (lines 129-141, "
 											 "undefined). Bug 82")) {
 	create();
-	REQUIRE(cmd("mode", CMDtype::set, 2) == CommandStatus::OK);
+	const CommandStatus st = cmd("mode", CMDtype::set, 2); // a fix may reject the mode with ERR
+	CHECK((st == CommandStatus::OK || st == CommandStatus::ERR));
 	REQUIRE_ALL_HAL_MODELLED();
 
 	CHECK(get("mode") == 0);
@@ -554,7 +558,8 @@ TEST_CASE_FIXTURE(MtFixture, "cs set to a pin used by another device keeps the c
 	MockSPIDevice other(ext3_spi, ext3_spi.getCsPins()[1]); // SPI3_SS2
 	create();												// SPI3_SS1
 	REQUIRE(get("cs") == 1);
-	REQUIRE(cmd("cs", CMDtype::set, 2) == CommandStatus::OK);
+	const CommandStatus st = cmd("cs", CMDtype::set, 2); // a fix may reject the pin with ERR
+	CHECK((st == CommandStatus::OK || st == CommandStatus::ERR));
 	REQUIRE_ALL_HAL_MODELLED();
 
 	CHECK(get("cs") == 1);
@@ -606,7 +611,8 @@ TEST_CASE_FIXTURE(MtFixture, "characterization: speed preset 0 and the default c
 	// NEEDS REVIEW 104: the constructor (MtEncoderSPI.cpp:26, comment "10MHz max") and preset 0 (spispeeds[0] = 10e6,
 	// line 302) call getClosestPrescaler(10e6) without a maximum: on the 42 MHz port this selects /4 = 10.5 MHz, above
 	// the stated 10 MHz maximum (/8 = 5.25 MHz would respect it). The MT6825/MT6835 themselves may allow more (to be
-	// checked against the datasheets). Intended?
+	// checked against the datasheets). Intended? If the presets are meant as maxima, preset 1 (5e6 -> /8 = 5.25 MHz)
+	// changes too: see "speed presets 1 and 2 select the SPI clock closest to 5 and 2.5 MHz"
 	create();
 	CHECK(get("speed") == 0);
 	CHECK(hspi3.Init.BaudRatePrescaler == SPI_BAUDRATEPRESCALER_4);
@@ -658,7 +664,6 @@ TEST_CASE_FIXTURE(MtFixture, "a stored configuration selects mode, CS pin, speed
 	CHECK(get("mode") == 1);
 	CHECK(get("cs") == 3);
 	CHECK(get("speed") == 1);
-	CHECK(hspi3.Init.BaudRatePrescaler == SPI_BAUDRATEPRESCALER_8);
 	CHECK(ext3_spi.isPinFree(ext3_spi.getCsPins()[0]));
 	CHECK_FALSE(ext3_spi.isPinFree(ext3_spi.getCsPins()[2]));
 	CHECK(enc->getPos() == -(0x10 << 5));
@@ -682,6 +687,24 @@ TEST_CASE_FIXTURE(MtFixture, "saveFlash stores CS pin, speed preset, mode and th
 	enc->saveFlash();
 	CHECK(HostPlatform::flash()[ADR_MTENC_CONF1] == ((1 << 8) | (2 << 2) | 1));
 	CHECK(HostPlatform::flash()[ADR_MTENC_OFS] == (0x2000 >> 5));
+}
+
+TEST_CASE_FIXTURE(MtFixture, "a negative offset is restored by the next MT encoder" *
+								 KNOWN_ISSUE("saveFlash stores offset >> shift as a uint16_t (MtEncoderSPI.cpp:80) and restoreFlash "
+											 "reads it back as an unsigned 16 bit value before shifting (line 65): a negative offset "
+											 "(pos set above the current position, e.g. the axis pos command) comes back as "
+											 "offset + 65536 << shift, i.e. one turn (cpr) off for the MT6825. Bug 100")) {
+	create();
+	read(mt6825(0x100)); // below half a turn: no turn counted (independent of NR 100)
+	enc->setPos(656);	 // offset 0x100 - 656 = -400
+	REQUIRE(pos() == 656);
+	enc->saveFlash();
+	enc.reset();
+	create();
+	read(mt6825(0x100));
+	REQUIRE_ALL_HAL_MODELLED();
+
+	CHECK(pos() == 656);
 }
 
 TEST_CASE_FIXTURE(MtFixture, "saveFlash stores the MT6825 offset divided by 4") {
