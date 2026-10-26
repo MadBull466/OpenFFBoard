@@ -6,8 +6,8 @@
 
 ## Current state
 
-- **Current phase:** P5 (buttons and analog inputs in `ffb_target_tests`), started 2026-10-25. P4 approved 2026-10-25.
-- **Phase status:** P5 complete (build, 2 fresh reviews, fixes, gate, coverage). **Waiting for my approval.**
+- **Current phase:** P6 (encoders and buses in `ffb_target_tests`), started 2026-10-26. P5 approved 2026-10-26.
+- **Phase status:** P6 plan written ("P6 plan"); batch 0 running.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** `13cb14a8` (P5 final).
 - **Last updated:** 2026-10-26
@@ -15,7 +15,7 @@
 
 ## Next action
 
-**Stop: P5 approval gate.** After approval: P6 (encoders and buses: `EncoderLocal`, `MtEncoderSPI`, `EncoderBissC`, `EncoderSSI`, `SPI`/`I2C` port classes, `ExtiHandler`, `TimerHandler`; bug 57 test there), same process (batch 0, module agents, fresh reviewers, fixes, gate, coverage).
+**P6 batch 0 running.** Then: review and commit batch 0, 3 module agents (see "P6 plan"), fresh reviewers, fixes, gate, coverage (85 % per file without hardware-only code), stop for approval.
 
 ## Phase checklist
 
@@ -29,8 +29,8 @@
 | P2 Axis and main classes | `ffb_target_tests` (new) | about 790 (measured: total 4,164 lines, 50.5 %) | done | yes, 2026-10-23 | `4aec799c` batch 0, `760f6f1a` tests, `76d89b40` infra review fixes, `41112d85` review fixes |
 | P3 Flash and persistence | `ffb_flash_tests` (new) | about 365 (measured: total 4,480 lines, 55.3 %) | done | yes, 2026-10-24 | `bfe6ed56` batch 0, `ac030b2c` B tests, `b93f230e` A tests, `6410fb07` macOS skip, `8b178bbf` A review fixes, `52dce9ae` B review fixes |
 | P4 System, callbacks, misc | `ffb_target_tests` | about 460 (measured: total 5,078 lines, 62.6 %) | done | yes, 2026-10-25 | `0644984e` batch 0, `00a1e00b`/`e7d467d4`/`61a20f9f` tests, `90554aaa` infra review fixes, `c00b7e2b` B fixes, `e51bc104` A fixes, `8e807f05` C fixes + results |
-| P5 Buttons and analog | `ffb_target_tests` | about 775 (measured: total 6,206 lines, 76.5 %) | done | | `73d4e482` batch 0, `3e36fdfd` analog, `663bce67` buttons, `2a18521a` A + infra review fixes, `13cb14a8` B review fixes + results |
-| P6 Encoders and buses | `ffb_target_tests` | about 640 | not started | | |
+| P5 Buttons and analog | `ffb_target_tests` | about 775 (measured: total 6,206 lines, 76.5 %) | done | yes, 2026-10-26 | `73d4e482` batch 0, `3e36fdfd` analog, `663bce67` buttons, `2a18521a` A + infra review fixes, `13cb14a8` B review fixes + results |
+| P6 Encoders and buses | `ffb_target_tests` | about 640 (uncovered now: about 785 in the P6 files) | in progress (batch 0) | | |
 | P7 CAN and serial FFB | `ffb_target_tests` | about 420 | not started | | |
 | P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 | not started | | |
 | P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder | not started | | |
@@ -333,6 +333,16 @@ Executable `ffb_target_tests`, new files in `cases_target/` only. Coverage after
 | B axis config | `test_axis_config.cpp` | `Axis.cpp` (config, commands, flash) | `encodeConfToInt`/`decodeConfFromInt` round trip, save/restore flash (incl. empty flash, bug 23), every axis command get/set/info incl. limits and invalid values, driver/encoder selection via chooser and commands, zeroing/position commands, error handling |
 | C axes + integration | `test_axes_manager.cpp`, `test_ffb_integration.cpp` | `AxesManager.cpp`, path through `HidFFB`/`EffectsCalculator`/`Axis` | axis count changes, update/updateTorque, emergency stop over all axes, usb suspend/resume, commands; end to end: PID reports (constant, spring, damper, periodic, conditions per axis) -> effects -> axis -> `MockMotorDriver` torque with the position from `MockEncoder` |
 | D main classes | `test_ffbhidmain.cpp`, `test_main_classes.cpp` | `FFBHIDMain.cpp`, `FFBHIDMain_commmands.cpp`, `FFBWheel.cpp`, `FFBJoystick.cpp`, `FFBHIDExt.cpp`, `CustomMain.cpp`, `FFBoardMain.cpp`, `mainclass_chooser.cpp` | HID gamepad report packing (axes, buttons, double buffer), FFB on/off, update rate/timer, usb init/suspend/resume, button/analog source selection commands, main class info/ids unique and selectable, CustomMain |
+
+## P6 plan (2026-10-26)
+
+`ffb_target_tests`, new files in `cases_target/` only. Coverage before P6 (from the P5 run): `CRC` 0/12, `EncoderLocal` 34/84, `EncoderSSI` 2/155, `EncoderBissC` 2/166, `MtEncoderSPI` 0/244, `SPI` 108/212, `SpiHandler` 12/20, `I2C` 136/176, `I2CHandler` 6/12, `TimerHandler` 6/8, `ExtiHandler` 6/8: about 785 uncovered lines. At 95 % each the total reaches about 85.7 %. Batch 0 first (timer encoder registers, encoder SPI port, mock SPI/I2C devices, smoke tests), then 3 module agents in isolated scratch workspaces (`scratchpad/p6/<group>`), per-file goal 85 % without hardware-only code, mutation spot-check 80 %.
+
+| Group | Owns (new files) | Firmware | Behaviours |
+|---|---|---|---|
+| A local and SSI encoders | `test_encoder_local.cpp`, `test_encoder_ssi.cpp`, `test_timer_exti_handlers.cpp` | `EncoderLocal.cpp`, `EncoderSSI.cpp`, `TimerHandler.cpp`, `ExtiHandler.cpp` | quadrature count and overflow, index pulse and centering, cpr, commands, flash config; SSI frame decoding, resolution, speed presets, errors; handler registration/removal and dispatch |
+| B BiSS-C and MT encoders | `test_encoder_bissc.cpp`, `test_mtencoder_spi.cpp`, `test_crc.cpp` | `EncoderBissC.cpp`, `MtEncoderSPI.cpp`, `CRC.cpp` | BiSS-C frame, CRC6, error and warning bits, multiturn, timeouts; MT6825/6835 parity/CRC, status, position and multiturn, commands; CRC8/CRC16 against known check values |
+| C bus wrappers | `test_spi_port.cpp`, `test_i2c_port.cpp` | `SPI.cpp`, `SpiHandler.cpp`, `I2C.cpp`, `I2CHandler.cpp` | port/device arbitration, CS pin handling, exclusive mode, prescaler selection, blocking/IT/DMA paths and error returns, callback dispatch; bugs 53, 57, 58 |
 
 ## P5 results (2026-10-26)
 
