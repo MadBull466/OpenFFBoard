@@ -232,9 +232,24 @@ uint32_t canReceive(uint32_t id, const std::vector<uint8_t> &data, bool extId, b
 	if (!hostCanPort.started) {
 		return 0; // CANPort_2B::stop: HAL_CAN_Stop, nothing is received
 	}
+	// bxCAN 32 bit identifier mask filters (RM0090 32.7.4, register layout of CAN_FxR1/2 = CAN_RIxR): STID[10:0] or
+	// EXID[28:18] in bits 31:21, EXID[17:0] in bits 20:3, IDE bit 2, RTR bit 1. The filter and mask registers are built
+	// like CANPort_2B::addCanFilter (CANPort2B.cpp:272-287): a standard filter leaves IDE and RTR unmasked (FilterMaskIdLow
+	// = 0), so it also accepts extended frames whose EXID[28:18] match; an extended filter masks IDE = 1, so it rejects
+	// standard frames. The first matching active filter decides the FIFO.
+	// (MockCANPort::passesFilter keeps its simpler generic semantics: no extended frame passes a standard filter.)
+	const uint32_t frameReg = extId ? (((id & 0x1FFFFFFFU) << 3) | 0x4U | (rtr ? 0x2U : 0U)) : (((id & 0x7FFU) << 21) | (rtr ? 0x2U : 0U));
 	const CAN_filter *match = nullptr;
 	for (const CAN_filter &f : hostCanPort.filters) {
-		if (f.active && f.extid == extId && (id & f.filter_mask) == (f.filter_id & f.filter_mask)) {
+		uint32_t filterReg, maskReg;
+		if (!f.extid) {
+			filterReg = ((f.filter_id << 5) & 0xFFFFU) << 16;
+			maskReg = ((f.filter_mask << 5) & 0xFFFFU) << 16;
+		} else {
+			filterReg = (((f.filter_id >> 13) & 0xFFFFU) << 16) | ((f.filter_id << 3) & 0xFFF8U) | 0x4U;
+			maskReg = (((f.filter_mask >> 13) & 0xFFFFU) << 16) | ((f.filter_mask << 3) & 0xFFF8U) | 0x4U;
+		}
+		if (f.active && ((frameReg ^ filterReg) & maskReg) == 0U) {
 			match = &f;
 			break;
 		}

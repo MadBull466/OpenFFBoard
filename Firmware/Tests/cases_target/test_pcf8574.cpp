@@ -14,6 +14,7 @@
 #include "PCF8574.h"
 #include "eeprom_addresses.h"
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -263,19 +264,55 @@ TEST_CASE_FIXTURE(PcfFixture, "a read that does not complete within 250 ms is ab
 }
 
 TEST_CASE_FIXTURE(PcfFixture, "a receive completion while no read is active changes nothing") {
-	expander(0, 0x00);
+	expander(0, 0x12);
+	expander(1, 0x34);
 	PCF8574Buttons buttons;
 	REQUIRE(cmd(buttons, "invert", CMDtype::set, 0) == CommandStatus::OK);
+	REQUIRE(cmd(buttons, "btnnum", CMDtype::set, 16) == CommandStatus::OK);
+	REQUIRE(readCycle(buttons, 2) == 0x3412);
+	REQUIRE(HostTarget::i2cFail(&hi2c1)); // the next cycle fails: no read active any more
+	HostTarget::i2cClearTransfers(&hi2c1);
+
 	{
 		HostPlatform::IsrContext isr;
 		buttons.i2cRxCompleted(&i2cport);
 	}
 	HostRtos::runUntilBlocked(buttons);
 
+	CHECK(HostTarget::i2cTransfers(&hi2c1).empty()); // the thread was not notified: no next expander read
 	uint64_t value = 0;
 	buttons.readButtons(&value);
-	CHECK(value == 0);
-	CHECK(HostTarget::i2cTransfers(&hi2c1).size() == 1); // the read started by readButtons
+	CHECK(value == 0x3412);
+}
+
+TEST_CASE_FIXTURE(PcfFixture, "a receive completion of another I2C port during a read changes nothing") {
+	static const std::array<I2CPortHardwareConfig::I2CPortHardwareConfig_preset, 1> presets{{{hi2c1.Init, "100kb/s"}}};
+	static const I2CPortHardwareConfig config(false, presets);
+	I2C_HandleTypeDef otherHandle = {};
+	I2CPort other(otherHandle, config, 1);
+	expander(0, 0x12);
+	expander(1, 0x34);
+	PCF8574Buttons buttons;
+	REQUIRE(cmd(buttons, "invert", CMDtype::set, 0) == CommandStatus::OK);
+	REQUIRE(cmd(buttons, "btnnum", CMDtype::set, 16) == CommandStatus::OK);
+	uint64_t value = 0;
+	buttons.readButtons(&value); // read of 0x20 pending
+	REQUIRE(HostTarget::i2cTransfers(&hi2c1).size() == 1);
+
+	{
+		HostPlatform::IsrContext isr;
+		buttons.i2cRxCompleted(&other);
+	}
+	HostRtos::runUntilBlocked(buttons);
+
+	CHECK(HostTarget::i2cTransfers(&hi2c1).size() == 1); // no read of the next expander started
+	REQUIRE(HostTarget::i2cComplete(&hi2c1));
+	HostRtos::runUntilBlocked(buttons);
+	REQUIRE(HostTarget::i2cComplete(&hi2c1));
+	HostRtos::runUntilBlocked(buttons);
+	value = 0;
+	buttons.readButtons(&value);
+	CHECK(value == 0x3412);
 }
 
 TEST_CASE_FIXTURE(PcfFixture, "characterization: before the first complete read every inverted button reads pressed") {
@@ -346,6 +383,18 @@ TEST_CASE_FIXTURE(PcfFixture, "speed with a preset beyond the last selects the l
 TEST_CASE_FIXTURE(PcfFixture, "invert rejects request types it does not support") {
 	PCF8574Buttons buttons;
 	CHECK(cmd(buttons, "invert", CMDtype::info) == CommandStatus::ERR);
+}
+
+TEST_CASE_FIXTURE(PcfFixture, "characterization: btnnum and speed return OK without a reply for unsupported request types and btnnum truncates to 8 bits") {
+	// NEEDS REVIEW 83: unsupported request types return OK without a reply (PCF8574.cpp:190-207), unlike the
+	// ERR of other commands; btnnum takes the value as uint8_t (setBtnNum(uint8_t), PCF8574.cpp:173), so 300 becomes 44
+	PCF8574Buttons buttons;
+	std::vector<CommandReply> replies;
+	CHECK(cmd(buttons, "btnnum", CMDtype::info, 0, &replies) == CommandStatus::OK);
+	CHECK(cmd(buttons, "speed", CMDtype::getat, 0, &replies) == CommandStatus::OK);
+	CHECK(replies.empty());
+	REQUIRE(cmd(buttons, "btnnum", CMDtype::set, 300) == CommandStatus::OK);
+	CHECK(get(buttons, "btnnum") == 44);
 }
 
 TEST_CASE_FIXTURE(PcfFixture, "a command id that is not a PCF8574 command is not found") {

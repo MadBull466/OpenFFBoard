@@ -255,12 +255,17 @@ TEST_CASE_FIXTURE(AdsFixture, "an interrupt register write sends the value MSB f
 	CHECK(adc.register16(0x03) == 0x7FF0);
 }
 
-TEST_CASE_FIXTURE(AdsFixture, "setting the thresholds starts the write of the low threshold register") {
+TEST_CASE_FIXTURE(AdsFixture, "setting the thresholds starts the write of the low threshold register" *
+				  KNOWN_ISSUE("bug 66: writeRegIT writes the shared writeItBuffer before taking the port semaphore "
+							  "(ADS111X.cpp:31-40), so the high threshold overwrites the bytes of the pending low threshold "
+							  "write (the HAL reads the buffer during the transfer): register 2 receives 0x2000. The CHECK on "
+							  "register 2 fails")) {
 	ADS111X ads(i2cport);
 	ads.setThresh(0x1000, 0x2000); // the second write waits for the port on the target (not modelled: no task)
 	REQUIRE(HostTarget::i2cComplete(&hi2c1));
 	const HostTarget::I2cTransfer &t = HostTarget::i2cTransfers(&hi2c1).front();
 	CHECK(t.memAddress == 0x02);
+	REQUIRE_ALL_HAL_MODELLED();
 	CHECK(adc.register16(0x02) == 0x1000);
 }
 

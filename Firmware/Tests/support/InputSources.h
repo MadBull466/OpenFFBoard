@@ -23,6 +23,8 @@
 #include "MockButtonSource.h"
 #include "SelectableInputs.h"
 
+#include <type_traits>
+
 namespace InputSources {
 
 struct Access : SelectableInputs {
@@ -31,6 +33,7 @@ struct Access : SelectableInputs {
 };
 
 /** The SelectableInputs part of a main class (private base class of FFBHIDMain) */
+static_assert(std::is_base_of_v<SelectableInputs, FFBHIDMain>, "the C style cast below must be a cast to a base class");
 inline SelectableInputs &of(FFBHIDMain &main) { return *(SelectableInputs *)(&main); }
 
 /** The button source chooser of SelectableInputs (assignable) */

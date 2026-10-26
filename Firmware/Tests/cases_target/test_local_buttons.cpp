@@ -227,7 +227,7 @@ TEST_CASE_FIXTURE(LocalButtonsFixture, "buttons outside the pulse mask are repor
 }
 
 TEST_CASE_FIXTURE(LocalButtonsFixture, "characterization: a pulse ends early when another pulse mode button changes") {
-	// NEEDS REVIEW 80: on an edge of any pulse button only the new edges are output (LocalButtons.cpp:82-86); the
+	// NEEDS REVIEW 80: on an edge of any pulse button only the new edges are output (LocalButtons.cpp:67-77); the
 	// held pulse of the first button (lastOutputs) is dropped after 10 ms instead of 50 ms
 	LocalButtons buttons;
 	REQUIRE(cmd(buttons, "pulse", CMDtype::set, 0b11) == CommandStatus::OK);

@@ -236,6 +236,18 @@ TEST_CASE_FIXTURE(CanButtonsFixture, "canid set moves the filter to the new 11 b
 	CHECK(read(buttons) == 0x42);
 }
 
+TEST_CASE_FIXTURE(CanButtonsFixture, "characterization: btnnum and canid return OK without a reply for unsupported request types and btnnum truncates to 8 bits") {
+	// NEEDS REVIEW 83: unsupported request types return OK without a reply (CanButtons.cpp:109-127), unlike the
+	// ERR of other commands; btnnum takes the value as uint8_t (setBtnNum(uint8_t), CanButtons.cpp:84), so 300 becomes 44
+	CanButtons buttons;
+	std::vector<CommandReply> replies;
+	CHECK(cmd(buttons, "btnnum", CMDtype::info, 0, &replies) == CommandStatus::OK);
+	CHECK(cmd(buttons, "canid", CMDtype::getat, 0, &replies) == CommandStatus::OK);
+	CHECK(replies.empty());
+	REQUIRE(cmd(buttons, "btnnum", CMDtype::set, 300) == CommandStatus::OK);
+	CHECK(get(buttons, "btnnum") == 44);
+}
+
 TEST_CASE_FIXTURE(CanButtonsFixture, "a command id that is not a CAN button command is not found") {
 	CanButtons buttons;
 	ParsedCommand parsed;

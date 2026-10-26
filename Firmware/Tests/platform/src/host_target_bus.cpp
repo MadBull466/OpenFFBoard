@@ -53,6 +53,7 @@ enum class SpiCallback { Tx, Rx, TxRx };
 
 struct SpiPending {
 	size_t record = 0;			//!< Index in SpiFake::transfers
+	const uint8_t *txBuffer = nullptr; //!< pTxBuffPtr: read when the transfer ends (the DMA / TXE ISR reads it during the transfer)
 	uint8_t *rxBuffer = nullptr; //!< pRxBuffPtr (nullptr for transmit)
 	SpiCallback callback = SpiCallback::Tx;
 };
@@ -180,10 +181,13 @@ HAL_StatusTypeDef spiStartAsync(SPI_HandleTypeDef *hspi, HostTarget::SpiCall cal
 		t.errorCode = hspi->ErrorCode;
 		return HAL_ERROR;
 	}
+	// The tx bytes that count are read from the buffer when the transfer ends (spiComplete / spiFail): the DMA stream
+	// or the TXE interrupt reads pTxBuffPtr during the transfer, so a buffer changed before the end goes out changed.
+	// Until then t.tx shows the buffer content at the start (preview of the pending transfer)
 	if (txData != nullptr) {
 		t.tx.assign(txData, txData + size);
 	}
-	fake.pending = SpiPending{fake.transfers.size() - 1, rxData, callback};
+	fake.pending = SpiPending{fake.transfers.size() - 1, txData, rxData, callback};
 	halUnlock(hspi);
 	t.result = HAL_OK;
 	return HAL_OK;
@@ -397,7 +401,8 @@ namespace {
 
 struct I2cPending {
 	size_t record = 0;
-	uint8_t *buffer = nullptr; //!< pBuffPtr
+	const uint8_t *writeData = nullptr; //!< pBuffPtr of a write: read when the transfer ends (the ISR / DMA reads it during the transfer)
+	uint8_t *buffer = nullptr;			//!< pBuffPtr of a read
 };
 
 struct I2cFake {
@@ -678,10 +683,13 @@ HAL_StatusTypeDef i2cStartAsync(I2C_HandleTypeDef *hi2c, HostTarget::I2cTransfer
 		t.errorCode = hi2c->ErrorCode;
 		return HAL_ERROR;
 	}
+	// The written bytes that count are read from the buffer when the transfer ends (i2cComplete): the TXE interrupt / DMA
+	// reads pBuffPtr byte by byte during the transfer, so a buffer changed before the end goes out changed. Until then
+	// t.data shows the buffer content at the start (preview of the pending transfer)
 	if (writeData != nullptr) {
-		t.data.assign(writeData, writeData + t.size); // Replaced by the acknowledged bytes at completion
+		t.data.assign(writeData, writeData + t.size);
 	}
-	fake.pending = I2cPending{fake.transfers.size() - 1, buffer};
+	fake.pending = I2cPending{fake.transfers.size() - 1, writeData, buffer};
 	halUnlock(hi2c);
 	t.result = HAL_OK;
 	t.errorCode = hi2c->ErrorCode;
@@ -906,6 +914,7 @@ bool spiComplete(SPI_HandleTypeDef *hspi) {
 	SpiPending pending = *fake.pending;
 	fake.pending.reset();
 	SpiTransfer &t = fake.transfers[pending.record];
+	t.tx.assign(pending.txBuffer, pending.txBuffer + t.size); // Before the rx bytes: Receive uses the same buffer
 	t.rx = spiResponse(fake, t);
 	if (pending.rxBuffer != nullptr) {
 		std::memcpy(pending.rxBuffer, t.rx.data(), t.size);
@@ -938,6 +947,7 @@ bool spiFail(SPI_HandleTypeDef *hspi, uint32_t errorCode) {
 	SpiPending pending = *fake.pending;
 	fake.pending.reset();
 	SpiTransfer &t = fake.transfers[pending.record];
+	t.tx.assign(pending.txBuffer, pending.txBuffer + t.size); // Buffer content at the end (how much was sent is not modelled)
 	hspi->ErrorCode |= errorCode;
 	hspi->State = HAL_SPI_STATE_READY;
 	t.csAtEnd = csLevels(fake);
@@ -995,9 +1005,8 @@ bool i2cComplete(I2C_HandleTypeDef *hi2c) {
 	I2cPending pending = *fake.pending;
 	fake.pending.reset();
 	I2cTransfer &t = fake.transfers[pending.record];
-	std::vector<uint8_t> written = t.data; // tx bytes captured at the start
 	t.data.clear();
-	uint32_t error = i2cExecute(fake, t, written.data(), pending.buffer);
+	uint32_t error = i2cExecute(fake, t, pending.writeData, pending.buffer);
 	const HAL_I2C_ModeTypeDef mode = hi2c->Mode;
 	hi2c->State = HAL_I2C_STATE_READY;
 	hi2c->Mode = HAL_I2C_MODE_NONE;

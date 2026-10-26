@@ -24,7 +24,7 @@
 #include <string>
 #include <vector>
 
-extern volatile uint32_t ADC1_BUF[ADC1_CHANNELS]; // host_stubs_target.cpp (global_callbacks.cpp on the target)
+extern volatile uint32_t ADC1_BUF[ADC1_CHANNELS]; // global_callbacks.cpp
 
 namespace {
 

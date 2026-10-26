@@ -24,7 +24,7 @@
 #include <string>
 #include <vector>
 
-extern ClassChooser<FFBoardMain> mainchooser; // cppmain.cpp (host_stubs_target.cpp)
+extern ClassChooser<FFBoardMain> mainchooser; // cppmain.cpp
 
 namespace {
 

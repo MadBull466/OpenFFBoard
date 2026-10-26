@@ -231,8 +231,11 @@ uint32_t canRxInterrupt(uint32_t fifo);
 /**
  * Delivers a received data frame to the firmware the way the hardware does it with the global `canport`
  * (MockCANPort with the handle &hcan1 until the CANPort_2B fake of P7): the frame is only accepted while the port is
- * started and an active filter of the port matches (MockCANPort::passesFilter: (id & mask) == (filter_id & mask), same
- * id type); it goes into the receive FIFO selected by the matching filter (CAN_filter::buffer 0/1, like
+ * started and an active filter of the port matches with the bxCAN 32 bit mask filter semantics (RM0090 32.7.4) of the
+ * filter registers CANPort_2B::addCanFilter builds: a standard filter compares STID / EXID[28:18] only, so it also
+ * accepts extended frames whose upper 11 id bits match; an extended filter rejects standard frames. (This differs from
+ * MockCANPort::passesFilter, which keeps the generic mock semantics of ffb_unit_tests.) The frame goes into the receive
+ * FIFO selected by the first matching filter (CAN_filter::buffer 0/1, like
  * CANPort_2B::addCanFilter's FilterFIFOAssignment), then canRxInterrupt raises HAL_CAN_RxFifoXMsgPendingCallback of
  * global_callbacks.cpp, which reads the FIFO with HAL_CAN_GetRxMessage and calls every CanHandler.
  * The DLC is data.size() (at most 8 bytes are used); extId selects a 29 bit id; rtr a remote frame.
@@ -263,7 +266,7 @@ struct SpiTransfer {
 	BusMode mode = BusMode::Blocking;
 	uint16_t size = 0;
 	uint32_t timeout = 0;		   //!< Timeout argument (blocking calls)
-	std::vector<uint8_t> tx;	   //!< Bytes clocked out on MOSI (read from the tx buffer when the transfer started)
+	std::vector<uint8_t> tx;	   //!< Bytes clocked out on MOSI. Blocking: read during the call; IT/DMA: read from the tx buffer when the transfer ends (spiComplete / spiFail), like the DMA / TXE interrupt reading it during the transfer; while pending: the buffer content at the start
 	std::vector<uint8_t> rx;	   //!< Bytes clocked in on MISO. Written into the rx buffer (Transmit: discarded by the HAL)
 	SPI_InitTypeDef init{};		   //!< Port configuration (hspi->Init) when the transfer started
 	std::vector<bool> csAtStart;   //!< Output levels of the CS pins of the port (spiCsPins) when the transfer started
@@ -347,7 +350,7 @@ struct I2cTransfer {
 	uint16_t size = 0;		  //!< Size argument
 	uint32_t timeout = 0;	  //!< Timeout argument (blocking calls)
 	uint32_t trials = 0;	  //!< IsDeviceReady: Trials argument
-	std::vector<uint8_t> data; //!< Written bytes that the device acknowledged (transmit / mem write), bytes read (receive / mem read)
+	std::vector<uint8_t> data; //!< Written bytes that the device acknowledged (transmit / mem write; IT/DMA: read from the buffer when the transfer ends; while pending: the buffer content at the start), bytes read (receive / mem read)
 	bool acknowledged = false; //!< The device acknowledged its address (IsDeviceReady: in one of the trials)
 	HAL_StatusTypeDef result = HAL_OK; //!< Return value of the HAL call that started the transfer
 	bool completed = false;	  //!< Blocking: returned HAL_OK; IT/DMA: completion callback raised

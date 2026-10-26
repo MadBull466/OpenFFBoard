@@ -109,9 +109,9 @@ TEST_CASE_FIXTURE(SpiButtonsFixture, "SPI buttons reserve the first free CS pin 
 }
 
 TEST_CASE_FIXTURE(SpiButtonsFixture, "SPI buttons do not use a CS pin that another device of the port has reserved" *
-										  KNOWN_ISSUE("The constructor reserves the first free CS pin (SPIButtons.cpp:159), but restoreFlash -> "
+										  KNOWN_ISSUE("The constructor reserves the first free CS pin (SPIButtons.cpp:48), but restoreFlash -> "
 													  "setConfig frees it and selects the stored CS number (default 1 = pin 0) without checking that "
-													  "the pin is free (SPIButtons.cpp:205-211, 'TODO check if pin is free' at line 157): both devices "
+													  "the pin is free (SPIButtons.cpp:94-100, 'TODO check if pin is free' at line 46): both devices "
 													  "drive the same CS pin, and deleting the buttons frees the pin of the other device. The first "
 													  "CHECK fails")) {
 	REQUIRE(external_spi.reserveCsPin(csPin(0))); // used by another device
@@ -149,10 +149,10 @@ TEST_CASE_FIXTURE(SpiButtonsFixture, "SPI buttons 1 are creatable while the exte
 }
 
 TEST_CASE_FIXTURE(SpiButtonsFixture, "SPI buttons are not creatable while every CS pin of the external SPI port is in use" *
-										  KNOWN_ISSUE("SPI_Buttons_1::isCreatable (SPIButtons.cpp:140-142) uses SPIPort::hasFreePins, which checks "
+										  KNOWN_ISSUE("SPI_Buttons_1::isCreatable (SPIButtons.cpp:29-31) uses SPIPort::hasFreePins, which checks "
 													  "getCsPins().size() (all pins of the port, SPI.cpp:220-222) instead of the free pins: the "
 													  "source is offered while no CS pin is free, and its constructor then reads "
-													  "getFreeCsPins()[0] of an empty vector (SPIButtons.cpp:159). The CHECK fails")) {
+													  "getFreeCsPins()[0] of an empty vector (SPIButtons.cpp:48). The CHECK fails")) {
 	for (size_t i = 0; i < 3; i++) {
 		REQUIRE(external_spi.reserveCsPin(csPin(i)));
 	}
@@ -286,7 +286,7 @@ TEST_CASE_FIXTURE(SpiButtonsFixture, "inverted Thrustmaster buttons report the r
 
 TEST_CASE_FIXTURE(SpiButtonsFixture, "characterization: Thrustmaster mode with a byte aligned button count drops the whole first byte") {
 	// NEEDS REVIEW 78: offset = 8 - n % 8 is 8 (not 0) for n = 8, 16, ...; with cutRight (forced in TM mode) the first
-	// byte is shifted out (SPIButtons.cpp:233, 271-274), while 7 buttons drop 1 bit and 9 buttons drop 7 bits. The
+	// byte is shifted out (SPIButtons.cpp:122, 160-163), while 7 buttons drop 1 bit and 9 buttons drop 7 bits. The
 	// `if(offset)` guard suggests 0 was expected for aligned counts. With 64 buttons the last 8 buttons are lost
 	// (only 8 of the 9 received bytes are copied)
 	SPI_Buttons_1 buttons;
@@ -361,9 +361,9 @@ TEST_CASE_FIXTURE(SpiButtonsFixture, "a failed read releases CS and the SPI port
 }
 
 TEST_CASE_FIXTURE(SpiButtonsFixture, "a read of 8 bytes stays inside the receive buffer of the source" *
-										  KNOWN_ISSUE_UB("SPIButtons.h:81 spi_buf has 4 bytes, but SPIButtons.cpp:237-239 computes up to 9 bytes "
+										  KNOWN_ISSUE_UB("SPIButtons.h:81 spi_buf has 4 bytes, but SPIButtons.cpp:125-129 computes up to 9 bytes "
 														 "(Thrustmaster above 29 buttons, 74xx165 above 32): the DMA writes past spi_buf and "
-														 "the memcpy at SPIButtons.cpp:285 reads past it (bug 55). In SPI_Buttons_1/2 the "
+														 "the memcpy at SPIButtons.cpp:174 reads past it (bug 55). In SPI_Buttons_1/2 the "
 														 "excess lands in the tail padding of the object (5 bytes on host and target), so it "
 														 "is only visible in a class derived from SPI_Buttons whose members reuse that "
 														 "padding (Itanium C++ ABI). The CHECK on the derived member fails")) {
@@ -418,20 +418,25 @@ TEST_CASE_FIXTURE(SpiButtonsFixture, "btnpol set inverts the buttons and btnpol 
 	CHECK(get(buttons, "btnpol") == 0);
 }
 
-TEST_CASE_FIXTURE(SpiButtonsFixture, "characterization: btncut follows the mode and a btncut set has no effect") {
-	// NEEDS REVIEW 79: setConfig forces cutRight from the mode preset (TM: true, 74xx165: false,
-	// SPIButtons.cpp:215, 221) after storing the requested value, so the registered btncut set never changes it
+TEST_CASE_FIXTURE(SpiButtonsFixture, "a mode change sets the cut flag of the mode preset") {
 	SPI_Buttons_1 buttons;
 	configure(buttons, TM, 12);
 	CHECK(get(buttons, "btncut") == 1);
-	REQUIRE(cmd(buttons, "btncut", CMDtype::set, 0) == CommandStatus::OK);
-	CHECK(get(buttons, "btncut") == 1);
-
 	configure(buttons, PISOSR, 12);
 	CHECK(get(buttons, "btncut") == 0);
+}
+
+TEST_CASE_FIXTURE(SpiButtonsFixture, "btncut set cuts the extra bits of 74xx165 buttons on the right" *
+										  KNOWN_ISSUE("setConfig stores the requested cutRight and then overwrites it with the mode preset "
+													  "(TM: true, 74xx165: false, SPIButtons.cpp:104, 110), so the registered btncut set "
+													  "(SPIButtons.cpp:219-224) never has an effect. The CHECK on the read buttons fails")) {
+	SPI_Buttons_1 buttons;
+	configure(buttons, PISOSR, 12);
 	REQUIRE(cmd(buttons, "btncut", CMDtype::set, 1) == CommandStatus::OK);
-	CHECK(get(buttons, "btncut") == 0);
-	CHECK(readCycle(buttons, {0x34, 0xF2}) == 0x234); // not shifted
+	uint64_t value = readCycle(buttons, {0x34, 0xF2});
+	REQUIRE_ALL_HAL_MODELLED();
+
+	CHECK(value == 0xF23); // 0xF234 shifted right by the 4 extra bits
 }
 
 TEST_CASE_FIXTURE(SpiButtonsFixture, "cs set moves the source to another CS pin of the port") {
@@ -480,9 +485,9 @@ TEST_CASE_FIXTURE(SpiButtonsFixture, "spispeed set selects the prescaler of the 
 }
 
 TEST_CASE_FIXTURE(SpiButtonsFixture, "spispeed with a preset beyond the last selects the last preset" *
-										  doctest::description("KNOWN ISSUE (crash): SPI_Buttons::setSpiSpeed (SPIButtons.cpp:250) clips the preset to "
+										  doctest::description("KNOWN ISSUE (crash): SPI_Buttons::setSpiSpeed (SPIButtons.cpp:139) clips the preset to "
 															   "speedPresets.size() (3) instead of size()-1 and reads speedPresets[3] of a 3 element "
-															   "std::array (line 252, bug 56). Out of bounds: aborts the run with _GLIBCXX_ASSERTIONS "
+															   "std::array (line 141, bug 56). Out of bounds: aborts the run with _GLIBCXX_ASSERTIONS "
 															   "(GCC 16 -O0). Skipped like the other crash known issues") *
 										  doctest::skip()) {
 	SPI_Buttons_1 buttons;
@@ -495,8 +500,8 @@ TEST_CASE_FIXTURE(SpiButtonsFixture, "spispeed with a preset beyond the last sel
 
 TEST_CASE_FIXTURE(SpiButtonsFixture, "a stored speed preset beyond the last selects the last preset" *
 										  doctest::description("KNOWN ISSUE (crash): restoreFlash decodes the speed preset as 2 bits (0..3, "
-															   "SPIButtons.cpp:385) and setConfig reads speedPresets[3] of a 3 element std::array "
-															   "without a check (line 226, bug 56). Out of bounds: aborts the run with "
+															   "SPIButtons.cpp:274) and setConfig reads speedPresets[3] of a 3 element std::array "
+															   "without a check (line 115, bug 56). Out of bounds: aborts the run with "
 															   "_GLIBCXX_ASSERTIONS (GCC 16 -O0). Skipped like the other crash known issues") *
 										  doctest::skip()) {
 	HostPlatform::flash()[ADR_SPI_BTN_1_CONF_2] = (3 << 3) | 1;
@@ -582,20 +587,21 @@ TEST_CASE_FIXTURE(SpiButtonsFixture, "a saved configuration is restored unchange
 	CHECK(get(restored, "cs") == 1);
 }
 
-TEST_CASE_FIXTURE(SpiButtonsFixture, "a button count of 0 is restored unchanged after saving" *
-										  KNOWN_ISSUE("btnnum accepts 0 (SPIButtons.cpp:202 only limits the maximum), but saveFlash stores "
-													  "(numButtons-1) & 0x3F (SPIButtons.cpp:389): 0 is saved as 63 and restored as 64 buttons. "
+TEST_CASE_FIXTURE(SpiButtonsFixture, "a button count set to 0 is restored as the count the source reported before saving" *
+										  KNOWN_ISSUE("btnnum accepts 0 (SPIButtons.cpp:91 only limits the maximum), but saveFlash stores "
+													  "(numButtons-1) & 0x3F (SPIButtons.cpp:278): 0 is saved as 63 and restored as 64 buttons. "
 													  "CanButtons and PCF8574Buttons limit the count to 1..64. The CHECK after the restore fails")) {
+	int64_t before = -1;
 	{
 		SPI_Buttons_1 buttons;
 		REQUIRE(cmd(buttons, "btnnum", CMDtype::set, 0) == CommandStatus::OK);
-		REQUIRE(get(buttons, "btnnum") == 0);
+		before = get(buttons, "btnnum");
 		buttons.saveFlash();
 	}
 	SPI_Buttons_1 restored;
 	REQUIRE_ALL_HAL_MODELLED();
 
-	CHECK(get(restored, "btnnum") == 0);
+	CHECK(get(restored, "btnnum") == before);
 }
 
 } // TEST_SUITE

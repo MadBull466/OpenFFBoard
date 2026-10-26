@@ -266,6 +266,18 @@ TEST_CASE_FIXTURE(ShifterFixture, "mode info lists the modes with their SPI and 
 	CHECK(replies[0].reply == "G29-H:0,0,1\nG29 Sequential:1,0,1\nG27-H:2,1,0\nG27 Sequential:3,1,0\n");
 }
 
+TEST_CASE_FIXTURE(ShifterFixture, "characterization: mode returns OK without a reply for request types it does not support") {
+	// NEEDS REVIEW 83: CanButtons btnnum/canid, PCF8574Buttons btnnum/speed and ShifterAnalog mode return OK with no
+	// reply for unsupported request types (ShifterAnalog.cpp:221-229 has no else branch), while other commands return
+	// ERR; CanButtons / PCF8574Buttons btnnum truncate the value to uint8_t before limiting it
+	ShifterAnalog shifter;
+	std::vector<CommandReply> replies;
+	CHECK(cmd(shifter, "mode", CMDtype::getat, 0, &replies) == CommandStatus::OK);
+	CHECK(replies.empty());
+	CHECK(cmd(shifter, "mode", CMDtype::setat, G29_SEQ) == CommandStatus::OK);
+	CHECK(get(shifter, "mode") == G29_H);
+}
+
 TEST_CASE_FIXTURE(ShifterFixture, "commands reject request types they do not support") {
 	ShifterAnalog shifter;
 	CHECK(cmd(shifter, "x12", CMDtype::info) == CommandStatus::ERR);
@@ -353,6 +365,18 @@ TEST_CASE_FIXTURE(ShifterFixture, "a G27 shifter reports the user buttons and th
 	REQUIRE(HostTarget::spiComplete(&hspi2));
 }
 
+TEST_CASE_FIXTURE(ShifterFixture, "a G27 sequential shifter reports the user buttons and then the 2 sequential buttons") {
+	ShifterAnalog shifter;
+	REQUIRE(cmd(shifter, "mode", CMDtype::set, G27_SEQ) == CommandStatus::OK);
+	setXY(RIGHT, CENTRE);
+	CHECK(read(shifter) == 1 << (12 + 1)); // nothing received yet: gear 2 after the 12 user buttons
+	HostTarget::spiQueueRx(&hspi2, {0x50, 0x34}); // user buttons 0x345 in bits 4..15
+	REQUIRE(HostTarget::spiComplete(&hspi2));
+
+	CHECK(read(shifter) == (0x345 | (1 << 13)));
+	REQUIRE(HostTarget::spiComplete(&hspi2));
+}
+
 TEST_CASE_FIXTURE(ShifterFixture, "a G27 shifter ignores the local reverse pin") {
 	ShifterAnalog shifter;
 	REQUIRE(cmd(shifter, "mode", CMDtype::set, G27_SEQ) == CommandStatus::OK);
@@ -381,7 +405,7 @@ TEST_CASE_FIXTURE(ShifterFixture, "cspin selects the CS pin of the G27 button re
 	REQUIRE(HostTarget::spiComplete(&hspi2));
 	REQUIRE_ALL_HAL_MODELLED();
 
-	CHECK(selected != 0);
+	CHECK(selected > 0); // -1 would mean no or several CS pins asserted
 }
 
 // ---------------------------------------------------------------- flash
