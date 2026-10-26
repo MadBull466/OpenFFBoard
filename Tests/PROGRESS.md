@@ -9,7 +9,7 @@
 - **Current phase:** P5 (buttons and analog inputs in `ffb_target_tests`), started 2026-10-25. P4 approved 2026-10-25.
 - **Phase status:** P5 complete (build, 2 fresh reviews, fixes, gate, coverage). **Waiting for my approval.**
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
-- **Last commit:** see `git log` (P5 final = the commit that records these results).
+- **Last commit:** `13cb14a8` (P5 final).
 - **Last updated:** 2026-10-26
 - **Last session summary:** P5: fake HAL SPI (F4) and I2C (F5), bxCAN mask-filter model in `HostTarget::canReceive`, input mocks; 2 module agents (buttons: 179 cases; analog: 214 cases), 2 fresh reviewers (p5r1 buttons, p5r2 analog + infrastructure), fixes. `ffb_target_tests` 1,078 cases. P5 files 96.2-100 %; all in-scope sources **6,206 of about 8,108 (76.5 %)**, was 62.6 %. New bugs 53-75, NEEDS REVIEW 76-92. /tmp was cleaned again; work was merged early, nothing lost.
 
@@ -29,7 +29,7 @@
 | P2 Axis and main classes | `ffb_target_tests` (new) | about 790 (measured: total 4,164 lines, 50.5 %) | done | yes, 2026-10-23 | `4aec799c` batch 0, `760f6f1a` tests, `76d89b40` infra review fixes, `41112d85` review fixes |
 | P3 Flash and persistence | `ffb_flash_tests` (new) | about 365 (measured: total 4,480 lines, 55.3 %) | done | yes, 2026-10-24 | `bfe6ed56` batch 0, `ac030b2c` B tests, `b93f230e` A tests, `6410fb07` macOS skip, `8b178bbf` A review fixes, `52dce9ae` B review fixes |
 | P4 System, callbacks, misc | `ffb_target_tests` | about 460 (measured: total 5,078 lines, 62.6 %) | done | yes, 2026-10-25 | `0644984e` batch 0, `00a1e00b`/`e7d467d4`/`61a20f9f` tests, `90554aaa` infra review fixes, `c00b7e2b` B fixes, `e51bc104` A fixes, `8e807f05` C fixes + results |
-| P5 Buttons and analog | `ffb_target_tests` | about 775 (measured: total 6,206 lines, 76.5 %) | done | | `73d4e482` batch 0, `3e36fdfd` analog, `663bce67` buttons, `2a18521a` A + infra review fixes, P5 final (B review fixes + results) |
+| P5 Buttons and analog | `ffb_target_tests` | about 775 (measured: total 6,206 lines, 76.5 %) | done | | `73d4e482` batch 0, `3e36fdfd` analog, `663bce67` buttons, `2a18521a` A + infra review fixes, `13cb14a8` B review fixes + results |
 | P6 Encoders and buses | `ffb_target_tests` | about 640 | not started | | |
 | P7 CAN and serial FFB | `ffb_target_tests` | about 420 | not started | | |
 | P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 | not started | | |
