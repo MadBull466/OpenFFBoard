@@ -26,6 +26,14 @@ struct PlainSource : AnalogSource {
 	const ClassIdentifier getInfo() override { return AnalogSource::info; }
 };
 
+/** Analog source that records that its own destructor ran */
+struct FlaggedSource : AnalogSource {
+	explicit FlaggedSource(bool &destroyed) : destroyed(destroyed) {}
+	~FlaggedSource() override { destroyed = true; }
+	const ClassIdentifier getInfo() override { return AnalogSource::info; }
+	bool &destroyed;
+};
+
 } // namespace
 
 TEST_SUITE("AnalogSource") {
@@ -64,8 +72,10 @@ TEST_CASE_FIXTURE(TargetFixture, "an analog source is a flash handler while it e
 
 TEST_CASE_FIXTURE(TargetFixture, "an analog source deleted through a base class pointer runs the destructor of the source") {
 	const size_t before = PersistentStorage::getFlashHandlers().size();
-	AnalogSource *source = new PlainSource();
+	bool destroyed = false;
+	AnalogSource *source = new FlaggedSource(destroyed);
 	delete source;
+	CHECK(destroyed);
 	CHECK(PersistentStorage::getFlashHandlers().size() == before);
 }
 

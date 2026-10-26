@@ -274,6 +274,47 @@ TEST_CASE_FIXTURE(TargetFixture, "the canid command moves the CAN filter and the
 	CHECK(*analog.getAxes() == std::vector<int32_t>{2});
 }
 
+// NEEDS REVIEW 84: the filter mask is ~(canId ^ (canId + 1))
+// (CanAnalog.cpp:39). For an even id it covers exactly canId and canId + 1; for an odd id the carry flips several low
+// bits, e.g. canId 111 (0x6F) ^ 112 (0x70) = 0x1F: the hardware filter accepts the 32 ids 96..127 and the handler
+// sorts the frames by id in software. Only the 2 ids that can carry axes are needed. A wider filter than the frames
+// of the source intended (it costs receive interrupts and FIFO space, frames are never decoded wrongly)?
+TEST_CASE_FIXTURE(TargetFixture, "characterization: for the odd CAN id 111 the CAN filter accepts the 32 ids 96 to 127") {
+	CanAnalog8 analog;
+	Commands c{analog};
+	REQUIRE(c.run("amount", CMDtype::set, 8) == CommandStatus::OK);
+	REQUIRE(c.run("canid", CMDtype::set, 111) == CommandStatus::OK);
+	MockCANPort &port = HostTarget::canPort();
+	REQUIRE(port.activeFilters() == 1);
+	const CAN_filter *filter = nullptr;
+	for (const CAN_filter &f : port.filters) {
+		if (f.active) {
+			filter = &f;
+		}
+	}
+	REQUIRE(filter != nullptr);
+	CHECK(filter->filter_id == 111);
+	CHECK(filter->filter_mask == ~static_cast<uint32_t>(0x1F));
+	CHECK_FALSE(filter->extid);
+	// Accepted by the (bxCAN mask) filter of the port: the whole block 96..127
+	CHECK(HostTarget::canReceive(95, frame(1)) == 0);
+	CHECK(HostTarget::canReceive(96, frame(2)) == 1);
+	CHECK(HostTarget::canReceive(127, frame(3)) == 1);
+	CHECK(HostTarget::canReceive(128, frame(4)) == 0);
+	CHECK(*analog.getAxes() == std::vector<int32_t>(8, 0)); // accepted frames of other ids are not decoded
+	REQUIRE(HostTarget::canReceive(111, frame(1, 2, 3, 4)) == 1);
+	REQUIRE(HostTarget::canReceive(112, frame(5, 6, 7, 8)) == 1);
+	CHECK(*analog.getAxes() == std::vector<int32_t>{1, 2, 3, 4, 5, 6, 7, 8});
+}
+
+TEST_CASE_FIXTURE(TargetFixture, "for the even CAN id 110 the CAN filter accepts only the ids 110 and 111") {
+	CanAnalog8 analog;
+	CHECK(HostTarget::canReceive(109, frame(1)) == 0);
+	CHECK(HostTarget::canReceive(110, frame(1)) == 1);
+	CHECK(HostTarget::canReceive(111, frame(1)) == 1);
+	CHECK(HostTarget::canReceive(112, frame(1)) == 0);
+}
+
 TEST_CASE_FIXTURE(TargetFixture, "the canid command keeps the id within 11 bits") {
 	CanAnalog8 analog;
 	Commands c{analog};

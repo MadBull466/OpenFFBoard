@@ -6,6 +6,10 @@
  * The ADC runs on the fake HAL ADC: startADC() (global_callbacks.cpp, as cppmain does) arms the circular DMA into
  * ADC1_BUF, HostTarget::adcConvert writes one converted sequence into it. Commands are executed directly with the ids
  * registered by name.
+ *
+ * Host-vs-target (FMA): scaled values (manual range, autorange) are compared with a tolerance of 2 counts: the
+ * target's single precision FPU may contract the multiply-adds of AnalogAxisProcessing into VFMA (GCC
+ * -ffp-contract=fast), the x86-64 host without -mfma does not, which can change the truncated integer by 1.
  */
 #include "doctest.h"
 #include "AxisFixture.h"

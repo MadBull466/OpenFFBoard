@@ -12,6 +12,10 @@
  * ADS111x datasheet (SBAS444) config register: OS bit 15 (write 1: start a single conversion; read 0: converting,
  * 1: idle), MUX bits 14:12 (000 AIN0-AIN1, 001 AIN0-AIN3, 010 AIN1-AIN3, 011 AIN2-AIN3, 1xx AINx-GND), PGA bits 11:9,
  * MODE bit 8 (1 = single shot), DR bits 7:5, COMP_MODE/POL/LAT bits 4:2, COMP_QUE bits 1:0 (11 = comparator off).
+ *
+ * Host-vs-target (FMA): values that pass the float scaling of AnalogAxisProcessing are compared with a tolerance of
+ * 2 counts: the target's single precision FPU may contract the multiply-adds into VFMA (GCC -ffp-contract=fast),
+ * the x86-64 host without -mfma does not, which can change the truncated integer by 1.
  */
 #include "doctest.h"
 #include "AxisFixture.h"
@@ -21,7 +25,9 @@
 #include "ADS111X.h"
 #include "eeprom_addresses.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -109,7 +115,14 @@ struct AdsFixture : TargetFixture {
 			HostRtos::runUntilBlocked(ads);
 		}
 	}
-	/** One conversion cycle over all inputs: request with getAxes, then drive the bus. Returns the axes after it */
+	/**
+	 * One complete conversion cycle over all inputs, the way the main class drives the source on the target:
+	 * getAxes() requests the cycle (state idle -> beginSampling, notifies the thread), then drive() alternates
+	 * HostTarget::i2cComplete (the I2C interrupt of each pending transfer: config write, OS polls, conversion read) and
+	 * HostRtos::runUntilBlocked (the thread starts the next transfer) until no transfer is pending, i.e. the thread went
+	 * idle again. The second getAxes() returns the axes of the finished cycle (it also requests the next cycle, which is
+	 * not driven). Tests use it when they need the result of a whole cycle rather than its individual bus steps.
+	 */
 	std::vector<int32_t> cycle(ADS111X_AnalogSource &ads) {
 		ads.getAxes();
 		drive(ads);
@@ -126,12 +139,13 @@ TEST_SUITE("ADS111X") {
 // ---------------------------------------------------------------- ADS111X driver
 
 TEST_CASE_FIXTURE(AdsFixture, "an ADS111X takes the I2C port and configures it with the selected speed preset") {
+	i2cport.setSpeedPreset(1); // 400 kb/s (no HAL call while the port has no users)
 	const uint32_t inits = HostTarget::i2cInitCount(&hi2c1);
 	{
 		ADS111X ads(i2cport);
 		CHECK(i2cport.getPortUsers() == 1);
 		CHECK(HostTarget::i2cInitCount(&hi2c1) == inits + 1);
-		CHECK(hi2c1.Init.ClockSpeed == 100000);
+		CHECK(hi2c1.Init.ClockSpeed == 400000);
 	}
 	CHECK(i2cport.getPortUsers() == 0);
 	CHECK(HostTarget::i2cDeInitCount(&hi2c1) == 1);
@@ -491,8 +505,12 @@ TEST_CASE_FIXTURE(AdsFixture, "the axis values pass the analog processing of the
 	CHECK(cycle(ads)[0] == 0x7fff); // above the manual range: clipped
 	REQUIRE(c.run("rawval", CMDtype::get) == CommandStatus::OK);
 	CHECK(c.replies.at(0).val == 0x7fff);
-	adc.setRegister16(0x00, 0x2000); // single ended: -16383, in the manual range -0x7fff..0
-	CHECK_NEAR(cycle(ads)[0], (-16383 + 32767) * 65535.0 / 32767 * 1.05 - 32767, 3);
+	adc.setRegister16(0x00, 0x0000); // single ended: -0x7fff, the minimum of the manual range
+	CHECK_NEAR(cycle(ads)[0], -32767, 2); // margin independent (NEEDS REVIEW 86); tolerance for truncation / FMA
+	adc.setRegister16(0x00, 0x2000); // single ended: -16383, inside the manual range
+	const int32_t inside = cycle(ads)[0];
+	CHECK(inside > -32767);
+	CHECK(inside < 0x7fff);
 }
 
 TEST_CASE_FIXTURE(AdsFixture, "a register write completed while the source is idle does not wake the source thread") {
@@ -612,6 +630,8 @@ TEST_CASE_FIXTURE(AdsFixture, "characterization: the first reading after more th
 	HostPlatform::advanceMs(5000);
 	ads.getAxes();
 	drive(ads);
+	REQUIRE_FALSE(HostTarget::i2cTransferPending(&hi2c1)); // nothing left pending that a later completion could finish
+	CHECK(HostTarget::i2cTransfers(&hi2c1).empty());		// no transfer was started at all
 	CHECK(configWrites().empty());
 	CHECK(HostTarget::i2cInitCount(&hi2c1) == inits + 1);
 }
