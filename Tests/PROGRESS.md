@@ -344,6 +344,10 @@ Executable `ffb_target_tests`, new files in `cases_target/` only. Coverage after
 | B BiSS-C and MT encoders | `test_encoder_bissc.cpp`, `test_mtencoder_spi.cpp`, `test_crc.cpp` | `EncoderBissC.cpp`, `MtEncoderSPI.cpp`, `CRC.cpp` | BiSS-C frame, CRC6, error and warning bits, multiturn, timeouts; MT6825/6835 parity/CRC, status, position and multiturn, commands; CRC8/CRC16 against known check values |
 | C bus wrappers | `test_spi_port.cpp`, `test_i2c_port.cpp` | `SPI.cpp`, `SpiHandler.cpp`, `I2C.cpp`, `I2CHandler.cpp` | port/device arbitration, CS pin handling, exclusive mode, prescaler selection, blocking/IT/DMA paths and error returns, callback dispatch; bugs 53, 57, 58 |
 
+## P6 results (2026-10-26, build step; review next)
+
+- **Group A** (local and SSI encoders, handlers) merged early: `test_encoder_local.cpp` (45), `test_encoder_ssi.cpp` (48), `test_timer_exti_handlers.cpp` (12) = 105 cases. No shared-helper change. Coverage: `EncoderLocal.cpp` 34/84 -> 84/84, `EncoderSSI.cpp` 2/155 -> 154/155 (line 207: exception cleanup path), `TimerHandler.cpp` and `ExtiHandler.cpp` 8/8. Mutation 33/36 (2 equivalent, 1 = likely fix of bug 79c). Bugs 76-80, NEEDS REVIEW 93-97. Gate after merge: `ffb_target_tests` 1,188/0/9 (default), 1,082 + 115 skipped (san); ctest 4/4; baseline OK.
+
 ## P6 batch 0 (2026-10-26)
 
 - **Resumable tasks** in the fake kernel (`host_freertos.cpp`, `HostRtos::makeResumable(handle|name)`, opt-in): `EncoderBissC` and `MtEncoderSPI` wait twice per loop (`requestSem.Take()`, DMA, `WaitForNotification()`), which the restart-from-`Run()` model cannot test. A resumable task runs on its own `std::thread` with a strict mutex/condition-variable hand-over (one thread runs at a time, deterministic); blocking calls with `portMAX_DELAY` park until the condition holds, finite timeouts park once then time out, `vTaskDelete` of a parked task unwinds and joins. Without `makeResumable` nothing changes. **Portability caveat:** needs `std::thread` (MinGW-w64 with the posix thread model, or win32 threads with GCC 13+); unverified on Windows.
