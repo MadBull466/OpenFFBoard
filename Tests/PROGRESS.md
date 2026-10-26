@@ -347,6 +347,7 @@ Executable `ffb_target_tests`, new files in `cases_target/` only. Coverage after
 ## P6 results (2026-10-26, build step; review next)
 
 - **Group A** (local and SSI encoders, handlers) merged early: `test_encoder_local.cpp` (45), `test_encoder_ssi.cpp` (48), `test_timer_exti_handlers.cpp` (12) = 105 cases. No shared-helper change. Coverage: `EncoderLocal.cpp` 34/84 -> 84/84, `EncoderSSI.cpp` 2/155 -> 154/155 (line 207: exception cleanup path), `TimerHandler.cpp` and `ExtiHandler.cpp` 8/8. Mutation 33/36 (2 equivalent, 1 = likely fix of bug 79c). Bugs 76-80, NEEDS REVIEW 93-97. Gate after merge: `ffb_target_tests` 1,188/0/9 (default), 1,082 + 115 skipped (san); ctest 4/4; baseline OK.
+- **Group C** (bus wrappers) merged early: `test_spi_port.cpp` (67: `SPIPort` 43, `SPIDevice` 14, `SpiHandler` 4 + ...), `test_i2c_port.cpp` (54: `I2CPort` 50, `I2CDevice` 2, `I2CHandler` 2) = 121 cases. No shared-helper change. Coverage: `SPI.cpp` 108/212 -> 212/212, `SpiHandler.cpp` 20/20, `I2C.cpp` 136/176 -> 176/176, `I2CHandler.cpp` 12/12. Mutation 34/35 (survivor: exact float tie in `getClosestPrescaler`). Bugs 86-89, tests for 57 (KNOWN_ISSUE_UB), 58, 67; NEEDS REVIEW 105-109. 3 cases use resumable tasks (MinGW caveat). Hint for group B: `MtEncoderSPI.cpp:26` `getClosestPrescaler(10e6)` without a max picks 10.5 MHz. Gate after merge (A+C): `ffb_target_tests` 1,309/0/9 (default), 1,310/0/9 (nodsp), 1,202 + 116 skipped (san); ctest 4/4; baseline OK; random orders green.
 
 ## P6 batch 0 (2026-10-26)
 
