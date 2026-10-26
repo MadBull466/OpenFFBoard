@@ -18,6 +18,7 @@
  * unavailable semaphore forever or used up its delay budget. The thread function is
  * then left by an exception and is restarted from the beginning of Run() the next time.
  * Threads following the usual `while(true){ wait; work; }` pattern behave identical to the target.
+ * Threads that wait in several places per loop need a resumable task (makeResumable, opt-in per task).
  */
 #ifndef HOSTTEST_HOSTRTOS_H_
 #define HOSTTEST_HOSTRTOS_H_
@@ -67,6 +68,35 @@ TaskHandle_t findTask(const char *name);
  * A task that suspends itself while running blocks (leaves its function like any other blocking call).
  */
 bool isSuspended(TaskHandle_t task);
+
+/**
+ * Makes a task resumable (opt-in, ffb_target_tests P6 batch 0; existing tests keep the restart semantics).
+ * A resumable task does not leave its function when it blocks: its function runs on its own host thread, which parks
+ * in the blocking kernel call, and the next activation (runUntilBlocked / runUntilIdle) continues after that call,
+ * like on the target. Needed for threads that block in more than one place per loop, e.g.
+ *   requestSem.Take(); port.receive_DMA(...); WaitForNotification(); process();   (EncoderBissC, MtEncoderSPI)
+ * With the restart semantics such a thread would start again at Take() after the DMA completion and never process.
+ *
+ * Execution stays sequential and deterministic: the activating thread waits until the task parks again.
+ * Blocking calls of a resumable task:
+ *  - ulTaskNotifyTake / WaitForNotification, xSemaphoreTake (also Take of cpp_freertos semaphores and mutexes) with
+ *    portMAX_DELAY: park until a notification is pending / the semaphore is available (an activation while the
+ *    condition is not met parks again at once). With a finite timeout: park once; an activation while the condition
+ *    is still not met ends the wait as a timeout (0 / pdFALSE). No simulated time passes in either case. A timeout of 0
+ *    does not park.
+ *  - vTaskSuspend(self): park until resumed. vTaskDelay beyond the delay budget: park (continues after the delay at
+ *    the next runUntilBlocked; runUntilIdle does not activate it).
+ * runUntilIdle activates a parked resumable task when the condition it waits for is met (not only on notifications).
+ * Deleting the task (vTaskDelete, e.g. ~cpp_freertos::Thread when the firmware object is deleted) unwinds the parked
+ * function on its host thread and joins the thread. Exceptions leaving the task function are rethrown by
+ * runUntilBlocked; HostRtos::TaskBlocked leaving it means "start again at the next activation".
+ * Call it before the first activation of the task (e.g. right after the firmware object started its thread).
+ */
+void makeResumable(TaskHandle_t task);
+/** makeResumable(findTask(name)). @return the task, nullptr if there is no task with this name */
+TaskHandle_t makeResumable(const char *name);
+/** True if the task is registered and resumable */
+bool isResumable(TaskHandle_t task);
 
 /**
  * Maximum time in ms a task may spend in vTaskDelay during one activation before

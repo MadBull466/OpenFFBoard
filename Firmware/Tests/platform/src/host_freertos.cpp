@@ -2,6 +2,12 @@
  * host_freertos.cpp
  *
  * Fake FreeRTOS kernel for the host unit tests. See support/HostRtos.h for the concept.
+ *
+ * Resumable tasks (HostRtos::makeResumable, opt-in per task): the task function runs on its own host thread. Only one
+ * thread runs at a time: the test thread hands over to the task in runUntilBlocked and waits until the task parks in a
+ * blocking kernel call (instead of leaving its function with TaskBlocked); the next activation continues there, like
+ * the task on the target continues after the blocking call returns. Tasks that are not resumable keep the restart
+ * semantics. The hand-over (mutex + condition variable) keeps the execution sequential and deterministic.
  */
 #include "FreeRTOS.h"
 #include "task.h"
@@ -12,9 +18,30 @@
 #include "cmsis_compiler.h"
 
 #include <algorithm>
+#include <condition_variable>
 #include <cstdlib>
+#include <exception>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <set>
 #include <string>
+#include <thread>
 #include <vector>
+
+/** Host thread of a resumable task (HostRtos::makeResumable) and the hand-over state between it and the test thread */
+struct ResumableContext {
+	std::thread thread;
+	std::mutex mutex;
+	std::condition_variable cv;
+	bool taskTurn = false;		 //!< true while the task thread runs, false while the thread that activated it runs
+	bool started = false;		 //!< The host thread exists (first activation done)
+	bool finished = false;		 //!< The task function was left (returned, or by an exception)
+	bool restart = false;		 //!< Left by HostRtos::TaskBlocked: the next activation starts the function again
+	bool kill = false;			 //!< vTaskDelete of the parked task: unwind its thread
+	std::function<bool()> ready; //!< While parked: true if the condition the task waits for is met (runUntilIdle)
+	std::exception_ptr error;	 //!< Exception (other than the unwinding on delete) that left the task function
+};
 
 struct HostTask {
 	TaskFunction_t fn = nullptr;
@@ -23,6 +50,8 @@ struct HostTask {
 	UBaseType_t priority = 0;
 	uint32_t notifications = 0;
 	bool suspended = false;
+	std::unique_ptr<ResumableContext> resumable; //!< Set by HostRtos::makeResumable
+	bool deleted = false; //!< A resumable task deleted itself on its host thread: freed when the activation ends
 };
 
 struct HostSemaphore {
@@ -41,9 +70,127 @@ uint32_t delayBudgetRemaining = 0;
 size_t liveSemaphores = 0; //!< Created and not deleted semaphores (HostRtos::semaphoreCount)
 HostRtos::ResumeStats resumeCalls; //!< Calls of the task resume functions (HostRtos::resumeStats)
 HostRtos::HeapStats heapCalls; //!< Calls of the heap functions (HostRtos::heapStats)
+std::set<const HostSemaphore *> &semaphores() { //!< Created and not deleted semaphores (a parked task may wait for a deleted one)
+	static std::set<const HostSemaphore *> live;
+	return live;
+}
 
 bool isRegistered(HostTask *task) {
 	return std::find(tasks().begin(), tasks().end(), task) != tasks().end();
+}
+
+/** Thrown on the host thread of a parked resumable task to unwind it when the task is deleted. Never leaves that thread */
+struct ResumableTaskKilled {};
+
+/** The resumable task running on the calling thread, nullptr if the caller is not a resumable task */
+HostTask *resumableCurrent() {
+	if (currentTask == nullptr || !currentTask->resumable || std::this_thread::get_id() != currentTask->resumable->thread.get_id()) {
+		return nullptr;
+	}
+	return currentTask;
+}
+
+/** Test side of the hand-over: lets the task thread run until it parks or leaves its function */
+void handToTask(ResumableContext &ctx) {
+	std::unique_lock<std::mutex> lock(ctx.mutex);
+	ctx.taskTurn = true;
+	ctx.cv.notify_all();
+	ctx.cv.wait(lock, [&ctx] { return !ctx.taskTurn; });
+}
+
+/**
+ * Task side: parks the calling resumable task until its next activation (the thread that activated it continues).
+ * `ready` tells runUntilIdle whether the task can continue. Throws ResumableTaskKilled if the task was deleted meanwhile.
+ */
+void parkCurrentTask(std::function<bool()> ready) {
+	HostTask *self = currentTask;
+	ResumableContext &ctx = *self->resumable;
+	ctx.ready = std::move(ready);
+	{
+		std::unique_lock<std::mutex> lock(ctx.mutex);
+		ctx.taskTurn = false;
+		ctx.cv.notify_all();
+		ctx.cv.wait(lock, [&ctx] { return ctx.taskTurn; });
+	}
+	ctx.ready = nullptr;
+	if (ctx.kill) {
+		throw ResumableTaskKilled();
+	}
+}
+
+/** Body of the host thread of a resumable task */
+void resumableThreadMain(TaskFunction_t fn, void *param, ResumableContext *ctx) {
+	{
+		std::unique_lock<std::mutex> lock(ctx->mutex);
+		ctx->cv.wait(lock, [ctx] { return ctx->taskTurn; });
+	}
+	if (!ctx->kill) {
+		try {
+			fn(param);
+		} catch (const ResumableTaskKilled &) {
+		} catch (const HostRtos::TaskBlocked &) {
+			ctx->restart = true; // Left like a task that is not resumable: start again at the next activation
+		} catch (...) {
+			ctx->error = std::current_exception();
+		}
+	}
+	std::lock_guard<std::mutex> lock(ctx->mutex);
+	ctx->finished = true;
+	ctx->taskTurn = false;
+	ctx->cv.notify_all();
+}
+
+/** Activation of a resumable task (runUntilBlocked). The caller checked that no task is running */
+bool runResumable(HostTask *task) {
+	ResumableContext &ctx = *task->resumable;
+	if (ctx.finished) {
+		return false; // The task function returned (not allowed on FreeRTOS); nothing left to run
+	}
+	currentTask = task;
+	delayBudgetRemaining = delayBudgetMs;
+	if (!ctx.started) {
+		ctx.started = true;
+		ctx.thread = std::thread(resumableThreadMain, task->fn, task->param, &ctx);
+	}
+	handToTask(ctx);
+	if (task->deleted && !ctx.finished) {
+		ctx.kill = true; // Deleted itself and parked again: unwind it
+		handToTask(ctx);
+	}
+	currentTask = nullptr;
+	std::exception_ptr error = ctx.error;
+	ctx.error = nullptr;
+	if (ctx.finished) {
+		ctx.thread.join();
+		if (ctx.restart && !task->deleted) {
+			task->resumable = std::make_unique<ResumableContext>(); // Fresh thread at the next activation
+		}
+	}
+	if (task->deleted) {
+		delete task; // Deleted itself (vTaskDelete on its own thread, e.g. cpp_freertos TaskFunctionAdapter after Run)
+	}
+	if (error) {
+		std::rethrow_exception(error);
+	}
+	return true;
+}
+
+/**
+ * Deletes a resumable task from another thread (test or other task): a parked task is unwound on its host thread
+ * (ResumableTaskKilled), then the thread is joined.
+ */
+void killResumable(HostTask *task) {
+	ResumableContext &ctx = *task->resumable;
+	if (ctx.started && !ctx.finished) {
+		HostTask *caller = currentTask;
+		currentTask = task;
+		ctx.kill = true;
+		handToTask(ctx);
+		currentTask = caller;
+	}
+	if (ctx.thread.joinable()) {
+		ctx.thread.join();
+	}
 }
 } // namespace
 
@@ -64,6 +211,9 @@ bool runUntilBlocked(TaskHandle_t task) {
 	if (!isRegistered(task) || currentTask != nullptr) {
 		return false;
 	}
+	if (task->resumable) {
+		return runResumable(task);
+	}
 	currentTask = task;
 	delayBudgetRemaining = delayBudgetMs;
 	try {
@@ -74,6 +224,17 @@ bool runUntilBlocked(TaskHandle_t task) {
 	return true;
 }
 
+/**
+ * True if runUntilIdle activates the task: a notification is pending; for a parked resumable task instead: the
+ * condition it waits for is met (notification, semaphore available, resumed after a suspend)
+ */
+static bool isReady(HostTask *task) {
+	if (task->resumable && task->resumable->started) {
+		return !task->resumable->finished && task->resumable->ready && task->resumable->ready();
+	}
+	return task->notifications > 0;
+}
+
 uint32_t runUntilIdle(uint32_t maxActivations) {
 	uint32_t activations = 0;
 	bool ranAny = true;
@@ -82,7 +243,7 @@ uint32_t runUntilIdle(uint32_t maxActivations) {
 		// Tasks may be created or deleted while running. Iterate over a copy
 		std::vector<HostTask *> snapshot = tasks();
 		for (HostTask *task : snapshot) {
-			if (isRegistered(task) && task->notifications > 0 && !task->suspended) {
+			if (isRegistered(task) && !task->suspended && isReady(task)) {
 				runUntilBlocked(task);
 				activations++;
 				ranAny = true;
@@ -112,6 +273,20 @@ TaskHandle_t findTask(const char *name) {
 bool isSuspended(TaskHandle_t task) {
 	return isRegistered(task) && task->suspended;
 }
+
+void makeResumable(TaskHandle_t task) {
+	if (isRegistered(task) && !task->resumable) {
+		task->resumable = std::make_unique<ResumableContext>();
+	}
+}
+
+TaskHandle_t makeResumable(const char *name) {
+	TaskHandle_t task = findTask(name);
+	makeResumable(task);
+	return task;
+}
+
+bool isResumable(TaskHandle_t task) { return isRegistered(task) && task->resumable != nullptr; }
 
 void setDelayBudgetMs(uint32_t ms) {
 	delayBudgetMs = ms;
@@ -169,6 +344,15 @@ void vTaskDelete(TaskHandle_t task) {
 	auto it = std::find(tasks().begin(), tasks().end(), task);
 	if (it != tasks().end()) {
 		tasks().erase(it);
+		if (task->resumable && resumableCurrent() == task) {
+			// A resumable task deletes itself: its host thread continues until the task function is left (like the
+			// non-resumable fake, vTaskDelete returns); freed by runUntilBlocked when the activation ends
+			task->deleted = true;
+			return;
+		}
+		if (task->resumable) {
+			killResumable(task);
+		}
 		if (currentTask == task) {
 			currentTask = nullptr;
 		}
@@ -180,6 +364,10 @@ void vTaskDelay(TickType_t ticks) {
 	HostPlatform::advanceMs(ticks);
 	if (currentTask != nullptr) {
 		if (ticks >= delayBudgetRemaining) {
+			if (resumableCurrent() != nullptr) {
+				parkCurrentTask([] { return false; }); // Delay budget used up: continues after the delay at the next runUntilBlocked
+				return;
+			}
 			throw HostRtos::TaskBlocked();
 		}
 		delayBudgetRemaining -= ticks;
@@ -206,6 +394,12 @@ void vTaskSuspend(TaskHandle_t task) {
 	if (isRegistered(task)) task->suspended = true;
 	if (task != nullptr && task == currentTask) {
 		// A task that suspends itself blocks until another task resumes it
+		if (resumableCurrent() == task) {
+			while (task->suspended) {
+				parkCurrentTask([task] { return !task->suspended; });
+			}
+			return;
+		}
 		throw HostRtos::TaskBlocked();
 	}
 }
@@ -258,7 +452,21 @@ void vTaskNotifyGiveFromISR(TaskHandle_t task, BaseType_t *higherPriorityTaskWok
 	}
 }
 
-uint32_t ulTaskNotifyTake(BaseType_t clearOnExit, TickType_t) {
+uint32_t ulTaskNotifyTake(BaseType_t clearOnExit, TickType_t ticksToWait) {
+	if (HostTask *self = resumableCurrent()) {
+		// Resumable task: waits (parks) until a notification is pending. With a finite timeout it parks once: an
+		// activation without a pending notification ends the wait as a timeout (returns 0). No simulated time passes
+		if (self->notifications == 0 && ticksToWait != 0) {
+			do {
+				parkCurrentTask([self] { return self->notifications > 0; });
+			} while (self->notifications == 0 && ticksToWait == portMAX_DELAY);
+		}
+		uint32_t count = self->notifications;
+		if (count > 0) {
+			self->notifications = clearOnExit ? 0 : count - 1;
+		}
+		return count;
+	}
 	if (currentTask == nullptr || currentTask->notifications == 0) {
 		// Nothing pending. The task would block here
 		throw HostRtos::TaskBlocked();
@@ -269,16 +477,32 @@ uint32_t ulTaskNotifyTake(BaseType_t clearOnExit, TickType_t) {
 }
 
 // ---------------- Semaphores ----------------
-SemaphoreHandle_t xSemaphoreCreateBinary(void) { liveSemaphores++; return new HostSemaphore{0, 1}; }
-SemaphoreHandle_t xSemaphoreCreateCounting(UBaseType_t maxCount, UBaseType_t initialCount) { liveSemaphores++; return new HostSemaphore{initialCount, maxCount}; }
-SemaphoreHandle_t xSemaphoreCreateMutex(void) { liveSemaphores++; return new HostSemaphore{1, 1}; }
-SemaphoreHandle_t xSemaphoreCreateRecursiveMutex(void) { liveSemaphores++; return new HostSemaphore{0xffff, 0xffff}; }
+static SemaphoreHandle_t createSemaphore(UBaseType_t count, UBaseType_t maxCount) {
+	liveSemaphores++;
+	HostSemaphore *sem = new HostSemaphore{count, maxCount};
+	semaphores().insert(sem);
+	return sem;
+}
+SemaphoreHandle_t xSemaphoreCreateBinary(void) { return createSemaphore(0, 1); }
+SemaphoreHandle_t xSemaphoreCreateCounting(UBaseType_t maxCount, UBaseType_t initialCount) { return createSemaphore(initialCount, maxCount); }
+SemaphoreHandle_t xSemaphoreCreateMutex(void) { return createSemaphore(1, 1); }
+SemaphoreHandle_t xSemaphoreCreateRecursiveMutex(void) { return createSemaphore(0xffff, 0xffff); }
 void vSemaphoreDelete(SemaphoreHandle_t sem) {
-	if (sem != nullptr) liveSemaphores--;
+	if (sem != nullptr) {
+		liveSemaphores--;
+		semaphores().erase(sem);
+	}
 	delete sem;
 }
 
 BaseType_t xSemaphoreTake(SemaphoreHandle_t sem, TickType_t ticksToWait) {
+	if (sem->count == 0 && ticksToWait != 0 && resumableCurrent() != nullptr) {
+		// Resumable task: waits (parks) until the semaphore is available. With a finite timeout it parks once: an
+		// activation while the semaphore is still taken ends the wait as a timeout. No simulated time passes
+		do {
+			parkCurrentTask([sem] { return semaphores().count(sem) != 0 && sem->count > 0; });
+		} while (sem->count == 0 && ticksToWait == portMAX_DELAY);
+	}
 	if (sem->count > 0) {
 		sem->count--;
 		return pdTRUE;

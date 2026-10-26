@@ -140,6 +140,20 @@ struct AxisFixture : TargetFixture {
 		a.setEncType(MockEncoder::SELECTION_ID);
 	}
 
+	/**
+	 * Offers the firmware's encoder registry (Encoder::all_encoders of EncoderSources.cpp: 0 none, 2 EncoderLocal,
+	 * 4 MtEncoderSPI, 5 EncoderBissC, 6 EncoderSSI) to the axis and selects `encType` with the firmware's setEncType
+	 * (like the enctype command), keeping MockMotorDriver. The previous encoder is deleted when the axis and the driver
+	 * release it (shared_ptr). Select 0 (the "none" Encoder) to delete a real encoder inside the test.
+	 * @return the encoder of the axis (nullptr if the class could not be created, e.g. isCreatable() false)
+	 */
+	Encoder *selectFirmwareEncoder(uint8_t encType, uint8_t i = 0) {
+		Axis &a = axis(i);
+		a.encoderChooser = ClassChooser<Encoder>(Encoder::all_encoders);
+		a.setEncType(encType);
+		return a.getEncoder();
+	}
+
 	Axis &axis(uint8_t i = 0) { return *axes.at(i); }
 	/** The driver owned by the axis. Only valid while the mock is selected */
 	MockMotorDriver &driver(uint8_t i = 0) {

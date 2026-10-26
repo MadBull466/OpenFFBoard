@@ -962,6 +962,13 @@ void spiFailNextDmaStart(SPI_HandleTypeDef *hspi) { spiFake(hspi).failNextDmaSta
 uint32_t spiInitCount(const SPI_HandleTypeDef *hspi) { return spiFake(hspi).initCount; }
 void spiSetCsPins(SPI_HandleTypeDef *hspi, const std::vector<std::pair<GPIO_TypeDef *, uint16_t>> &pins) { spiFake(hspi).csPins = pins; }
 std::vector<bool> spiCsLevels(const SPI_HandleTypeDef *hspi) { return csLevels(spiFake(hspi)); }
+std::vector<uint8_t> spiFrameBytes(uint64_t frame, uint8_t bytes) {
+	std::vector<uint8_t> out;
+	for (int i = static_cast<int>(bytes) - 1; i >= 0; i--) {
+		out.push_back(i < 8 ? static_cast<uint8_t>(frame >> (8 * i)) : 0);
+	}
+	return out;
+}
 
 // ---- I2C ----
 uint16_t I2cDevice::register16(uint16_t reg) const {

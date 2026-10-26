@@ -19,6 +19,10 @@
 #include "MockCANPort.h"
 #include "I2CHandler.h"
 #include "SpiHandler.h"
+#include "EncoderBissC.h"
+#include "EncoderLocal.h"
+#include "EncoderSSI.h"
+#include "MtEncoderSPI.h"
 
 #include <algorithm>
 #include <array>
@@ -159,8 +163,18 @@ struct I2CPortUsers {
 	using type = int32_t I2CPort::*;
 	friend type privateMember(I2CPortUsers);
 };
+struct EncoderSSIInUse {
+	using type = bool *;
+	friend type privateMember(EncoderSSIInUse);
+};
+struct EncoderBissCInUse {
+	using type = bool *;
+	friend type privateMember(EncoderBissCInUse);
+};
 // Explicit instantiations in the namespace of the template (here the unnamed namespace of this file)
 template struct PrivateMember<SpiPortCurrentDevice, &SPIPort::current_device>;
+template struct PrivateMember<EncoderSSIInUse, &EncoderSSI::inUse>;
+template struct PrivateMember<EncoderBissCInUse, &EncoderBissC::inUse>;
 template struct PrivateMember<I2CPortCurrentDevice, &I2CPort::currentDevice>;
 template struct PrivateMember<I2CPortUsers, &I2CPort::portUsers>;
 
@@ -225,6 +239,12 @@ void resetTargetConfig() {
 	static_cast<PersistentStorage &>(i2cport).*PersistentStorageAccess::restoreDelayedFlagMember() = true; // restoreFlashDelayed() in the constructor
 	SpiHandler::getSPIHandlers() = initialSpiHandlers;
 	I2CHandler::getI2CHandlers() = initialI2cHandlers;
+	// Encoders (P6): the "one instance" flags (static inUse, set by the constructor, cleared by the destructor) as after
+	// start-up, in case a test left an encoder undeleted
+	EncoderLocal::inUse = false;
+	MtEncoderSPI::inUse = false;
+	*privateMember(EncoderSSIInUse()) = false;
+	*privateMember(EncoderBissCInUse()) = false;
 	// Not reset: the device pointer of motor_uart (see HostTarget.h)
 }
 

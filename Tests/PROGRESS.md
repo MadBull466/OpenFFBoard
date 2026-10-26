@@ -7,7 +7,7 @@
 ## Current state
 
 - **Current phase:** P6 (encoders and buses in `ffb_target_tests`), started 2026-10-26. P5 approved 2026-10-26.
-- **Phase status:** P6 plan written ("P6 plan"); batch 0 running.
+- **Phase status:** batch 0 done ("P6 batch 0"); 3 module agents running.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** `13cb14a8` (P5 final).
 - **Last updated:** 2026-10-26
@@ -15,7 +15,7 @@
 
 ## Next action
 
-**P6 batch 0 running.** Then: review and commit batch 0, 3 module agents (see "P6 plan"), fresh reviewers, fixes, gate, coverage (85 % per file without hardware-only code), stop for approval.
+**P6 batch 0 done.** Then: 3 module agents (see "P6 plan"), fresh reviewers, fixes, gate, coverage (85 % per file without hardware-only code), stop for approval.
 
 ## Phase checklist
 
@@ -30,7 +30,7 @@
 | P3 Flash and persistence | `ffb_flash_tests` (new) | about 365 (measured: total 4,480 lines, 55.3 %) | done | yes, 2026-10-24 | `bfe6ed56` batch 0, `ac030b2c` B tests, `b93f230e` A tests, `6410fb07` macOS skip, `8b178bbf` A review fixes, `52dce9ae` B review fixes |
 | P4 System, callbacks, misc | `ffb_target_tests` | about 460 (measured: total 5,078 lines, 62.6 %) | done | yes, 2026-10-25 | `0644984e` batch 0, `00a1e00b`/`e7d467d4`/`61a20f9f` tests, `90554aaa` infra review fixes, `c00b7e2b` B fixes, `e51bc104` A fixes, `8e807f05` C fixes + results |
 | P5 Buttons and analog | `ffb_target_tests` | about 775 (measured: total 6,206 lines, 76.5 %) | done | yes, 2026-10-26 | `73d4e482` batch 0, `3e36fdfd` analog, `663bce67` buttons, `2a18521a` A + infra review fixes, `13cb14a8` B review fixes + results |
-| P6 Encoders and buses | `ffb_target_tests` | about 640 (uncovered now: about 785 in the P6 files) | in progress (batch 0) | | |
+| P6 Encoders and buses | `ffb_target_tests` | about 640 (uncovered now: about 785 in the P6 files) | in progress (modules) | | |
 | P7 CAN and serial FFB | `ffb_target_tests` | about 420 | not started | | |
 | P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 | not started | | |
 | P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder | not started | | |
@@ -343,6 +343,14 @@ Executable `ffb_target_tests`, new files in `cases_target/` only. Coverage after
 | A local and SSI encoders | `test_encoder_local.cpp`, `test_encoder_ssi.cpp`, `test_timer_exti_handlers.cpp` | `EncoderLocal.cpp`, `EncoderSSI.cpp`, `TimerHandler.cpp`, `ExtiHandler.cpp` | quadrature count and overflow, index pulse and centering, cpr, commands, flash config; SSI frame decoding, resolution, speed presets, errors; handler registration/removal and dispatch |
 | B BiSS-C and MT encoders | `test_encoder_bissc.cpp`, `test_mtencoder_spi.cpp`, `test_crc.cpp` | `EncoderBissC.cpp`, `MtEncoderSPI.cpp`, `CRC.cpp` | BiSS-C frame, CRC6, error and warning bits, multiturn, timeouts; MT6825/6835 parity/CRC, status, position and multiturn, commands; CRC8/CRC16 against known check values |
 | C bus wrappers | `test_spi_port.cpp`, `test_i2c_port.cpp` | `SPI.cpp`, `SpiHandler.cpp`, `I2C.cpp`, `I2CHandler.cpp` | port/device arbitration, CS pin handling, exclusive mode, prescaler selection, blocking/IT/DMA paths and error returns, callback dispatch; bugs 53, 57, 58 |
+
+## P6 batch 0 (2026-10-26)
+
+- **Resumable tasks** in the fake kernel (`host_freertos.cpp`, `HostRtos::makeResumable(handle|name)`, opt-in): `EncoderBissC` and `MtEncoderSPI` wait twice per loop (`requestSem.Take()`, DMA, `WaitForNotification()`), which the restart-from-`Run()` model cannot test. A resumable task runs on its own `std::thread` with a strict mutex/condition-variable hand-over (one thread runs at a time, deterministic); blocking calls with `portMAX_DELAY` park until the condition holds, finite timeouts park once then time out, `vTaskDelete` of a parked task unwinds and joins. Without `makeResumable` nothing changes. **Portability caveat:** needs `std::thread` (MinGW-w64 with the posix thread model, or win32 threads with GCC 13+); unverified on Windows.
+- Encoder-mode timer fake: `HostTarget::encoderTimerCount(htim, counts)` (counts only with CEN, UIF at ARR->0 / 0->ARR, update branch of `HAL_TIM_IRQHandler` in ISR context), `timerCounter`/`timerSetCounter`, `encoderIndexPulse()` (EXTI falling edge per `MX_GPIO_Init`). `HostTarget::spiFrameBytes` (16-64 bit frames, MSB first). Unmodelled: DIR bit, input filter/polarity, CNT above ARR (recorded), UIF pending when UIE is enabled later.
+- Reset of the static `inUse` flags of the 4 encoders; `AxisFixture::selectFirmwareEncoder(enctype, i)`; `mocks/MockSPIDevice.h`, `mocks/MockI2CDevice.h`. No new HAL functions needed; no CMake change.
+- 14 smoke cases (`EncoderSetup`). Gate: ctest 4/4 and baseline OK in all 6 dirs, `ffb_unit_tests`/`ffb_flash_tests` compile commands identical, `ffb_target_tests` 1,084/0/8 (default, clang23), 1,085/0/8 (nodsp), 979 + 113 (san, clang23-san), 980 + 113 (nodsp-san); no findings; 30 sanitizer runs and random orders green. Verified by the main agent.
+- Suspected bugs from code reading, handed to the module agents (to be confirmed by tests): `EncoderSSI.cpp:124` raw decode, `EncoderSSI.h:73` uninitialised `mode`, `EncoderSSI.cpp:110` AMT23 check-bit test, `EncoderLocal.cpp:85` `% cpr` with cpr 0, `MtEncoderSPI.cpp:113-114` / `301-302` clip-to-size, `MtEncoderSPI.cpp:335` unchecked mode, `EncoderBissC.cpp:252-264` `__builtin_clzll(0)`, unchecked `bits`, `hasFreePins` in BissC/SSI (bug 67 pattern), MtEncoderSPI deleted mid-DMA keeps the port semaphore.
 
 ## P5 results (2026-10-26)
 

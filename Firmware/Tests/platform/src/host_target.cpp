@@ -96,6 +96,72 @@ bool timerUpdate(TIM_HandleTypeDef *htim) {
 	return true;
 }
 
+namespace {
+#define HOSTTEST_TIM_SR_UIF 0x00000001U // stm32f407xx.h TIM_SR_UIF (= TIM_FLAG_UPDATE)
+
+/** Update event of a counter wrap: UIF set; HAL_TIM_IRQHandler's update branch if UIE is enabled */
+uint32_t timerWrapEvent(TIM_HandleTypeDef *htim) {
+	htim->Instance->SR |= HOSTTEST_TIM_SR_UIF;
+	if (timerUpdateIrqEnabled(htim)) {
+		// HAL_TIM_IRQHandler (stm32f4xx_hal_tim.c): UIF and UIE set -> __HAL_TIM_CLEAR_FLAG(UPDATE), PeriodElapsedCallback
+		HostPlatform::IsrContext isr;
+		htim->Instance->SR &= ~HOSTTEST_TIM_SR_UIF;
+		HAL_TIM_PeriodElapsedCallback(htim);
+	}
+	return 1;
+}
+} // namespace
+
+uint32_t encoderTimerCount(TIM_HandleTypeDef *htim, int32_t counts) {
+	TIM_TypeDef *tim = htim->Instance;
+	if (!timerRunning(htim)) {
+		return 0; // Counter disabled (CEN = 0): the encoder inputs are not counted
+	}
+	if (tim->CNT > tim->ARR) {
+		targetState.unmodelledHalCalls.emplace_back("encoderTimerCount: counter above ARR");
+		return 0;
+	}
+	uint32_t events = 0;
+	int64_t remaining = counts;
+	while (remaining > 0) {
+		const int64_t toWrap = static_cast<int64_t>(tim->ARR) - tim->CNT; // counts until CNT == ARR
+		if (remaining <= toWrap) {
+			tim->CNT += static_cast<uint32_t>(remaining);
+			break;
+		}
+		remaining -= toWrap + 1; // ARR -> 0: overflow
+		tim->CNT = 0;
+		events += timerWrapEvent(htim);
+		if (!timerRunning(htim)) {
+			break; // The callback stopped the counter
+		}
+	}
+	while (remaining < 0) {
+		const int64_t toWrap = tim->CNT; // counts until CNT == 0
+		if (-remaining <= toWrap) {
+			tim->CNT -= static_cast<uint32_t>(-remaining);
+			break;
+		}
+		remaining += toWrap + 1; // 0 -> ARR: underflow
+		tim->CNT = tim->ARR;
+		events += timerWrapEvent(htim);
+		if (!timerRunning(htim)) {
+			break; // The callback stopped the counter
+		}
+	}
+	return events;
+}
+
+uint32_t timerCounter(const TIM_HandleTypeDef *htim) { return htim->Instance->CNT; }
+void timerSetCounter(TIM_HandleTypeDef *htim, uint32_t count) { htim->Instance->CNT = count; }
+
+void encoderIndexPulse() {
+	setPin(ENCODER_Z_GPIO_Port, ENCODER_Z_Pin, true);
+	setPin(ENCODER_Z_GPIO_Port, ENCODER_Z_Pin, false);
+	triggerExti(ENCODER_Z_Pin); // falling edge
+	setPin(ENCODER_Z_GPIO_Port, ENCODER_Z_Pin, true);
+}
+
 void setPin(GPIO_TypeDef *port, uint16_t pin, bool high) { port->IDR = high ? (port->IDR | pin) : (port->IDR & ~(uint32_t)pin); }
 bool outputPin(const GPIO_TypeDef *port, uint16_t pin) { return (port->ODR & pin) != 0; }
 

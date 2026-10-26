@@ -102,6 +102,7 @@ void reset();
  *  - the SPI and I2C handler lists (SpiHandler::getSPIHandlers, I2CHandler::getI2CHandlers) to the handlers registered
  *    during the static initialisation (the three SPI ports, i2cport). Needed because ~I2CHandler does not unregister
  *    (I2CHandler.cpp: it calls addCallbackHandler; suspected bug), so a destroyed test handler would stay in the list
+ *  - the static "in use" flags of the encoders EncoderLocal, EncoderSSI, EncoderBissC, MtEncoderSPI (false)
  * The private members of SPIPort / I2CPort are reset through member pointers obtained by explicit template
  * instantiation (host_target_config.cpp); tests never access them.
  * NOT reset: the device pointer of motor_uart (UARTPort, out of scope until P7). Firmware objects that still use a port
@@ -142,6 +143,32 @@ bool timerUpdate(TIM_HandleTypeDef *htim);
 bool timerRunning(const TIM_HandleTypeDef *htim);
 /** True while the update interrupt is enabled (DIER.UIE) */
 bool timerUpdateIrqEnabled(const TIM_HandleTypeDef *htim);
+
+// --- Quadrature encoder on a timer in encoder interface mode (TIM_ENC = htim3, P6) ---
+/**
+ * Moves the counter of a timer in encoder interface mode by `counts` (> 0 up, < 0 down), like quadrature edges on
+ * TI1/TI2 (MX_TIM3_Init: TIM_ENCODERMODE_TI12, every edge of both inputs counts: 4 counts per encoder line).
+ * Models RM0090 "General-purpose timers (TIM2 to TIM5)", encoder interface mode: the counter only counts while it is
+ * enabled (CR1.CEN); counting up from ARR wraps to 0 and counting down from 0 wraps to ARR, each wrap is an update
+ * event (overflow / underflow): SR.UIF is set and, if the update interrupt is enabled (DIER.UIE), HAL_TIM_IRQHandler's
+ * update branch (stm32f4xx_hal_tim.c) runs in interrupt context: UIF cleared, HAL_TIM_PeriodElapsedCallback(htim)
+ * (main.c -> HAL_TIM_PeriodElapsedCallback_CPP -> TimerHandler::timerElapsed). The interrupt is raised right at the
+ * wrap (CNT = 0 after an overflow, ARR after an underflow), i.e. with no interrupt latency, before the counter moves on.
+ * Not modelled (recorded in state().unmodelledHalCalls, nothing counted): a counter above ARR (16 bit counter of TIM3
+ * counting beyond ARR), a pending UIF raising the interrupt when UIE is enabled later.
+ * @return number of update events (wraps)
+ */
+uint32_t encoderTimerCount(TIM_HandleTypeDef *htim, int32_t counts);
+/** Counter register (CNT) */
+uint32_t timerCounter(const TIM_HandleTypeDef *htim);
+/** Writes the counter register directly (no update event), like a debugger or a write by the firmware */
+void timerSetCounter(TIM_HandleTypeDef *htim, uint32_t count);
+/**
+ * Index pulse of the local encoder (ENCODER_Z, MX_GPIO_Init: EXTI falling edge, no pull): the pin goes high (idle),
+ * then low (the falling edge raises the EXTI interrupt while the pin reads low: HAL_GPIO_EXTI_Callback(ENCODER_Z_Pin)
+ * via triggerExti), then high again (end of the pulse; the rising edge raises no interrupt).
+ */
+void encoderIndexPulse();
 
 // --- GPIO and external interrupts ---
 /** Sets the input level of a pin (IDR) */
@@ -322,6 +349,13 @@ uint32_t spiInitCount(const SPI_HandleTypeDef *hspi);
 /** The CS pins of a port (hspi1-3: the pin lists of cpp_target_config.cpp) and their current output levels */
 void spiSetCsPins(SPI_HandleTypeDef *hspi, const std::vector<std::pair<GPIO_TypeDef *, uint16_t>> &pins);
 std::vector<bool> spiCsLevels(const SPI_HandleTypeDef *hspi);
+/**
+ * MISO bytes of a frame of up to 64 bits in transmission order with SPI_FIRSTBIT_MSB (the configuration of all
+ * firmware SPI devices): the first bit on the line is bit (8 * bytes - 1) of `frame`, i.e. `bytes` bytes, most
+ * significant first. E.g. spiFrameBytes(0x1234, 2) = {0x12, 0x34}. Use it to script 16, 24, 32 or 64 bit encoder
+ * frames (8 bit SPI transfers of 2..8 bytes). bytes must be 1..8.
+ */
+std::vector<uint8_t> spiFrameBytes(uint64_t frame, uint8_t bytes);
 
 // --- I2C (fake HAL I2C F5, host_target_bus.cpp) ---
 /**

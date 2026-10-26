@@ -24,7 +24,10 @@ Properties of the fake platform:
 * **Time is simulated.** `HAL_GetTick()` and `micros()` only change when a test advances the clock
   (`HostPlatform::advanceMs`). Tests are deterministic and do not wait.
 * **No scheduler.** Threads are registered but only run when a test executes them until they block
-  (`HostRtos::runUntilBlocked`, `HostRtos::runUntilIdle` or `process()` of the fixtures).
+  (`HostRtos::runUntilBlocked`, `HostRtos::runUntilIdle` or `process()` of the fixtures). A blocked thread is restarted
+  at the beginning of its function the next time; threads that wait in several places per loop are made resumable
+  (`HostRtos::makeResumable`: the thread runs on its own host thread, strictly one at a time, and continues after the
+  blocking call).
 * **Everything sent to the outside is recorded**: CDC data and HID reports (`HostUsb`), uart bytes,
   flash content and LEDs (`HostPlatform`), CAN frames (`MockCANPort`), motor torque (`MockMotorDriver`).
 
@@ -138,6 +141,7 @@ Test cases marked `KNOWN_ISSUE` and the suspected defects behind them are listed
 | `MockEncoder` | `Encoder` with a position set by the test in counts, rotations or degrees. |
 | `MockCANPort` | `CANPort` recording sent frames. Received frames are injected in interrupt context. |
 | `MockButtonSource`, `MockAnalogSource` | `ButtonSource` / `AnalogSource` with test-set buttons / axis values (`ffb_target_tests`), selectable through the real choosers (`registry()`, `support/InputSources.h`). |
+| `MockSPIDevice`, `MockI2CDevice` | `SPIDevice` / `I2CDevice` recording the calls of the port (transfer begin/end, completions, errors) for tests of `SPI.cpp` / `I2C.cpp` (`ffb_target_tests`). |
 | `PidHost` | Simulates the PID driver of the host: create effect, set effect/condition/periodic..., effect operation, device control. |
 | `Axis` (fake) | Replaces the real axis for the effect calculation: metrics are set by the test, the effect torque is recorded. |
 | `CommandSystemFixture` | Resets everything, owns the command thread. `process()` runs all threads until idle. |
@@ -247,6 +251,35 @@ Later phases add encoders, buses and CAN; since P5 the SPI and I2C HAL are faked
     (started, active filter matches, FIFO of the filter), then `canQueueRx` + `canRxInterrupt`: the frame reaches every
     `CanHandler` (e.g. `CanButtons`, `CanAnalog`) through `global_callbacks.cpp` like on the target.
   * Timing is not modelled: blocking calls take no simulated time; timeouts are injected.
+* **Encoders and buses (P6 batch 0)** (control in `support/HostTarget.h`, `support/HostRtos.h`, `support/AxisFixture.h`):
+  * **Quadrature encoder timer:** `encoderTimerCount(&htim3, counts)` moves the counter of `TIM_ENC` like quadrature
+    edges in encoder interface mode (RM0090, TIM2 to TIM5 encoder interface mode): only while CEN is set; ARR -> 0
+    (overflow) and 0 -> ARR (underflow) are update events (UIF, then `HAL_TIM_IRQHandler`'s update branch if UIE:
+    `HAL_TIM_PeriodElapsedCallback` -> `TimerHandler::timerElapsed` in interrupt context, at the wrap, no latency);
+    returns the number of wraps. `timerCounter` / `timerSetCounter` read / write CNT. A counter above ARR and a pending
+    UIF raised when UIE is enabled later are not modelled. `encoderIndexPulse()`: ENCODER_Z high, low + EXTI interrupt
+    (falling edge, MX_GPIO_Init), high again.
+  * **Encoder SPI port:** `ENCODER_SPI_PORT` is `ext3_spi` (`hspi3`, CS pins SPI3_SS1..3, base clock 42 MHz). All
+    encoders use 8 bit transfers; `spiFrameBytes(frame, bytes)` gives the MISO bytes of a 16..64 bit frame, most
+    significant first. MX_GPIO_Init resets all SPI3 CS outputs low and only a device drives its own pin, so
+    `selectedCs()` finds no single active pin on `hspi3`: check `csAtStart[i]` of the device's pin instead. `csAtEnd`
+    of IT/DMA transfers is recorded before the completion callback (the CS pin is released inside it).
+  * **Encoder threads (resumable tasks):** `EncoderBissC` ("BISSENC") and `MtEncoderSPI` ("MTENC") wait twice per loop
+    (request semaphore, then the DMA notification). Make their task resumable right after creating the encoder:
+    `HostRtos::makeResumable("BISSENC")` (the `cpp_freertos::Thread` base is private: use `findTask` / the returned
+    handle with `runUntilBlocked(TaskHandle_t)`). Flow: `getPosAbs()` (gives the request; at time 0 or within 2 ms of
+    the last update it does not wait, a `Take(2)` on the test thread returns at once), `runUntilBlocked(task)` (DMA
+    started), `spiQueueRx` + `spiComplete(&hspi3)` (completion notifies the task), `runUntilBlocked(task)` (frame
+    processed), then read the position. Deleting the encoder unwinds the parked thread.
+  * **Encoders in an axis:** `AxisFixture::selectFirmwareEncoder(enctype)` offers `Encoder::all_encoders` (2 local, 4
+    MT, 5 BiSS-C, 6 SSI) and selects it with `setEncType`; `selectFirmwareEncoder(0)` deletes the real encoder.
+  * **Mock bus devices (F12):** `mocks/MockSPIDevice.h` (`SPIDevice`; records begin/end transfer, tx/rx/txrx
+    completion and errors with the port, the CS level and `isTaken()`; `callBase` keeps the semaphore / CS handling of
+    `SPIDevice`), `mocks/MockI2CDevice.h` (`I2CDevice`; records start/end transfer, completions and errors with the
+    port and the handle state; `callBase` keeps the semaphore handling and the port reset on errors).
+  * **Reset:** the static `inUse` flags of `EncoderLocal`, `EncoderSSI`, `EncoderBissC`, `MtEncoderSPI`
+    (`resetTargetConfig`); TIM3 and the SPI fake as before. The timer and EXTI handler lists are not reset (no
+    static-init handlers; the destructors unregister).
 * **Input source mocks (P5, F12):** `mocks/MockButtonSource.h`, `mocks/MockAnalogSource.h` implement `ButtonSource` /
   `AnalogSource` (test sets the bits / axis values, records the reads); `registry()` is the firmware registry
   (`all_buttonsources` / `all_analogsources`) plus the mock with selection id 15. `support/InputSources.h` replaces the
