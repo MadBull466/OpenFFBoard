@@ -6,8 +6,8 @@
 
 ## Current state
 
-- **Current phase:** P6 (encoders and buses in `ffb_target_tests`), started 2026-10-26. P5 approved 2026-10-26.
-- **Phase status:** P6 complete (batch 0, 3 module groups, 3 fresh reviews, fixes, gate, coverage). **Waiting for my approval.**
+- **Current phase:** P7 (CAN and serial FFB in `ffb_target_tests`), started 2026-10-26. P6 approved 2026-10-26.
+- **Phase status:** P7 plan written ("P7 plan"); batch 0 running.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** `e69fb8ec` (P6 final).
 - **Last updated:** 2026-10-26
@@ -15,7 +15,7 @@
 
 ## Next action
 
-**Stop: P6 approval gate.** After approval: P7 (CAN and serial FFB: `CANPort2B`, `CanBridge`, `CanInputMain`, `SerialFFB`, F8 fake HAL CAN), same process.
+**P7 batch 0 running.** Then: review and commit batch 0, 3 module agents (see "P7 plan"), fresh reviewers, fixes, gate, coverage (85 % per file without hardware-only code), stop for approval.
 
 ## Phase checklist
 
@@ -30,8 +30,8 @@
 | P3 Flash and persistence | `ffb_flash_tests` (new) | about 365 (measured: total 4,480 lines, 55.3 %) | done | yes, 2026-10-24 | `bfe6ed56` batch 0, `ac030b2c` B tests, `b93f230e` A tests, `6410fb07` macOS skip, `8b178bbf` A review fixes, `52dce9ae` B review fixes |
 | P4 System, callbacks, misc | `ffb_target_tests` | about 460 (measured: total 5,078 lines, 62.6 %) | done | yes, 2026-10-25 | `0644984e` batch 0, `00a1e00b`/`e7d467d4`/`61a20f9f` tests, `90554aaa` infra review fixes, `c00b7e2b` B fixes, `e51bc104` A fixes, `8e807f05` C fixes + results |
 | P5 Buttons and analog | `ffb_target_tests` | about 775 (measured: total 6,206 lines, 76.5 %) | done | yes, 2026-10-26 | `73d4e482` batch 0, `3e36fdfd` analog, `663bce67` buttons, `2a18521a` A + infra review fixes, `13cb14a8` B review fixes + results |
-| P6 Encoders and buses | `ffb_target_tests` | about 640 (measured: total 6,988 lines, 86.2 %) | done | | `cd92abd9` batch 0, `3e39a144` A, `7f5b4557` C, `a8317dbb` B, `ac6eadd1` infra + C review fixes, `e69fb8ec` A + B review fixes + results |
-| P7 CAN and serial FFB | `ffb_target_tests` | about 420 | not started | | |
+| P6 Encoders and buses | `ffb_target_tests` | about 640 (measured: total 6,988 lines, 86.2 %) | done | yes, 2026-10-26 | `cd92abd9` batch 0, `3e39a144` A, `7f5b4557` C, `a8317dbb` B, `ac6eadd1` infra + C review fixes, `e69fb8ec` A + B review fixes + results |
+| P7 CAN and serial FFB | `ffb_target_tests` | about 420 (uncovered now: about 577 in the P7 files) | in progress (batch 0) | | |
 | P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 | not started | | |
 | P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder | not started | | |
 
@@ -344,6 +344,16 @@ Executable `ffb_target_tests`, new files in `cases_target/` only. Coverage after
 | A local and SSI encoders | `test_encoder_local.cpp`, `test_encoder_ssi.cpp`, `test_timer_exti_handlers.cpp` | `EncoderLocal.cpp`, `EncoderSSI.cpp`, `TimerHandler.cpp`, `ExtiHandler.cpp` | quadrature count and overflow, index pulse and centering, cpr, commands, flash config; SSI frame decoding, resolution, speed presets, errors; handler registration/removal and dispatch |
 | B BiSS-C and MT encoders | `test_encoder_bissc.cpp`, `test_mtencoder_spi.cpp`, `test_crc.cpp` | `EncoderBissC.cpp`, `MtEncoderSPI.cpp`, `CRC.cpp` | BiSS-C frame, CRC6, error and warning bits, multiturn, timeouts; MT6825/6835 parity/CRC, status, position and multiturn, commands; CRC8/CRC16 against known check values |
 | C bus wrappers | `test_spi_port.cpp`, `test_i2c_port.cpp` | `SPI.cpp`, `SpiHandler.cpp`, `I2C.cpp`, `I2CHandler.cpp` | port/device arbitration, CS pin handling, exclusive mode, prescaler selection, blocking/IT/DMA paths and error returns, callback dispatch; bugs 53, 57, 58 |
+
+## P7 plan (2026-10-26)
+
+`ffb_target_tests`, new files in `cases_target/` only. Coverage before P7 (P6 final run): `CANPort2B.cpp` not compiled (about 181 lines), `CanBridge.cpp` 20/189, `CanInputMain.cpp` 36/162, `SerialFFB.cpp` 42/143, `CanCommandInterface.cpp` 207/226 (gaps from the baseline suite): about 577 uncovered lines; at 95 % each the total reaches about 92 %. Batch 0 first (F8 fake HAL CAN modelled on `stm32f4xx_hal_can.c`: filters, 3 Tx mailboxes, Rx FIFOs, error/bus-off; compile the real `CANPort2B.cpp`; decide how the global `canport` moves from `MockCANPort` to the real `CANPort_2B` without changing what the P5 CAN tests observe; host-side CAN frame helpers; smoke tests), then 3 module agents in isolated scratch workspaces (`scratchpad/p7/<group>`), per-file goal 85 % without hardware-only code, mutation spot-check 80 %.
+
+| Group | Owns (new files) | Firmware | Behaviours |
+|---|---|---|---|
+| A CAN port | `test_canport2b.cpp` | `CANPort2B.cpp` (+ `CAN.cpp` callers) | init/start/stop, speed presets and bit timing, filters (add/remove, standard/extended, FIFO), send with free/full mailboxes and timeout, receive dispatch, error and bus-off callbacks, silent mode, commands, flash config, port users |
+| B CAN main classes | `test_canbridge.cpp`, `test_caninputmain.cpp` | `CanBridge.cpp`, `CanInputMain.cpp` | GVRET/SavvyCAN-style frame protocol to the host over CDC, filters and speed commands, rx/tx forwarding; CAN input main class: button/analog sources to CAN frames, ids, rates, commands, flash |
+| C serial FFB | `test_serial_ffb.cpp` | `SerialFFB.cpp` | effect commands over the string interface (create, set parameters, start/stop, free, gain, reset), validation of ids and parameter ranges, interplay with `EffectsCalculator` |
 
 ## P6 results (2026-10-26)
 
