@@ -294,7 +294,9 @@ Later phases add encoders, buses and CAN; since P5 the SPI and I2C HAL are faked
     (`host_target_config.cpp`): its `start` / `stop` / `addCanFilter` / `removeCanFilter` call the real functions and
     then record the call in the view `HostTarget::canPort()` (a `MockCANPort` for the P5 tests: `started`,
     `startCalls`, `stopCalls`, `filters` as passed by the firmware, `passesFilter`; its `CANPort` functions forward to
-    `canport`). Its `sent`, `speed`, `silent`, `sendResult` are unused. Like on the target, `canport` is also a command
+    `canport`). Its `sent`, `speed`, `silent`, `sendResult` are unused. The view records the calls, not the hardware
+    state (`started` also after a failed `start()`, `filters` also for an overwritten or rejected bank): tests about
+    the hardware use `HostTarget::canActiveFilterBanks()` (bits of `CAN1->FA1R`), `canAccepts` and `hcan1.State`. Like on the target, `canport` is also a command
     handler (`can.0`), a `CanHandler` and a `PersistentStorage` (`ADR_CANCONF1`), and every main class takes it
     (`CAN_CommandInterface` of `FFBoardMain`, `CANCOMMANDS`).
   * **Fake HAL CAN (F8):** `HAL_CAN_Init/_DeInit/_ConfigFilter/_Start/_Stop/_RequestSleep/_WakeUp/_IsSleepActive/
@@ -310,7 +312,8 @@ Later phases add encoders, buses and CAN; since P5 the SPI and I2C HAL are faked
     `canTxCompleteAll()` (TXOK, transmit interrupt: `HAL_CAN_TxMailboxXCompleteCallback`) or `canTxError(m)` (failed
     attempt; with automatic retransmission it stays pending and a later abort reports `HAL_CAN_ERROR_TX_TERRx`).
     `canSetTxAutoComplete(true)` completes pending frames at the start of the next HAL CAN call (never inside the call
-    that queued them). An abort empties a pending mailbox at once and raises the abort interrupt.
+    that queued them). An abort empties a pending mailbox at once and raises the abort interrupt (host-vs-target: on
+    the target a mailbox in the middle of a transmission attempt is aborted only after that attempt).
   * **Receive:** `canReceive(id, data, extId, rtr)`: only in normal mode (started, not sleeping, not bus-off); the
     active filter banks decide (32 / 16 bit, mask / list, RM0090 priority rules, filter match index per FIFO); the frame
     goes into the FIFO of the bank, then the receive interrupt if enabled. `canAccepts` asks the filters only;
@@ -318,20 +321,23 @@ Later phases add encoders, buses and CAN; since P5 the SPI and I2C HAL are faked
     CAN2SB) is written like the HAL but not applied.
   * **Interrupts:** `HAL_CAN_IRQHandler` (modelled step by step) runs in interrupt context while an event is pending
     whose IER bit and NVIC line are enabled. Like `HAL_CAN_MspInit` (`stm32f4xx_hal_msp.c:291-294`) only `CAN1_TX` and
-    `CAN1_RX0` are enabled: FIFO 1 frames and the status change interrupt (bus-off, error warning / passive, last error
-    code) raise nothing on the F407; `canSetIrqLineEnabled(CanIrqLine::Sce, true)` models a board that enables them.
+    `CAN1_RX0` are enabled: FIFO 1 frames and the status change events (bus-off, error warning / passive, last error
+    code) raise no interrupt of their own on the F407; the handler services them at the next `CAN1_TX` / `CAN1_RX0`
+    interrupt (it checks every flag whichever line fired). `canSetIrqLineEnabled(CanIrqLine::Sce, true)` models a board
+    that enables them.
     Errors: `canSetErrorState(Warning / Passive / BusOff)` (bus-off stops transmit and receive until the next
     `HAL_CAN_Stop` + `HAL_CAN_Start`), `canSetLastErrorCode(lec)`, FIFO overrun through `canQueueRx` on a full FIFO.
     `canIrq()` raises pending interrupts; `canHalCalls()` lists the HAL calls in order (name, argument, result).
   * Not modelled: bit timing / bus speed, time-triggered mode, TEC/REC counters, automatic bus-off recovery and
     wake-up, loop back / silent mode (recorded as unmodelled at `HAL_CAN_Start`), a frame being sent while it is aborted,
     CAN2; other handles than `hcan1` and filter banks above 27 are recorded as unmodelled.
-  * **Reset:** `HostTarget::resetCan()` (fake HAL CAN, records, injections, NVIC lines) and the private members of
-    `canport` (speed preset 4, no filters / mailboxes, silent, not active, `lastSentTime`, `header`, `nextLen` 8, no port
-    users, semaphores available, delayed flash restore pending) and its view, in `resetTargetConfig`.
+  * **Reset:** `HostTarget::resetCan()` (fake HAL CAN, records, injections, NVIC lines) and `canport` with its view, in
+    `resetTargetConfig`. `canport` gets back the state the firmware constructed: its private members, port users, the
+    waiting flag, the availability of both semaphores and the delayed-restore flag are copied once during the static
+    initialisation right after `canport` (no literals), so a change of the firmware initialisers is seen by the tests.
   * **CDC and commands:** CAN main classes read the CDC port through `cdcRcv` (`HostUsb::cdcReceive` +
     `main.cdcRcvReady(0)`, or `main.cdcRcv(buf, &len)` directly) and write to `HostUsb::state().cdcTx`.
-    `support/CommandHelpers.h`: `CommandHelpers::run` / `get` execute a command of a handler by name;
+    `support/CommandHelpers.h`: `CommandHelpers::run` / `get` / `getAt` execute a command of a handler by name;
     `CommandHelpers::CdcConsole(main).send("fxm.0.new=1\n")` sends a command line through the CDC command interface
     and the command thread of a main class and returns the CDC answer.
 * **Input source mocks (P5, F12):** `mocks/MockButtonSource.h`, `mocks/MockAnalogSource.h` implement `ButtonSource` /

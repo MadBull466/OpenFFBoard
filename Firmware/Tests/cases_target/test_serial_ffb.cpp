@@ -107,6 +107,29 @@ struct SerialForceFixture2Axes : SerialForceFixture {
 
 } // namespace
 
+/** Bug 125 (several cases) */
+#define BUG125_TEXT                                                                                                    \
+	"bug 125: period 0 reaches the effects calculator over fxm: newEffect (SerialFFB.cpp:76-90) keeps the default "  \
+	"period 0 (ffb_defs.h:349) and the period command stores 0 unchecked (SerialFFB.cpp:180), while "               \
+	"HidFFB::set_periodic clips to 1..0x7fff (HidFFB.cpp:468, \"Period is never 0\"). Triangle, sawtooth up and "   \
+	"sawtooth down compute `% (period*1000)` = `% 0` (EffectsCalculator.cpp:253/276/294): SIGFPE on the host. On "  \
+	"the Cortex-M4 (DIV_0_TRP clear) x % 0 = x, periodF 0 gives an infinite slope and the int32 conversion "        \
+	"saturates (VCVT): likely saturated / full-scale torque on the target (safety). Reachable in shipped firmware "  \
+	"(FFBHIDEXT on F407VG, F407VG_DISCO, F411RE): fxm.0.new=5, mag, state=1, ffbstate=1 without a period command"
+
+/** Bug 124 (several cases) */
+#define BUG124_TEXT                                                                                                    \
+	"bug 124: SerialFFB never calls EffectsCalculator::setFilters (HidFFB does on new effect, type change and "      \
+	"start, HidFFB.cpp:276/303/424). Damper and inertia call process() on the null filter every cycle "              \
+	"(EffectsCalculator.cpp:425/433), friction once the axis moves (:416). Host: SIGSEGV. Target: undefined "         \
+	"behaviour, not a plain null-pointer HardFault: address 0 is the readable flash boot alias and there is no MPU, "\
+	"so it reads the vector table as a Biquad; with CMSIS-DSP (USE_DSP_FUNCTIONS) a zero numStages makes the "       \
+	"do/while of arm_biquad_cascade_df1_f32.c:534-552 run about 2^32 stages until a BusFault/HardFault or a "         \
+	"watchdog reset. Shipped configuration: FFBHIDExt over CDC with fxm.0.new=9, state=1?0, ffbstate=1 (inertia "    \
+	"new=10 too, friction new=11 once the axis moves). Constant forces are also unfiltered, which only matters "      \
+	"with a cffilter frequency below half the update rate (default 500 Hz at 1 kHz: EffectsCalculator.cpp:345 never " \
+	"applies the filter)"
+
 TEST_SUITE("SerialFFB") {
 
 // ============================================================================================ identity, command table
@@ -247,6 +270,7 @@ TEST_CASE_FIXTURE(SerialFfbFixture, "reset with an effect address beyond 16 bit 
 
 	CommandStatus status = run("reset", CMDtype::getat, 0, 65536);
 
+	REQUIRE_ALL_HAL_MODELLED();
 	CHECK(effect(0).type == FFB_EFFECT_CONSTANT); // defect: freed
 	CHECK(status == CommandStatus::ERR);
 }
@@ -319,13 +343,35 @@ TEST_CASE_FIXTURE(SerialFfbFixture, "new answers -1 for the effect types none an
 	CHECK(effect(0).type == FFB_EFFECT_NONE);
 }
 
-TEST_CASE_FIXTURE(SerialFfbFixture, "characterization: new accepts the custom effect type 12 and truncates the type to 8 bits") {
-	// NEEDS REVIEW 131: the info string lists 1..11, find_free_effect accepts 12 (custom, no force calculation);
-	// the 64 bit value is cast to uint8_t (SerialFFB.cpp:147 -> newEffect(uint8_t)), so 257 creates a constant force.
+TEST_CASE_FIXTURE(SerialFfbFixture, "characterization: new accepts the custom effect type 12") {
+	// NEEDS REVIEW 131: the info string lists 1..11, find_free_effect accepts 12 (custom, no force calculation)
 	CHECK(create(FFB_EFFECT_CUSTOM) == 0);
 	CHECK(effect(0).type == FFB_EFFECT_CUSTOM);
-	CHECK(create(256 + FFB_EFFECT_CONSTANT) == 1);
-	CHECK(effect(1).type == FFB_EFFECT_CONSTANT);
+}
+
+TEST_CASE_FIXTURE(SerialFfbFixture, "characterization: new keeps the low 8 bit of the effect type") {
+	// NEEDS REVIEW 131: the 64 bit value is cast to uint8_t (SerialFFB.cpp:147 -> newEffect(uint8_t)), so 257 creates a
+	// constant force
+	CHECK(create(256 + FFB_EFFECT_CONSTANT) == 0);
+	CHECK(effect(0).type == FFB_EFFECT_CONSTANT);
+}
+
+TEST_CASE_FIXTURE(SerialFfbFixture, "a new effect in a slot written while free starts stopped with magnitude 0" *
+				  KNOWN_ISSUE("bug 128: newEffect (SerialFFB.cpp:76-90) only sets type, duration, the instance's axis "
+							  "magnitude and the conditions; it does not reset the slot like HidFFB::new_effect, which "
+							  "assigns a fresh FFB_Effect (HidFFB.cpp:268-278). Values written to a free slot (accepted, "
+							  "NEEDS REVIEW 132) carry into the next new effect: state=1?1, mag=7000?1, then new=1 gives a "
+							  "constant force that is already running with magnitude 7000 (7000 torque units with "
+							  "ffbstate=1)")) {
+	REQUIRE(create(FFB_EFFECT_CONSTANT) == 0);
+	setAt("state", 1, 1); // slot 1 is free
+	setAt("mag", 1, 7000);
+
+	REQUIRE(create(FFB_EFFECT_CONSTANT) == 1);
+
+	REQUIRE_ALL_HAL_MODELLED();
+	CHECK(effect(1).state == 0); // defect: 1
+	CHECK(effect(1).magnitude == 0); // defect: 7000
 }
 
 TEST_CASE_FIXTURE(SerialFfbFixture, "new answers -1 when all effect slots are used") {
@@ -376,8 +422,11 @@ TEST_CASE_FIXTURE(SerialFfbFixture, "type reads the effect type of an effect") {
 	CHECK(getAt("type", 1) == FFB_EFFECT_NONE);
 }
 
-TEST_CASE_FIXTURE(SerialFfbFixture, "type rejects an address beyond the effects and a request without address") {
+TEST_CASE_FIXTURE(SerialFfbFixture, "type rejects an address beyond the effects") {
 	CHECK(run("type", CMDtype::getat, 0, EffectsCalculator::max_effects) == CommandStatus::ERR);
+}
+
+TEST_CASE_FIXTURE(SerialFfbFixture, "type rejects a request without address") {
 	CHECK(run("type", CMDtype::get) == CommandStatus::ERR);
 }
 
@@ -402,7 +451,9 @@ TEST_CASE_FIXTURE(SerialFfbFixture, "mag rejects reading an address beyond the e
 
 TEST_CASE_FIXTURE(SerialFfbFixture, "mag with an address from 41 to 255 changes no effect") {
 	// The status (OK today) is part of bug 122 and asserted by its KNOWN_ISSUE case
-	setAt("mag", 100, 5000);
+	for (int64_t adr = EffectsCalculator::max_effects + 1; adr <= 255; adr++) {
+		setAt("mag", adr, 5000);
+	}
 	for (size_t i = 0; i < EffectsCalculator::max_effects; i++) {
 		CHECK(effect(i).magnitude == 0);
 	}
@@ -424,6 +475,7 @@ TEST_CASE_FIXTURE(SerialFfbFixture, "mag with an address beyond 8 bit does not c
 
 	CommandStatus status = setAt("mag", 256, 5000);
 
+	REQUIRE_ALL_HAL_MODELLED();
 	CHECK(effect(0).magnitude == 1000); // defect: 5000
 	CHECK(status == CommandStatus::ERR);
 }
@@ -440,10 +492,13 @@ TEST_CASE_FIXTURE(SerialFfbFixture, "setting the magnitude of a spring sets its 
 				  KNOWN_ISSUE("bug 127: SerialFFB.cpp:106-108 (\"Compatibility for conditional effects\") only evaluates "
 							  "the coefficients of the instance's condition block without assigning them: mag has no "
 							  "effect on conditional effects")) {
+	// Assumed intent: the magnitude is assigned to the positive and the negative coefficient of the instance's axis
+	// (the two statements name exactly these fields); nothing else is assumed.
 	REQUIRE(create(FFB_EFFECT_SPRING) == 0);
 
 	REQUIRE(setAt("mag", 0, 1000) == CommandStatus::OK);
 
+	REQUIRE_ALL_HAL_MODELLED();
 	CHECK(effect(0).conditions[0].positiveCoefficient == 1000); // defect: still 0x7fff
 	CHECK(effect(0).conditions[0].negativeCoefficient == 1000);
 }
@@ -566,17 +621,25 @@ TEST_CASE_FIXTURE(SerialFfbFixture, "period rejects an address beyond the effect
 	CHECK(run("period", CMDtype::getat, 0, EffectsCalculator::max_effects) == CommandStatus::ERR);
 }
 
-TEST_CASE_FIXTURE(SerialFfbFixture, "setting the period 0 stores the shortest period 1 like the HID PID path" *
-				  KNOWN_ISSUE("bug 125: SerialFFB.cpp:180 stores period 0 unchecked; HidFFB::set_periodic clips it to "
-							  "1..0x7fff (HidFFB.cpp:468, \"Period is never 0\"). Triangle and sawtooth effects then "
-							  "compute `% (period*1000)` = `% 0` (EffectsCalculator.cpp:276/298/321): SIGFPE on the host, "
-							  "a meaningless force on the target")) {
+TEST_CASE_FIXTURE(SerialFfbFixture, "setting the period 0 never stores period 0" * KNOWN_ISSUE(BUG125_TEXT)) {
 	REQUIRE(create(FFB_EFFECT_TRIANGLE) == 0);
 	REQUIRE(setAt("period", 0, 100) == CommandStatus::OK);
 
-	setAt("period", 0, 0);
+	CommandStatus status = setAt("period", 0, 0);
 
-	CHECK(effect(0).period == 1); // defect: 0
+	REQUIRE_ALL_HAL_MODELLED();
+	CHECK(effect(0).period != 0); // defect: 0
+	if (status == CommandStatus::ERR) {
+		CHECK(effect(0).period == 100); // rejected: unchanged
+	} else {
+		CHECK(effect(0).period == 1); // clipped like HidFFB::set_periodic
+	}
+}
+
+TEST_CASE_FIXTURE(SerialFfbFixture, "a triangle created over fxm has a period of at least 1" * KNOWN_ISSUE(BUG125_TEXT)) {
+	REQUIRE(create(FFB_EFFECT_TRIANGLE) == 0);
+	REQUIRE_ALL_HAL_MODELLED();
+	CHECK(effect(0).period >= 1); // defect: 0
 }
 
 TEST_CASE_FIXTURE(SerialFfbFixture, "duration sets and reads the duration of an effect in ms") {
@@ -665,13 +728,17 @@ TEST_CASE_FIXTURE(SerialFfbFixture, "characterization: coeff and sat also set th
 	CHECK(effect(0).conditions[0].negativeSaturation == 9000);
 }
 
-TEST_CASE_FIXTURE(SerialFfbFixture, "characterization: coeff and sat keep the low 16 bit of a value out of range") {
-	// NEEDS REVIEW 131: no range check, static_cast in handleGetSet: coeff 40000 -> int16 -25536 (reverses the
-	// spring), sat -1 -> uint16 65535
+TEST_CASE_FIXTURE(SerialFfbFixture, "characterization: coeff keeps the low 16 bit of a value beyond int16") {
+	// NEEDS REVIEW 131: no range check, static_cast in handleGetSet: 40000 -> int16 -25536 (reverses the spring)
 	REQUIRE(create(FFB_EFFECT_SPRING) == 0);
 	REQUIRE(setAt("coeff", 0, 40000) == CommandStatus::OK);
-	REQUIRE(setAt("sat", 0, -1) == CommandStatus::OK);
 	CHECK(effect(0).conditions[0].positiveCoefficient == static_cast<int16_t>(40000 - 65536));
+}
+
+TEST_CASE_FIXTURE(SerialFfbFixture, "characterization: sat keeps the low 16 bit of a negative value") {
+	// NEEDS REVIEW 131: no range check, static_cast in handleGetSet: -1 -> uint16 65535
+	REQUIRE(create(FFB_EFFECT_SPRING) == 0);
+	REQUIRE(setAt("sat", 0, -1) == CommandStatus::OK);
 	CHECK(effect(0).conditions[0].positiveSaturation == 65535);
 }
 
@@ -725,12 +792,16 @@ TEST_CASE_FIXTURE(SerialFfbFixture, "axisgain sets the axis magnitude of the ins
 	CHECK(effect(0).axisMagnitudes[0] == 0.0f);
 }
 
-TEST_CASE_FIXTURE(SerialFfbFixture, "characterization: axisgain accepts values beyond 16 bit and negative values") {
-	// NEEDS REVIEW 131: "Gain for this axis (instance) 16b" is not range checked: 0x1fffe gives magnitude 2.0 (double
-	// force), -0xffff gives -1.0 (reversed force)
+TEST_CASE_FIXTURE(SerialFfbFixture, "characterization: axisgain beyond 16 bit gives an axis magnitude above 1") {
+	// NEEDS REVIEW 131: "Gain for this axis (instance) 16b" is not range checked: 0x1fffe gives 2.0 (double force)
 	REQUIRE(create(FFB_EFFECT_CONSTANT) == 0);
 	REQUIRE(setAt("axisgain", 0, 0x1fffe) == CommandStatus::OK);
 	CHECK(effect(0).axisMagnitudes[0] == doctest::Approx(2.0));
+}
+
+TEST_CASE_FIXTURE(SerialFfbFixture, "characterization: a negative axisgain gives a negative axis magnitude") {
+	// NEEDS REVIEW 131: not range checked: -0xffff gives -1.0 (reversed force)
+	REQUIRE(create(FFB_EFFECT_CONSTANT) == 0);
 	REQUIRE(setAt("axisgain", 0, -0xffff) == CommandStatus::OK);
 	CHECK(effect(0).axisMagnitudes[0] == doctest::Approx(-1.0));
 }
@@ -764,13 +835,11 @@ TEST_CASE_FIXTURE(SerialFfbFixture, "updateSamplerate recalculates the effect fi
 }
 
 TEST_CASE_FIXTURE(SerialFfbFixture, "a damper created and started over fxm has its effect filters like the HID PID path" *
-				  KNOWN_ISSUE("bug 124: SerialFFB never calls EffectsCalculator::setFilters (HidFFB does on new effect "
-							  "and start, HidFFB.cpp:276/419): damper and inertia dereference the null filter in every "
-							  "cycle (EffectsCalculator.cpp:401/409), friction as soon as the axis moves (:389): crash; "
-							  "constant forces are not filtered")) {
+				  KNOWN_ISSUE(BUG124_TEXT)) {
 	REQUIRE(create(FFB_EFFECT_DAMPER) == 0);
 	REQUIRE(setAt("state", 0, 1) == CommandStatus::OK);
 
+	REQUIRE_ALL_HAL_MODELLED();
 	CHECK(effect(0).filter[0] != nullptr); // defect: nullptr
 	CHECK(effect(0).filter[1] != nullptr);
 }
@@ -792,7 +861,7 @@ TEST_CASE_FIXTURE(SerialForceFixture, "a constant force over fxm gives the same 
 	start(idx);
 	run(300);
 
-	CHECK(axis().getTorque() == doctest::Approx(hidTorque).epsilon(0.002));
+	CHECK(axis().getTorque() == hidTorque); // both paths are deterministic: exact
 }
 
 TEST_CASE_FIXTURE(SerialForceFixture, "an fxm effect gives no torque while FFB is off") {
@@ -850,7 +919,7 @@ TEST_CASE_FIXTURE(SerialForceFixture, "a spring over fxm gives the same torque a
 	start(idx);
 	run(50);
 
-	CHECK(axis().getTorque() == doctest::Approx(hidTorque).epsilon(0.002));
+	CHECK(axis().getTorque() == hidTorque); // both paths are deterministic: exact
 }
 
 TEST_CASE_FIXTURE(SerialForceFixture, "a sine over fxm follows the same waveform as the same sine over HID PID") {
@@ -875,10 +944,31 @@ TEST_CASE_FIXTURE(SerialForceFixture, "a sine over fxm follows the same waveform
 	for (int i = 0; i < cycles; i++) {
 		run(1);
 		CAPTURE(i);
-		CHECK(axis().getTorque() == doctest::Approx(hid[i]).epsilon(0.002).scale(50));
+		CHECK(axis().getTorque() == hid[i]); // both paths are deterministic: exact
 		peak = std::max(peak, std::abs(axis().getTorque()));
 	}
 	CHECK(peak > 4000);
+}
+
+TEST_CASE_FIXTURE(SerialForceFixture, "characterization: stopping an fxm effect keeps its force in the effect statistics until the next cycle") {
+	// NEEDS REVIEW 135: SerialFFB::setEffectState (SerialFFB.cpp:114-122) does not call
+	// EffectsCalculator::logEffectState like HidFFB::set_effect_operation (HidFFB.cpp:435), so the per-type "current"
+	// force of the statistics (effectsDetails) is not cleared when an fxm effect is stopped; the next calculation cycle
+	// with FFB on clears it.
+	int64_t idx = create(FFB_EFFECT_CONSTANT);
+	REQUIRE(setAt("mag", idx, 10000) == CommandStatus::OK);
+	start(idx);
+	run(10);
+
+	REQUIRE(setAt("state", idx, 0) == CommandStatus::OK);
+
+	std::vector<CommandReply> replies;
+	REQUIRE(CommandHelpers::run(*effects, "effectsDetails", CMDtype::get, 0, &replies) == CommandStatus::OK);
+	REQUIRE(replies.size() == 1);
+	const std::string &details = replies[0].reply; // first entry: constant force
+	const size_t pos = details.find("\"curr\":");
+	REQUIRE(pos != std::string::npos);
+	CHECK(std::stoi(details.substr(pos + 7)) != 0);
 }
 
 TEST_CASE_FIXTURE(SerialForceFixture, "an fxm effect with a duration stops after the duration") {
@@ -897,9 +987,8 @@ TEST_CASE_FIXTURE(SerialForceFixture, "an fxm effect with a duration stops after
 }
 
 TEST_CASE_FIXTURE(SerialForceFixture, "a damper created over fxm damps the motion of the axis" * doctest::skip() *
-				  doctest::description("KNOWN ISSUE (crash): bug 124: the damper has no filter (SerialFFB never calls "
-									   "setFilters), EffectsCalculator.cpp:401 calls process() on the null filter in the "
-									   "first cycle with FFB on (SIGSEGV on the host, HardFault on the target). Skipped")) {
+				  doctest::description("KNOWN ISSUE (crash): the damper has no filter, EffectsCalculator.cpp:425 calls "
+									   "process() on the null filter in the first cycle with FFB on. Skipped. " BUG124_TEXT)) {
 	int64_t idx = create(FFB_EFFECT_DAMPER);
 	REQUIRE(setAt("coeff", idx, 10000) == CommandStatus::OK);
 	start(idx);
@@ -909,6 +998,16 @@ TEST_CASE_FIXTURE(SerialForceFixture, "a damper created over fxm damps the motio
 		run(1);
 	}
 	CHECK(axis().getTorque() != 0);
+}
+
+TEST_CASE_FIXTURE(SerialForceFixture, "a triangle started over fxm without a period command gives a bounded torque" * doctest::skip() *
+				  doctest::description("KNOWN ISSUE (crash): the triangle keeps period 0 and EffectsCalculator.cpp:253 "
+									   "divides by zero in the first cycle with FFB on (SIGFPE on the host). Skipped. " BUG125_TEXT)) {
+	int64_t idx = create(FFB_EFFECT_TRIANGLE);
+	REQUIRE(setAt("mag", idx, 5000) == CommandStatus::OK);
+	start(idx);
+	run(10);
+	CHECK(std::abs(axis().getTorque()) < 0x7fff);
 }
 
 TEST_CASE_FIXTURE(SerialForceFixture2Axes, "a constant force of the effects manager of instance 1 acts on the second axis only") {

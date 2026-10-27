@@ -703,7 +703,7 @@ TEST_CASE_FIXTURE(CanPortFixture, "characterization: after an idle bus a burst o
 
 TEST_CASE_FIXTURE(CanPortFixture, "a frame sent from a task while all mailboxes are pending waits for a free mailbox and is sent when one completes" *
 									  KNOWN_ISSUE("CANPort2B.cpp:207-214 wait for the port semaphore when no mailbox is free, but the "
-												  "semaphore starts available (CAN.h:191 BinarySemaphore(true)) and the failure path gives "
+												  "semaphore starts available (CAN.h:205 BinarySemaphore(true)) and the failure path gives "
 												  "it back (CANPort2B.cpp:220-221): takeSemaphore succeeds at once, HAL_CAN_AddTxMessage "
 												  "fails and sendMessage returns false without waiting for the transmit complete callback "
 												  "that gives the semaphore (bug 110). The first CHECK fails")) {

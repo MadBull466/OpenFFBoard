@@ -2,7 +2,7 @@
  * CommandHelpers.h
  *
  * Helpers to execute firmware commands in tests (ffb_target_tests, P7):
- *  - CommandHelpers::run / get: a command of a handler by its name, like the command thread does
+ *  - CommandHelpers::run / get / getAt: a command of a handler by its name, like the command thread does
  *    (CommandHandler::command with a ParsedCommand), the way the module tests of P2-P6 do it with their local cmd().
  *  - CommandHelpers::CdcConsole: whole command lines through the CDC command interface of a main class and the command
  *    thread, like the configurator sends them ("fxm.0.new=1\n"); returns what the firmware answered on CDC. Parsing,
@@ -42,10 +42,18 @@ inline CommandStatus run(CommandHandler &handler, const std::string &name, CMDty
 	return handler.command(parsed, replies ? *replies : local);
 }
 
-/** Reads a value with a get command. Fails the test if the command does not return OK with exactly one reply */
+/** Reads a value with a get command (a getat command if adr != 0; use getAt for address 0). Fails the test if the command does not return OK with exactly one reply */
 inline int64_t get(CommandHandler &handler, const std::string &name, int64_t adr = 0) {
 	std::vector<CommandReply> replies;
 	CHECK(run(handler, name, adr != 0 ? CMDtype::getat : CMDtype::get, 0, &replies, adr) == CommandStatus::OK);
+	REQUIRE(replies.size() == 1);
+	return replies.front().val;
+}
+
+/** Reads a value with a getat command (address `adr`, also 0). Fails the test if the command does not return OK with exactly one reply */
+inline int64_t getAt(CommandHandler &handler, const std::string &name, int64_t adr) {
+	std::vector<CommandReply> replies;
+	CHECK(run(handler, name, CMDtype::getat, 0, &replies, adr) == CommandStatus::OK);
 	REQUIRE(replies.size() == 1);
 	return replies.front().val;
 }

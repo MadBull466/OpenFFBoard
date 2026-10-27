@@ -205,14 +205,41 @@ public:
 			}
 		}
 	}
-	/** Members of the CANPort base and the PersistentStorage flag as after construction (private ones: see resetCanPort) */
+	/**
+	 * Members of the CANPort base and the PersistentStorage flag as the firmware constructed them (snapshot taken by the
+	 * member initialisers below, right after the CANPort_2B base was constructed; private ones: see resetCanPort). The
+	 * semaphores get back their constructed state (CAN.h:205-206), available or not, so a change of the firmware
+	 * initialisers is seen by the tests.
+	 */
 	void resetBase() {
-		portUsers = 0;
-		isWaitingFlag = false;
-		semaphore.Give(); // Binary semaphores: available again (no effect if they already are)
-		configSem.Give();
-		restoreDelayedFlag = true; // restoreFlashDelayed() in the constructor (PersistentStorage::startupComplete is false at static init)
+		portUsers = initialPortUsers;
+		isWaitingFlag = initialWaiting;
+		restoreSemaphore(semaphore, initialSemaphore);
+		restoreSemaphore(configSem, initialConfigSem);
+		restoreDelayedFlag = initialRestoreDelayed;
 	}
+
+private:
+	/** Whether a binary semaphore is available, without changing it */
+	static bool available(cpp_freertos::BinarySemaphore &sem) {
+		if (!sem.Take(0)) {
+			return false;
+		}
+		sem.Give();
+		return true;
+	}
+	static void restoreSemaphore(cpp_freertos::BinarySemaphore &sem, bool availableInitially) {
+		sem.Take(0); // empty (no effect if it already is)
+		if (availableInitially) {
+			sem.Give();
+		}
+	}
+	// Snapshot of the constructed state (initialised after the CANPort_2B base, during the static initialisation)
+	const int32_t initialPortUsers = portUsers;
+	const bool initialWaiting = isWaitingFlag;
+	const bool initialSemaphore = available(semaphore);
+	const bool initialConfigSem = available(configSem);
+	const bool initialRestoreDelayed = restoreDelayedFlag;
 };
 } // namespace
 HostCANPort_2B canport_base{hcan1, canpresets, &canSilentPin};
@@ -320,19 +347,33 @@ struct PersistentStorageAccess : PersistentStorage {
 };
 
 /**
- * canport as constructed (CANPort2B.h member initialisers, CANPort2B.cpp:19-26): speed preset 4 (500 kbit/s), no
- * filters, no transmit mailboxes, silent, not active, lastSentTime 0, header {0, 0, 0, CAN_RTR_DATA, 8, DISABLE},
- * nextLen 8; CANPort base: no port users, not waiting, semaphores available; delayed flash restore pending.
+ * The private members of canport as the firmware constructed them (CANPort2B.h member initialisers, CANPort2B.cpp:19-26),
+ * copied once during the static initialisation right after canport_base (same translation unit, initialised in order;
+ * no HAL call and no test has run). resetCanPort restores them from this copy, never from literals, so a change of the
+ * firmware initialisers is seen by the tests.
  */
+struct CanPortInitialState {
+	uint8_t speedPreset = canport_base.*privateMember(Can2BSpeedPreset());
+	std::vector<CAN_FilterTypeDef> canFilters = canport_base.*privateMember(Can2BFilters());
+	uint32_t txMailboxes = canport_base.*privateMember(Can2BTxMailboxes());
+	bool silent = canport_base.*privateMember(Can2BSilent());
+	bool active = canport_base.*privateMember(Can2BActive());
+	uint32_t lastSentTime = canport_base.*privateMember(Can2BLastSentTime());
+	CAN_TxHeaderTypeDef header = canport_base.*privateMember(Can2BHeader());
+	uint8_t nextLen = canport_base.*privateMember(Can2BNextLen());
+};
+const CanPortInitialState canPortInitial;
+
+/** canport as constructed (see CanPortInitialState and HostCANPort_2B::resetBase), and its view */
 void resetCanPort() {
-	canport_base.*privateMember(Can2BSpeedPreset()) = canport_base.speedToPreset(500000);
-	(canport_base.*privateMember(Can2BFilters())).clear();
-	canport_base.*privateMember(Can2BTxMailboxes()) = 0;
-	canport_base.*privateMember(Can2BSilent()) = true;
-	canport_base.*privateMember(Can2BActive()) = false;
-	canport_base.*privateMember(Can2BLastSentTime()) = 0;
-	canport_base.*privateMember(Can2BHeader()) = CAN_TxHeaderTypeDef{0, 0, 0, CAN_RTR_DATA, 8, (FunctionalState)0};
-	canport_base.*privateMember(Can2BNextLen()) = 8;
+	canport_base.*privateMember(Can2BSpeedPreset()) = canPortInitial.speedPreset;
+	canport_base.*privateMember(Can2BFilters()) = canPortInitial.canFilters;
+	canport_base.*privateMember(Can2BTxMailboxes()) = canPortInitial.txMailboxes;
+	canport_base.*privateMember(Can2BSilent()) = canPortInitial.silent;
+	canport_base.*privateMember(Can2BActive()) = canPortInitial.active;
+	canport_base.*privateMember(Can2BLastSentTime()) = canPortInitial.lastSentTime;
+	canport_base.*privateMember(Can2BHeader()) = canPortInitial.header;
+	canport_base.*privateMember(Can2BNextLen()) = canPortInitial.nextLen;
 	canport_base.resetBase();
 	canPortView.reset();
 }

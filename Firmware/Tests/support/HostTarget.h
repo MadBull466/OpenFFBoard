@@ -258,11 +258,15 @@ uint32_t tickTimerCounter();
  *    and it stays pending (a bus without another node never acknowledges) until the test completes it (canTxComplete,
  *    canTxCompleteAll, canSetTxAutoComplete) or reports a failed attempt (canTxError). Only in normal mode (started,
  *    not sleeping, not bus-off). HAL_CAN_AbortTxRequest empties a pending mailbox at once.
+ *    Host-vs-target: the fake aborts a mailbox at once even if its frame is being transmitted; on the target (nothing
+ *    acknowledges, automatic retransmission) a mailbox in the middle of an attempt is aborted only after that attempt.
  *  - Receive: canReceive passes a frame through the filter banks into the FIFO of the matching filter (3 frames deep).
  *  - Interrupts: HAL_CAN_IRQHandler (modelled step by step) runs in interrupt context while an event is pending whose
  *    interrupt is enabled in IER and whose NVIC line is enabled. As in HAL_CAN_MspInit (stm32f4xx_hal_msp.c:291-294)
- *    only CAN1_TX and CAN1_RX0 are enabled: FIFO 1 frames and the status change / error interrupt (bus-off, error
- *    warning / passive, last error code) raise nothing on the F407 (canSetIrqLineEnabled to model other boards).
+ *    only CAN1_TX and CAN1_RX0 are enabled: FIFO 1 frames and the status change / error events (bus-off, error
+ *    warning / passive, last error code) raise no interrupt of their own on the F407 (canSetIrqLineEnabled to model
+ *    other boards). HAL_CAN_IRQHandler services every pending flag whichever line raised it, so they are handled at the
+ *    next CAN1_TX or CAN1_RX0 interrupt (a transmit completion / abort, a FIFO 0 frame), like on the target.
  *    Transmit, abort and FIFO 0 interrupts are raised right after the event (inside the fake call that caused it).
  * Not modelled: bit timing / bus speed, time-triggered mode, the error counters TEC/REC, automatic bus-off recovery
  * (ABOM) and wake-up (AWUM), loop back / silent mode (BTR LBKM / SILM: recorded in state().unmodelledHalCalls at
@@ -340,6 +344,8 @@ void canFailNextModeChange();
 
 /** Whether the active filter banks of CAN1 accept a frame (see canReceive), with the FIFO and filter match index */
 bool canAccepts(uint32_t id, bool extId = false, bool rtr = false, uint32_t *fifo = nullptr, uint32_t *filterMatchIndex = nullptr);
+/** Number of active filter banks of CAN1 (bits set in CAN1->FA1R): the hardware state, unlike canPort().activeFilters() */
+uint32_t canActiveFilterBanks();
 /** Every HAL_CAN_ConfigFilter argument since the reset (also rejected calls) */
 const std::vector<CAN_FilterTypeDef> &canFilterConfigs();
 /** A HAL CAN call: function name, argument (ConfigFilter: FilterBank, AbortTxRequest / IsTxMessagePending: mailboxes, (De)ActivateNotification: interrupts, AddTxMessage: *pTxMailbox) and result (status or returned value) */
@@ -373,7 +379,9 @@ uint32_t canRxInterrupt(uint32_t fifo);
  * 32 bit > 16 bit > list > mask > lower bank; filter match index per FIFO). The frame goes into the FIFO of the matching
  * bank and the receive interrupt is raised if enabled (CANPort_2B::start enables it): HAL_CAN_IRQHandler ->
  * HAL_CAN_RxFifo0MsgPendingCallback of global_callbacks.cpp reads the FIFO and calls every CanHandler. A FIFO 1 frame
- * raises nothing on the F407 (CAN1_RX1 is not enabled in the NVIC) and stays in the FIFO.
+ * raises no interrupt on the F407 (CAN1_RX1 is not enabled in the NVIC) and stays in the FIFO until the next CAN1_TX
+ * or CAN1_RX0 interrupt (HAL_CAN_IRQHandler then also services FIFO 1); canReceive counts the message pending
+ * callbacks of both FIFOs.
  * With the filters built by CANPort_2B::addCanFilter (CANPort2B.cpp:272-287) a standard filter compares STID /
  * EXID[28:18] only, so it also accepts extended frames whose upper 11 id bits match; an extended filter rejects
  * standard frames. (MockCANPort::passesFilter keeps its generic mock semantics.)
@@ -608,6 +616,9 @@ void deleteCppmainMainclass();
  * canport (started, startCalls, stopCalls, filters = the CAN_filter values passed to addCanFilter, active cleared by
  * removeCanFilter) and whose CANPort functions forward to canport. Its `sent`, `speed`, `silent` and `sendResult` are
  * not used. New tests use canPort2B() / canport and the fake HAL CAN (canTxFrames, canReceive, CAN1 registers).
+ * The view records the calls, not the hardware state: `started` is set even when start() reports a failure, and
+ * `filters` / activeFilters() count every filter passed to addCanFilter, also one that overwrote another bank or was
+ * rejected. Tests about the hardware state use canActiveFilterBanks(), CAN1->FA1R, canAccepts and hcan1.State.
  */
 MockCANPort &canPort();
 CANPort_2B &canPort2B();

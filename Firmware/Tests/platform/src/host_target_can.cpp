@@ -14,7 +14,7 @@
  *    it; an abort of a pending mailbox takes effect at once (the frame waits for the bus, it is not being sent).
  *  - Received frames pass the filter banks (canReceive) into the FIFO of the matching filter.
  *  - Interrupt lines: only CAN1_TX and CAN1_RX0 are enabled in the NVIC (HAL_CAN_MspInit, stm32f4xx_hal_msp.c:291-294),
- *    CAN1_RX1 and CAN1_SCE are not. An interrupt is raised (HAL_CAN_IRQHandler in interrupt context) when an enabled
+ *    CAN1_RX1 and CAN1_SCE are not; their events are serviced by the handler at the next TX / RX0 interrupt. An interrupt is raised (HAL_CAN_IRQHandler in interrupt context) when an enabled
  *    line has a pending, enabled event; it is level triggered and raised again while the event stays pending.
  *
  * Not modelled (see HostTarget.h): bit timing and bus speed, time-triggered mode, error counters (TEC/REC), the
@@ -94,6 +94,8 @@ CanFake &fake() {
 }
 
 void unmodelled(const std::string &what) { state().unmodelledHalCalls.push_back(what); }
+
+void updateTsrCode();
 
 uint32_t record(const char *function, uint32_t arg, uint32_t result) {
 	fake().calls.push_back({function, arg, result});
@@ -186,9 +188,40 @@ void completeMailbox(uint32_t m) {
 		f.txFrames[f.mailboxFrame[m]].result = HostTarget::CanTxResult::Sent;
 	}
 	f.mailboxFrame[m] = -1;
+	updateTsrCode();
 }
 
 bool mailboxPending(uint32_t m) { return (hosttest_can1.TSR & tsrTme(m)) == 0U; }
+
+/**
+ * TSR CODE (RM0090 32.9.2): the number of the next empty mailbox; with all mailboxes pending the number of the
+ * mailbox with the lowest transmit priority (RM0090 32.7.1: MCR TXFP = 0 by identifier, the highest identifier in
+ * arbitration order loses, equal identifiers: the higher mailbox number; TXFP = 1 by request order, the newest loses).
+ */
+void updateTsrCode() {
+	CAN_TypeDef &c = hosttest_can1;
+	uint32_t code = 0;
+	bool found = false;
+	for (uint32_t m = 0; m < 3 && !found; m++) {
+		if (c.TSR & tsrTme(m)) {
+			code = m;
+			found = true;
+		}
+	}
+	if (!found) {
+		for (uint32_t m = 1; m < 3; m++) {
+			bool lower;
+			if (c.MCR & MCR_TXFP) {
+				lower = fake().mailboxFrame[m] > fake().mailboxFrame[code];
+			} else {
+				// TIR without TXRQ in arbitration order: STID / EXID[28:18], then (standard: RTR, IDE 0) or (IDE 1, EXID[17:0], RTR)
+				lower = (c.sTxMailBox[m].TIR & ~TI_TXRQ) >= (c.sTxMailBox[code].TIR & ~TI_TXRQ);
+			}
+			code = lower ? m : code;
+		}
+	}
+	c.TSR = (c.TSR & ~TSR_CODE) | (code << TSR_CODE_POS);
+}
 
 /** Transmission is possible: normal mode, not bus-off (RM0090 32.4, 32.7.6) */
 bool canTransmit() { return normalMode() && !busOff(); }
@@ -402,6 +435,7 @@ bool canTxError(uint32_t mailbox, bool arbitrationLost) {
 			f.txFrames[f.mailboxFrame[mailbox]].result = CanTxResult::Failed;
 		}
 		f.mailboxFrame[mailbox] = -1;
+		updateTsrCode();
 		raiseIrqs();
 	}
 	return true;
@@ -470,6 +504,14 @@ bool canAccepts(uint32_t id, bool extId, bool rtr, uint32_t *fifo, uint32_t *fil
 		}
 	}
 	return m.found;
+}
+
+uint32_t canActiveFilterBanks() {
+	uint32_t count = 0;
+	for (uint32_t b = 0; b < CAN_FILTER_BANKS; b++) {
+		count += (hosttest_can1.FA1R >> b) & 1U;
+	}
+	return count;
 }
 
 const std::vector<CAN_FilterTypeDef> &canFilterConfigs() { return fake().filterConfigs; }
@@ -688,8 +730,10 @@ HAL_StatusTypeDef HAL_CAN_ConfigFilter(CAN_HandleTypeDef *hcan, const CAN_Filter
 /**
  * Models HAL_CAN_Start (stm32f4xx_hal_can.c:1034): State READY (else ErrorCode |= NOT_READY, HAL_ERROR); State
  * LISTENING, INRQ cleared, INAK cleared at once (or TIMEOUT -> State ERROR when injected), ErrorCode NONE.
- * Leaving the initialisation mode also starts the bus-off recovery (MCR ABOM = 0, RM0090 32.7.6); the 128 x 11
- * recessive bits are assumed to follow at once: BOFF, EPVF and EWGF are cleared. Loop back / silent mode (BTR LBKM,
+ * Leaving the initialisation mode while bus-off starts the bus-off recovery (MCR ABOM = 0, RM0090 32.7.6); the
+ * 128 x 11 recessive bits are assumed to follow at once: BOFF cleared and the error counters reset, so EPVF and EWGF
+ * are cleared too. Without bus-off, entering / leaving the initialisation mode does not reset the error counters
+ * (EWGF / EPVF stay). Loop back / silent mode (BTR LBKM,
  * SILM) are not modelled (recorded).
  */
 HAL_StatusTypeDef HAL_CAN_Start(CAN_HandleTypeDef *hcan) {
@@ -713,7 +757,9 @@ HAL_StatusTypeDef HAL_CAN_Start(CAN_HandleTypeDef *hcan) {
 		unmodelled("HAL_CAN_Start: loop back and silent mode (BTR LBKM / SILM) are not modelled");
 	}
 	hcan->Instance->MSR &= ~MSR_INAK;
-	hcan->Instance->ESR &= ~(ESR_BOFF | ESR_EPVF | ESR_EWGF);
+	if (hcan->Instance->ESR & ESR_BOFF) {
+		hcan->Instance->ESR &= ~(ESR_BOFF | ESR_EPVF | ESR_EWGF);
+	}
 	hcan->ErrorCode = HAL_CAN_ERROR_NONE;
 	HAL_StatusTypeDef result = static_cast<HAL_StatusTypeDef>(record("HAL_CAN_Start", 0, HAL_OK));
 	raiseIrqs(); // pending transmit completions / received frames of before
@@ -833,12 +879,6 @@ HAL_StatusTypeDef HAL_CAN_AddTxMessage(CAN_HandleTypeDef *hcan, const CAN_TxHead
 	mb.TDLR = (static_cast<uint32_t>(aData[3]) << 24) | (static_cast<uint32_t>(aData[2]) << 16) | (static_cast<uint32_t>(aData[1]) << 8) | aData[0];
 	mb.TIR |= TI_TXRQ;
 	c.TSR &= ~(tsrTme(m) | tsrRqcp(m) | tsrTxok(m) | tsrAlst(m) | tsrTerr(m));
-	for (uint32_t next = 0; next < 3; next++) { // CODE: number of the next empty mailbox (RM0090 32.9.2)
-		if (c.TSR & tsrTme(next)) {
-			c.TSR = (c.TSR & ~TSR_CODE) | (next << TSR_CODE_POS);
-			break;
-		}
-	}
 
 	HostTarget::CanTxFrame frame;
 	frame.header = *pHeader;
@@ -855,6 +895,7 @@ HAL_StatusTypeDef HAL_CAN_AddTxMessage(CAN_HandleTypeDef *hcan, const CAN_TxHead
 	CanFake &f = fake();
 	f.txFrames.push_back(frame);
 	f.mailboxFrame[m] = static_cast<long>(f.txFrames.size() - 1);
+	updateTsrCode();
 	return static_cast<HAL_StatusTypeDef>(record("HAL_CAN_AddTxMessage", *pTxMailbox, HAL_OK));
 }
 
@@ -884,6 +925,7 @@ HAL_StatusTypeDef HAL_CAN_AbortTxRequest(CAN_HandleTypeDef *hcan, uint32_t TxMai
 				f.txFrames[f.mailboxFrame[m]].result = HostTarget::CanTxResult::Aborted;
 			}
 			f.mailboxFrame[m] = -1;
+			updateTsrCode();
 		}
 	}
 	HAL_StatusTypeDef result = static_cast<HAL_StatusTypeDef>(record("HAL_CAN_AbortTxRequest", TxMailboxes, HAL_OK));
