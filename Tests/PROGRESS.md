@@ -6,8 +6,8 @@
 
 ## Current state
 
-- **Current phase:** P7 (CAN and serial FFB in `ffb_target_tests`), started 2026-10-26. P6 approved 2026-10-26.
-- **Phase status:** P7 complete (batch 0, 3 module groups, 3 fresh reviews, fixes, gate, coverage). **Waiting for my approval.**
+- **Current phase:** P8 (RTOS wrappers, new executable `ffb_rtos_tests`), started 2026-10-27. P7 approved 2026-10-27.
+- **Phase status:** P8 plan written ("P8 plan"); batch 0 running.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** `5645da14` (P7 final).
 - **Last updated:** 2026-10-27
@@ -15,7 +15,7 @@
 
 ## Next action
 
-**Stop: P7 approval gate.** `Tests/BUG_REPORT.md` holds all bugs and open questions for my review at the end of the project (regenerate it at every phase end). After approval: P8 (RTOS wrappers, new executable `ffb_rtos_tests`, F11 FreeRTOS fakes for queues, timers, event groups, ...), same process.
+**P8 batch 0 running.** Then: review and commit batch 0, 2 module agents (see "P8 plan"), fresh reviewers, fixes, gate, coverage (85 % per file), regenerate `Tests/BUG_REPORT.md`, stop for approval.
 
 ## Phase checklist
 
@@ -31,8 +31,8 @@
 | P4 System, callbacks, misc | `ffb_target_tests` | about 460 (measured: total 5,078 lines, 62.6 %) | done | yes, 2026-10-25 | `0644984e` batch 0, `00a1e00b`/`e7d467d4`/`61a20f9f` tests, `90554aaa` infra review fixes, `c00b7e2b` B fixes, `e51bc104` A fixes, `8e807f05` C fixes + results |
 | P5 Buttons and analog | `ffb_target_tests` | about 775 (measured: total 6,206 lines, 76.5 %) | done | yes, 2026-10-26 | `73d4e482` batch 0, `3e36fdfd` analog, `663bce67` buttons, `2a18521a` A + infra review fixes, `13cb14a8` B review fixes + results |
 | P6 Encoders and buses | `ffb_target_tests` | about 640 (measured: total 6,988 lines, 86.2 %) | done | yes, 2026-10-26 | `cd92abd9` batch 0, `3e39a144` A, `7f5b4557` C, `a8317dbb` B, `ac6eadd1` infra + C review fixes, `e69fb8ec` A + B review fixes + results |
-| P7 CAN and serial FFB | `ffb_target_tests` | about 420 (measured: total 7,570 lines, 93.3 %) | done | | `b270011b` batch 0, `5bdecdca` A, `50b9dffd` C, `18712821` B, `0d20c8e3` infra + A + C review fixes, `5645da14` B review fixes + results |
-| P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 | not started | | |
+| P7 CAN and serial FFB | `ffb_target_tests` | about 420 (measured: total 7,570 lines, 93.3 %) | done | yes, 2026-10-27 | `b270011b` batch 0, `5bdecdca` A, `50b9dffd` C, `18712821` B, `0d20c8e3` infra + A + C review fixes, `5645da14` B review fixes + results |
+| P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 (not compiled now: about 450 lines in 9 files) | in progress (batch 0) | | |
 | P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder | not started | | |
 
 ## Decisions log
@@ -357,6 +357,15 @@ Executable `ffb_target_tests`, new files in `cases_target/` only. Coverage after
 | A CAN port | `test_canport2b.cpp` | `CANPort2B.cpp` (+ `CAN.cpp` callers) | init/start/stop, speed presets and bit timing, filters (add/remove, standard/extended, FIFO), send with free/full mailboxes and timeout, receive dispatch, error and bus-off callbacks, silent mode, commands, flash config, port users |
 | B CAN main classes | `test_canbridge.cpp`, `test_caninputmain.cpp` | `CanBridge.cpp`, `CanInputMain.cpp` | GVRET/SavvyCAN-style frame protocol to the host over CDC, filters and speed commands, rx/tx forwarding; CAN input main class: button/analog sources to CAN frames, ids, rates, commands, flash |
 | C serial FFB | `test_serial_ffb.cpp` | `SerialFFB.cpp` | effect commands over the string interface (create, set parameters, start/stop, free, gain, reset), validation of ids and parameter ranges, interplay with `EffectsCalculator` |
+
+## P8 plan (2026-10-27)
+
+New executable `ffb_rtos_tests` (F2, F11): the `cpp_freertos` wrappers in `FFBoard/Src/c*.cpp` (tier A vendor code: bugs are reported, never fixed) on a fake FreeRTOS API with simple non-preemptive semantics and create-failure injection; the FreeRTOS kernel itself is not tested. Not compiled now: `ccondition_variable` 21, `cevent_groups` 40, `cmem_pool` 76, `cqueue` 65, `cread_write_lock` 75, `ctasklet` 42, `ctickhook` 28, `ctimer` 54, `cworkqueue` 49 (about 450 lines); plus the gaps in `cmutex` (32/34) and `csemaphore` (29/33). Batch 0 first (CMake target, F11 fakes for queues, software timers incl. `xTimerPendFunctionCall`, event groups, recursive mutexes, counting semaphores, tick hook, critical sections, building on `host_freertos.cpp` and the resumable tasks; smoke tests), then 2 module agents in workspaces outside /tmp (`../ffb-test-build/ws/p8/<group>`), per-file goal 85 %, mutation spot-check 80 %.
+
+| Group | Owns (new files in `cases_rtos/`) | Wrappers | Behaviours |
+|---|---|---|---|
+| A tasks and messaging | `test_cqueue.cpp`, `test_ctimer.cpp`, `test_ctasklet.cpp`, `test_cworkqueue.cpp`, `test_ctickhook.cpp` | `cqueue`, `ctimer`, `ctasklet`, `cworkqueue`, `ctickhook` | queue enqueue/dequeue/peek/front, full/empty with timeouts and ISR variants; timer start/stop/reset/period change, one-shot vs auto-reload, callbacks; tasklet scheduling through the timer daemon; work queue item lifecycle and the worker thread; tick hook registration/enable/disable |
+| B synchronisation | `test_cevent_groups.cpp`, `test_cmem_pool.cpp`, `test_cread_write_lock.cpp`, `test_ccondition_variable.cpp`, `test_csync_gaps.cpp` | `cevent_groups`, `cmem_pool`, `cread_write_lock`, `ccondition_variable`, gaps of `cmutex`/`csemaphore` | event bits set/clear/wait (all/any, clear-on-exit, timeouts, ISR); memory pool allocate/free, alignment, exhaustion, add memory; reader/writer locks (reader and writer preference), condition variable wait/signal/broadcast with a mutex; create failures |
 
 ## P7 results (2026-10-27)
 
