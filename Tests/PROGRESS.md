@@ -9,7 +9,7 @@
 - **Current phase:** P8 (RTOS wrappers, new executable `ffb_rtos_tests`), started 2026-10-27. P7 approved 2026-10-27.
 - **Phase status:** P8 complete (batch 0, 2 module groups, 2 fresh reviews, fixes, gate, coverage, bug report). **Waiting for my approval.**
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
-- **Last commit:** see "Phase checklist" (P8 final).
+- **Last commit:** `200ac244` (P8 final).
 - **Last updated:** 2026-10-27
 - **Last session summary:** P8: new executable `ffb_rtos_tests` with the F11 fake FreeRTOS API (V10.3.1 semantics, create-failure injection, configASSERT faults, leak check); 2 module agents (tasks/messaging 136, synchronisation 117 cases), 2 fresh reviewers, fixes. P8 files 100 %; all in-scope sources **8,007 of about 8,095 (98.9 %)**, nothing uncompiled. New vendor bugs V7-V13, V16-V18 (all latent: the shipped firmware uses only thread/mutex/semaphore), NEEDS REVIEW 141-151. `Tests/BUG_REPORT.md` regenerated.
 
@@ -32,7 +32,7 @@
 | P5 Buttons and analog | `ffb_target_tests` | about 775 (measured: total 6,206 lines, 76.5 %) | done | yes, 2026-10-26 | `73d4e482` batch 0, `3e36fdfd` analog, `663bce67` buttons, `2a18521a` A + infra review fixes, `13cb14a8` B review fixes + results |
 | P6 Encoders and buses | `ffb_target_tests` | about 640 (measured: total 6,988 lines, 86.2 %) | done | yes, 2026-10-26 | `cd92abd9` batch 0, `3e39a144` A, `7f5b4557` C, `a8317dbb` B, `ac6eadd1` infra + C review fixes, `e69fb8ec` A + B review fixes + results |
 | P7 CAN and serial FFB | `ffb_target_tests` | about 420 (measured: total 7,570 lines, 93.3 %) | done | yes, 2026-10-27 | `b270011b` batch 0, `5bdecdca` A, `50b9dffd` C, `18712821` B, `0d20c8e3` infra + A + C review fixes, `5645da14` B review fixes + results |
-| P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 (measured: total 8,007 lines, 98.9 %) | done | | `3975ddd6` batch 0, `45b1aa47` tests, `2324abf9` infra + B review fixes, P8 final (A review fixes + results) |
+| P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 (measured: total 8,007 lines, 98.9 %) | done | | `3975ddd6` batch 0, `45b1aa47` tests, `2324abf9` infra + B review fixes, `200ac244` A review fixes + results |
 | P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder | not started | | |
 
 ## Decisions log
