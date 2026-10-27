@@ -9,7 +9,7 @@
 - **Current phase:** P7 (CAN and serial FFB in `ffb_target_tests`), started 2026-10-26. P6 approved 2026-10-26.
 - **Phase status:** P7 complete (batch 0, 3 module groups, 3 fresh reviews, fixes, gate, coverage). **Waiting for my approval.**
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
-- **Last commit:** see "Phase checklist" (P7 final).
+- **Last commit:** `5645da14` (P7 final).
 - **Last updated:** 2026-10-27
 - **Last session summary:** P7: F8 fake HAL CAN, the global `canport` is now the real `CANPort_2B` (P5 tests unchanged through a recording view), command helpers; 3 module agents (CAN port 79, CanBridge/CANInputMain 107, SerialFFB 93 cases), 3 fresh reviewers, fixes. `ffb_target_tests` 1,774 cases. P7 files 99.4-100 %; all in-scope sources **7,570 of about 8,114 (93.3 %)**. New bugs 106-130 (most important: SerialFFB 124/125 reachable on shipped FFBHIDEXT targets: HardFault/watchdog reset and likely full-scale torque), NEEDS REVIEW 116-140. Usage limits interrupted agents twice; workspaces now outside /tmp, nothing lost.
 
@@ -31,7 +31,7 @@
 | P4 System, callbacks, misc | `ffb_target_tests` | about 460 (measured: total 5,078 lines, 62.6 %) | done | yes, 2026-10-25 | `0644984e` batch 0, `00a1e00b`/`e7d467d4`/`61a20f9f` tests, `90554aaa` infra review fixes, `c00b7e2b` B fixes, `e51bc104` A fixes, `8e807f05` C fixes + results |
 | P5 Buttons and analog | `ffb_target_tests` | about 775 (measured: total 6,206 lines, 76.5 %) | done | yes, 2026-10-26 | `73d4e482` batch 0, `3e36fdfd` analog, `663bce67` buttons, `2a18521a` A + infra review fixes, `13cb14a8` B review fixes + results |
 | P6 Encoders and buses | `ffb_target_tests` | about 640 (measured: total 6,988 lines, 86.2 %) | done | yes, 2026-10-26 | `cd92abd9` batch 0, `3e39a144` A, `7f5b4557` C, `a8317dbb` B, `ac6eadd1` infra + C review fixes, `e69fb8ec` A + B review fixes + results |
-| P7 CAN and serial FFB | `ffb_target_tests` | about 420 (measured: total 7,570 lines, 93.3 %) | done | | `b270011b` batch 0, `5bdecdca` A, `50b9dffd` C, `18712821` B, `0d20c8e3` infra + A + C review fixes, P7 final (B review fixes + results) |
+| P7 CAN and serial FFB | `ffb_target_tests` | about 420 (measured: total 7,570 lines, 93.3 %) | done | | `b270011b` batch 0, `5bdecdca` A, `50b9dffd` C, `18712821` B, `0d20c8e3` infra + A + C review fixes, `5645da14` B review fixes + results |
 | P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 | not started | | |
 | P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder | not started | | |
 
