@@ -10,8 +10,8 @@
  * Vendor V4 also applies here: when CWorkerThread::Run returns, TaskFunctionAdapter deletes the task, and ~WorkQueue
  * deletes WorkerThread, whose ~Thread calls vTaskDelete on the freed handle again (the fake ignores the unknown handle).
  * Vendor V10 (cworkqueue.cpp:78/96, the result of WorkerThread->Start() is ignored) is the KNOWN_ISSUE at the end.
- * Vendor V11 (cworkqueue.cpp:72-74 leaks the queue / semaphore when a later object of the constructor throws) is
- * recorded by code reading only: a test would leave a kernel queue behind for the rest of the run.
+ * Vendor V11 (cworkqueue.cpp:72-74 leaks the queue / semaphore when a later object of the constructor throws) is the
+ * KNOWN_ISSUE_UB case at the end (skipped in sanitizer builds: the leak sanitizer reports the leaked Queue object).
  * No shipped firmware uses these classes (latent code). Host vs target: exception variant on the host
  * (NEEDS REVIEW 142); the stack depth is not recorded by the fake (not observable).
  */
@@ -223,7 +223,37 @@ TEST_CASE_FIXTURE(RtosFixture, "queueing work to a full work queue waits in a ta
 	deleteInTask(queue);
 }
 
+TEST_CASE_FIXTURE(RtosFixture, "a work queue without a name holds at most its maximum number of items") {
+	std::vector<std::string> log;
+	LoggingWorkItem a(log, "A"), b(log, "B");
+	WorkQueue *queue = new WorkQueue(256, 1, 1);
+	runReady(); // The worker waits for work
+	bool queuedB = false;
+	WorkTestThread producer([&] {
+		queue->QueueWork(&a);
+		queuedB = queue->QueueWork(&b);
+	});
+	TaskHandle_t handle = producer.startResumable();
+	HostRtos::runUntilBlocked(handle);
+	CHECK_FALSE(queuedB);
+	CHECK(HostRtos::isWaiting(handle)); // The queue of 1 item is full
+	runReady();
+	CHECK(queuedB);
+	CHECK(log == std::vector<std::string>{"A", "B"});
+	deleteInTask(queue);
+}
+
 // ---------------- Deletion ----------------
+
+TEST_CASE_FIXTURE(RtosFixture, "deleting a work queue whose item queue is full waits for room for its stop item") {
+	std::vector<std::string> log;
+	LoggingWorkItem a(log, "A");
+	WorkQueue *queue = new WorkQueue("WQ", 256, 1, 1);
+	REQUIRE(queue->QueueWork(&a)); // Full; the worker did not run yet
+	deleteInTask(queue);
+	CHECK(log == std::vector<std::string>{"A"});
+	CHECK(HostRtos::findTask("WQ") == nullptr);
+}
 
 TEST_CASE_FIXTURE(RtosFixture, "deleting a work queue runs the work queued before and ends the worker thread") {
 	std::vector<std::string> log;
@@ -231,7 +261,16 @@ TEST_CASE_FIXTURE(RtosFixture, "deleting a work queue runs the work queued befor
 	WorkQueue *queue = new WorkQueue("WQ");
 	REQUIRE(queue->QueueWork(&a));
 	REQUIRE(queue->QueueWork(&b));
-	deleteInTask(queue);
+	bool deleted = false;
+	WorkTestThread deleter([&] {
+		delete queue;
+		deleted = true;
+	});
+	deleter.startResumable();
+	HostRtos::runUntilBlocked(deleter.GetHandle()); // Before the worker took any item
+	CHECK(log.empty());
+	runReady();
+	REQUIRE(deleted);
 	CHECK(log == std::vector<std::string>{"A", "B"});
 	CHECK(HostRtos::findTask("WQ") == nullptr);
 }
@@ -302,12 +341,34 @@ TEST_CASE_FIXTURE(RtosFixture, "a work queue whose worker thread can not be crea
 	CHECK(failureReported);
 	CHECK(log.empty());
 	if (queue != nullptr) {
-		// Clean-up without a worker: on the test thread the wait of ~WorkQueue for ThreadComplete is recorded instead of
-		// blocking forever. ~Thread then calls vTaskDelete with the handle xTaskCreate never wrote (vendor V2); the fake
-		// ignores an unknown handle.
-		delete queue;
-		expectKernelFault("would block forever: xSemaphoreTake");
+		// Never deleted: without a worker ~WorkQueue would wait forever on ThreadComplete, and ~Thread would call
+		// vTaskDelete with the handle xTaskCreate never wrote (vendor V2, undefined behaviour). Kept reachable for the
+		// leak sanitizer; its queue and its two semaphores (ThreadComplete, ThreadWaitSem of the worker) stay.
+		keepAlive(queue);
 	}
+	allowLeak(Leak::Queues, 1);
+	allowLeak(Leak::Semaphores, 2);
+}
+
+TEST_CASE_FIXTURE(RtosFixture, "a work queue whose completion semaphore can not be created leaves no kernel queue behind"
+				  * KNOWN_ISSUE_UB("vendor V11: WorkQueue::WorkQueue (cworkqueue.cpp:72-74, :90-92) creates the item Queue, "
+								   "then ThreadComplete and the worker thread with new and does not free the earlier objects "
+								   "when a later one throws (exception builds only; the F407 stops in configASSERT): the Queue "
+								   "object and its kernel queue leak (also ThreadComplete when the worker's ThreadWaitSem "
+								   "fails). Skipped in sanitizer builds (the leak sanitizer reports the Queue object). The "
+								   "first failing assertion is CHECK(HostRtos::objectCounts().queues == atStart.queues)")) {
+	HostRtos::failCreate(HostRtos::RtosObject::BinarySemaphore); // ThreadComplete
+	bool threw = false;
+	try {
+		(void)new WorkQueue("WQ");
+	} catch (const SemaphoreCreateException &) {
+		threw = true;
+	}
+	REQUIRE(threw);
+	(void)expectKernelFault("vSemaphoreDelete(NULL)"); // Vendor V3 (~Semaphore of the failed BinarySemaphore), test_csync_gaps.cpp
+	REQUIRE_ALL_RTOS_MODELLED();
+	CHECK(HostRtos::objectCounts().queues == atStart.queues);
+	CHECK(HostRtos::objectCounts().tasks == atStart.tasks);
 }
 
 }

@@ -350,6 +350,8 @@ TEST_CASE_FIXTURE(RtosFixture, "a tasklet that can not be scheduled from an inte
 	}
 	CHECK(faults.empty());
 	runReady();
+	CHECK(tasklet.Schedule(1, 0)); // The lock was released: the tasklet can be scheduled again
+	runReady();
 }
 
 }

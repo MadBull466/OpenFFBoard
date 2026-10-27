@@ -6,6 +6,8 @@
  * is taken while a call is pending and given back after Run(), so a second Schedule waits for the first run and
  * CheckForSafeDelete (to be called by the destructor of every derived class, tasklet.hpp) waits until no call is pending.
  *
+ * Vendor V12 (ctasklet.cpp:87: Schedule waits for DtorLock with portMAX_DELAY whatever CmdTimeout is) and V13
+ * (Schedule from the tasklet's own Run blocks the timer service on itself) are the KNOWN_ISSUE cases at the end.
  * Vendor V8 (ctasklet.cpp:124, ScheduleFromISR gives DtorLock with the non-ISR API when the pend fails) is a KNOWN_ISSUE
  * in cases_rtos/test_rtos_setup.cpp; the passing ScheduleFromISR paths are tested here.
  * No shipped firmware uses this class (latent code). Host vs target: exception variant on the host (NEEDS REVIEW 142).
@@ -54,10 +56,13 @@ private:
 	std::vector<std::string> *events;
 };
 
-/** Thread running a function set by the test */
+/**
+ * Thread running a function set by the test. Priority 3, above the timer service (2): the states these tests check
+ * before the service runs exist on the target only for a task the service can not preempt.
+ */
 class TaskletTestThread : public Thread {
 public:
-	explicit TaskletTestThread(std::function<void()> body) : Thread("TL", 128, 1), body(std::move(body)) {}
+	explicit TaskletTestThread(std::function<void()> body) : Thread("TL", 128, 3), body(std::move(body)) {}
 
 	TaskHandle_t startResumable() {
 		REQUIRE(Start());
@@ -195,7 +200,7 @@ TEST_CASE_FIXTURE(RtosFixture, "a failed schedule releases the tasklet for the n
 TEST_CASE_FIXTURE(RtosFixture, "a schedule on the test thread fails after its timeout when the command queue stays full") {
 	LoggingTasklet tasklet;
 	fillTimerCommandQueue();
-	CHECK_FALSE(tasklet.Schedule(1, 6));
+	CHECK_FALSE(tasklet.Schedule(1, 6)); // The queue stays full only because no task (timer service) runs while the test thread waits
 	CHECK(HostPlatform::nowUs() == 6000);
 	runReady();
 	CHECK(tasklet.runs() == 0);
@@ -242,6 +247,65 @@ TEST_CASE_FIXTURE(RtosFixture, "a tasklet can be scheduled from an interrupt aga
 	CHECK(scheduleFromIsr(tasklet, 2, &woken));
 	runReady();
 	CHECK(tasklet.parameters == std::vector<uint32_t>{1, 2});
+}
+
+// ---------------- Suspected vendor defects (tier A: reported, never fixed) ----------------
+
+TEST_CASE_FIXTURE(RtosFixture, "a schedule with a timeout of 0 returns at once while an earlier run is still pending"
+				  * KNOWN_ISSUE("vendor V12: Tasklet::Schedule (ctasklet.cpp:87) takes DtorLock with portMAX_DELAY whatever "
+								"CmdTimeout is; tasklet.hpp:145-148 documents CmdTimeout as the wait and false as the result of "
+								"a timeout. While a scheduled run is pending, Schedule(p, 0) blocks until the timer service "
+								"ran it. The first failing assertion is CHECK(secondReturned)")) {
+	LoggingTasklet tasklet;
+	bool first = false;
+	bool secondReturned = false;
+	TaskletTestThread task([&] {
+		first = tasklet.Schedule(1, 0);
+		(void)tasklet.Schedule(2, 0);
+		secondReturned = true;
+	});
+	TaskHandle_t handle = task.startResumable();
+	HostRtos::runUntilBlocked(handle); // Priority 3: before the timer service ran the first schedule
+	REQUIRE(first);
+	REQUIRE_ALL_RTOS_MODELLED();
+	CHECK(secondReturned);
+	runReady(); // Let a blocked task finish
+}
+
+TEST_CASE_FIXTURE(RtosFixture, "a tasklet that schedules itself again from its run does not block the timer service"
+				  * KNOWN_ISSUE("vendor V13: DtorLock is given back only after Run() (ctasklet.cpp:77-78), so a Schedule() "
+								"from the tasklet's own Run() (default timeout portMAX_DELAY, ctasklet.cpp:87) waits in the "
+								"timer service task for a lock only the service itself would give: the timer service "
+								"deadlocks (all software timers stop). Also any other timer callback scheduling a pending "
+								"tasklet. The first failing assertion is CHECK(faults.empty())")) {
+	class SelfScheduling : public Tasklet {
+	public:
+		~SelfScheduling() override { CheckForSafeDelete(); }
+		std::vector<uint32_t> parameters;
+
+	protected:
+		void Run(uint32_t parameter) override {
+			parameters.push_back(parameter);
+			if (parameter == 1) {
+				(void)Schedule(2);
+			}
+		}
+	};
+	SelfScheduling *tasklet = new SelfScheduling();
+	REQUIRE(tasklet->Schedule(1, 0));
+	runReady();
+	const std::vector<std::string> faults = HostRtos::takeKernelFaults();
+	for (const std::string &fault : faults) {
+		INFO(fault);
+		REQUIRE(fault.find("blocked in the timer service task") != std::string::npos); // No other fault
+	}
+	REQUIRE(HostRtos::criticalStats().nesting == 0);
+	CHECK(faults.empty());
+	runReady();
+	// Clean-up: after the blocked callback the fake skipped the rest of the adapter, so DtorLock may still be taken; the
+	// destructor's wait on the test thread is then recorded instead of blocking forever
+	delete tasklet;
+	(void)expectKernelFault("would block forever: xSemaphoreTake");
 }
 
 }

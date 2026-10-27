@@ -153,18 +153,34 @@ TEST_CASE_FIXTURE(RtosFixture, "destroying a tick hook that was never registered
 	CHECK(registered.runs == 1);
 }
 
-TEST_CASE_FIXTURE(RtosFixture, "registering, enabling, disabling and destroying a tick hook each use one critical section") {
+TEST_CASE_FIXTURE(RtosFixture, "registering a tick hook uses one critical section") {
+	LoggingTickHook hook;
+	hook.Register();
+	CHECK(HostRtos::criticalStats().enter == 1);
+	CHECK(HostRtos::criticalStats().exit == 1);
+}
+
+TEST_CASE_FIXTURE(RtosFixture, "disabling a tick hook uses one critical section") {
+	LoggingTickHook hook;
+	hook.Disable();
+	CHECK(HostRtos::criticalStats().enter == 1);
+	CHECK(HostRtos::criticalStats().exit == 1);
+}
+
+TEST_CASE_FIXTURE(RtosFixture, "enabling a tick hook uses one critical section") {
+	LoggingTickHook hook;
+	hook.Enable();
+	CHECK(HostRtos::criticalStats().enter == 1);
+	CHECK(HostRtos::criticalStats().exit == 1);
+}
+
+TEST_CASE_FIXTURE(RtosFixture, "destroying a tick hook uses one critical section") {
 	{
 		LoggingTickHook hook;
 		hook.Register();
-		CHECK(HostRtos::criticalStats().enter == 1);
-		hook.Disable();
-		CHECK(HostRtos::criticalStats().enter == 2);
-		hook.Enable();
-		CHECK(HostRtos::criticalStats().enter == 3);
 	}
-	CHECK(HostRtos::criticalStats().enter == 4);
-	CHECK(HostRtos::criticalStats().exit == 4);
+	CHECK(HostRtos::criticalStats().enter == 2);
+	CHECK(HostRtos::criticalStats().exit == 2);
 	CHECK(HostRtos::criticalStats().maxNesting == 1);
 }
 
@@ -188,6 +204,31 @@ TEST_CASE_FIXTURE(RtosFixture, "characterization: a tick hook registered twice r
 	hook.Register();
 	HostPlatform::advanceMs(2);
 	CHECK(hook.runs == 4);
+}
+
+// NEEDS REVIEW 148: Register, Disable, Enable and ~TickHook use taskENTER_CRITICAL, which is a configASSERT when it is
+// the outermost critical section in an interrupt (port.c:413-416). Run() is called in the SysTick interrupt, so a hook
+// can not disable itself (one-shot hook) or register another hook from Run(). Is that intended (tickhook.hpp says
+// nothing), or should these functions use taskENTER_CRITICAL_FROM_ISR in an interrupt? Latent: the hook is off on the
+// F407 (NEEDS REVIEW 141).
+// NEEDS REVIEW 149 (code reading, no test: undefined behaviour): a hook destroyed inside Run() (its own or another one's)
+// is removed from Callbacks while vApplicationTickHook (ctickhook.cpp:94-103) iterates over it: the iterator is
+// invalidated; besides the configASSERT above.
+TEST_CASE_FIXTURE(RtosFixture, "characterization: a tick hook that disables itself in its run triggers the critical section assertion") {
+	class OneShotHook : public TickHook {
+	public:
+		uint32_t runs = 0;
+
+	protected:
+		void Run() override {
+			runs++;
+			Disable();
+		}
+	} hook;
+	hook.Register();
+	HostPlatform::advanceMs(1);
+	CHECK(hook.runs == 1);
+	CHECK(expectKernelFault("taskENTER_CRITICAL in interrupt context"));
 }
 
 }

@@ -81,6 +81,13 @@ TEST_CASE_FIXTURE(RtosFixture, "a queue counts its items and the spaces left") {
 	CHECK_FALSE(queue.IsFull());
 }
 
+TEST_CASE_FIXTURE(RtosFixture, "a queue with one item is neither empty nor full") {
+	Queue queue(2, sizeof(uint32_t));
+	fill(queue, 1);
+	CHECK_FALSE(queue.IsEmpty());
+	CHECK_FALSE(queue.IsFull());
+}
+
 TEST_CASE_FIXTURE(RtosFixture, "a queue with all spaces used is full") {
 	Queue queue(2, sizeof(uint32_t));
 	fill(queue, 2);

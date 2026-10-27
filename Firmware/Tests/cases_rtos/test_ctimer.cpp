@@ -6,9 +6,14 @@
  * timer service task ("Tmr Svc", priority 2); it is executed when the service runs (runReady(), advance()).
  *
  * Vendor V9 (ctimer.cpp:89): ~Timer only queues the delete. If the timer expired or a start command is pending, the
- * timer service would call Run() of the destroyed object. These tests therefore never let the timer service run after
- * a started or expired Timer was destroyed (the fixture discards pending commands); the KNOWN_ISSUE case at the end
- * shows the defect through the active timer list of the fake.
+ * timer service would call Run() of the destroyed object. The timers of these tests are therefore destroyed in a task
+ * (TimerInTask, RtosFixture::runInTask at priority 3) after the timer service has processed everything due at the
+ * current tick, or on the test thread without running the service afterwards (the fixture discards pending commands);
+ * the KNOWN_ISSUE case at the end shows the defect through HostRtos::timerIdsInService().
+ * Fix experiments: a synchronous fix (~Timer waits until the service processed the delete, "V9b") cannot complete on
+ * the test thread: no task runs while the test thread waits, so it is recorded as "would block forever" (fake
+ * limitation, HostRtosExt.h). Timers that are created by value in the CHECK_THROWS cases or destroyed on the test
+ * thread on purpose are the remaining cases that such a fix makes fail through that limitation.
  *
  * No shipped firmware uses this class (latent code). Timer::GetTimerDaemonHandle is compiled only with
  * INCLUDE_xTimerGetTimerDaemonTaskHandle (not set for the F407 nor here).
@@ -21,6 +26,7 @@
 #include "thread.hpp"
 #include "timer.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -49,10 +55,32 @@ protected:
 	}
 };
 
-/** Thread running a function set by the test */
+/**
+ * Owns a timer and destroys it in a task of priority 3 (RtosFixture::runInTask), so a destructor that waits for the
+ * timer service (a synchronous fix of V9) can complete. The timer service has processed everything due at the current
+ * tick before the task runs, so it never calls Run() of the destroyed timer (V9).
+ */
+template <class T>
+class TimerInTask {
+public:
+	template <class... Args>
+	explicit TimerInTask(Args &&...args) : timer(new T(std::forward<Args>(args)...)) {}
+	~TimerInTask() noexcept(false) {
+		T *owned = timer;
+		RtosFixture::runInTask([owned] { delete owned; }, 3);
+	}
+	TimerInTask(const TimerInTask &) = delete;
+	TimerInTask &operator=(const TimerInTask &) = delete;
+	T &operator*() { return *timer; }
+
+private:
+	T *timer;
+};
+
+/** Thread running a function set by the test, priority 3 (above the timer service, like a task the service can not preempt) */
 class TimerTestThread : public Thread {
 public:
-	explicit TimerTestThread(std::function<void()> body) : Thread("TT", 128, 1), body(std::move(body)) {}
+	explicit TimerTestThread(std::function<void()> body) : Thread("TT", 128, 3), body(std::move(body)) {}
 
 	TaskHandle_t startResumable() {
 		REQUIRE(Start());
@@ -91,21 +119,24 @@ TEST_SUITE("Timer") {
 // ---------------- Construction ----------------
 
 TEST_CASE_FIXTURE(RtosFixture, "a new timer is dormant") {
-	RecordingTimer timer("T", 10, true);
+	TimerInTask<RecordingTimer> timerOwner("T", 10, true);
+	RecordingTimer &timer = *timerOwner;
 	CHECK_FALSE(timer.IsActive());
 	advance(30);
 	CHECK(timer.runs() == 0);
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a timer created without a name runs once per period") {
-	RecordingTimer timer(5, true);
+	TimerInTask<RecordingTimer> timerOwner(5, true);
+	RecordingTimer &timer = *timerOwner;
 	REQUIRE(timer.Start(0));
 	advance(15);
 	CHECK(timer.runTicks == std::vector<TickType_t>{5, 10, 15});
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a named timer is periodic by default") {
-	RecordingTimer timer("T", 4);
+	TimerInTask<RecordingTimer> timerOwner("T", 4);
+	RecordingTimer &timer = *timerOwner;
 	REQUIRE(timer.Start(0));
 	advance(12);
 	CHECK(timer.runs() == 3);
@@ -113,7 +144,8 @@ TEST_CASE_FIXTURE(RtosFixture, "a named timer is periodic by default") {
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a timer created without a name is periodic by default") {
-	RecordingTimer timer(4);
+	TimerInTask<RecordingTimer> timerOwner(4);
+	RecordingTimer &timer = *timerOwner;
 	REQUIRE(timer.Start(0));
 	advance(12);
 	CHECK(timer.runs() == 3);
@@ -121,7 +153,8 @@ TEST_CASE_FIXTURE(RtosFixture, "a timer created without a name is periodic by de
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a named one-shot timer runs once and becomes dormant") {
-	RecordingTimer timer("T", 3, false);
+	TimerInTask<RecordingTimer> timerOwner("T", 3, false);
+	RecordingTimer &timer = *timerOwner;
 	REQUIRE(timer.Start(0));
 	advance(20);
 	CHECK(timer.runTicks == std::vector<TickType_t>{3});
@@ -129,7 +162,8 @@ TEST_CASE_FIXTURE(RtosFixture, "a named one-shot timer runs once and becomes dor
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a one-shot timer created without a name runs once and becomes dormant") {
-	RecordingTimer timer(3, false);
+	TimerInTask<RecordingTimer> timerOwner(3, false);
+	RecordingTimer &timer = *timerOwner;
 	REQUIRE(timer.Start(0));
 	advance(20);
 	CHECK(timer.runTicks == std::vector<TickType_t>{3});
@@ -138,14 +172,16 @@ TEST_CASE_FIXTURE(RtosFixture, "a one-shot timer created without a name runs onc
 
 TEST_CASE_FIXTURE(RtosFixture, "a timer whose kernel timer can not be created throws TimerCreateException") {
 	HostRtos::failCreate(HostRtos::RtosObject::Timer);
+	const size_t before = HostRtos::timerCount();
 	CHECK_THROWS_AS(RecordingTimer("T", 10, true), TimerCreateException);
-	CHECK(HostRtos::timerCount() == 0);
+	CHECK(HostRtos::timerCount() == before);
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a timer without a name whose kernel timer can not be created throws TimerCreateException") {
 	HostRtos::failCreate(HostRtos::RtosObject::Timer);
+	const size_t before = HostRtos::timerCount();
 	CHECK_THROWS_AS(RecordingTimer(10, true), TimerCreateException);
-	CHECK(HostRtos::timerCount() == 0);
+	CHECK(HostRtos::timerCount() == before);
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "the exception of a failed timer creation names the failure") {
@@ -159,20 +195,30 @@ TEST_CASE_FIXTURE(RtosFixture, "the exception of a failed timer creation names t
 	CHECK(what == "Timer Constructor Failed");
 }
 
-TEST_CASE_FIXTURE(RtosFixture, "deleting a dormant timer deletes its kernel timer when the timer service runs") {
+TEST_CASE_FIXTURE(RtosFixture, "deleting a dormant timer deletes its kernel timer once the timer service ran") {
 	const size_t before = HostRtos::timerCount();
 	RecordingTimer *timer = new RecordingTimer("T", 10, true);
 	CHECK(HostRtos::timerCount() == before + 1);
-	delete timer; // Dormant: the service can not call Run() of the deleted object (V9)
-	CHECK(HostRtos::timerCommandsPending() == 1);
+	runInTask([timer] { delete timer; }, 3); // Dormant: the service can not call Run() of the deleted object (V9)
 	runReady();
 	CHECK(HostRtos::timerCount() == before);
+}
+
+TEST_CASE_FIXTURE(RtosFixture, "deleting a timer on the test thread queues a command for the timer service") {
+	RecordingTimer *timer = new RecordingTimer("T", 10, true);
+	runReady();
+	REQUIRE(HostRtos::timerCommandsPending() == 0);
+	delete timer; // Dormant (V9); on the test thread: see the header about a synchronous fix
+	CHECK(HostRtos::timerCommandsPending() >= 1);
+	runReady();
+	CHECK(HostRtos::timerCommandsPending() == 0);
 }
 
 // ---------------- Start / IsActive / Run ----------------
 
 TEST_CASE_FIXTURE(RtosFixture, "a started timer is active once the timer service processed the start command") {
-	RecordingTimer timer("T", 10, true);
+	TimerInTask<RecordingTimer> timerOwner("T", 10, true);
+	RecordingTimer &timer = *timerOwner;
 	REQUIRE(timer.Start(0));
 	CHECK_FALSE(timer.IsActive()); // Only queued
 	runReady();
@@ -180,14 +226,16 @@ TEST_CASE_FIXTURE(RtosFixture, "a started timer is active once the timer service
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a start without a timeout argument queues the start command") {
-	RecordingTimer timer("T", 10, true);
+	TimerInTask<RecordingTimer> timerOwner("T", 10, true);
+	RecordingTimer &timer = *timerOwner;
 	CHECK(timer.Start());
 	runReady();
 	CHECK(timer.IsActive());
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "the first run of a timer is one period after the start command") {
-	RecordingTimer timer("T", 10, true);
+	TimerInTask<RecordingTimer> timerOwner("T", 10, true);
+	RecordingTimer &timer = *timerOwner;
 	advance(5);
 	REQUIRE(timer.Start(0)); // Command time 5; the service processes it at the next tick
 	advance(9);
@@ -197,7 +245,8 @@ TEST_CASE_FIXTURE(RtosFixture, "the first run of a timer is one period after the
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a timer runs in the timer service task") {
-	RecordingTimer timer("T", 2, false);
+	TimerInTask<RecordingTimer> timerOwner("T", 2, false);
+	RecordingTimer &timer = *timerOwner;
 	REQUIRE(timer.Start(0));
 	advance(2);
 	REQUIRE(timer.runs() == 1);
@@ -205,8 +254,10 @@ TEST_CASE_FIXTURE(RtosFixture, "a timer runs in the timer service task") {
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "two timers run their own Run function") {
-	RecordingTimer fast("F", 2, true);
-	RecordingTimer slow("S", 5, true);
+	TimerInTask<RecordingTimer> fastOwner("F", 2, true);
+	RecordingTimer &fast = *fastOwner;
+	TimerInTask<RecordingTimer> slowOwner("S", 5, true);
+	RecordingTimer &slow = *slowOwner;
 	REQUIRE(fast.Start(0));
 	REQUIRE(slow.Start(0));
 	advance(10);
@@ -215,7 +266,8 @@ TEST_CASE_FIXTURE(RtosFixture, "two timers run their own Run function") {
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a start command fails when the timer command queue is full and no timeout is given") {
-	RecordingTimer timer("T", 10, true);
+	TimerInTask<RecordingTimer> timerOwner("T", 10, true);
+	RecordingTimer &timer = *timerOwner;
 	fillTimerCommandQueue();
 	CHECK_FALSE(timer.Start(0));
 	runReady();
@@ -223,15 +275,17 @@ TEST_CASE_FIXTURE(RtosFixture, "a start command fails when the timer command que
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a start command on the test thread fails after its timeout when the command queue stays full") {
-	RecordingTimer timer("T", 10, true);
+	TimerInTask<RecordingTimer> timerOwner("T", 10, true);
+	RecordingTimer &timer = *timerOwner;
 	fillTimerCommandQueue();
-	CHECK_FALSE(timer.Start(4));
+	CHECK_FALSE(timer.Start(4)); // The queue stays full only because no task (timer service) runs while the test thread waits
 	CHECK(HostPlatform::nowUs() == 4000);
 	runReady(); // Room for the delete command of ~Timer
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a start command from a task waits for room in the timer command queue") {
-	RecordingTimer timer("T", 10, true);
+	TimerInTask<RecordingTimer> timerOwner("T", 10, true);
+	RecordingTimer &timer = *timerOwner;
 	fillTimerCommandQueue();
 	bool result = false;
 	TimerTestThread task([&] { result = timer.Start(); });
@@ -246,7 +300,8 @@ TEST_CASE_FIXTURE(RtosFixture, "a start command from a task waits for room in th
 // ---------------- Stop ----------------
 
 TEST_CASE_FIXTURE(RtosFixture, "a stopped timer does not run and is dormant") {
-	RecordingTimer timer("T", 10, true);
+	TimerInTask<RecordingTimer> timerOwner("T", 10, true);
+	RecordingTimer &timer = *timerOwner;
 	REQUIRE(timer.Start(0));
 	advance(5);
 	CHECK(timer.Stop(0));
@@ -257,7 +312,8 @@ TEST_CASE_FIXTURE(RtosFixture, "a stopped timer does not run and is dormant") {
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a stop without a timeout argument queues the stop command") {
-	RecordingTimer timer("T", 10, true);
+	TimerInTask<RecordingTimer> timerOwner("T", 10, true);
+	RecordingTimer &timer = *timerOwner;
 	REQUIRE(timer.Start(0));
 	runReady();
 	CHECK(timer.Stop());
@@ -266,7 +322,8 @@ TEST_CASE_FIXTURE(RtosFixture, "a stop without a timeout argument queues the sto
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a stop command fails when the timer command queue is full and no timeout is given") {
-	RecordingTimer timer("T", 10, true);
+	TimerInTask<RecordingTimer> timerOwner("T", 10, true);
+	RecordingTimer &timer = *timerOwner;
 	REQUIRE(timer.Start(0));
 	runReady();
 	fillTimerCommandQueue();
@@ -280,7 +337,8 @@ TEST_CASE_FIXTURE(RtosFixture, "a stop command fails when the timer command queu
 // ---------------- Reset ----------------
 
 TEST_CASE_FIXTURE(RtosFixture, "a reset restarts the period from the reset command") {
-	RecordingTimer timer("T", 10, true);
+	TimerInTask<RecordingTimer> timerOwner("T", 10, true);
+	RecordingTimer &timer = *timerOwner;
 	REQUIRE(timer.Start(0));
 	advance(6);
 	CHECK(timer.Reset(0));
@@ -291,7 +349,8 @@ TEST_CASE_FIXTURE(RtosFixture, "a reset restarts the period from the reset comma
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a reset starts a dormant timer") {
-	RecordingTimer timer("T", 5, false);
+	TimerInTask<RecordingTimer> timerOwner("T", 5, false);
+	RecordingTimer &timer = *timerOwner;
 	CHECK(timer.Reset());
 	runReady();
 	CHECK(timer.IsActive());
@@ -300,7 +359,8 @@ TEST_CASE_FIXTURE(RtosFixture, "a reset starts a dormant timer") {
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a reset command fails when the timer command queue is full and no timeout is given") {
-	RecordingTimer timer("T", 5, false);
+	TimerInTask<RecordingTimer> timerOwner("T", 5, false);
+	RecordingTimer &timer = *timerOwner;
 	fillTimerCommandQueue();
 	CHECK_FALSE(timer.Reset(0));
 	runReady();
@@ -310,7 +370,8 @@ TEST_CASE_FIXTURE(RtosFixture, "a reset command fails when the timer command que
 // ---------------- SetPeriod ----------------
 
 TEST_CASE_FIXTURE(RtosFixture, "changing the period of a dormant timer starts it with the new period") {
-	RecordingTimer timer("T", 50, false);
+	TimerInTask<RecordingTimer> timerOwner("T", 50, false);
+	RecordingTimer &timer = *timerOwner;
 	CHECK(timer.SetPeriod(5));
 	runReady();
 	CHECK(timer.IsActive());
@@ -319,7 +380,8 @@ TEST_CASE_FIXTURE(RtosFixture, "changing the period of a dormant timer starts it
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a new period of an active timer counts from the change") {
-	RecordingTimer timer("T", 10, true);
+	TimerInTask<RecordingTimer> timerOwner("T", 10, true);
+	RecordingTimer &timer = *timerOwner;
 	REQUIRE(timer.Start(0));
 	advance(4);
 	CHECK(timer.SetPeriod(3, 0));
@@ -333,7 +395,8 @@ TEST_CASE_FIXTURE(RtosFixture, "a new period of an active timer counts from the 
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a period change fails when the timer command queue is full and no timeout is given") {
-	RecordingTimer timer("T", 50, false);
+	TimerInTask<RecordingTimer> timerOwner("T", 50, false);
+	RecordingTimer &timer = *timerOwner;
 	fillTimerCommandQueue();
 	CHECK_FALSE(timer.SetPeriod(5, 0));
 	runReady();
@@ -345,7 +408,8 @@ TEST_CASE_FIXTURE(RtosFixture, "a period change fails when the timer command que
 // ---------------- Interrupt variants ----------------
 
 TEST_CASE_FIXTURE(RtosFixture, "a timer started from an interrupt runs after its period") {
-	RecordingTimer timer("T", 4, false);
+	TimerInTask<RecordingTimer> timerOwner("T", 4, false);
+	RecordingTimer &timer = *timerOwner;
 	BaseType_t woken = pdFALSE;
 	CHECK(fromIsr([&](BaseType_t *w) { return timer.StartFromISR(w); }, &woken));
 	runReady();
@@ -355,7 +419,8 @@ TEST_CASE_FIXTURE(RtosFixture, "a timer started from an interrupt runs after its
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a timer command from an interrupt reports that the waiting timer service task was woken") {
-	RecordingTimer timer("T", 4, false);
+	TimerInTask<RecordingTimer> timerOwner("T", 4, false);
+	RecordingTimer &timer = *timerOwner;
 	runReady(); // The service task waits for commands
 	REQUIRE(HostRtos::isWaiting(HostRtos::timerServiceTask()));
 	BaseType_t woken = pdFALSE;
@@ -366,7 +431,8 @@ TEST_CASE_FIXTURE(RtosFixture, "a timer command from an interrupt reports that t
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a start from an interrupt fails when the timer command queue is full") {
-	RecordingTimer timer("T", 4, false);
+	TimerInTask<RecordingTimer> timerOwner("T", 4, false);
+	RecordingTimer &timer = *timerOwner;
 	fillTimerCommandQueue();
 	BaseType_t woken = pdFALSE;
 	CHECK_FALSE(fromIsr([&](BaseType_t *w) { return timer.StartFromISR(w); }, &woken));
@@ -375,7 +441,8 @@ TEST_CASE_FIXTURE(RtosFixture, "a start from an interrupt fails when the timer c
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a timer stopped from an interrupt does not run") {
-	RecordingTimer timer("T", 10, true);
+	TimerInTask<RecordingTimer> timerOwner("T", 10, true);
+	RecordingTimer &timer = *timerOwner;
 	REQUIRE(timer.Start(0));
 	runReady();
 	BaseType_t woken = pdFALSE;
@@ -387,7 +454,8 @@ TEST_CASE_FIXTURE(RtosFixture, "a timer stopped from an interrupt does not run")
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a stop from an interrupt fails when the timer command queue is full") {
-	RecordingTimer timer("T", 10, true);
+	TimerInTask<RecordingTimer> timerOwner("T", 10, true);
+	RecordingTimer &timer = *timerOwner;
 	REQUIRE(timer.Start(0));
 	runReady();
 	fillTimerCommandQueue();
@@ -400,7 +468,8 @@ TEST_CASE_FIXTURE(RtosFixture, "a stop from an interrupt fails when the timer co
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a reset from an interrupt restarts the period") {
-	RecordingTimer timer("T", 10, false);
+	TimerInTask<RecordingTimer> timerOwner("T", 10, false);
+	RecordingTimer &timer = *timerOwner;
 	REQUIRE(timer.Start(0));
 	advance(7);
 	BaseType_t woken = pdFALSE;
@@ -412,7 +481,8 @@ TEST_CASE_FIXTURE(RtosFixture, "a reset from an interrupt restarts the period") 
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a reset from an interrupt fails when the timer command queue is full") {
-	RecordingTimer timer("T", 10, false);
+	TimerInTask<RecordingTimer> timerOwner("T", 10, false);
+	RecordingTimer &timer = *timerOwner;
 	fillTimerCommandQueue();
 	BaseType_t woken = pdFALSE;
 	CHECK_FALSE(fromIsr([&](BaseType_t *w) { return timer.ResetFromISR(w); }, &woken));
@@ -421,7 +491,8 @@ TEST_CASE_FIXTURE(RtosFixture, "a reset from an interrupt fails when the timer c
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a period change from an interrupt applies the new period") {
-	RecordingTimer timer("T", 50, false);
+	TimerInTask<RecordingTimer> timerOwner("T", 50, false);
+	RecordingTimer &timer = *timerOwner;
 	BaseType_t woken = pdFALSE;
 	CHECK(fromIsr([&](BaseType_t *w) { return timer.SetPeriodFromISR(6, w); }, &woken));
 	runReady();
@@ -431,7 +502,8 @@ TEST_CASE_FIXTURE(RtosFixture, "a period change from an interrupt applies the ne
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a period change from an interrupt fails when the timer command queue is full") {
-	RecordingTimer timer("T", 50, false);
+	TimerInTask<RecordingTimer> timerOwner("T", 50, false);
+	RecordingTimer &timer = *timerOwner;
 	fillTimerCommandQueue();
 	BaseType_t woken = pdFALSE;
 	CHECK_FALSE(fromIsr([&](BaseType_t *w) { return timer.SetPeriodFromISR(6, w); }, &woken));
@@ -441,29 +513,29 @@ TEST_CASE_FIXTURE(RtosFixture, "a period change from an interrupt fails when the
 
 // ---------------- Suspected vendor defects (tier A: reported, never fixed) ----------------
 
-TEST_CASE_FIXTURE(RtosFixture, "a destroyed active timer is no longer in the active list of the timer service"
-				  * KNOWN_ISSUE("vendor V9: ~Timer (ctimer.cpp:89) only queues xTimerDelete and returns; the timer stays in "
-								"the active list until the timer service processes the delete, and the service handles an "
-								"expired timer before its commands (timers.c:548-560), so it would call Run() of the destroyed "
-								"object. The first failing assertion is CHECK(activeAfterDestruction == 0)")) {
+TEST_CASE_FIXTURE(RtosFixture, "the timer service can no longer call a destroyed active timer"
+				  * KNOWN_ISSUE("vendor V9: ~Timer (ctimer.cpp:89) only queues xTimerDelete and returns; the timer keeps "
+								"the destroyed object as its ID and stays in the active list until the timer service processes "
+								"the delete, and the service handles an expired timer (and queued starts) before the delete "
+								"(timers.c:548-560), so it would call Run() of the destroyed object. Reachable when the "
+								"deleting task has priority >= 2 (configTIMER_TASK_PRIORITY): here 3. A synchronous fix (~Timer "
+								"waits for the service) also makes timers destroyed on the test thread fail through the fake's "
+								"'would block forever' (see the file header). The first failing assertion is "
+								"CHECK_FALSE(stillCallable)")) {
 	RecordingTimer *timer = new RecordingTimer("T", 10, true);
 	REQUIRE(timer->Start(0));
 	runReady();
-	REQUIRE(HostRtos::activeTimerCount() == 1);
-	size_t activeAfterDestruction = 99;
-	bool done = false;
-	// Destroyed in a task so that a destructor waiting for the timer service could complete. The time does not
-	// advance, so the timer does not expire and the service never calls Run() of the destroyed object here.
-	TimerTestThread task([&] {
+	void *const id = timer; // TimerCallbackFunctionAdapter calls Run() of the timer ID (ctimer.cpp:167-168)
+	bool stillCallable = true;
+	// Deleted by a task above the timer service (on the target the service can not run in between). The time does not
+	// advance, so the timer does not expire and the fake service never calls Run() of the destroyed object here.
+	runInTask([&] {
 		delete timer;
-		activeAfterDestruction = HostRtos::activeTimerCount();
-		done = true;
-	});
-	task.startResumable();
-	runReady();
-	REQUIRE(done);
+		const std::vector<void *> ids = HostRtos::timerIdsInService();
+		stillCallable = std::find(ids.begin(), ids.end(), id) != ids.end();
+	}, 3);
 	REQUIRE_ALL_RTOS_MODELLED();
-	CHECK(activeAfterDestruction == 0);
+	CHECK_FALSE(stillCallable);
 }
 
 }
