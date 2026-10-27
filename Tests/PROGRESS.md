@@ -6,8 +6,8 @@
 
 ## Current state
 
-- **Current phase:** P9 (vendor tiers B and C, Python helpers), started 2026-10-27. P8 approved 2026-10-27.
-- **Phase status:** P9 plan written ("P9 plan"); batch 0 running.
+- **Current phase:** wrap-up after P8 (P8 approved 2026-10-27). P9 planned but **on hold** (my decision, 2026-10-27: batch 0 was stopped before it changed any file).
+- **Phase status:** final project review, final gate, `Tests/BUG_REPORT.md`, project summary (`Tests/PROJECT_SUMMARY.md`); then ask me whether to start P9.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** `200ac244` (P8 final).
 - **Last updated:** 2026-10-27
@@ -15,7 +15,7 @@
 
 ## Next action
 
-**P9 batch 0 running.** Then: review and commit batch 0, 3 module agents (see "P9 plan"), fresh reviewers, fixes, gate, regenerate `Tests/BUG_REPORT.md`, final project summary, stop for approval.
+**Wrap-up before P9:** fresh whole-suite reviews (infrastructure/documentation and bug-report accuracy), fixes, final gate (6 dirs + presets + repeated random runs), regenerate `Tests/BUG_REPORT.md`, write `Tests/PROJECT_SUMMARY.md`, then **ask me whether to start P9** (do not start it unasked).
 
 ## Phase checklist
 
@@ -33,7 +33,7 @@
 | P6 Encoders and buses | `ffb_target_tests` | about 640 (measured: total 6,988 lines, 86.2 %) | done | yes, 2026-10-26 | `cd92abd9` batch 0, `3e39a144` A, `7f5b4557` C, `a8317dbb` B, `ac6eadd1` infra + C review fixes, `e69fb8ec` A + B review fixes + results |
 | P7 CAN and serial FFB | `ffb_target_tests` | about 420 (measured: total 7,570 lines, 93.3 %) | done | yes, 2026-10-27 | `b270011b` batch 0, `5bdecdca` A, `50b9dffd` C, `18712821` B, `0d20c8e3` infra + A + C review fixes, `5645da14` B review fixes + results |
 | P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 (measured: total 8,007 lines, 98.9 %) | done | yes, 2026-10-27 | `3975ddd6` batch 0, `45b1aa47` tests, `2324abf9` infra + B review fixes, `200ac244` A review fixes + results |
-| P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder | in progress (batch 0) | | |
+| P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder | planned, on hold (batch 0 stopped by me, nothing changed) | | |
 
 ## Decisions log
 
@@ -87,6 +87,7 @@
 | 2026-10-27 | P7: the global `canport` is the real `CANPort_2B` (like the target); `HostTarget::canPort()` is a recording `MockCANPort` view so the P5 tests stay unchanged; tests about hardware state use FA1R / `canAccepts` / `canActiveFilterBanks()`. Fixture resets restore the firmware's constructed state (snapshot), never literals. Bug numbers 114/115 assigned by the main agent; 128-130 and NEEDS REVIEW 135-140 added in review. Module workspaces and briefs live outside /tmp (`../ffb-test-build/ws`, `briefs`) | Reviews p7r1-r3; /tmp cleaning |
 | 2026-10-27 | All suspected bugs and open questions are collected in `Tests/BUG_REPORT.md`, generated from the PROGRESS tables by `Firmware/Tests/tools/make_bug_report.py` and regenerated at the end of every phase; I review it at the end of the project. Rows with a literal `|` in code must escape it (`\|`) | My request |
 | 2026-10-27 | P8: `ffb_rtos_tests` uses its own fake FreeRTOS extension (`HOSTTEST_RTOS_EXT`), the other executables stay byte-identical. Helper tasks in RTOS tests run above the timer service priority (3) so asserted intermediate states exist on the target. Module agents keep progress notes outside /tmp; after an interruption the main agent restores mutated copies in their mutation trees before resuming. When an agent could not finish, the main agent merged its finished files and ran the gate itself | Interruptions; reviews p8r1/p8r2 |
+| 2026-10-27 | P9 on hold. First: whole-suite review, final gate, bug report, project summary; then ask me whether to start P9 | My request |
 
 ## Environment
 
