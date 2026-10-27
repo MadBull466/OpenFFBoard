@@ -37,6 +37,20 @@ void vPortFree(void *ptr);
 size_t xPortGetFreeHeapSize(void);
 size_t xPortGetMinimumEverFreeHeapSize(void);
 
+#ifdef HOSTTEST_RTOS_EXT
+/* ffb_rtos_tests (fake FreeRTOS API F11): values of FreeRTOS V10.3.1 (Targets/F407VG/Middlewares/Third_Party/FreeRTOS) */
+#define errQUEUE_EMPTY ((BaseType_t)0)						 // projdefs.h:49
+#define errQUEUE_FULL ((BaseType_t)0)						 // projdefs.h:50
+#define errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY (-1)			 // projdefs.h:53
+/** FreeRTOS.h:1220: storage of a statically allocated event group. Opaque; the fake keeps its state outside it */
+typedef struct xSTATIC_EVENT_GROUP {
+	TickType_t xDummy1;
+	void *pvDummy2[5];
+	UBaseType_t uxDummy3;
+	uint8_t ucDummy4;
+} StaticEventGroup_t;
+#endif
+
 #ifdef __cplusplus
 }
 #endif

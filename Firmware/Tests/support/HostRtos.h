@@ -19,6 +19,9 @@
  * then left by an exception and is restarted from the beginning of Run() the next time.
  * Threads following the usual `while(true){ wait; work; }` pattern behave identical to the target.
  * Threads that wait in several places per loop need a resumable task (makeResumable, opt-in per task).
+ *
+ * ffb_rtos_tests (HOSTTEST_RTOS_EXT) extends this kernel with the fake FreeRTOS API F11 and changes some rules (new
+ * tasks are ready, timeouts against simulated time, wake conditions for blocked tasks): see HostRtosExt.h.
  */
 #ifndef HOSTTEST_HOSTRTOS_H_
 #define HOSTTEST_HOSTRTOS_H_

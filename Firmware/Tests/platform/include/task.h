@@ -66,12 +66,32 @@ void hosttest_taskYield(void);
 #else
 #define taskYIELD() ((void)0)
 #endif
+#ifdef HOSTTEST_RTOS_EXT
+/*
+ * ffb_rtos_tests (fake FreeRTOS API F11): critical sections and interrupt masking are recorded like the Cortex-M4F
+ * port of FreeRTOS V10.3.1 implements them (task.h:187-222 -> portmacro.h:99-104 -> port.c:403-430):
+ * nesting counter, configASSERT on enter from an interrupt and on exit without enter. See support/HostRtosExt.h.
+ */
+#define tskIDLE_PRIORITY ((UBaseType_t)0U) // task.h:163
+void vPortEnterCritical(void);
+void vPortExitCritical(void);
+uint32_t ulPortRaiseBASEPRI(void);
+void vPortRaiseBASEPRI(void);
+void vPortSetBASEPRI(uint32_t ulNewMaskValue);
+#define taskENTER_CRITICAL() vPortEnterCritical()
+#define taskEXIT_CRITICAL() vPortExitCritical()
+#define taskENTER_CRITICAL_FROM_ISR() ((BaseType_t)ulPortRaiseBASEPRI())
+#define taskEXIT_CRITICAL_FROM_ISR(x) vPortSetBASEPRI((uint32_t)(x))
+#define taskDISABLE_INTERRUPTS() vPortRaiseBASEPRI()
+#define taskENABLE_INTERRUPTS() vPortSetBASEPRI(0)
+#else
 #define taskENTER_CRITICAL() ((void)0)
 #define taskEXIT_CRITICAL() ((void)0)
 #define taskENTER_CRITICAL_FROM_ISR() ((BaseType_t)0)
 #define taskEXIT_CRITICAL_FROM_ISR(x) ((void)(x))
 #define taskDISABLE_INTERRUPTS() ((void)0)
 #define taskENABLE_INTERRUPTS() ((void)0)
+#endif
 
 #ifdef __cplusplus
 }

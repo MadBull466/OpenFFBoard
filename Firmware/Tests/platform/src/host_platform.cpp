@@ -8,6 +8,8 @@
  * ffb_target_tests compiles the real cppmain.cpp (HOSTTEST_REAL_CPPMAIN: micros(), refreshWatchdog(),
  * getRunTimeCounterValue() and Error_Handler() are left out here) and the real ledEffects.cpp
  * (HOSTTEST_REAL_LED_EFFECTS: the LED functions here only count the calls and forward them to the real code).
+ * ffb_rtos_tests (HOSTTEST_RTOS_EXT): advancing the simulated time runs one SysTick per 1 ms boundary
+ * (hosttest_rtosTick in host_freertos_ext.inc: tick hook).
  * See support/HostPlatform.h for the test control interface.
  */
 #include "HostPlatform.h"
@@ -39,6 +41,22 @@ uint16_t uartRxCount = 0; // Bytes stored in the armed buffer so far
 // host_target_system.cpp: keeps the counter of the HAL tick timer (TIM7, read by the real micros()) in step with the
 // simulated time. Called after every change of the time.
 void hosttest_timeChanged(uint64_t us);
+#endif
+
+#ifdef HOSTTEST_RTOS_EXT
+// ffb_rtos_tests (host_freertos_ext.inc): one SysTick, called for every 1 ms boundary the simulated time passes
+void hosttest_rtosTick();
+namespace {
+/** Advances the time tick by tick: the time is at the tick while its SysTick (tick hook) runs */
+void advanceTicked(uint64_t us) {
+	const uint64_t target = timeUs + us;
+	while (timeUs / 1000 < target / 1000) {
+		timeUs = (timeUs / 1000 + 1) * 1000;
+		hosttest_rtosTick();
+	}
+	timeUs = timeUs > target ? timeUs : target; // A tick hook may have advanced the time itself
+}
+} // namespace
 #endif
 
 namespace HostPlatform {
@@ -97,7 +115,11 @@ void setTimeUs(uint64_t us) {
 #endif
 }
 void advanceUs(uint64_t us) {
+#ifdef HOSTTEST_RTOS_EXT
+	advanceTicked(us);
+#else
 	timeUs += us;
+#endif
 #ifdef HOSTTEST_REAL_CPPMAIN
 	hosttest_timeChanged(timeUs);
 #endif
@@ -125,7 +147,11 @@ extern "C" {
 
 uint32_t HAL_GetTick(void) { return (uint32_t)(timeUs / 1000); }
 void HAL_Delay(uint32_t ms) {
+#ifdef HOSTTEST_RTOS_EXT
+	advanceTicked((uint64_t)ms * 1000);
+#else
 	timeUs += (uint64_t)ms * 1000;
+#endif
 #ifdef HOSTTEST_REAL_CPPMAIN
 	hosttest_timeChanged(timeUs);
 #endif

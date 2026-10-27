@@ -99,6 +99,7 @@ not tested. It is listed with a reason in `tools/coverage_exclusions.txt` and le
 | `cases/test_*.cpp` | Test cases. Every file is picked up automatically. |
 | `cases_target/test_*.cpp` | Test cases of `ffb_target_tests` (F407 feature set, real `Axis`). |
 | `cases_flash/test_*.cpp` | Test cases of `ffb_flash_tests` (real `flash_helpers.cpp` and `eeprom.c` on the fake HAL FLASH). |
+| `cases_rtos/test_*.cpp` | Test cases of `ffb_rtos_tests` (the `cpp_freertos` wrappers on the fake FreeRTOS API). |
 | `mocks/` | Implementations of firmware class interfaces for tests. |
 | `fakes/` | Headers replacing firmware headers (currently only `Axis.h`). |
 | `support/` | Fixtures and helpers: `FirmwareFixture.h`, `FfbFixture.h`, `PidHost.h`, `TestHelpers.h`, `Host*.h`. |
@@ -128,6 +129,7 @@ not tested. It is listed with a reason in `tools/coverage_exclusions.txt` and le
 | `Filters` | `test_filters.cpp` | Biquad coefficients of all types against reference formulas, frequency response, setters (CMSIS-DSP on and off) |
 | `Encoder`, `MotorDriver` | `test_device_interfaces_gaps.cpp` | Default implementations of the base classes |
 | `cpp_freertos` | `test_rtos_wrappers.cpp` | FreeRTOS C++ wrappers (vendor): thread, mutex, semaphore |
+| `RtosSetup` | `cases_rtos/test_rtos_setup.cpp` (`ffb_rtos_tests`) | Smoke tests of the fake FreeRTOS API: one per wrapper family, create failure, kernel faults |
 | `UART`, `UartHandler` | `test_uart.cpp` | UART port transfers (blocking, IT, DMA), reservation, abort, completion dispatch |
 | `ringbuffer`, `RingBufferWrapper` | `test_ringbuffer.cpp` | Ring buffer append, get, peek, wrap-around, full buffer |
 | `CANPort`, `CanHandler` | `test_can_handler.cpp` | Port and handler registry, `handleToPort` (dispatch through the real `global_callbacks.cpp` is in `ffb_target_tests`) |
@@ -201,7 +203,7 @@ Rules:
 List all known issues:
 
 ```sh
-grep -rn "KNOWN_ISSUE\|KNOWN ISSUE" cases/ cases_target/
+grep -rn "KNOWN_ISSUE\|KNOWN ISSUE" cases/ cases_target/ cases_flash/ cases_rtos/
 ```
 
 ### Adding firmware sources to the tests
@@ -464,6 +466,68 @@ fake HAL FLASH with NOR semantics. The map-backed `Flash_*` replacement of `host
 * **Exclusions:** `FFB_FLASH_TESTS_EXCLUDE` and `FFB_FLASH_TESTS_EXCLUDE_SANITIZE` (both default empty), printed at
   configure time like the others.
 * No CMSIS-DSP sources (none of the compiled files use them). `-funsigned-char` like `ffb_target_tests`.
+
+## `ffb_rtos_tests`: the FreeRTOS C++ wrappers on a fake FreeRTOS API
+
+A fourth executable built by the same `CMakeLists.txt` and run by `ctest` (P8). It compiles the `cpp_freertos` wrappers
+(vendor code, tier A: tested, never fixed) `cthread.cpp`, `cmutex.cpp`, `csemaphore.cpp`, `cqueue.cpp`, `ctimer.cpp`,
+`ctasklet.cpp`, `ctickhook.cpp`, `cevent_groups.cpp`, `cworkqueue.cpp`, `cread_write_lock.cpp`, `ccondition_variable.cpp`
+and `cmem_pool.cpp` (plus `UART.cpp` / `UartHandler.cpp`, only to link `host_platform.cpp`) on the fake FreeRTOS API F11.
+The FreeRTOS kernel itself is not tested; the fake reproduces the documented behaviour of the target's FreeRTOS V10.3.1
+(`Targets/F407VG/Middlewares/Third_Party/FreeRTOS/Source`, each function cites the file:line it models).
+
+* **Test cases:** `cases_rtos/test_*.cpp` (own glob). Feature header: the generic one of `platform/include` (the
+  wrappers use no feature macro). No CMSIS-DSP. `-funsigned-char` like the other new executables. Built on Linux,
+  macOS and MinGW (no fixed addresses); unverified on macOS and Windows.
+* **`HOSTTEST_RTOS_EXT`** (defined only for this executable) switches on the fake API:
+  * `platform/src/host_freertos.cpp` includes `platform/src/host_freertos_ext.inc` (the F11 fakes; not a separate
+    translation unit, it shares the kernel's internal state) and leaves out the functions the extension replaces
+    (heap, `xTaskCreate`, scheduler suspension, notifications, semaphores). The other executables compile this file
+    exactly as before (checked: identical preprocessed sources and compile commands).
+  * `platform/include/FreeRTOSConfig.h`: the F407 switches the wrappers evaluate (`configSUPPORT_STATIC_ALLOCATION`,
+    `configUSE_TRACE_FACILITY`, `INCLUDE_xTimerPendFunctionCall`, `configTIMER_TASK_PRIORITY` 2,
+    `configTIMER_QUEUE_LENGTH` 10, `CPP_FREERTOS_CONDITION_VARIABLES`) and `configUSE_TICK_HOOK` 1 (**host-vs-target:**
+    the F407 has it 0, so `ctickhook.cpp` is empty on the target). `queue.h`, `timers.h`, `event_groups.h` declare the
+    API with the FreeRTOS macros; `task.h` maps the critical section macros to the Cortex-M4F port functions.
+  * `platform/src/host_platform.cpp`: advancing the simulated time runs one SysTick per 1 ms boundary
+    (`vApplicationTickHook` of `ctickhook.cpp` in interrupt context). `setTimeUs` jumps without ticks.
+  * `cmem_pool.cpp` is compiled through `platform/src/host_cmem_pool.cpp`: its `malloc()` calls go to `pvPortMalloc`
+    like on the target (`cppmain.cpp:138`), so heap_4's `pvPortMalloc(0) == NULL` and injected heap failures reach it.
+    CMake checks at configure time that the wrapper's pre-include list covers every `#include` of `cmem_pool.cpp`.
+* **Fake FreeRTOS API (F11)**, test control in `support/HostRtosExt.h` (model details there):
+  * Queues (create, send to back / front, overwrite, receive, peek, the ISR variants, messages waiting, spaces, reset,
+    delete), software timers with the timer service task "Tmr Svc" (commands through a queue of 10, processed when the
+    service task runs; expired timers before commands; one-shot / auto-reload with catch-up; start / stop / reset /
+    change period / delete and the ISR variants; `xTimerPendFunctionCall` / `FromISR`; `pvTimerGetTimerID`,
+    `xTimerIsTimerActive`), event groups (create, static create, set / clear (ISR variants through the timer service),
+    wait all / any with clear on exit, sync, get, delete), binary / counting semaphores, mutexes with holder
+    (giving a mutex held by another task is a configASSERT), recursive mutexes, task notifications with timeouts,
+    critical sections / BASEPRI, scheduler suspension, the RTOS heap (live blocks, failures).
+  * New tasks are ready (`runUntilIdle` starts every task that never ran). Blocking calls with a timeout use the
+    simulated time: a resumable task parks until the condition holds or the timeout has passed; a task with the
+    restart model is started again when the condition holds; the test thread fails an infinite wait ("would block
+    forever", recorded) and lets a finite timeout pass tick by tick. `pxHigherPriorityTaskWoken` is set from the task
+    priorities.
+  * **Create-failure injection** for every create function: `HostRtos::failCreate(RtosObject::Queue / Timer /
+    EventGroup / StaticEventGroup / BinarySemaphore / CountingSemaphore / Mutex / RecursiveMutex / Task / Heap, after,
+    count)`.
+  * **Faults:** everything FreeRTOS would stop in `configASSERT` (NULL or deleted handles, non-ISR functions in an
+    interrupt, unbalanced critical sections, ...) and every call the fake does not model (tick count overflow,
+    blocking timer callbacks, ...) is recorded in `HostRtos::kernelFaults()` and the call returns its failure value.
+  * Not modelled: preemption and priority inheritance, the tick count overflow, queue sets, stream / message buffers,
+    static creation other than event groups.
+* **Fixture** (`support/RtosFixture.h`): `RtosFixture` resets the simulated time, the kernel and the F11 state before
+  and after every test (injections, critical / suspension state, tick counter, the timer service task, its queue and
+  timer list, timers deleted by the service). At the end it fails the test on recorded kernel faults or an open
+  critical section / scheduler suspension; `KNOWN_ISSUE` tests call `REQUIRE_ALL_RTOS_MODELLED()` before the defect
+  assertion, tests expecting a fault remove it with `expectKernelFault("...")`. `advance(ms)` lets time pass tick by
+  tick with every ready task (timer service included) run after each tick; `runReady()` runs the ready tasks;
+  `keepAlive(new MemoryPool(...))` keeps objects that can never be destroyed reachable for the leak sanitizer.
+* **Exclusions:** `FFB_RTOS_TESTS_EXCLUDE` and `FFB_RTOS_TESTS_EXCLUDE_SANITIZE` (both default empty), printed at
+  configure time like the others. Run directly: `build/ffb_rtos_tests` (`-ts=RtosSetup` for the smoke tests).
+* **Host-vs-target:** the host uses the exception variant of the wrappers (the F407 defines `CPP_FREERTOS_NO_EXCEPTIONS`
+  and stops in `configASSERT`); `sizeof(void *)` is 8 on the host and 4 on the target (`MemoryPool` raises the
+  alignment to the pointer size, so item sizes differ).
 
 ## Limitations
 

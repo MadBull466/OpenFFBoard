@@ -8,6 +8,12 @@
  * blocking kernel call (instead of leaving its function with TaskBlocked); the next activation continues there, like
  * the task on the target continues after the blocking call returns. Tasks that are not resumable keep the restart
  * semantics. The hand-over (mutex + condition variable) keeps the execution sequential and deterministic.
+ *
+ * ffb_rtos_tests (HOSTTEST_RTOS_EXT only): the fake FreeRTOS API F11 (queues, software timers with the timer service
+ * task, event groups, mutex ownership, recursive mutexes, deadline based timeouts, critical sections, scheduler
+ * suspension, tick hook, create-failure injection) is in host_freertos_ext.inc, included at the end of this file. The
+ * functions it replaces are left out here with #ifndef HOSTTEST_RTOS_EXT; the other executables compile this file
+ * exactly as before.
  */
 #include "FreeRTOS.h"
 #include "task.h"
@@ -53,12 +59,23 @@ struct HostTask {
 	bool suspended = false;
 	std::unique_ptr<ResumableContext> resumable; //!< Set by HostRtos::makeResumable
 	bool deleted = false; //!< A resumable task deleted itself on its host thread: freed when the activation ends
+#ifdef HOSTTEST_RTOS_EXT
+	std::function<bool()> extWake;		//!< While blocked in a modelled wait: true when the task can continue (host_freertos_ext.inc)
+	const void *extWaitObject = nullptr; //!< Kernel object of that wait (pxHigherPriorityTaskWoken of the FromISR functions)
+	bool extNeverRun = true;			//!< Created and never activated: ready like a new task on the target
+#endif
 };
 
 struct HostSemaphore {
 	UBaseType_t count = 0;
 	UBaseType_t maxCount = 1;
 	uint64_t generation = 0; //!< Unique per created semaphore: a parked task's wait survives a reused address
+#ifdef HOSTTEST_RTOS_EXT
+	uint8_t type = 0;			  //!< queueQUEUE_TYPE_MUTEX / _COUNTING_SEMAPHORE / _BINARY_SEMAPHORE / _RECURSIVE_MUTEX
+	bool held = false;			  //!< Mutex types: taken
+	HostTask *holder = nullptr;	  //!< Mutex types: task that holds it (nullptr: the test thread)
+	UBaseType_t recursion = 0;	  //!< Recursive mutex: uxRecursiveCallCount
+#endif
 };
 
 namespace {
@@ -96,6 +113,10 @@ void kernelFault(const std::string &what) {
 bool isRegistered(HostTask *task) {
 	return std::find(tasks().begin(), tasks().end(), task) != tasks().end();
 }
+
+#ifdef HOSTTEST_RTOS_EXT
+void rtosExtReset(); //!< host_freertos_ext.inc, called by HostRtos::reset()
+#endif
 
 /** Thrown on the host thread of a parked resumable task to unwind it when the task is deleted. Never leaves that thread */
 struct ResumableTaskKilled {};
@@ -180,6 +201,9 @@ bool runResumable(HostTask *task) {
 	}
 	currentTask = task;
 	delayBudgetRemaining = delayBudgetMs;
+#ifdef HOSTTEST_RTOS_EXT
+	task->extNeverRun = false;
+#endif
 	if (!ctx.started) {
 		ctx.started = true;
 		ctx.thread = std::thread(resumableThreadMain, task->fn, task->param, &ctx);
@@ -250,6 +274,9 @@ void reset() {
 	resumeCalls = ResumeStats();
 	heapCalls = HeapStats();
 	kernelFaultList.clear();
+#ifdef HOSTTEST_RTOS_EXT
+	rtosExtReset();
+#endif
 }
 
 const std::vector<std::string> &kernelFaults() { return kernelFaultList; }
@@ -264,6 +291,11 @@ bool runUntilBlocked(TaskHandle_t task) {
 	}
 	currentTask = task;
 	delayBudgetRemaining = delayBudgetMs;
+#ifdef HOSTTEST_RTOS_EXT
+	task->extNeverRun = false;
+	task->extWake = nullptr; // Restart model: the wait is made again when the function starts again
+	task->extWaitObject = nullptr;
+#endif
 	try {
 		task->fn(task->param);
 	} catch (const TaskBlocked &) {
@@ -277,9 +309,19 @@ bool runUntilBlocked(TaskHandle_t task) {
  * condition it waits for is met (notification, semaphore available, resumed after a suspend)
  */
 static bool isReady(HostTask *task) {
+#ifdef HOSTTEST_RTOS_EXT
+	if (task->extNeverRun) {
+		return true; // A new task is ready on the target
+	}
+#endif
 	if (task->resumable && task->resumable->started) {
 		return !task->resumable->finished && task->resumable->ready && task->resumable->ready();
 	}
+#ifdef HOSTTEST_RTOS_EXT
+	if (task->extWake && task->extWake()) {
+		return true; // Blocked in a modelled wait whose condition holds now
+	}
+#endif
 	return task->notifications > 0;
 }
 
@@ -357,6 +399,7 @@ HeapStats &heapStats() {
 // ---------------- Kernel API ----------------
 extern "C" {
 
+#ifndef HOSTTEST_RTOS_EXT // ffb_rtos_tests: host_freertos_ext.inc (failure injection, live block tracking)
 void *pvPortMalloc(size_t size) {
 	void *p = malloc(size);
 	heapCalls.mallocCalls++;
@@ -369,9 +412,11 @@ void vPortFree(void *ptr) {
 	heapCalls.lastFreed = ptr;
 	free(ptr);
 }
+#endif
 size_t xPortGetFreeHeapSize(void) { return 0x10000; }
 size_t xPortGetMinimumEverFreeHeapSize(void) { return 0x8000; }
 
+#ifndef HOSTTEST_RTOS_EXT // ffb_rtos_tests: host_freertos_ext.inc (create-failure injection)
 BaseType_t xTaskCreate(TaskFunction_t fn, const char *name, uint32_t, void *param, UBaseType_t prio, TaskHandle_t *handle) {
 	HostTask *task = new HostTask();
 	task->fn = fn;
@@ -384,6 +429,7 @@ BaseType_t xTaskCreate(TaskFunction_t fn, const char *name, uint32_t, void *para
 	}
 	return pdPASS;
 }
+#endif
 
 void vTaskDelete(TaskHandle_t task) {
 	if (task == nullptr) {
@@ -462,8 +508,10 @@ BaseType_t xTaskResumeFromISR(TaskHandle_t task) {
 	if (isRegistered(task)) task->suspended = false;
 	return pdFALSE;
 }
+#ifndef HOSTTEST_RTOS_EXT // ffb_rtos_tests: host_freertos_ext.inc (scheduler suspension nesting)
 void vTaskSuspendAll(void) {}
 BaseType_t xTaskResumeAll(void) { return pdFALSE; }
+#endif
 UBaseType_t uxTaskPriorityGet(TaskHandle_t task) { return isRegistered(task) ? task->priority : 0; }
 UBaseType_t uxTaskPriorityGetFromISR(TaskHandle_t task) { return uxTaskPriorityGet(task); }
 void vTaskPrioritySet(TaskHandle_t task, UBaseType_t prio) {
@@ -474,7 +522,9 @@ char *pcTaskGetName(TaskHandle_t task) {
 	return isRegistered(task) ? task->name.data() : empty;
 }
 TaskHandle_t xTaskGetCurrentTaskHandle(void) { return currentTask; }
+#ifndef HOSTTEST_RTOS_EXT
 BaseType_t xTaskGetSchedulerState(void) { return taskSCHEDULER_RUNNING; }
+#endif
 UBaseType_t uxTaskGetNumberOfTasks(void) { return tasks().size(); }
 UBaseType_t uxTaskGetSystemState(TaskStatus_t *, UBaseType_t, uint32_t *) { return 0; }
 UBaseType_t uxTaskGetStackHighWaterMark(TaskHandle_t) { return 0; }
@@ -485,6 +535,7 @@ void vTaskGetRunTimeStats(char *buf) {
 	if (buf) *buf = 0;
 }
 
+#ifndef HOSTTEST_RTOS_EXT // ffb_rtos_tests: host_freertos_ext.inc (deadline based timeouts, pxHigherPriorityTaskWoken)
 BaseType_t xTaskNotifyGive(TaskHandle_t task) {
 	if (isRegistered(task)) {
 		task->notifications++;
@@ -521,8 +572,10 @@ uint32_t ulTaskNotifyTake(BaseType_t clearOnExit, TickType_t ticksToWait) {
 	currentTask->notifications = clearOnExit ? 0 : count - 1;
 	return count;
 }
+#endif
 
 // ---------------- Semaphores ----------------
+#ifndef HOSTTEST_RTOS_EXT // ffb_rtos_tests: host_freertos_ext.inc (mutex ownership, recursive mutexes, timeouts)
 static SemaphoreHandle_t createSemaphore(UBaseType_t count, UBaseType_t maxCount) {
 	liveSemaphores++;
 	HostSemaphore *sem = new HostSemaphore{count, maxCount, ++semaphoreGenerations};
@@ -592,5 +645,10 @@ BaseType_t xSemaphoreGiveFromISR(SemaphoreHandle_t sem, BaseType_t *higherPriori
 BaseType_t xSemaphoreTakeRecursive(SemaphoreHandle_t sem, TickType_t ticksToWait) { return xSemaphoreTake(sem, ticksToWait); }
 BaseType_t xSemaphoreGiveRecursive(SemaphoreHandle_t sem) { return xSemaphoreGive(sem); }
 UBaseType_t uxSemaphoreGetCount(SemaphoreHandle_t sem) { return sem->count; }
+#endif // HOSTTEST_RTOS_EXT
 
 } // extern "C"
+
+#ifdef HOSTTEST_RTOS_EXT
+#include "host_freertos_ext.inc"
+#endif

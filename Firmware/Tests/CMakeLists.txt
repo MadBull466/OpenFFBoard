@@ -508,3 +508,121 @@ else()
 	add_test(NAME ffb_flash_tests COMMAND ffb_flash_tests)
 endif()
 endif() # NOT APPLE (ffb_flash_tests)
+
+# ===========================================================================
+# ffb_rtos_tests: the FreeRTOS C++ wrappers (cpp_freertos, FFBoard/Src/c*.cpp, vendor tier A) on the fake FreeRTOS API
+# F11 (P8): queues, software timers with the timer service task, event groups, mutex ownership, recursive mutexes,
+# counting semaphores, critical sections, scheduler suspension, tick hook, RTOS heap, create-failure injection.
+#
+# ffb_unit_tests, ffb_target_tests and ffb_flash_tests above are not changed by this section.
+#  - HOSTTEST_RTOS_EXT: host_freertos.cpp includes platform/src/host_freertos_ext.inc (the F11 fakes, replacing its
+#    semaphore / notification / heap / task creation functions), host_platform.cpp runs one SysTick per simulated ms,
+#    the fake FreeRTOS headers in platform/include declare the queue / timer / event group API and the F407 switches
+#    the wrappers evaluate (FreeRTOSConfig.h: static allocation, trace facility, xTimerPendFunctionCall, condition
+#    variables; the tick hook is on although the F407 has configUSE_TICK_HOOK 0).
+#  - cmem_pool.cpp is compiled through platform/src/host_cmem_pool.cpp (its malloc() goes to pvPortMalloc like on the
+#    target, cppmain.cpp:138).
+# Feature header: the generic test header of platform/include (the wrappers use no feature macro). No CMSIS-DSP.
+# Built on every host (no fixed addresses, unlike ffb_flash_tests).
+# ===========================================================================
+set(RTOS_FIRMWARE_SOURCES
+	# Under test (P8): the cpp_freertos wrappers. cmem_pool.cpp: see RTOS_PLATFORM_SOURCES
+	${FFBOARD_DIR}/Src/cthread.cpp
+	${FFBOARD_DIR}/Src/cmutex.cpp
+	${FFBOARD_DIR}/Src/csemaphore.cpp
+	${FFBOARD_DIR}/Src/cqueue.cpp
+	${FFBOARD_DIR}/Src/ctimer.cpp
+	${FFBOARD_DIR}/Src/ctasklet.cpp
+	${FFBOARD_DIR}/Src/ctickhook.cpp
+	${FFBOARD_DIR}/Src/cevent_groups.cpp
+	${FFBOARD_DIR}/Src/cworkqueue.cpp
+	${FFBOARD_DIR}/Src/cread_write_lock.cpp
+	${FFBOARD_DIR}/Src/ccondition_variable.cpp
+	# Needed to link: external_uart in host_platform.cpp
+	${FFBOARD_DIR}/Src/UART.cpp
+	${FFBOARD_DIR}/Src/UartHandler.cpp
+)
+
+set(RTOS_PLATFORM_SOURCES
+	platform/src/host_freertos.cpp
+	platform/src/host_platform.cpp
+	platform/src/host_cmem_pool.cpp
+)
+
+# Configure-time guard for platform/src/host_cmem_pool.cpp (like host_cppmain.cpp above): every #include of
+# cmem_pool.cpp must be in the wrapper's pre-include list, otherwise the malloc macro would reach a header.
+file(STRINGS ${FFBOARD_DIR}/Src/cmem_pool.cpp FFB_CMEM_POOL_INCLUDES REGEX "^[ \t]*#[ \t]*include")
+file(READ ${CMAKE_CURRENT_SOURCE_DIR}/platform/src/host_cmem_pool.cpp FFB_CMEM_POOL_WRAPPER)
+string(FIND "${FFB_CMEM_POOL_WRAPPER}" "// End of the pre-include list" FFB_CMEM_POOL_WRAPPER_END)
+if(FFB_CMEM_POOL_WRAPPER_END LESS 0)
+	message(FATAL_ERROR "platform/src/host_cmem_pool.cpp: marker '// End of the pre-include list' not found")
+endif()
+string(SUBSTRING "${FFB_CMEM_POOL_WRAPPER}" 0 ${FFB_CMEM_POOL_WRAPPER_END} FFB_CMEM_POOL_WRAPPER_HEAD)
+string(REGEX MATCHALL "#[ \t]*include[ \t]*[\"<][^\">]+[\">]" FFB_CMEM_POOL_WRAPPER_INCLUDES "${FFB_CMEM_POOL_WRAPPER_HEAD}")
+string(REGEX REPLACE "[ \t]" "" FFB_CMEM_POOL_WRAPPER_INCLUDES "${FFB_CMEM_POOL_WRAPPER_INCLUDES}")
+foreach(inc IN LISTS FFB_CMEM_POOL_INCLUDES)
+	string(REGEX MATCH "#[ \t]*include[ \t]*[\"<][^\">]+[\">]" inc "${inc}")
+	string(REGEX REPLACE "[ \t]" "" inc "${inc}")
+	if(NOT inc IN_LIST FFB_CMEM_POOL_WRAPPER_INCLUDES)
+		message(FATAL_ERROR "FFBoard/Src/cmem_pool.cpp has '${inc}', which is missing in the pre-include list of "
+			"Firmware/Tests/platform/src/host_cmem_pool.cpp. Add it there (before the malloc macro).")
+	endif()
+endforeach()
+
+file(GLOB RTOS_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cases_rtos/test_*.cpp)
+
+add_executable(ffb_rtos_tests
+	${RTOS_FIRMWARE_SOURCES}
+	${RTOS_PLATFORM_SOURCES}
+	${RTOS_TEST_SOURCES}
+	support/test_main.cpp
+)
+
+# The USB directories only for the headers host_platform.cpp / UART.cpp include (no USB code is compiled)
+target_include_directories(ffb_rtos_tests PRIVATE
+	platform/include
+	support
+	mocks
+	third_party
+	${FFBOARD_DIR}/Inc
+	${FFBOARD_DIR}/UserExtensions/Inc
+	${FFBOARD_DIR}/USB
+	${FFBOARD_DIR}/USB/common
+	${FFBOARD_DIR}/USB/device
+	${FFBOARD_DIR}/USB/class/hid
+	${FFBOARD_DIR}/USB/class/cdc
+	${FFBOARD_DIR}/USB/class/midi
+)
+
+target_compile_definitions(ffb_rtos_tests PRIVATE HOSTTEST HOSTTEST_RTOS_EXT)
+
+target_link_libraries(ffb_rtos_tests PRIVATE Threads::Threads)
+
+# -funsigned-char: char is unsigned on the ARM target (like ffb_target_tests)
+target_compile_options(ffb_rtos_tests PRIVATE -Wall $<$<COMPILE_LANGUAGE:CXX>:-Wno-volatile> -funsigned-char)
+if(MINGW)
+	target_compile_options(ffb_rtos_tests PRIVATE -mno-ms-bitfields)
+	target_link_options(ffb_rtos_tests PRIVATE -static)
+endif()
+
+if(FFB_TESTS_SANITIZE)
+	target_compile_definitions(ffb_rtos_tests PRIVATE HOSTTEST_SANITIZERS)
+	target_compile_options(ffb_rtos_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined)
+	target_link_options(ffb_rtos_tests PRIVATE -fsanitize=address,undefined)
+endif()
+
+# Test cases of ffb_rtos_tests excluded from ctest (doctest --test-case-exclude). Same rule as FFB_TESTS_EXCLUDE:
+# only cases that abort the whole run because of a suspected defect belong here.
+set(FFB_RTOS_TESTS_EXCLUDE "" CACHE STRING "Test cases of ffb_rtos_tests excluded from ctest (list)")
+set(FFB_RTOS_TESTS_EXCLUDE_SANITIZE "" CACHE STRING "Test cases of ffb_rtos_tests additionally excluded from ctest in sanitizer builds (list)")
+set(FFB_RTOS_TESTS_EXCLUDED ${FFB_RTOS_TESTS_EXCLUDE})
+if(FFB_TESTS_SANITIZE)
+	list(APPEND FFB_RTOS_TESTS_EXCLUDED ${FFB_RTOS_TESTS_EXCLUDE_SANITIZE})
+endif()
+list(JOIN FFB_RTOS_TESTS_EXCLUDED "," FFB_RTOS_TESTS_EXCLUDED_ARG)
+message(STATUS "OpenFFBoard tests: ffb_rtos_tests excluded from ctest: ${FFB_RTOS_TESTS_EXCLUDED_ARG}")
+if(FFB_RTOS_TESTS_EXCLUDED_ARG)
+	add_test(NAME ffb_rtos_tests COMMAND ffb_rtos_tests "--test-case-exclude=${FFB_RTOS_TESTS_EXCLUDED_ARG}")
+else()
+	add_test(NAME ffb_rtos_tests COMMAND ffb_rtos_tests)
+endif()
