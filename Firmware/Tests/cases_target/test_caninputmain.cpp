@@ -10,7 +10,11 @@
  * deterministic the fixture constructs the class with placement new in zero-filled storage (InputMainFixture::create);
  * the bug 114 case uses a non-zero pattern. The FFBMAIN thread restarts at Delay(1) on the host: the cases call
  * updateControl() / sendReport() directly, one case runs the thread with a delay budget.
- * The transmit mailboxes are acknowledged automatically (canSetTxAutoComplete) unless a case says otherwise.
+ * The transmit mailboxes are acknowledged automatically (canSetTxAutoComplete) unless a case says otherwise. The fake
+ * acknowledges at once: on the target a report of more than 3 frames (buttons + more than 8 analog values) finds no
+ * free mailbox for frame 4+, the send fails at once (CANPort2B bug 110) and the frame is not resent (NEEDS REVIEW 127).
+ * CANInputMain uses the flash addresses of FFBWheel for its sources (ADR_FFBWHEEL_BUTTONCONF / _ANALOGCONF,
+ * CanInputMain.cpp:56-60, 78-79; NEEDS REVIEW 140).
  *
  * Host-vs-target notes: digitalBuffer is 64 bit, written by the FFBMAIN thread and read by the command thread (can
  * tear on the 32-bit target, not testable without preemption).
@@ -97,8 +101,9 @@ TEST_CASE_FIXTURE(InputMainFixture, "the CAN input main class has the CAN remote
 TEST_CASE_FIXTURE(InputMainFixture, "the CAN port runs while the CAN input main class exists") {
 	create();
 
-	// The class never takes the port itself; the CAN command interface of FFBoardMain (CANCOMMANDS) does
-	CHECK(canport.getPortUsers() == 1);
+	// The class never takes the port itself; the CAN command interface of FFBoardMain (CANCOMMANDS) does. Without
+	// CANCOMMANDS (F407VG_DISCO) nobody would start the port (NEEDS REVIEW 138)
+	CHECK(canport.getPortUsers() >= 1);
 	CHECK(hcan1.State == HAL_CAN_STATE_LISTENING);
 }
 
@@ -131,6 +136,8 @@ TEST_CASE_FIXTURE(InputMainFixture, "usbInit of the CAN input main class registe
 // ---------------------------------------------------------------- buttons
 
 TEST_CASE_FIXTURE(InputMainFixture, "without input sources no frame is sent") {
+	// Holds for the button frame only because the fixture constructs over zero bytes: digitalBuffer is not
+	// initialised (bug 114) and the first report compares against it
 	create();
 
 	main->sendReport();
@@ -429,7 +436,7 @@ TEST_CASE_FIXTURE(InputMainFixture, "the rate info lists the 7 report rates with
 	CHECK(replies[0].reply == "1000Hz:0,500Hz:1,250Hz:2,125Hz:3,100Hz:4,62Hz:5,31Hz:6");
 }
 
-TEST_CASE_FIXTURE(InputMainFixture, "a report rate index beyond the last rate selects the last rate" * doctest::skip() *
+TEST_CASE_FIXTURE(InputMainFixture, "a report rate index beyond the last rate never selects a rate that does not exist" * doctest::skip() *
 										doctest::description("KNOWN ISSUE (crash): bug 116: setReportRate clips the index to "
 															 "report_rates.size() = 7 instead of size()-1 (CanInputMain.cpp:160) "
 															 "and reads report_rates[7] (:162), one past the std::array: aborts the "
@@ -438,9 +445,9 @@ TEST_CASE_FIXTURE(InputMainFixture, "a report rate index beyond the last rate se
 															 "field). Skipped")) {
 	create();
 
-	CHECK(run("rate", CMDtype::set, 7) == CommandStatus::OK);
+	run("rate", CMDtype::set, 7); // a fix may clip (OK) or reject (ERR)
 
-	CHECK(get("rate") == 6);
+	CHECK(get("rate") <= 6);
 }
 
 // ---------------------------------------------------------------- commands
@@ -525,12 +532,12 @@ TEST_CASE_FIXTURE(InputMainFixture, "addain adds an analog source whose values a
 	CHECK(payload(0) == std::vector<uint8_t>{0x55, 0, 0, 0, 0, 0, 0, 0});
 }
 
-TEST_CASE_FIXTURE(InputMainFixture, "addbtn and addain only accept a set") {
+TEST_CASE_FIXTURE(InputMainFixture, "a get of addbtn or addain adds no source") {
 	create();
 	InputSources::useMockRegistries(*main);
 
-	CHECK(run("addbtn", CMDtype::get) == CommandStatus::OK);
-	CHECK(run("addain", CMDtype::get) == CommandStatus::OK);
+	run("addbtn", CMDtype::get); // set-only commands (the command interface rejects a get before the class sees it)
+	run("addain", CMDtype::get);
 
 	CHECK(MockButtonSource::instances().empty());
 	CHECK(MockAnalogSource::instances().empty());

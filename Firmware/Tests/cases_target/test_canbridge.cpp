@@ -14,8 +14,10 @@
  * FFBoardMain::cdcbuf (the rest zero), see gvret(). Only the bug 119 case uses a buffer of the exact size.
  *
  * Host-vs-target notes: `char` is unsigned like on ARM (-funsigned-char; CanBridge compares char with 0xE7 / 0xF1).
- * The CDC buffer of the F407 (full speed) is 64 bytes, so the uint8_t positions of cdcRcv do not overflow; with a high
- * speed port (512 byte buffer) they would.
+ * The CDC buffer of the F407 (full speed) is 64 bytes, so the uint8_t positions of cdcRcv (CanBridge.cpp:156, 165-178)
+ * do not overflow; with a high speed port (512 byte cdcbuf) `while(pos < *Len)` never ends for *Len > 255 (pos wraps):
+ * a hang.
+ * GVRET commands are parsed per CDC transfer: nothing joins a command split across two reads (NEEDS REVIEW 137).
  */
 #include "doctest.h"
 #include "AxisFixture.h"
@@ -113,6 +115,8 @@ TEST_CASE_FIXTURE(TargetFixture, "the filter of the CAN bridge accepts every sta
 		CHECK(HostTarget::canAccepts(id, false, false, &fifo));
 		CHECK(fifo == CAN_RX_FIFO0);
 	}
+	// Extended frames pass only because a standard filter does not mask IDE (CANPort2B NEEDS REVIEW 117): a fix of
+	// NR 117 needs an extended filter in CanBridge
 	CHECK(HostTarget::canAccepts(0x1FFFFFFF, true));
 	CHECK(HostTarget::canAccepts(0x00012345, true));
 }
@@ -238,7 +242,9 @@ TEST_CASE_FIXTURE(BridgeFixture, "characterization: the listen-only flag of the 
 	CHECK(HostTarget::canTxFrames().size() == 1);
 }
 
-TEST_CASE_FIXTURE(BridgeFixture, "a CAN config without the flag bit keeps the enabled and listen-only flags") {
+TEST_CASE_FIXTURE(BridgeFixture, "characterization: a CAN config without the flag bit keeps the enabled and listen-only flags (NEEDS REVIEW 124)") {
+	// CanBridge.cpp:222-227 changes the flags only when bit 31 (0x80 in byte 3) is set. GVRET's SETUP_CANBUS enables the
+	// bus when bit 31 is clear ("old behaviour") and disables it with speed 0; the firmware comments do not describe it
 	enterGvret(bridge);
 	gvret(bridge, bytes({0xF1, 0x05, 0x20, 0xA1, 0x07, 0xA0, 0x00, 0x00, 0x00, 0x00})); // valid, disabled, listen only
 	gvret(bridge, bytes({0xF1, 0x05, 0x20, 0xA1, 0x07, 0x40, 0x00, 0x00, 0x00, 0x00})); // 0x40 without 0x80: ignored
@@ -248,6 +254,19 @@ TEST_CASE_FIXTURE(BridgeFixture, "a CAN config without the flag bit keeps the en
 
 	REQUIRE(cdcOut().size() == 12);
 	CHECK(static_cast<uint8_t>(cdcOut()[2]) == 0x10);
+}
+
+TEST_CASE_FIXTURE(BridgeFixture, "characterization: a CAN config with speed 0 keeps bus 0 enabled and the speed of the port (NEEDS REVIEW 124)") {
+	// In GVRET speed 0 disables the bus; here setSpeed(0) finds no preset (ignored) and conf1 keeps enabled
+	enterGvret(bridge);
+	gvret(bridge, bytes({0xF1, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}));
+
+	gvret(bridge, bytes({0xF1, 0x06}));
+
+	REQUIRE(cdcOut().size() == 12);
+	CHECK(static_cast<uint8_t>(cdcOut()[2]) == 0x01);
+	CHECK(canport.getSpeed() == 500000);
+	CHECK(hcan1.State == HAL_CAN_STATE_LISTENING);
 }
 
 TEST_CASE_FIXTURE(BridgeFixture, "a build-frame command sends a standard frame on bus 0") {
@@ -303,6 +322,52 @@ TEST_CASE_FIXTURE(BridgeFixture, "characterization: a build-frame length above 8
 	REQUIRE(HostTarget::canTxFrames().size() == 1);
 	CHECK(HostTarget::canTxFrames()[0].dlc == 12);
 	CHECK(HostTarget::canTxFrames()[0].payload() == std::vector<uint8_t>{1, 2, 3, 4, 5, 6, 7, 8});
+}
+
+TEST_CASE_FIXTURE(BridgeFixture, "two build-frame commands with their trailing 0 byte in one transfer send both frames") {
+	enterGvret(bridge); // SavvyCAN sends F1 00 <id 4> <bus> <len> <data> 0 per frame
+
+	gvret(bridge, bytes({0xF1, 0x00, 0x23, 0x01, 0x00, 0x00, 0x00, 0x02, 0xAA, 0xBB, 0x00,
+						 0xF1, 0x00, 0x56, 0x04, 0x00, 0x00, 0x00, 0x01, 0xCC, 0x00}));
+
+	REQUIRE(HostTarget::canTxFrames().size() == 2);
+	CHECK(HostTarget::canTxFrames()[0].id == 0x123);
+	CHECK(HostTarget::canTxFrames()[0].payload() == std::vector<uint8_t>{0xAA, 0xBB});
+	CHECK(HostTarget::canTxFrames()[1].id == 0x456);
+	CHECK(HostTarget::canTxFrames()[1].payload() == std::vector<uint8_t>{0xCC});
+	CHECK(cdcOut().empty());
+}
+
+TEST_CASE_FIXTURE(BridgeFixture, "a build-frame command cut at the end of a transfer sends no frame" *
+									 KNOWN_ISSUE("bug 129: the length check of build frame (CanBridge.cpp:185-186) compares the "
+												 "whole transfer (*Len >= 8), not the bytes left for this command, so id, bus, "
+												 "length and data are read past *Len (CanBridge.cpp:187-193): F1 0C F1 00 23 01 "
+												 "00 00 sends a DLC 0 frame with id 0x123 whose bus and length bytes were never "
+												 "received (stale cdcbuf bytes on the target, zeros here). The CHECK fails")) {
+	enterGvret(bridge);
+
+	gvret(bridge, bytes({0xF1, 0x0C, 0xF1, 0x00, 0x23, 0x01, 0x00, 0x00}));
+	REQUIRE_ALL_HAL_MODELLED();
+
+	REQUIRE(cdcOut() == bytes({0xF1, 0x0C, 0x01}));
+	CHECK(HostTarget::canTxFrames().empty());
+}
+
+TEST_CASE_FIXTURE(BridgeFixture, "characterization: a build-frame command split across two CDC transfers is not joined (NEEDS REVIEW 137)") {
+	// cdcRcv parses each transfer on its own (CanBridge.cpp:135-283). With 64 byte full speed packets a SavvyCAN
+	// stream is split often. The second part starts with neither 0xE7 nor 0xF1 and goes to the text command parser
+	// (CanBridge.cpp:143-145), whose buffer then holds binary bytes: the next text command line gets no reply
+	enterGvret(bridge);
+
+	gvret(bridge, bytes({0xF1, 0x00, 0x23, 0x01, 0x00, 0x00, 0x00, 0x08, 0x01, 0x02}));
+	gvret(bridge, bytes({0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x00}));
+
+	for (const HostTarget::CanTxFrame &f : HostTarget::canTxFrames()) {
+		CHECK(f.data[2] != 0x03); // the second part never reaches a frame
+	}
+	CHECK(cdcOut().empty());
+	CommandHelpers::CdcConsole console(bridge);
+	CHECK(console.send("main.0.spd?\n").empty());
 }
 
 TEST_CASE_FIXTURE(BridgeFixture, "several GVRET commands in one transfer are all answered in order") {
@@ -413,12 +478,18 @@ TEST_CASE_FIXTURE(BridgeFixture, "GVRET commands received through the CDC port a
 // ---------------------------------------------------------------- received frames to the host
 
 TEST_CASE_FIXTURE(BridgeFixture, "a received extended frame is sent to the host with bit 31 of the id set") {
+	// The standard mask-0 filter of the bridge accepts extended frames only because a standard filter does not mask
+	// IDE (CANPort2B NEEDS REVIEW 117): a fix of NR 117 needs an extended filter in CanBridge
 	enterGvret(bridge);
 	REQUIRE(HostTarget::canReceive(0x01ABCDEF, {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, true) == 1);
 
 	bridge.update();
 
-	CHECK(cdcOut() == gvretFrame(0, 0x81ABCDEF, {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}));
+	// Bytes 2-5 are the timestamp (bug 121); compared from the id on
+	const std::string expected = gvretFrame(0, 0x81ABCDEF, {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08});
+	REQUIRE(cdcOut().size() == expected.size());
+	CHECK(cdcOut().substr(0, 2) == expected.substr(0, 2));
+	CHECK(cdcOut().substr(6) == expected.substr(6));
 }
 
 TEST_CASE_FIXTURE(BridgeFixture, "a received frame without data is sent to the host with length 0") {
@@ -427,7 +498,10 @@ TEST_CASE_FIXTURE(BridgeFixture, "a received frame without data is sent to the h
 
 	bridge.update();
 
-	CHECK(cdcOut() == gvretFrame(0, 0x10, {}));
+	const std::string expected = gvretFrame(0, 0x10, {}); // bytes 2-5: timestamp (bug 121), not compared
+	REQUIRE(cdcOut().size() == expected.size());
+	CHECK(cdcOut().substr(0, 2) == expected.substr(0, 2));
+	CHECK(cdcOut().substr(6) == expected.substr(6));
 }
 
 TEST_CASE_FIXTURE(BridgeFixture, "the timestamp of a received frame is the time of reception in microseconds" *
@@ -475,6 +549,24 @@ TEST_CASE_FIXTURE(BridgeFixture, "update sends nothing when no frame was receive
 	CHECK(HostUsb::state().cdcWrites == writes);
 }
 
+TEST_CASE_FIXTURE(BridgeFixture, "a GVRET frame to the host is not cut when the CDC transmit buffer is nearly full" *
+									 KNOWN_ISSUE("bug 130: update() (CanBridge.cpp:120) and cdcRcv (:282) ignore the return value "
+												 "of tud_cdc_n_write: with less free space in the CDC transmit FIFO than the frame "
+												 "needs, only the first bytes are sent and the rest is dropped, so the host loses "
+												 "the frame boundaries of the GVRET stream. The first CHECK fails")) {
+	enterGvret(bridge);
+	REQUIRE(HostTarget::canReceive(0x123, {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88}) == 1);
+	HostUsb::state().cdcWriteAvailable = 5;
+
+	bridge.update();
+	REQUIRE_ALL_HAL_MODELLED();
+
+	CHECK((cdcOut().empty() || cdcOut().size() == 20)); // the whole frame or nothing (sent later), never a part
+	HostUsb::state().cdcWriteAvailable = 1024;
+	bridge.update();
+	CHECK(cdcOut().size() == 20);
+}
+
 TEST_CASE_FIXTURE(BridgeFixture, "a received frame is sent to the host only once") {
 	enterGvret(bridge);
 	REQUIRE(HostTarget::canReceive(0x123, {0x11}) == 1);
@@ -495,7 +587,9 @@ TEST_CASE_FIXTURE(BridgeFixture, "characterization: only the last frame received
 
 	bridge.update();
 
-	CHECK(cdcOut() == gvretFrame(0, 0x102, {0x02}));
+	const std::string expected = gvretFrame(0, 0x102, {0x02}); // bytes 2-5: timestamp (bug 121), not compared
+	REQUIRE(cdcOut().size() == expected.size());
+	CHECK(cdcOut().substr(6) == expected.substr(6));
 }
 
 TEST_CASE_FIXTURE(BridgeFixture, "a frame from receive FIFO 1 is not sent to the host") {
@@ -523,7 +617,8 @@ TEST_CASE_FIXTURE(BridgeFixture, "a received frame pulses the system LED") {
 }
 
 TEST_CASE_FIXTURE(BridgeFixture, "in text mode a received frame is logged as CAN:<id>:<data>") {
-	REQUIRE(HostTarget::canReceive(0x123, {0x11, 0x22}) == 1);
+	// 8 byte frame: the firmware prints all 8 bytes regardless of the DLC (bytes beyond the DLC are not defined on the target)
+	REQUIRE(HostTarget::canReceive(0x123, {0x11, 0x22, 0, 0, 0, 0, 0, 0}) == 1);
 
 	bridge.update();
 
@@ -533,7 +628,7 @@ TEST_CASE_FIXTURE(BridgeFixture, "in text mode a received frame is logged as CAN
 // ---------------------------------------------------------------- text commands
 
 TEST_CASE_FIXTURE(BridgeFixture, "the can get command returns the data and the id of the last received frame") {
-	REQUIRE(HostTarget::canReceive(0x123, {0x11, 0x22}) == 1);
+	REQUIRE(HostTarget::canReceive(0x123, {0x11, 0x22, 0, 0, 0, 0, 0, 0}) == 1); // 8 bytes: the reply is all 8 data bytes
 	std::vector<CommandReply> replies;
 
 	CHECK(CommandHelpers::run(bridge, "can", CMDtype::get, 0, &replies) == CommandStatus::OK);
@@ -591,7 +686,7 @@ TEST_CASE_FIXTURE(BridgeFixture, "the rtr command sends a remote frame with the 
 }
 
 TEST_CASE_FIXTURE(BridgeFixture, "the rtr get command returns the data and the id of the last received frame") {
-	REQUIRE(HostTarget::canReceive(0x77, {0x05}) == 1);
+	REQUIRE(HostTarget::canReceive(0x77, {0x05, 0, 0, 0, 0, 0, 0, 0}) == 1); // 8 bytes: the reply is all 8 data bytes
 	std::vector<CommandReply> replies;
 
 	CHECK(CommandHelpers::run(bridge, "rtr", CMDtype::get, 0, &replies) == CommandStatus::OK);
