@@ -6,8 +6,8 @@
 
 ## Current state
 
-- **Current phase:** P8 (RTOS wrappers, new executable `ffb_rtos_tests`), started 2026-10-27. P7 approved 2026-10-27.
-- **Phase status:** P8 complete (batch 0, 2 module groups, 2 fresh reviews, fixes, gate, coverage, bug report). **Waiting for my approval.**
+- **Current phase:** P9 (vendor tiers B and C, Python helpers), started 2026-10-27. P8 approved 2026-10-27.
+- **Phase status:** P9 plan written ("P9 plan"); batch 0 running.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** `200ac244` (P8 final).
 - **Last updated:** 2026-10-27
@@ -15,7 +15,7 @@
 
 ## Next action
 
-**Stop: P8 approval gate.** `Tests/BUG_REPORT.md` is current. After approval: P9 (TinyUSB device code against a fake USB controller in `ffb_usb_tests`, the CMSIS-DSP functions the firmware calls, the two Python helpers with stdlib `unittest`), same process. Note from P8 batch 0: TinyUSB's `osal_freertos.h` calls `xQueueReset` on a semaphore, which the fake types do not allow (adaptation needed).
+**P9 batch 0 running.** Then: review and commit batch 0, 3 module agents (see "P9 plan"), fresh reviewers, fixes, gate, regenerate `Tests/BUG_REPORT.md`, final project summary, stop for approval.
 
 ## Phase checklist
 
@@ -32,8 +32,8 @@
 | P5 Buttons and analog | `ffb_target_tests` | about 775 (measured: total 6,206 lines, 76.5 %) | done | yes, 2026-10-26 | `73d4e482` batch 0, `3e36fdfd` analog, `663bce67` buttons, `2a18521a` A + infra review fixes, `13cb14a8` B review fixes + results |
 | P6 Encoders and buses | `ffb_target_tests` | about 640 (measured: total 6,988 lines, 86.2 %) | done | yes, 2026-10-26 | `cd92abd9` batch 0, `3e39a144` A, `7f5b4557` C, `a8317dbb` B, `ac6eadd1` infra + C review fixes, `e69fb8ec` A + B review fixes + results |
 | P7 CAN and serial FFB | `ffb_target_tests` | about 420 (measured: total 7,570 lines, 93.3 %) | done | yes, 2026-10-27 | `b270011b` batch 0, `5bdecdca` A, `50b9dffd` C, `18712821` B, `0d20c8e3` infra + A + C review fixes, `5645da14` B review fixes + results |
-| P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 (measured: total 8,007 lines, 98.9 %) | done | | `3975ddd6` batch 0, `45b1aa47` tests, `2324abf9` infra + B review fixes, `200ac244` A review fixes + results |
-| P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder | not started | | |
+| P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 (measured: total 8,007 lines, 98.9 %) | done | yes, 2026-10-27 | `3975ddd6` batch 0, `45b1aa47` tests, `2324abf9` infra + B review fixes, `200ac244` A review fixes + results |
+| P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder | in progress (batch 0) | | |
 
 ## Decisions log
 
@@ -358,6 +358,16 @@ Executable `ffb_target_tests`, new files in `cases_target/` only. Coverage after
 | A CAN port | `test_canport2b.cpp` | `CANPort2B.cpp` (+ `CAN.cpp` callers) | init/start/stop, speed presets and bit timing, filters (add/remove, standard/extended, FIFO), send with free/full mailboxes and timeout, receive dispatch, error and bus-off callbacks, silent mode, commands, flash config, port users |
 | B CAN main classes | `test_canbridge.cpp`, `test_caninputmain.cpp` | `CanBridge.cpp`, `CanInputMain.cpp` | GVRET/SavvyCAN-style frame protocol to the host over CDC, filters and speed commands, rx/tx forwarding; CAN input main class: button/analog sources to CAN frames, ids, rates, commands, flash |
 | C serial FFB | `test_serial_ffb.cpp` | `SerialFFB.cpp` | effect commands over the string interface (create, set parameters, start/stop, free, gain, reset), validation of ids and parameter ranges, interplay with `EffectsCalculator` |
+
+## P9 plan (2026-10-27)
+
+Vendor tiers and helpers; not part of the coverage ladder (in-scope firmware is at 98.9 %). Vendor defects are reported (V-numbers), never fixed. Batch 0 first, then 3 module agents in workspaces outside /tmp (`../ffb-test-build/ws/p9/<group>`), progress notes on disk.
+
+- **Batch 0:** new executable `ffb_usb_tests` (F2/F15): the real TinyUSB device code from `Firmware/FFBoard/USB/` with the F407 `tusb_config.h` (device, CDC + HID; MIDI off like the other executables), a fake device controller implementing the `dcd_*` API (scripted bus reset, SETUP packets, endpoint transfers, suspend/resume, completion events) and an OSAL for the host (`osal_freertos.h` calls `xQueueReset` on a semaphore: adapt in the test platform, never in TinyUSB); the firmware's descriptor callbacks and `USBdevice`/`CDCcomm`/`UsbHidHandler` where needed; smoke tests (enumeration, a CDC echo, a HID report). Also the Python harness: `Firmware/Tests/python/test_*.py` (stdlib `unittest`), run by a new ctest entry when Python 3 is found.
+- **Group A, TinyUSB device core:** `usbd.c`, `usbd_control.c`, `tusb.c` (enumeration, standard requests, set address/configuration, endpoint stall/clear, remote wakeup, suspend/resume, control transfers incl. data stages and ZLPs, error paths).
+- **Group B, TinyUSB classes:** `class/cdc/cdc_device.c`, `class/hid/hid_device.c` (line coding, control line state, FIFOs, read/write/flush, HID report/get/set report/idle/protocol, report complete), end to end with the firmware's `CDCcomm` and HID handler.
+- **Group C, CMSIS-DSP and Python:** the CMSIS-DSP functions the firmware calls (`arm_sin_f32`, `arm_cos_f32`, `arm_sqrt_f32`, biquad DF1 + init, spline + init, PID init/reset/run, `arm_std_f32`/`arm_var_f32`) against independent reference values, in `ffb_target_tests` (`cases_target/test_cmsis_dsp.cpp`, DSP builds only); `generate_memory.py` and `dwc2_info.py` with stdlib `unittest`.
+- Optional (only if I give the spec file path): verify the `HidFFB` characterization tests against the USB HID PID 1.01 specification.
 
 ## P8 results (2026-10-27)
 
