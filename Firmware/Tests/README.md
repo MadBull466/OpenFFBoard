@@ -490,7 +490,7 @@ The FreeRTOS kernel itself is not tested; the fake reproduces the documented beh
     the F407 has it 0, so `ctickhook.cpp` is empty on the target). `queue.h`, `timers.h`, `event_groups.h` declare the
     API with the FreeRTOS macros; `task.h` maps the critical section macros to the Cortex-M4F port functions.
   * `platform/src/host_platform.cpp`: advancing the simulated time runs one SysTick per 1 ms boundary
-    (`vApplicationTickHook` of `ctickhook.cpp` in interrupt context). `setTimeUs` jumps without ticks.
+    (`vApplicationTickHook` of `ctickhook.cpp` in interrupt context, BASEPRI raised like `xPortSysTickHandler`). `setTimeUs` jumps without ticks.
   * `cmem_pool.cpp` is compiled through `platform/src/host_cmem_pool.cpp`: its `malloc()` calls go to `pvPortMalloc`
     like on the target (`cppmain.cpp:138`), so heap_4's `pvPortMalloc(0) == NULL` and injected heap failures reach it.
     CMake checks at configure time that the wrapper's pre-include list covers every `#include` of `cmem_pool.cpp`.
@@ -516,13 +516,23 @@ The FreeRTOS kernel itself is not tested; the fake reproduces the documented beh
     blocking timer callbacks, ...) is recorded in `HostRtos::kernelFaults()` and the call returns its failure value.
   * Not modelled: preemption and priority inheritance, the tick count overflow, queue sets, stream / message buffers,
     static creation other than event groups.
+  * **Limitation of the test thread:** it is not a task, and no task runs while it waits. A wait of the test thread for
+    something only a task or the timer service provides never succeeds ("would block forever" with `portMAX_DELAY`).
+    Destructors that wait for another task (`~WorkQueue`, a synchronous `~Timer`) must run in a task:
+    `RtosFixture::runInTask(fn, priority)`.
+  * Queries for tests: `HostRtos::timerIdsInService()` (IDs of the timers that are active or have a queued start /
+    reset / change-period command: the callbacks the service may still call), `HostRtos::objectCounts()` (leak check).
 * **Fixture** (`support/RtosFixture.h`): `RtosFixture` resets the simulated time, the kernel and the F11 state before
   and after every test (injections, critical / suspension state, tick counter, the timer service task, its queue and
   timer list, timers deleted by the service). At the end it fails the test on recorded kernel faults or an open
   critical section / scheduler suspension; `KNOWN_ISSUE` tests call `REQUIRE_ALL_RTOS_MODELLED()` before the defect
   assertion, tests expecting a fault remove it with `expectKernelFault("...")`. `advance(ms)` lets time pass tick by
   tick with every ready task (timer service included) run after each tick; `runReady()` runs the ready tasks;
+  `runInTask(fn, priority)` runs code that waits for another task inside a resumable task;
   `keepAlive(new MemoryPool(...))` keeps objects that can never be destroyed reachable for the leak sanitizer.
+  **Leak check:** at the end of every test the fixture CHECKs that no more tasks, queues, semaphores / mutexes, timers
+  and event groups exist than at its construction (the timer service task and timers whose delete command is queued
+  do not count). Justified leaks: `allowLeak(Leak::Queues, n)`; `keepAlive` of a `MemoryPool` allows its mutex.
 * **Exclusions:** `FFB_RTOS_TESTS_EXCLUDE` and `FFB_RTOS_TESTS_EXCLUDE_SANITIZE` (both default empty), printed at
   configure time like the others. Run directly: `build/ffb_rtos_tests` (`-ts=RtosSetup` for the smoke tests).
 * **Host-vs-target:** the host uses the exception variant of the wrappers (the F407 defines `CPP_FREERTOS_NO_EXCEPTIONS`

@@ -4,8 +4,10 @@
  *
  * The wrapper forwards to the FreeRTOS event group API; the tests check what a caller of the wrapper observes: the
  * returned bits, the bits left in the group, which tasks continue, timeouts against simulated time, the FromISR
- * variants (on the F407 configUSE_TRACE_FACILITY is 1, so they are deferred to the timer service task) and create
- * failures.
+ * variants (always deferred to the timer service task through xTimerPendFunctionCallFromISR, event_groups.h:410,
+ * 562; configUSE_TRACE_FACILITY 1 on the F407 only makes them functions instead of macros) and create failures.
+ * The wrapper does not check its arguments: event bits 24..31 (control bits) and an empty wait mask reach the kernel,
+ * which stops in configASSERT (event_groups.c:198-199, 321-322, 469, 531).
  *
  * Host vs target: the create failures throw EventGroupCreateException on the host; the F407 build defines
  * CPP_FREERTOS_NO_EXCEPTIONS and stops in configASSERT instead (NEEDS REVIEW 142).
@@ -74,9 +76,10 @@ TEST_CASE_FIXTURE(RtosFixture, "destroying an event group deletes its kernel eve
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "an event group whose kernel event group can not be created throws EventGroupCreateException") {
+	const size_t before = HostRtos::eventGroupCount();
 	HostRtos::failCreate(RtosObject::EventGroup);
 	CHECK_THROWS_WITH_AS(EventGroup(), "Event Group Constructor Failed", EventGroupCreateException);
-	CHECK(HostRtos::eventGroupCount() == 0);
+	CHECK(HostRtos::eventGroupCount() == before);
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "an event group with a static buffer is created with xEventGroupCreateStatic and works like a dynamic one") {
@@ -89,10 +92,11 @@ TEST_CASE_FIXTURE(RtosFixture, "an event group with a static buffer is created w
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "an event group whose static creation fails throws EventGroupCreateException") {
+	const size_t before = HostRtos::eventGroupCount();
 	HostRtos::failCreate(RtosObject::StaticEventGroup);
 	StaticEventGroup_t buffer{};
 	CHECK_THROWS_AS(EventGroup{&buffer}, EventGroupCreateException);
-	CHECK(HostRtos::eventGroupCount() == 0);
+	CHECK(HostRtos::eventGroupCount() == before);
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "destroying a statically created event group deletes its kernel event group") {
@@ -141,7 +145,7 @@ TEST_CASE_FIXTURE(RtosFixture, "SetBitsFromISR sets the bits when the timer serv
 		result = group.SetBitsFromISR(0x5, &woken);
 	}
 	CHECK(result == pdPASS);
-	CHECK(group.GetBits() == 0); // Deferred to the timer service task (event_groups.h, configUSE_TRACE_FACILITY 1)
+	CHECK(group.GetBits() == 0); // Deferred to the timer service task (event_groups.h:562)
 	runReady();
 	CHECK(group.GetBits() == 0x5);
 }
@@ -202,6 +206,36 @@ TEST_CASE_FIXTURE(RtosFixture, "ClearBitsFromISR fails and clears nothing when t
 	CHECK(result == pdFAIL);
 	runReady();
 	CHECK(group.GetBits() == 0x1);
+}
+
+// ---------------- Arguments the kernel rejects (passed through by the wrapper) ----------------
+
+TEST_CASE_FIXTURE(RtosFixture, "SetBits passes a control bit to the kernel, which stops in configASSERT") {
+	EventGroup group;
+	(void)group.SetBits(1u << 24);
+	CHECK(expectKernelFault("xEventGroupSetBits of control bits")); // event_groups.c:531
+	CHECK(group.GetBits() == 0);
+}
+
+TEST_CASE_FIXTURE(RtosFixture, "ClearBits passes a control bit to the kernel, which stops in configASSERT") {
+	EventGroup group;
+	group.SetBits(0x1);
+	(void)group.ClearBits(1u << 31);
+	CHECK(expectKernelFault("xEventGroupClearBits of control bits")); // event_groups.c:469
+	CHECK(group.GetBits() == 0x1);
+}
+
+TEST_CASE_FIXTURE(RtosFixture, "WaitBits passes an empty wait mask to the kernel, which stops in configASSERT") {
+	EventGroup group;
+	group.SetBits(0x1);
+	CHECK(group.WaitBits(0, true, false, 0) == 0);
+	CHECK(expectKernelFault("xEventGroupWaitBits: no bits or control bits")); // event_groups.c:321-322
+}
+
+TEST_CASE_FIXTURE(RtosFixture, "Sync passes control bits to wait for to the kernel, which stops in configASSERT") {
+	EventGroup group;
+	CHECK(group.Sync(0x1, 1u << 24, 0) == 0);
+	CHECK(expectKernelFault("xEventGroupSync: no bits or control bits")); // event_groups.c:198-199
 }
 
 // ---------------- WaitBits without blocking ----------------

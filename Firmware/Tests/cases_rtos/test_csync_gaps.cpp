@@ -46,9 +46,6 @@ private:
 	std::function<void()> body;
 };
 
-/** First recorded kernel fault (for INFO) */
-std::string firstFault() { return HostRtos::kernelFaults().empty() ? std::string() : HostRtos::kernelFaults().front(); }
-
 /**
  * Storage for constructing a CountingSemaphore with a known content of the members the constructor leaves
  * uninitialised (vendor V1): placement new into a buffer filled with 0xA5.
@@ -207,21 +204,23 @@ TEST_CASE_FIXTURE(RtosFixture, "a recursive mutex locked several times by a task
 TEST_CASE_FIXTURE(RtosFixture, "a standard mutex whose creation fails does not delete a NULL handle"
 				  * KNOWN_ISSUE("vendor V3: MutexStandard throws (cmutex.cpp:61-63) with handle NULL; the base destructor "
 								"~Mutex (cmutex.cpp:53) then calls vSemaphoreDelete(NULL), on which FreeRTOS stops in "
-								"configASSERT (queue.c:1979). The first failing assertion is the kernel fault check")) {
+								"configASSERT (queue.c:1979). The first failing assertion is CHECK_FALSE(deletedNull)")) {
 	HostRtos::failCreate(RtosObject::Mutex);
 	CHECK_THROWS_AS(MutexStandard(), MutexCreateException);
-	INFO("first kernel fault: " << firstFault());
-	CHECK(HostRtos::kernelFaults().empty());
+	const bool deletedNull = expectKernelFault("vSemaphoreDelete(NULL)");
+	REQUIRE_ALL_RTOS_MODELLED();
+	CHECK_FALSE(deletedNull);
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a recursive mutex whose creation fails does not delete a NULL handle"
 				  * KNOWN_ISSUE("vendor V3: MutexRecursive throws (cmutex.cpp:91-93) with handle NULL; the base destructor "
 								"~Mutex (cmutex.cpp:53) then calls vSemaphoreDelete(NULL) (configASSERT, queue.c:1979). The "
-								"first failing assertion is the kernel fault check")) {
+								"first failing assertion is CHECK_FALSE(deletedNull)")) {
 	HostRtos::failCreate(RtosObject::RecursiveMutex);
 	CHECK_THROWS_AS(MutexRecursive(), MutexCreateException);
-	INFO("first kernel fault: " << firstFault());
-	CHECK(HostRtos::kernelFaults().empty());
+	const bool deletedNull = expectKernelFault("vSemaphoreDelete(NULL)");
+	REQUIRE_ALL_RTOS_MODELLED();
+	CHECK_FALSE(deletedNull);
 }
 
 }
@@ -293,7 +292,7 @@ TEST_CASE_FIXTURE(RtosFixture, "GiveFromISR reports a higher priority task woken
 	CHECK(taken);
 }
 
-TEST_CASE_FIXTURE(RtosFixture, "GiveFromISR on a full counting semaphore fails") {
+TEST_CASE_FIXTURE(RtosFixture, "GiveFromISR fails on a full counting semaphore and succeeds again after a take") {
 	CountingSemaphore sem(2, 2);
 	BaseType_t woken = pdFALSE;
 	HostPlatform::IsrContext isr;
@@ -316,49 +315,53 @@ TEST_CASE_FIXTURE(RtosFixture, "TakeFromISR takes a counting semaphore once per 
 TEST_CASE_FIXTURE(RtosFixture, "a binary semaphore whose creation fails does not delete a NULL handle"
 				  * KNOWN_ISSUE("vendor V3: BinarySemaphore throws (csemaphore.cpp:101-103) with handle NULL; the base "
 								"destructor ~Semaphore (csemaphore.cpp:93) then calls vSemaphoreDelete(NULL) (configASSERT, "
-								"queue.c:1979). The first failing assertion is the kernel fault check")) {
+								"queue.c:1979). The first failing assertion is CHECK_FALSE(deletedNull)")) {
 	HostRtos::failCreate(RtosObject::BinarySemaphore);
 	CHECK_THROWS_AS(BinarySemaphore(), SemaphoreCreateException);
-	INFO("first kernel fault: " << firstFault());
-	CHECK(HostRtos::kernelFaults().empty());
+	const bool deletedNull = expectKernelFault("vSemaphoreDelete(NULL)");
+	REQUIRE_ALL_RTOS_MODELLED();
+	CHECK_FALSE(deletedNull);
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a counting semaphore whose creation fails does not delete a NULL handle"
 				  * KNOWN_ISSUE("vendor V3: CountingSemaphore throws (csemaphore.cpp:135-137) with handle NULL; the base "
 								"destructor ~Semaphore (csemaphore.cpp:93) then calls vSemaphoreDelete(NULL) (configASSERT, "
-								"queue.c:1979). The first failing assertion is the kernel fault check")) {
+								"queue.c:1979). The first failing assertion is CHECK_FALSE(deletedNull)")) {
 	HostRtos::failCreate(RtosObject::CountingSemaphore);
 	CHECK_THROWS_AS(CountingSemaphore(3, 1), SemaphoreCreateException);
-	INFO("first kernel fault: " << firstFault());
-	CHECK(HostRtos::kernelFaults().empty());
+	const bool deletedNull = expectKernelFault("vSemaphoreDelete(NULL)");
+	REQUIRE_ALL_RTOS_MODELLED();
+	CHECK_FALSE(deletedNull);
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a counting semaphore with a maximum count of 0 is rejected without deleting an unrelated handle"
 				  * KNOWN_ISSUE_UB("vendor V1: CountingSemaphore throws for maxCount 0 (csemaphore.cpp:117-119) before "
 								   "`handle` is assigned; ~Semaphore (csemaphore.cpp:93) then passes the uninitialised handle "
 								   "to vSemaphoreDelete (UB; the fake reports a deleted semaphore for the 0xA5 pattern). The "
-								   "vSemaphoreDelete(NULL) of V3 is ignored here. The first failing assertion is the kernel "
-								   "fault check")) {
+								   "vSemaphoreDelete(NULL) of V3 is ignored here. The first failing assertion is "
+								   "CHECK_FALSE(deletedUnrelated)")) {
 	PatternStorage storage;
 	CHECK_THROWS_WITH_AS(new (storage.bytes) CountingSemaphore(0, 0), "Semaphore Constructor Failed bad maxCount",
 						 SemaphoreCreateException);
 	CHECK(HostRtos::createCalls(RtosObject::CountingSemaphore) == 0); // Rejected before the kernel call
 	(void)expectKernelFault("vSemaphoreDelete(NULL)");				 // V3 (a fix of V1 alone may leave the handle NULL)
-	INFO("first kernel fault: " << firstFault());
-	CHECK(HostRtos::kernelFaults().empty());
+	const bool deletedUnrelated = expectKernelFault("vSemaphoreDelete: handle of a deleted semaphore");
+	REQUIRE_ALL_RTOS_MODELLED();
+	CHECK_FALSE(deletedUnrelated);
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a counting semaphore with an initial count above its maximum is rejected without deleting an unrelated handle"
 				  * KNOWN_ISSUE_UB("vendor V1: CountingSemaphore throws for initialCount > maxCount (csemaphore.cpp:125-127) "
 								   "before `handle` is assigned; ~Semaphore (csemaphore.cpp:93) then passes the uninitialised "
-								   "handle to vSemaphoreDelete (UB). The first failing assertion is the kernel fault check")) {
+								   "handle to vSemaphoreDelete (UB). The first failing assertion is CHECK_FALSE(deletedUnrelated)")) {
 	PatternStorage storage;
 	CHECK_THROWS_WITH_AS(new (storage.bytes) CountingSemaphore(2, 3), "Semaphore Constructor Failed bad initialCount",
 						 SemaphoreCreateException);
 	CHECK(HostRtos::createCalls(RtosObject::CountingSemaphore) == 0);
 	(void)expectKernelFault("vSemaphoreDelete(NULL)");
-	INFO("first kernel fault: " << firstFault());
-	CHECK(HostRtos::kernelFaults().empty());
+	const bool deletedUnrelated = expectKernelFault("vSemaphoreDelete: handle of a deleted semaphore");
+	REQUIRE_ALL_RTOS_MODELLED();
+	CHECK_FALSE(deletedUnrelated);
 }
 
 }

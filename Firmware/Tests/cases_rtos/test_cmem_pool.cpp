@@ -46,11 +46,11 @@ TEST_SUITE("MemoryPool") {
 
 // ---------------- Construction with malloc ----------------
 
-TEST_CASE_FIXTURE(RtosFixture, "a pool allocates item count times the item size from the RTOS heap") {
+TEST_CASE_FIXTURE(RtosFixture, "a pool allocates at least item count times the item size from the RTOS heap in one block") {
 	const uint32_t calls = HostRtos::heapStats().mallocCalls;
 	MemoryPool *pool = keepAlive(new MemoryPool(16, 3, 8));
 	CHECK(HostRtos::heapStats().mallocCalls == calls + 1);
-	CHECK(HostRtos::heapStats().lastMallocSize == 48);
+	CHECK(HostRtos::heapStats().lastMallocSize >= 48); // A start alignment (vendor V16) may need more
 	CHECK(drain(*pool) == 3);
 }
 
@@ -60,42 +60,47 @@ TEST_CASE_FIXTURE(RtosFixture, "the items of a pool lie one item size apart in t
 	void *first = pool->Allocate();
 	void *second = pool->Allocate();
 	void *third = pool->Allocate();
-	CHECK(first == block);
+	CHECK(distance(block, first) >= 0);
+	CHECK(distance(block, first) < 8); // At most an alignment gap before the first item
 	CHECK(distance(first, second) == 16);
 	CHECK(distance(second, third) == 16);
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "an item size below the alignment is raised to the alignment") {
 	MemoryPool *pool = keepAlive(new MemoryPool(1, 2, 16));
-	CHECK(HostRtos::heapStats().lastMallocSize == 32);
+	CHECK(HostRtos::heapStats().lastMallocSize >= 32);
 	void *first = pool->Allocate();
 	void *second = pool->Allocate();
 	CHECK(distance(first, second) == 16);
+	CHECK(drain(*pool) == 0);
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "an item size above the alignment is rounded up to the next multiple of the alignment") {
 	MemoryPool *pool = keepAlive(new MemoryPool(17, 2, 8));
-	CHECK(HostRtos::heapStats().lastMallocSize == 48);
+	CHECK(HostRtos::heapStats().lastMallocSize >= 48);
 	void *first = pool->Allocate();
 	void *second = pool->Allocate();
 	CHECK(distance(first, second) == 24);
+	CHECK(drain(*pool) == 0);
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "an item size that is a multiple of the alignment is kept") {
 	MemoryPool *pool = keepAlive(new MemoryPool(32, 2, 8));
-	CHECK(HostRtos::heapStats().lastMallocSize == 64);
+	CHECK(HostRtos::heapStats().lastMallocSize >= 64);
 	void *first = pool->Allocate();
 	void *second = pool->Allocate();
 	CHECK(distance(first, second) == 32);
+	CHECK(drain(*pool) == 0);
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "an alignment below the pointer size is raised to the pointer size") {
 	// Host vs target: sizeof(unsigned char *) is 8 on the host and 4 on the target (NEEDS REVIEW 143)
 	MemoryPool *pool = keepAlive(new MemoryPool(1, 2, 2));
-	CHECK(HostRtos::heapStats().lastMallocSize == 2 * sizeof(void *));
+	CHECK(HostRtos::heapStats().lastMallocSize >= 2 * sizeof(void *));
 	void *first = pool->Allocate();
 	void *second = pool->Allocate();
 	CHECK(distance(first, second) == static_cast<ptrdiff_t>(sizeof(void *)));
+	CHECK(drain(*pool) == 0);
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "an alignment that is not a power of two throws MemoryPoolBadAlignmentException before allocating") {
@@ -104,12 +109,16 @@ TEST_CASE_FIXTURE(RtosFixture, "an alignment that is not a power of two throws M
 	CHECK(HostRtos::heapStats().mallocCalls == calls);
 }
 
-TEST_CASE_FIXTURE(RtosFixture, "the largest power of two alignment of an int is accepted") {
-	static unsigned char buffer[8];
+TEST_CASE_FIXTURE(RtosFixture, "the largest power of two alignment of an int is accepted and raises the item size to it") {
+	// No memory: nullptr is aligned to anything. The items added below are addresses only, never dereferenced
 	MemoryPool *pool = nullptr;
-	CHECK_NOTHROW(pool = keepAlive(new MemoryPool(1, buffer, 0, 1 << 30)));
-	REQUIRE(pool != nullptr);
-	CHECK(pool->Allocate() == nullptr); // Item size raised to 2^30: nothing fits
+	REQUIRE_NOTHROW(pool = keepAlive(new MemoryPool(1, nullptr, 0, 1 << 30)));
+	void *const area = reinterpret_cast<void *>(uintptr_t(1) << 30);
+	pool->AddMemory(area, (1 << 30) - 1); // Smaller than one item of 2^30 bytes
+	CHECK(pool->Allocate() == nullptr);
+	pool->AddMemory(area, 1 << 30); // Exactly one item
+	CHECK(pool->Allocate() == area);
+	CHECK(pool->Allocate() == nullptr);
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a pool whose memory can not be allocated throws MemoryPoolMallocException and creates no mutex") {
@@ -124,8 +133,8 @@ TEST_CASE_FIXTURE(RtosFixture, "a pool whose memory can not be allocated throws 
 TEST_CASE_FIXTURE(RtosFixture, "characterization: a pool with an item count of 0 can not be created because the RTOS heap returns NULL for 0 bytes") {
 	// NEEDS REVIEW 150: heap_4's pvPortMalloc(0) returns NULL (heap_4.c:141), so MemoryPool(size, 0, alignment) throws
 	// (configASSERT on the target) although an empty pool filled later with AddMemory looks like a valid use. Intended?
+	// A fix of vendor V16 that over-allocates for the start alignment would also change this result
 	CHECK_THROWS_AS(keepAlive(new MemoryPool(8, 0, 8)), MemoryPoolMallocException);
-	CHECK(HostRtos::heapStats().lastMallocSize == 0);
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a pool creates its lock mutex") {
@@ -193,10 +202,11 @@ TEST_CASE_FIXTURE(RtosFixture, "AddMemory with an item count allocates that many
 	MemoryPool *pool = keepAlive(new MemoryPool(10, 1, 8));
 	REQUIRE(pool->Allocate() != nullptr);
 	pool->AddMemory(3);
-	CHECK(HostRtos::heapStats().lastMallocSize == 48);
+	CHECK(HostRtos::heapStats().lastMallocSize >= 48);
 	void *block = HostRtos::heapStats().lastMallocResult;
 	void *first = pool->Allocate();
-	CHECK(first == block);
+	CHECK(distance(block, first) >= 0);
+	CHECK(distance(block, first) < 8);
 	CHECK(distance(first, pool->Allocate()) == 16);
 	CHECK(drain(*pool) == 1);
 }
@@ -249,14 +259,21 @@ TEST_CASE_FIXTURE(RtosFixture, "the items of a pool are aligned to the requested
 				  * KNOWN_ISSUE("vendor V16: MemoryPool never aligns the start of its memory (cmem_pool.cpp:136-143, also "
 								":106-119 and AddMemory :172-204): items are only aligned to `alignment` if the memory passed "
 								"in (or returned by malloc: heap_4 aligns to portBYTE_ALIGNMENT 8 on the F407) already is, "
-								"although mem_pool.hpp:155-157/177-179 promise the alignment. The first failing assertion is "
-								"the alignment check")) {
+								"although mem_pool.hpp:158-159/178-179 (@param Alignment) promise the alignment (and :171 says the "
+								"preallocated constructor does not throw, although it throws MemoryPoolBadAlignmentException). "
+								"The first failing assertion is the alignment check (an exception is accepted as a fix)")) {
 	alignas(64) static unsigned char buffer[128];
-	MemoryPool *pool = keepAlive(new MemoryPool(16, buffer + 8, 96, 16));
-	void *item = pool->Allocate();
-	REQUIRE(item != nullptr);
+	bool rejected = false; // Refusing the misaligned memory is an acceptable fix as well
+	MemoryPool *pool = nullptr;
+	try {
+		pool = keepAlive(new MemoryPool(16, buffer + 8, 96, 16));
+	} catch (const MemoryPoolBadAlignmentException &) {
+		rejected = true;
+	}
+	void *item = pool != nullptr ? pool->Allocate() : nullptr;
 	REQUIRE_ALL_RTOS_MODELLED();
-	CHECK(reinterpret_cast<uintptr_t>(item) % 16 == 0);
+	INFO("item offset in the 64-byte aligned buffer: " << (item != nullptr ? distance(buffer, item) : -1));
+	CHECK((rejected || (item != nullptr && reinterpret_cast<uintptr_t>(item) % 16 == 0)));
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a pool whose lock mutex can not be created frees its memory"
@@ -273,12 +290,33 @@ TEST_CASE_FIXTURE(RtosFixture, "a pool whose lock mutex can not be created frees
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a pool whose total size does not fit in an int is rejected with MemoryPoolMallocException"
-				  * KNOWN_ISSUE_UB("vendor V18: `ItemSize * itemCount` (cmem_pool.cpp:106, also AddMemory :172) is an int "
-								   "multiplication: 65536 * 65537 overflows (UB; wraps to 65536 here), malloc gets a 64 KiB "
-								   "block and the constructor queues 65537 items, all but the first beyond the block (heap "
-								   "overflow when used). Same on the 32-bit target. The first failing assertion is "
-								   "CHECK_THROWS_AS")) {
-	CHECK_THROWS_AS(keepAlive(new MemoryPool(65536, 65537, 8)), MemoryPoolMallocException);
+				  * KNOWN_ISSUE_UB("vendor V18: `ItemSize * itemCount` (cmem_pool.cpp:106) is an int multiplication: "
+								   "1431655768 * 3 = 2^32 + 8 overflows (UB; wraps to 8 on the host and on the 32-bit target), "
+								   "malloc gets an 8-byte block and the constructor queues 3 items of 1431655768 bytes, all "
+								   "beyond the block (heap overflow when used). The first failing assertion is CHECK(threw)")) {
+	bool threw = false;
+	try {
+		keepAlive(new MemoryPool(1431655768, 3, 8));
+	} catch (const MemoryPoolMallocException &) {
+		threw = true;
+	}
+	REQUIRE_ALL_RTOS_MODELLED();
+	CHECK(threw);
+}
+
+TEST_CASE_FIXTURE(RtosFixture, "AddMemory with a total size that does not fit in an int is rejected with MemoryPoolMallocException"
+				  * KNOWN_ISSUE_UB("vendor V18: `ItemSize * itemCount` in AddMemory (cmem_pool.cpp:172) overflows like in the "
+								   "constructor: 1431655768 * 3 wraps to malloc(8) and 3 items beyond the block are queued. "
+								   "The first failing assertion is CHECK(threw)")) {
+	MemoryPool *pool = keepAlive(new MemoryPool(1431655768, nullptr, 0, 8)); // No memory yet
+	bool threw = false;
+	try {
+		pool->AddMemory(3);
+	} catch (const MemoryPoolMallocException &) {
+		threw = true;
+	}
+	REQUIRE_ALL_RTOS_MODELLED();
+	CHECK(threw);
 }
 
 }

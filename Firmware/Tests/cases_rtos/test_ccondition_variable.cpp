@@ -68,7 +68,7 @@ std::function<void(CvTask &)> waiter(ConditionVariable &cv, MutexStandard &lock,
 
 TEST_SUITE("ConditionVariable") {
 
-TEST_CASE_FIXTURE(RtosFixture, "a condition variable creates its internal mutex and deletes it when destroyed") {
+TEST_CASE_FIXTURE(RtosFixture, "a condition variable owns one internal mutex for its lifetime") {
 	const size_t before = HostRtos::semaphoreCount();
 	auto *cv = new ConditionVariable();
 	CHECK(HostRtos::semaphoreCount() == before + 1);
@@ -86,6 +86,9 @@ TEST_CASE_FIXTURE(RtosFixture, "a signal without a waiting thread is lost") {
 	runReady();
 	CHECK_FALSE(result.returned);
 	CHECK(HostRtos::isWaiting(handle));
+	cv.Signal(); // Let the waiter end
+	runReady();
+	CHECK(result.signalled);
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a broadcast without a waiting thread is lost") {
@@ -97,6 +100,9 @@ TEST_CASE_FIXTURE(RtosFixture, "a broadcast without a waiting thread is lost") {
 	task.startResumable();
 	runReady();
 	CHECK_FALSE(result.returned);
+	cv.Signal(); // Let the waiter end
+	runReady();
+	CHECK(result.signalled);
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "Wait releases the lock while the thread waits") {
@@ -190,6 +196,7 @@ TEST_CASE_FIXTURE(RtosFixture, "a broadcast wakes every waiting thread") {
 	for (const WaitResult &result : results) {
 		CHECK(result.signalled);
 	}
+	cv.Signal(); // Takes the internal lock: a lock left held by Broadcast would block forever (kernel fault)
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a broadcast from a task wakes the threads waiting at that time") {
@@ -211,6 +218,7 @@ TEST_CASE_FIXTURE(RtosFixture, "a broadcast from a task wakes the threads waitin
 	runReady();
 	CHECK(first.signalled);
 	CHECK(second.signalled);
+	cv.Broadcast(); // Takes the internal lock: a lock left held by the task's Broadcast would block forever (kernel fault)
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a wait with a timeout returns false after the timeout of simulated time") {
@@ -239,6 +247,31 @@ TEST_CASE_FIXTURE(RtosFixture, "a wait with a timeout returns true when signalle
 	runReady();
 	CHECK(result.returned);
 	CHECK(result.signalled);
+}
+
+TEST_CASE_FIXTURE(RtosFixture, "characterization: a Wait with a recursive mutex locked twice keeps the mutex held while the thread waits") {
+	// NEEDS REVIEW 151: Thread::Wait (cthread.cpp:253) calls CvLock.Unlock() once, which releases only one level of a
+	// MutexRecursive; the waiting thread still holds it, so a signaller that takes the lock first (the usual pattern)
+	// deadlocks. Should Wait release all levels, or are recursive mutexes not allowed as CvLock (undocumented)?
+	ConditionVariable cv;
+	MutexRecursive lock;
+	bool signalled = false;
+	CvTask task([&](CvTask &self) {
+		lock.Lock();
+		lock.Lock();
+		signalled = self.wait(cv, lock);
+		lock.Unlock();
+		lock.Unlock();
+	}, "CVW");
+	task.startResumable();
+	runReady();
+	CHECK_FALSE(lock.Lock(5)); // A signaller can not get the lock while the thread waits
+	CHECK(HostPlatform::nowUs() == 5000);
+	cv.Signal(); // Without the lock
+	runReady();
+	CHECK(signalled);
+	CHECK(lock.Lock(0)); // Fully released after the waiter's two unlocks
+	CHECK(lock.Unlock());
 }
 
 // ---------------- Suspected vendor defects (tier A: reported, never fixed) ----------------

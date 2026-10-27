@@ -157,11 +157,19 @@ void checkTaskApi(const char *api) {
 	}
 }
 
-/** Blocking (ticksToWait != 0) while the scheduler is suspended asserts (queue.c:751, :1293, :1653, event_groups.c:325, ...) */
-void checkMayBlock(const char *api) {
-	if (schedulerSuspended > 0) {
-		assertFault(std::string(api) + " with a block time while the scheduler is suspended (queue.c:751)");
+/**
+ * configASSERT( !( ( xTaskGetSchedulerState() == taskSCHEDULER_SUSPENDED ) && ( xTicksToWait != 0 ) ) ) on entry of
+ * xQueueGenericSend (queue.c:751), xQueueReceive (:1293), xQueueSemaphoreTake (:1438), xQueuePeek (:1653),
+ * xEventGroupSync (event_groups.c:202) and xEventGroupWaitBits (:325): checked whether the call would block or not
+ */
+void checkSuspendedBlockTime(const char *api, TickType_t ticksToWait, const char *where) {
+	if (schedulerSuspended > 0 && ticksToWait != 0) {
+		assertFault(std::string(api) + " with a block time while the scheduler is suspended (" + where + ")");
 	}
+}
+
+/** A call that really blocks inside a critical section: the context switch would be deferred (not modelled) */
+void checkMayBlock(const char *api) {
 	if (critical.nesting > 0 || critical.basepri != 0) {
 		unmodelled(std::string(api) + " blocks inside a critical section / with interrupts masked (the context switch is deferred)");
 	}
@@ -684,9 +692,14 @@ void hosttest_rtosTick() {
 	}
 	ticks++;
 #if (configUSE_TICK_HOOK == 1)
+	// xPortSysTickHandler (port.c:494-503) masks interrupts (portDISABLE_INTERRUPTS: BASEPRI = configMAX_SYSCALL_
+	// INTERRUPT_PRIORITY) around xTaskIncrementTick, which calls the tick hook
 	const uint32_t savedIpsr = hosttest_ipsr;
+	const uint32_t savedBasepri = critical.basepri;
 	hosttest_ipsr = sysTickIpsr;
+	critical.basepri = maxSyscallBasepri;
 	vApplicationTickHook(); // tasks.c:2840
+	critical.basepri = savedBasepri;
 	hosttest_ipsr = savedIpsr;
 #endif
 }
@@ -731,6 +744,60 @@ size_t queueCount() {
 	return n;
 }
 size_t timerCount() { return rtosext::timers().size(); }
+
+std::vector<void *> timerIdsInService() {
+	using namespace rtosext;
+	std::vector<void *> ids;
+	auto add = [&ids](const HostTimer *timer) {
+		if (std::find(ids.begin(), ids.end(), timer->id) == ids.end()) {
+			ids.push_back(timer->id);
+		}
+	};
+	for (const auto &entry : timers()) {
+		if (entry.first->active || entry.first->inList) {
+			add(entry.first);
+		}
+	}
+	if (timerQueue != nullptr) {
+		for (const auto &item : timerQueue->items) {
+			TimerMessage message;
+			std::memcpy(&message, item.data(), sizeof(message));
+			switch (message.id) {
+			case tmrCOMMAND_START_DONT_TRACE:
+			case tmrCOMMAND_START:
+			case tmrCOMMAND_RESET:
+			case tmrCOMMAND_CHANGE_PERIOD:
+			case tmrCOMMAND_START_FROM_ISR:
+			case tmrCOMMAND_RESET_FROM_ISR:
+			case tmrCOMMAND_CHANGE_PERIOD_FROM_ISR:
+				add(message.timer); // The HostTimer is still allocated (live, or a zombie freed only by reset)
+				break;
+			default:
+				break;
+			}
+		}
+	}
+	return ids;
+}
+
+ObjectCounts objectCounts() {
+	using namespace rtosext;
+	ObjectCounts counts;
+	counts.tasks = tasks().size() - (timerService != nullptr && isRegistered(timerService) ? 1 : 0);
+	counts.queues = queueCount();
+	counts.semaphores = liveSemaphores;
+	size_t pendingDeletes = 0;
+	if (timerQueue != nullptr) {
+		for (const auto &item : timerQueue->items) {
+			TimerMessage message;
+			std::memcpy(&message, item.data(), sizeof(message));
+			pendingDeletes += message.id == tmrCOMMAND_DELETE && timers().count(message.timer) != 0 ? 1 : 0;
+		}
+	}
+	counts.timers = timers().size() - pendingDeletes;
+	counts.eventGroups = eventGroups().size();
+	return counts;
+}
 size_t eventGroupCount() { return rtosext::eventGroups().size(); }
 size_t heapLiveBlocks() { return rtosext::heapBlocks().size(); }
 uint32_t heapFailedCalls() { return rtosext::heapFailed; }
@@ -933,6 +1000,7 @@ void vSemaphoreDelete(SemaphoreHandle_t sem) { // vQueueDelete, queue.c:1975
 
 /** The wait of xQueueSemaphoreTake (queue.c:1418); takes the semaphore and records the mutex holder */
 static BaseType_t takeSemaphore(SemaphoreHandle_t sem, TickType_t ticksToWait, const char *api) {
+	checkSuspendedBlockTime(api, ticksToWait, "queue.c:1438");
 	const uint64_t generation = sem->generation;
 	if (!waitUntil(api, sem, [sem, generation] { return semaphoreLive(sem, generation) && sem->count > 0; }, ticksToWait)) {
 		return pdFALSE;
@@ -1064,6 +1132,7 @@ BaseType_t xQueueGenericSend(QueueHandle_t queue, const void *const item, TickTy
 		return errQUEUE_FULL;
 	}
 	checkTaskApi(api);
+	checkSuspendedBlockTime(api, ticksToWait, "queue.c:751");
 	if (!checkSendArguments(queue, item, position, api)) {
 		return errQUEUE_FULL;
 	}
@@ -1095,6 +1164,7 @@ static BaseType_t receive(QueueHandle_t queue, void *const buffer, TickType_t ti
 		return pdFALSE;
 	}
 	checkTaskApi(api);
+	checkSuspendedBlockTime(api, ticksToWait, remove ? "queue.c:1293" : "queue.c:1653");
 	if (buffer == nullptr && queue->itemSize != 0) {
 		assertFault(std::string(api) + ": NULL buffer for a queue with item size > 0 (queue.c:1288)");
 		return pdFALSE;
@@ -1286,6 +1356,7 @@ EventBits_t xEventGroupWaitBits(EventGroupHandle_t group, const EventBits_t wait
 		return 0;
 	}
 	checkTaskApi("xEventGroupWaitBits");
+	checkSuspendedBlockTime("xEventGroupWaitBits", ticksToWait, "event_groups.c:325");
 	if ((waitFor & eventEVENT_BITS_CONTROL_BYTES) != 0 || waitFor == 0) {
 		assertFault("xEventGroupWaitBits: no bits or control bits (bits 24..31) to wait for (event_groups.c:321-322)");
 		return 0;
@@ -1321,6 +1392,7 @@ EventBits_t xEventGroupSync(EventGroupHandle_t group, const EventBits_t bitsToSe
 		return 0;
 	}
 	checkTaskApi("xEventGroupSync");
+	checkSuspendedBlockTime("xEventGroupSync", ticksToWait, "event_groups.c:202");
 	if ((waitFor & eventEVENT_BITS_CONTROL_BYTES) != 0 || waitFor == 0) {
 		assertFault("xEventGroupSync: no bits or control bits (bits 24..31) to wait for (event_groups.c:198-199)");
 		return 0;

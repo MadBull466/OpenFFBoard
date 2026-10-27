@@ -20,12 +20,23 @@
  *        fails; a finite timeout advances the simulated time tick by tick (tick hooks run) until the condition holds
  *        or the timeout has passed. No task runs during that time.
  *    A timeout of 0 never blocks.
+ *    Limitation: the test thread is not a task that the others could run around. A wait of the test thread for
+ *    something only a task (or the timer service) would provide never succeeds: with portMAX_DELAY it is recorded as
+ *    "would block forever", with a timeout it times out. Code that waits for another task (~WorkQueue; a Timer
+ *    destructor that would wait for the timer service, e.g. a synchronous fix of vendor V9) must therefore run inside
+ *    a task: RtosFixture::runInTask(fn, priority) runs it in a resumable task of the given priority.
+ *  - Scheduler suspended: a call with a block time != 0 to xQueueGenericSend, xQueueReceive, xQueuePeek, a semaphore
+ *    take, xEventGroupWaitBits or xEventGroupSync is a configASSERT on entry (queue.c:751, :1293, :1438, :1653,
+ *    event_groups.c:202, :325), whether or not it would block.
  *  - The simulated time advances through HostPlatform::advanceMs / advanceUs / HAL_Delay / vTaskDelay: every 1 ms
- *    boundary is one SysTick: vApplicationTickHook() (ctickhook.cpp) runs in interrupt context (IPSR 15). setTimeUs
+ *    boundary is one SysTick: vApplicationTickHook() (ctickhook.cpp) runs in interrupt context (IPSR 15) with BASEPRI
+ *    raised to configMAX_SYSCALL_INTERRUPT_PRIORITY like in xPortSysTickHandler (port.c:494-503). setTimeUs
  *    and HostPlatform::reset() jump without ticks.
  *  - Software timers follow timers.c: xTimerStart & co. only queue a command; the timer service task executes it when
  *    it runs (runUntilIdle, RtosFixture::advance). Expired timers are processed before the queued commands; an
- *    auto-reload timer whose service task ran late catches up (one callback per missed period). Timer callbacks and
+ *    auto-reload timer whose service task ran late catches up (one callback per missed period, then armed in phase;
+ *    self-tests in cases_rtos/test_rtos_setup.cpp). timerIdsInService() lists the timers whose callback the service
+ *    may still call. Timer callbacks and
  *    pended functions must not block: a blocking call inside one is recorded as a kernel fault.
  *  - Everything FreeRTOS would stop in configASSERT, and every call the fake does not model, is recorded in
  *    HostRtos::kernelFaults() ("configASSERT: ...", "unmodelled: ...", "would block forever: ...") and the call
@@ -111,6 +122,27 @@ const TimerServiceStats &timerServiceStats();
 size_t queueCount(); //!< Without the queue of the timer service
 size_t timerCount();
 size_t eventGroupCount();
+
+/**
+ * Timer IDs (pvTimerGetTimerID, for cpp_freertos::Timer the Timer object) of every timer that is active, in the active
+ * list, or has a start / reset / change-period command (task or ISR variant) queued for the timer service: the timers
+ * whose callback the service may still call. Each ID once, timers that are only deleted are not listed.
+ */
+std::vector<void *> timerIdsInService();
+
+/**
+ * Kernel objects that exist now, for leak checks (RtosFixture compares them with the counts at its construction):
+ * tasks without the timer service task, queues without the service queue, semaphores and mutexes, timers without
+ * those whose delete command is queued (deleted from the firmware's point of view), event groups.
+ */
+struct ObjectCounts {
+	size_t tasks = 0;
+	size_t queues = 0;
+	size_t semaphores = 0;
+	size_t timers = 0;
+	size_t eventGroups = 0;
+};
+ObjectCounts objectCounts();
 
 /** Blocks returned by pvPortMalloc and not freed (all time, not reset), and pvPortMalloc calls that returned NULL */
 size_t heapLiveBlocks();

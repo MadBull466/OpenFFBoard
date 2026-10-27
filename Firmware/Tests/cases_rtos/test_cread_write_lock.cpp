@@ -90,7 +90,7 @@ TEST_SUITE("ReadWriteLock") {
 
 // ---------------- Creation and destruction ----------------
 
-TEST_CASE_FIXTURE(RtosFixture, "a reader-preferring lock creates a mutex and a binary semaphore and deletes them when destroyed") {
+TEST_CASE_FIXTURE(RtosFixture, "a reader-preferring lock owns one mutex and one binary semaphore for its lifetime") {
 	const size_t before = HostRtos::semaphoreCount();
 	auto *lock = new ReadWriteLockPreferReader();
 	CHECK(HostRtos::semaphoreCount() == before + 2);
@@ -100,7 +100,7 @@ TEST_CASE_FIXTURE(RtosFixture, "a reader-preferring lock creates a mutex and a b
 	CHECK(HostRtos::semaphoreCount() == before);
 }
 
-TEST_CASE_FIXTURE(RtosFixture, "a writer-preferring lock creates two mutexes and two binary semaphores and deletes them when destroyed") {
+TEST_CASE_FIXTURE(RtosFixture, "a writer-preferring lock owns two mutexes and two binary semaphores for its lifetime") {
 	const size_t before = HostRtos::semaphoreCount();
 	auto *lock = new ReadWriteLockPreferWriter();
 	CHECK(HostRtos::semaphoreCount() == before + 4);

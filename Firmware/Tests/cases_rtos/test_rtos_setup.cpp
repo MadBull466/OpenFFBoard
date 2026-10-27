@@ -55,17 +55,12 @@ private:
 	std::function<void(FunctionThread &)> body;
 };
 
-/** Runs `fn` in a resumable task until it is done (e.g. a destructor that waits for another task) */
-void runInTask(std::function<void()> fn) {
-	bool done = false;
-	FunctionThread task([&](FunctionThread &) {
-		fn();
-		done = true;
-	}, "RUNNER", 1);
-	task.startResumable();
-	HostRtos::runUntilIdle();
-	REQUIRE(done);
+/** Timer callback of the catch-up self-tests: records the expiry the timer service processed */
+std::vector<TickType_t> &catchUpExpiries() {
+	static std::vector<TickType_t> expiries;
+	return expiries;
 }
+void recordExpiry(TimerHandle_t timer) { catchUpExpiries().push_back(xTaskGetTickCount()); (void)timer; }
 
 class CountingTimer : public Timer {
 public:
@@ -240,8 +235,56 @@ TEST_CASE_FIXTURE(RtosFixture, "a condition variable signal wakes the waiting th
 
 TEST_CASE_FIXTURE(RtosFixture, "a queue whose kernel queue can not be created throws QueueCreateException") {
 	HostRtos::failCreate(HostRtos::RtosObject::Queue);
+	const size_t queuesBefore = HostRtos::queueCount();
 	CHECK_THROWS_AS(Queue(2, sizeof(uint32_t)), QueueCreateException);
-	CHECK(HostRtos::queueCount() == 0);
+	CHECK(HostRtos::queueCount() == queuesBefore);
+}
+
+// ---------------- Self-tests of the fake timer service (FreeRTOS V10.3.1 timers.c) ----------------
+
+TEST_CASE_FIXTURE(RtosFixture, "an auto-reload timer whose service runs late gets one callback per missed period and stays in phase") {
+	// timers.c:507-546 prvProcessExpiredTimer: the re-insert at expiry + period fails while that is in the past
+	// (prvInsertTimerInActiveList, :693-731), so a START_DONT_TRACE command with the expiry time follows (:528); its
+	// processing (:795-824) calls the callback again for every further missed period. Period 10, armed at 0, service
+	// late until 35: callbacks for the expiries 10, 20 and 30 (all executed at 35), then armed for 40.
+	catchUpExpiries().clear();
+	TimerHandle_t timer = xTimerCreate("LATE", 10, pdTRUE, nullptr, recordExpiry);
+	REQUIRE(timer != nullptr);
+	REQUIRE(xTimerStart(timer, 0) == pdPASS);
+	runReady(); // Start processed at 0: expiry 10
+	REQUIRE(xTimerGetExpiryTime(timer) == 10);
+	HostPlatform::advanceMs(35); // The service does not run
+	CHECK(catchUpExpiries().empty());
+	runReady();
+	CHECK(catchUpExpiries() == std::vector<TickType_t>{35, 35, 35});
+	CHECK(HostRtos::timerServiceStats().timerCallbacks == 3);
+	CHECK(xTimerIsTimerActive(timer) == pdTRUE);
+	CHECK(xTimerGetExpiryTime(timer) == 40);
+	HostPlatform::advanceMs(5);
+	runReady();
+	CHECK(catchUpExpiries().size() == 4);
+	CHECK(xTimerGetExpiryTime(timer) == 50);
+	REQUIRE(xTimerDelete(timer, 0) == pdPASS);
+	runReady();
+}
+
+TEST_CASE_FIXTURE(RtosFixture, "a start command processed after its period has passed calls the callback once and re-arms the timer") {
+	// timers.c:806-811: the start command queued at 5 is processed at 17: expiry 15 is in the past and 17 - 5 >= the
+	// period, so the callback runs at once and, as the timer is auto-reload, a START_DONT_TRACE at 15 re-arms it for 25
+	catchUpExpiries().clear();
+	TimerHandle_t timer = xTimerCreate("LATESTART", 10, pdTRUE, nullptr, recordExpiry);
+	REQUIRE(timer != nullptr);
+	runReady(); // The service is idle before the command is sent
+	HostPlatform::advanceMs(5);
+	REQUIRE(xTimerStart(timer, 0) == pdPASS); // Command time 5
+	HostPlatform::advanceMs(12);
+	CHECK(catchUpExpiries().empty());
+	runReady();
+	CHECK(catchUpExpiries() == std::vector<TickType_t>{17});
+	CHECK(xTimerIsTimerActive(timer) == pdTRUE);
+	CHECK(xTimerGetExpiryTime(timer) == 25);
+	REQUIRE(xTimerDelete(timer, 0) == pdPASS);
+	runReady();
 }
 
 // ---------------- Suspected vendor defects (tier A: reported, never fixed) ----------------
