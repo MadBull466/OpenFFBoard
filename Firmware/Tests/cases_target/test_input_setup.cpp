@@ -215,4 +215,28 @@ TEST_CASE_FIXTURE(TargetFixture, "a destroyed I2C handler is removed from the I2
 	CHECK(std::count_if(list.begin(), list.end(), [&](I2CHandler *h) { return reinterpret_cast<std::uintptr_t>(h) == address; }) == 0);
 }
 
+
+// ---------------------------------------------------------------- Self-tests of fake HAL SPI / I2C helpers
+
+TEST_CASE_FIXTURE(TargetFixture, "a blocking SPI transfer consumes one queued response") {
+	HostTarget::spiQueueRx(&hspi2, {0x12});
+	HostTarget::spiQueueRx(&hspi2, {0x34});
+	REQUIRE(HostTarget::spiQueuedRx(&hspi2) == 2);
+	uint8_t rx = 0;
+
+	REQUIRE(HAL_SPI_Receive(&hspi2, &rx, 1, 10) == HAL_OK);
+
+	CHECK(rx == 0x12);
+	CHECK(HostTarget::spiQueuedRx(&hspi2) == 1);
+}
+
+TEST_CASE_FIXTURE(TargetFixture, "a removed I2C device no longer acknowledges its address") {
+	HostTarget::i2cDevice(&hi2c1, 0x48);
+	REQUIRE(HAL_I2C_IsDeviceReady(&hi2c1, 0x48 << 1, 1, 10) == HAL_OK);
+
+	HostTarget::i2cRemoveDevice(&hi2c1, 0x48);
+
+	CHECK(HAL_I2C_IsDeviceReady(&hi2c1, 0x48 << 1, 1, 10) != HAL_OK);
+}
+
 } // TEST_SUITE

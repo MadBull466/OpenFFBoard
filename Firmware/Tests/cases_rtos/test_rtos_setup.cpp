@@ -355,3 +355,36 @@ TEST_CASE_FIXTURE(RtosFixture, "a tasklet that can not be scheduled from an inte
 }
 
 }
+
+// ---------------------------------------------------------------- Self-tests of fake API queries
+
+TEST_CASE_FIXTURE(RtosFixture, "the tick counter counts one SysTick per millisecond of simulated time") {
+	const uint32_t before = HostRtos::tickCount();
+	advance(5);
+	CHECK(HostRtos::tickCount() - before == 5);
+}
+
+TEST_CASE_FIXTURE(RtosFixture, "a started timer is in the active list of the timer service until it is stopped") {
+	CountingTimer timer(10, true);
+	REQUIRE(timer.Start(0));
+	runReady(); // the timer service processes the start command
+	CHECK(HostRtos::activeTimerCount() == 1);
+	REQUIRE(timer.Stop(0));
+	runReady();
+	CHECK(HostRtos::activeTimerCount() == 0);
+}
+
+TEST_CASE_FIXTURE(RtosFixture, "an allocation of 0 bytes from the RTOS heap fails and is counted") {
+	const uint32_t before = HostRtos::heapFailedCalls();
+	CHECK(pvPortMalloc(0) == nullptr); // heap_4.c:141
+	CHECK(HostRtos::heapFailedCalls() == before + 1);
+}
+
+TEST_CASE_FIXTURE(RtosFixture, "a task is resumable only after makeResumable") {
+	FunctionThread thread([](FunctionThread &) {});
+	REQUIRE(thread.Start());
+	CHECK_FALSE(HostRtos::isResumable(thread.GetHandle()));
+	HostRtos::makeResumable(thread.GetHandle());
+	CHECK(HostRtos::isResumable(thread.GetHandle()));
+}
+

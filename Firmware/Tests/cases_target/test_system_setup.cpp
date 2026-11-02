@@ -13,6 +13,7 @@
 #include "cpp_target_config.h"
 #include "cppmain.h"
 #include "eeprom_addresses.h"
+#include "flash_helpers.h"
 #include "global_callbacks.h"
 #include "ledEffects.h"
 #include "voltagesense.h"
@@ -209,6 +210,25 @@ TEST_CASE_FIXTURE(TargetFixture, "characterization: cppmain on an empty flash wr
 	REQUIRE(mainclass != nullptr);
 	CHECK(mainclass->getInfo().id == DEFAULTMAIN);
 	CHECK(HostTarget::state().errorHandlerCalls == 1);
+}
+
+
+// ---------------------------------------------------------------- Self-tests of the in-memory OTP area
+
+TEST_CASE_FIXTURE(TargetFixture, "a raw OTP byte is read back by OTP_Read at its little endian position in the slot") {
+	HostTarget::setOtpByte(3, 0x7F); // slot 0, byte 3
+
+	uint64_t value = 0;
+	REQUIRE(OTP_Read(0, &value));
+	CHECK(value == 0xFFFFFFFF7FFFFFFFULL);
+	CHECK(HostTarget::otpByte(3) == 0x7F);
+}
+
+TEST_CASE_FIXTURE(TargetFixture, "OTP_Write does not program a slot of a block locked through its lock byte") {
+	HostTarget::setOtpByte(HostTarget::OTP_DATA_SIZE, 0x00); // lock byte of block 0 (slots 0..3)
+
+	CHECK_FALSE(OTP_Write(0, 0x1122334455667788ULL));
+	CHECK(HostTarget::otpSlot(0) == 0xFFFFFFFFFFFFFFFFULL);
 }
 
 } // TEST_SUITE

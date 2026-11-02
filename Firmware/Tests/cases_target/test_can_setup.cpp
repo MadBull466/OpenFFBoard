@@ -229,6 +229,44 @@ TEST_CASE_FIXTURE(TargetFixture, "with the status change interrupt enabled bus-o
 	CHECK(hcan1.ErrorCode == 0); // cleared by HAL_CAN_ErrorCallback of global_callbacks.cpp:190
 }
 
+// ---------------------------------------------------------------- Self-tests of fake HAL CAN helpers
+
+TEST_CASE_FIXTURE(TargetFixture, "after the reset only the CAN1 transmit and FIFO 0 interrupt lines are enabled") {
+	CHECK(HostTarget::canIrqLineEnabled(HostTarget::CanIrqLine::Tx));
+	CHECK(HostTarget::canIrqLineEnabled(HostTarget::CanIrqLine::Rx0));
+	CHECK_FALSE(HostTarget::canIrqLineEnabled(HostTarget::CanIrqLine::Rx1));
+	CHECK_FALSE(HostTarget::canIrqLineEnabled(HostTarget::CanIrqLine::Sce));
+	HostTarget::canSetIrqLineEnabled(HostTarget::CanIrqLine::Sce, true);
+	CHECK(HostTarget::canIrqLineEnabled(HostTarget::CanIrqLine::Sce));
+}
+
+TEST_CASE_FIXTURE(TargetFixture, "clearing the recorded transmit frames keeps a pending frame in its mailbox") {
+	canport.takePort();
+	CAN_tx_msg msg = frame(0x123, {0x11});
+	REQUIRE(canport.sendMessage(msg));
+
+	HostTarget::canClearTxFrames();
+
+	CHECK(HostTarget::canTxFrames().empty());
+	CHECK(HostTarget::canTxPending() == 0b001);
+	CHECK(HostTarget::canTxComplete(0));
+	CHECK(HostTarget::canTxPending() == 0);
+	CHECK(HostTarget::canTxFrames().empty());
+}
+
+TEST_CASE_FIXTURE(TargetFixture, "an acknowledge error code with its notification and the status change interrupt enabled reaches the CAN handlers as HAL_CAN_ERROR_ACK") {
+	RecordingCanHandler handler;
+	canport.takePort(); // enables CAN_IT_ERROR (CANPort2B.cpp:106), not CAN_IT_LAST_ERROR_CODE
+	REQUIRE(HAL_CAN_ActivateNotification(&hcan1, CAN_IT_LAST_ERROR_CODE) == HAL_OK);
+	HostTarget::canSetIrqLineEnabled(HostTarget::CanIrqLine::Sce, true);
+
+	HostTarget::canSetLastErrorCode(3); // RM0090 CAN_ESR LEC 3: acknowledgment error
+
+	REQUIRE(handler.calls.size() == 1);
+	CHECK(handler.calls[0].what == "error");
+	CHECK((handler.calls[0].arg & HAL_CAN_ERROR_ACK) != 0);
+}
+
 // ---------------------------------------------------------------- CAN main classes and SerialFFB
 
 TEST_CASE_FIXTURE(TargetFixture, "the CAN bridge sends a frame received from the bus to the host in GVRET format") {

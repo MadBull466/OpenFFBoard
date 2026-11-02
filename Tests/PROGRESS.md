@@ -7,7 +7,7 @@
 ## Current state
 
 - **Current phase:** P9 (vendor tiers B and C, Python helpers), started 2026-11-02 at my request (before the wrap-up summary). P8 approved 2026-10-27.
-- **Phase status:** P9 batch 0 done ("P9 batch 0"). Wrap-up partly done (see "Final review (wrap-up)"); its remaining items follow after P9 batch 0.
+- **Phase status:** P9 batch 0 done ("P9 batch 0"). Wrap-up fixes done (see "Final review (wrap-up)"); the project summary follows at the end of P9.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** `200ac244` (P8 final).
 - **Last updated:** 2026-10-27
@@ -15,7 +15,7 @@
 
 ## Next action
 
-**P9 batch 0 done.** Then: the remaining wrap-up items (README update, unused-helper self-tests; see "Final review (wrap-up)"), P9 module agents, reviews, final gate, `Tests/BUG_REPORT.md`, `Tests/PROJECT_SUMMARY.md`, stop for approval.
+**P9 batch 0 and the wrap-up fixes done; P9 module agents running.** Then: reviews, final gate, `Tests/BUG_REPORT.md`, `Tests/PROJECT_SUMMARY.md`, stop for approval.
 
 ## Phase checklist
 
@@ -373,7 +373,7 @@ Executable `ffb_target_tests`, new files in `cases_target/` only. Coverage after
 ## Final review (wrap-up, 2026-10-27 / 2026-11-02)
 
 Two fresh whole-suite reviewers at 4619cc72: FR1 (infrastructure and documentation), FR2 (bug report accuracy).
-- **FR1:** no must findings. Rule compliance clean (only `Firmware/Tests/` changed since a5418ff5; baseline cases, doctest.h, `.github/` untouched; no downloads; 71 commits `MadBull.Ben <>`). All documented numbers re-measured identical; 20 random orders per executable per variant and every case run alone: no flaky case. Fixed: `DELETES_FFBHIDMAIN` hid the KNOWN_ISSUE description; `mallinfo` shim also for macOS (unverified); a stray `__pycache__` removed and ignored; 154 KNOWN_ISSUE/characterization cases now name their bug/NEEDS REVIEW number (descriptions only, no name changes); PROGRESS consistency (fake statuses, presets, gate wording, open questions incl. a concrete CI job proposal). **Open:** README update (GitHub Actions claim, NEEDS REVIEW/skipped-crash conventions, layout/suite/fixture tables, comma names, stale next steps), self-tests for unused helpers.
+- **FR1:** no must findings. Rule compliance clean (only `Firmware/Tests/` changed since a5418ff5; baseline cases, doctest.h, `.github/` untouched; no downloads; 71 commits `MadBull.Ben <>`). All documented numbers re-measured identical; 20 random orders per executable per variant and every case run alone: no flaky case. Fixed: `DELETES_FFBHIDMAIN` hid the KNOWN_ISSUE description; `mallinfo` shim also for macOS (unverified); a stray `__pycache__` removed and ignored; 154 KNOWN_ISSUE/characterization cases now name their bug/NEEDS REVIEW number (descriptions only, no name changes); PROGRESS consistency (fake statuses, presets, gate wording, open questions incl. a concrete CI job proposal). README update (no GitHub Actions claim, NEEDS REVIEW/skipped-crash/traceability conventions, layout/suite/fixture/support tables for all 5 executables and the Python tests, comma names in filters, next steps) and self-tests for all 11 unused helpers done 2026-11-02 (`ffb_target_tests` +7, `ffb_flash_tests` +1, `ffb_rtos_tests` +4).
 - **FR2:** 126 of 147 bug rows correct; 21 corrected in the tables (citations, test names, evidence, target consequences); bug 4 withdrawn (duplicate of NR 2); NR 138, 125, 28 became bugs 131-133; NR 55's range part merged into bug 41; NR 21, 141-143 marked as test-infrastructure questions. Bug report generator: reviewed priority list, related-bug families, the original suite's 17 known issues (incl. the CmdParser hang), numbering notes.
 - Gate after these fixes: unchanged results in all 6 dirs (ctest 5/5, baseline OK, unit 646/0/4 etc., target 1,757/0/17, flash 158/0/0, rtos 267/0/0), no findings, no test-file warnings.
 

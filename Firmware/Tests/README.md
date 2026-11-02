@@ -1,7 +1,9 @@
 # OpenFFBoard firmware unit tests
 
 Functional unit tests for the hardware independent parts of the firmware.
-The tests run on the development PC and in GitHub Actions. No board, debugger or ARM toolchain is required.
+The tests run on the development PC. No board, debugger or ARM toolchain is required. They are meant to run in GitHub
+Actions as well, but no workflow builds or runs them yet: the CI job is a proposal in `Tests/PROGRESS.md` (open
+question 5).
 
 ## Concept
 
@@ -51,15 +53,38 @@ ctest --test-dir build --output-on-failure
 or with presets (CMake >= 3.21): `cmake --preset host && cmake --build --preset host && ctest --preset host`
 (`host-mingw` on Windows).
 
-The test executable can be started directly for more control:
+`ctest` runs 7 entries: the five test executables `ffb_unit_tests`, `ffb_target_tests`, `ffb_flash_tests`,
+`ffb_rtos_tests` and `ffb_usb_tests` (each with its exclusion list), `ffb_unit_tests_baseline` (the baseline check, see
+below) and `python_helper_tests` (the last two only if Python 3 is found; `ffb_flash_tests` is not built on macOS).
+
+| Executable | Test cases | Section |
+|---|---|---|
+| `ffb_unit_tests` | `cases/` | this section (the original suite) |
+| `ffb_target_tests` | `cases_target/` | [`ffb_target_tests`](#ffb_target_tests-f407-feature-set-with-the-real-axis) |
+| `ffb_flash_tests` | `cases_flash/` | [`ffb_flash_tests`](#ffb_flash_tests-the-real-flash-layer-on-a-fake-hal-flash) |
+| `ffb_rtos_tests` | `cases_rtos/` | [`ffb_rtos_tests`](#ffb_rtos_tests-the-freertos-c-wrappers-on-a-fake-freertos-api) |
+| `ffb_usb_tests` | `cases_usb/` | [`ffb_usb_tests`](#ffb_usb_tests-the-tinyusb-device-stack-on-a-fake-usb-device-controller) |
+| `python_helper_tests` | `python/` | [Python helper tests](#python-helper-tests) |
+
+The test executables can be started directly for more control. With GCC 16 (libstdc++ with `_GLIBCXX_ASSERTIONS` at
+`-O0`) a run of `ffb_unit_tests` without the exclusion aborts in the case
+`requesting the forces of a not existing axis is rejected` (suspected bug 1), so pass the exclusion of `ctest` (in a
+sanitizer build with CMSIS-DSP also the two spline cases of `FFB_TESTS_EXCLUDE_SANITIZE`):
 
 ```sh
-build/ffb_unit_tests                        # all tests, prints details of known issues
+build/ffb_unit_tests -tce="requesting the forces of a not existing axis is rejected"   # all other tests, prints details of known issues
 build/ffb_unit_tests -ts=CmdParser          # one test suite
 build/ffb_unit_tests -tc="*sine*"           # test cases by name
 build/ffb_unit_tests --list-test-cases
-build/ffb_unit_tests -s                     # also print successful assertions
+build/ffb_unit_tests -ts=CmdParser -s       # also print successful assertions
+build/ffb_target_tests                      # the other executables need no exclusion by default
 ```
+
+Expected result of `ffb_unit_tests` with the documented exclusions (GCC 16, Linux): 646 passed, 0 failed, 4 skipped
+(the same with clang 23 and without CMSIS-DSP; sanitizer build with CMSIS-DSP: 643 / 0 / 7; sanitizer build without
+CMSIS-DSP: 645 / 0 / 5). doctest counts a
+`KNOWN_ISSUE` case that fails as expected as passed. The 318 baseline cases are a subset of these; their own result
+(316 passed, 2 skipped on GCC 16 with the exclusion) is checked by `tools/check_baseline.py` (see below).
 
 ### Build options
 
@@ -69,23 +94,29 @@ build/ffb_unit_tests -s                     # also print successful assertions
 | `FFB_TESTS_SANITIZE` | `OFF` | Address and undefined behaviour sanitizers (Linux/macOS). |
 | `FFB_TESTS_EXCLUDE` | the `effectsForces` case | Test cases `ctest` excludes (`--test-case-exclude`). Only cases that abort the whole run because of a suspected defect belong here. |
 | `FFB_TESTS_EXCLUDE_SANITIZE` | the 2 spline cases | Additionally excluded in sanitizer builds with CMSIS-DSP (the address sanitizer reports an over-read inside `arm_spline_f32`). |
+| `FFB_TARGET_TESTS_EXCLUDE`, `FFB_FLASH_TESTS_EXCLUDE`, `FFB_RTOS_TESTS_EXCLUDE`, `FFB_USB_TESTS_EXCLUDE` and the `..._SANITIZE` variants | empty | The same for the other executables (see their sections). |
 
 The active exclusions are printed when CMake configures (`OpenFFBoard tests: excluded from ctest: ...`).
 When running the executable directly, pass the same list, e.g.
 `build/ffb_unit_tests --test-case-exclude="requesting the forces of a not existing axis is rejected"`.
 
+doctest splits the values of `-tc` / `-tce` / `-ts` / `--test-case-exclude` at commas, and the exclusion options are
+passed to doctest the same way, so a test name that contains a comma can not be given verbatim (in a filter or in an
+`FFB_*_EXCLUDE` list). Replace the comma with `?` (doctest's single character wildcard), e.g.
+`-tc="constant force? spring and damper are summed"` (with the comma the filter matches nothing).
+
 ### Baseline check and coverage
 
 `ctest` also runs `tools/check_baseline.py` (if Python 3 is found). It checks that every test case listed in
 `baseline/test_cases.txt` still exists with its expected result (passes, fails as a known issue, or is skipped).
-New test cases are allowed. Run it directly with `python3 tools/check_baseline.py --build-dir build`.
+New test cases are allowed. Run it directly with `python3 -B tools/check_baseline.py --build-dir build`.
 
 Line coverage per file, module and vendor code, with plain `gcov` (no other tools needed):
 
 ```sh
 cmake -S . -B build-cov -DCMAKE_C_FLAGS=--coverage -DCMAKE_CXX_FLAGS=--coverage -DCMAKE_EXE_LINKER_FLAGS=--coverage
 cmake --build build-cov -j && ctest --test-dir build-cov
-python3 tools/coverage_report.py --build-dir build-cov
+python3 -B tools/coverage_report.py --build-dir build-cov
 ```
 
 Code that can only be checked on the board (register setup, busy waits on peripheral flags, interrupt timing) is
@@ -96,20 +127,52 @@ not tested. It is listed with a reason in `tools/coverage_exclusions.txt` and le
 
 | Path | Content |
 |---|---|
-| `cases/test_*.cpp` | Test cases. Every file is picked up automatically. |
+| `cases/test_*.cpp` | Test cases of `ffb_unit_tests`. Every file is picked up automatically. |
 | `cases_target/test_*.cpp` | Test cases of `ffb_target_tests` (F407 feature set, real `Axis`). |
 | `cases_flash/test_*.cpp` | Test cases of `ffb_flash_tests` (real `flash_helpers.cpp` and `eeprom.c` on the fake HAL FLASH). |
 | `cases_rtos/test_*.cpp` | Test cases of `ffb_rtos_tests` (the `cpp_freertos` wrappers on the fake FreeRTOS API). |
-| `mocks/` | Implementations of firmware class interfaces for tests. |
-| `fakes/` | Headers replacing firmware headers (currently only `Axis.h`). |
-| `support/` | Fixtures and helpers: `FirmwareFixture.h`, `FfbFixture.h`, `PidHost.h`, `TestHelpers.h`, `Host*.h`. |
-| `platform/include` | Fake `main.h` (HAL), FreeRTOS, CMSIS headers and the `target_constants.h` of the test "target". |
-| `platform/src` | Implementation of the fake platform. |
-| `CMakeLists.txt` | Build. Contains the list of firmware sources under test. |
+| `cases_usb/test_*.cpp` | Test cases of `ffb_usb_tests` (TinyUSB device stack on the fake USB device controller). |
+| `python/` | `test_*.py`: stdlib `unittest` tests of the Python helper scripts; `helper_paths.py` (paths, loader). |
+| `mocks/` | Implementations of firmware class interfaces for tests (`Mock*.h`, see "Mocks and helpers"). |
+| `fakes/` | Headers replacing firmware headers in `ffb_unit_tests` only (currently only `Axis.h`). |
+| `support/` | Fixtures and test control of the fakes, see the table below. |
+| `platform/include` | Fake `main.h` (HAL), FreeRTOS, CMSIS headers and the `target_constants.h` of the generic test "target" (`ffb_unit_tests`, `ffb_rtos_tests`). |
+| `platform/target_f407/` | F407 feature header (`target_constants.h` without drivers and MIDI), F407 fake `main.h`, `cmsis_os.h` and the fake HAL FLASH declarations `host_flash_hal.h`; first in the include path of `ffb_target_tests`, `ffb_flash_tests` and `ffb_usb_tests`. |
+| `platform/usb/` | `tusb_config.h` wrapper of the F407 one and the OSAL headers (`hosttest_osal/`) of `ffb_usb_tests`. |
+| `platform/mingw/` | `malloc.h` shim and `host_mallinfo.cpp` (`struct mallinfo` / `mallinfo()` for `SystemCommands.cpp`), used only on MinGW and macOS (`ffb_target_tests`). |
+| `platform/src` | Implementation of the fake platform (`host_platform.cpp`, `host_freertos.cpp` + `host_freertos_ext.inc`, `host_usb.cpp`, `host_stubs.cpp`, `host_target*.cpp`, `host_flash.cpp`, `host_dcd.cpp`, `host_usb_osal.cpp`, and the compile wrappers `host_cppmain.cpp`, `host_cmem_pool.cpp`). |
+| `third_party/doctest.h` | doctest 2.4.11. Do not edit. |
+| `CMakeLists.txt`, `CMakePresets.json` | Build of all executables (lists of the firmware sources under test), presets. |
 | `baseline/test_cases.txt` | The test cases that existed before the suite was extended, with their expected result. Do not edit. |
-| `tools/` | `check_baseline.py` (baseline check), `coverage_report.py` (gcov summary). Python standard library only. |
+| `tools/check_baseline.py` | Baseline check (also a `ctest` entry). |
+| `tools/coverage_report.py` | gcov line coverage per file, module and tier. |
+| `tools/coverage_exclusions.txt` | Reviewed list of hardware-only line ranges (file:range + reason) left out of the coverage numbers. |
+| `tools/make_bug_report.py` | Generates `Tests/BUG_REPORT.md` (repository root) from the "Suspected firmware bugs" and "NEEDS REVIEW items" tables of `Tests/PROGRESS.md`. |
+
+The Python tools use the standard library only; run them with `python3 -B` (no `__pycache__` under `Firmware/`).
+
+Headers in `support/`:
+
+| Header | Executable | Content |
+|---|---|---|
+| `TestHelpers.h` | all | `KNOWN_ISSUE`, `KNOWN_ISSUE_UB`, `KNOWN_ISSUE_UB_HIDDEN`, `finishesWithin`, small helpers. |
+| `HostPlatform.h` | all | Simulated time (`advanceMs`), interrupt context, LEDs, UART, flash map of `ffb_unit_tests`. |
+| `HostRtos.h` | all | Fake FreeRTOS kernel: thread registry, `runUntilBlocked` / `runUntilIdle`, resumable tasks, kernel faults, heap counters. |
+| `HostUsb.h` | `ffb_unit_tests`, `ffb_target_tests` | Recording TinyUSB fake (`platform/src/host_usb.cpp`): CDC data, HID reports. |
+| `FirmwareFixture.h` | `ffb_unit_tests`, `ffb_target_tests` | `FirmwareFixture`, `CommandSystemFixture`. |
+| `FfbFixture.h`, `PidHost.h` | `ffb_unit_tests` | `FfbFixture`, `FfbFixture1Axis`; simulated PID host (also used by `AxisFixture`). |
+| `AxisFixture.h` | `ffb_target_tests` | `TargetFixture`, `AxisFixture`, `DELETES_FFBHIDMAIN`, `REQUIRE_ALL_HAL_MODELLED`. |
+| `HostTarget.h` | `ffb_target_tests`, `ffb_usb_tests` | F407 fake platform: timers, EXTI, GPIO, ADC, SPI, I2C, CAN, OTP, `runCppmain`, unmodelled-HAL record. |
+| `CommandHelpers.h` | `ffb_target_tests` | Run commands of a handler by name (`run`, `get`, `getAt`), `CdcConsole`. |
+| `InputSources.h` | `ffb_target_tests` | Mock button / analog sources in the choosers of `SelectableInputs`. |
+| `FlashFixture.h`, `HostFlash.h` | `ffb_flash_tests` | `FlashFixture`; fake HAL FLASH memory, recording, error and power-loss injection. |
+| `RtosFixture.h`, `HostRtosExt.h` | `ffb_rtos_tests` (`HostRtosExt.h` also `ffb_usb_tests`) | `RtosFixture`; fake FreeRTOS API F11 (queues, timers, event groups, notifications, create failures). |
+| `UsbFixture.h`, `UsbHost.h`, `HostDcd.h` | `ffb_usb_tests` | `UsbFixture`; simulated USB host; fake device controller. |
+| `test_main.cpp` | all | doctest main. |
 
 ## Test suites
+
+`ffb_unit_tests` (`cases/`):
 
 | Suite | File | Tested firmware |
 |---|---|---|
@@ -129,11 +192,46 @@ not tested. It is listed with a reason in `tools/coverage_exclusions.txt` and le
 | `Filters` | `test_filters.cpp` | Biquad coefficients of all types against reference formulas, frequency response, setters (CMSIS-DSP on and off) |
 | `Encoder`, `MotorDriver` | `test_device_interfaces_gaps.cpp` | Default implementations of the base classes |
 | `cpp_freertos` | `test_rtos_wrappers.cpp` | FreeRTOS C++ wrappers (vendor): thread, mutex, semaphore |
-| `RtosSetup` | `cases_rtos/test_rtos_setup.cpp` (`ffb_rtos_tests`) | Smoke tests of the fake FreeRTOS API: one per wrapper family, create failure, kernel faults |
 | `UART`, `UartHandler` | `test_uart.cpp` | UART port transfers (blocking, IT, DMA), reservation, abort, completion dispatch |
 | `ringbuffer`, `RingBufferWrapper` | `test_ringbuffer.cpp` | Ring buffer append, get, peek, wrap-around, full buffer |
 | `CANPort`, `CanHandler` | `test_can_handler.cpp` | Port and handler registry, `handleToPort` (dispatch through the real `global_callbacks.cpp` is in `ffb_target_tests`) |
 | `UsbHidHandler`, `CDCcomm` | `test_usb_hid_handler.cpp`, `test_cdc.cpp` | HID handler registration and descriptor, CDC send, retry and blocking |
+
+`ffb_target_tests` (`cases_target/`, one row per file group):
+
+| Suites | Files | Tested firmware |
+|---|---|---|
+| `TargetSetup`, `SystemSetup`, `InputSetup`, `EncoderSetup`, `CanSetup` | `test_target_setup.cpp`, `test_system_setup.cpp`, `test_input_setup.cpp`, `test_encoder_setup.cpp`, `test_can_setup.cpp` | Smoke tests of the F407 fake platform per phase, self-tests of its helpers |
+| `Axis`, `AxesManager`, `FFBIntegration` | `test_axis_config.cpp`, `test_axis_torque.cpp`, `test_axes_manager.cpp`, `test_ffb_integration.cpp` | Axis commands and flash, torque path (power, scaling, limiters, fade, hands-off, E-stop), axes manager, PID report to motor torque |
+| `FFBHIDMain`, `FFBWheel`, `FFBJoystick`, `FFBHIDExt`, `FFBoardMain`, `CustomMain`, `MainClassChooser` | `test_ffbhidmain.cpp`, `test_main_classes.cpp` | Main classes: HID gamepad report, rates, E-stop, errors, USB suspend / resume, input sources, chooser |
+| `SystemCommands`, `cppmain`, `AdcHandler`, `USBdevice`, `GlobalCallbacks`, `LedEffects`, `VoltageSense`, `TimerHandler`, `ExtiHandler`, `UsbDescriptors`, `CRC` | `test_system_commands.cpp`, `test_cppmain.cpp`, `test_global_callbacks.cpp`, `test_led_effects.cpp`, `test_voltagesense.cpp`, `test_timer_exti_handlers.cpp`, `test_usb_descriptors.cpp`, `test_crc.cpp` | System commands, start-up, HAL / TinyUSB callbacks, LEDs, voltage sensing and brake, timer / EXTI dispatch, descriptors, CRC |
+| `SelectableInputs`, `ButtonSource(s)`, `AnalogSource(s)`, `LocalButtons`, `LocalAnalog`, `SPIButtons`, `PCF8574`, `ShifterAnalog`, `ADS111X`, `AnalogAxisProcessing`, `CanButtons`, `CanAnalog` | `test_selectable_inputs.cpp`, `test_analog_source.cpp`, `test_local_buttons.cpp`, `test_local_analog.cpp`, `test_spi_buttons.cpp`, `test_pcf8574.cpp`, `test_shifter_analog.cpp`, `test_ads111x.cpp`, `test_analog_axis_processing.cpp`, `test_can_buttons.cpp`, `test_can_analog.cpp` | Button and analog input sources |
+| `EncoderLocal`, `EncoderSSI`, `EncoderBissC`, `MtEncoderSPI` | `test_encoder_local.cpp`, `test_encoder_ssi.cpp`, `test_encoder_bissc.cpp`, `test_mtencoder_spi.cpp` | Encoders on TIM3 / the encoder SPI port |
+| `SPIPort`, `SPIDevice`, `SpiHandler`, `I2CPort`, `I2CDevice`, `I2CHandler` | `test_spi_port.cpp`, `test_i2c_port.cpp` | SPI and I2C ports, devices and handler lists |
+| `CANPort_2B`, `CanBridge`, `CANInputMain`, `SerialFFB` | `test_canport2b.cpp`, `test_canbridge.cpp`, `test_caninputmain.cpp`, `test_serial_ffb.cpp` | CAN port on the fake HAL CAN, CAN main classes, FFB effects over the `fxm` commands |
+
+`ffb_flash_tests` (`cases_flash/`):
+
+| Suites | Files | Tested firmware |
+|---|---|---|
+| `FlashSetup` | `test_flash_setup.cpp` | Smoke tests of the fake HAL FLASH and its helpers |
+| `EEPROM`, `FlashHelpers`, `EepromAddresses`, `PersistentStorageFlash` | `test_eeprom.cpp`, `test_flash_helpers.cpp`, `test_eeprom_addresses.cpp`, `test_persistent_storage_flash.cpp` | `eeprom.c` (vendor) with power loss, `flash_helpers.cpp`, the address table, save / restore through the real flash layer |
+
+`ffb_rtos_tests` (`cases_rtos/`):
+
+| Suites | Files | Tested firmware |
+|---|---|---|
+| `RtosSetup` | `test_rtos_setup.cpp` | Smoke tests of the fake FreeRTOS API: one per wrapper family, create failure, kernel faults, self-tests of its queries |
+| `Queue`, `Timer`, `Tasklet`, `TickHook`, `WorkQueue`, `EventGroup`, `MemoryPool`, `Mutex`, `Semaphore`, `ReadWriteLock`, `ConditionVariable` | `test_cqueue.cpp`, `test_ctimer.cpp`, `test_ctasklet.cpp`, `test_ctickhook.cpp`, `test_cworkqueue.cpp`, `test_cevent_groups.cpp`, `test_cmem_pool.cpp`, `test_csync_gaps.cpp`, `test_cread_write_lock.cpp`, `test_ccondition_variable.cpp` | The `cpp_freertos` wrappers (vendor, tier A) |
+
+`ffb_usb_tests` (`cases_usb/`):
+
+| Suites | Files | Tested firmware |
+|---|---|---|
+| `UsbSetup` | `test_usb_setup.cpp` | Smoke tests: bus reset and enumeration, string descriptor, CDC line coding and commands, HID input / output / feature reports, stall, suspend / resume, the OSAL on the fake FreeRTOS |
+
+Python (`python/`, ctest entry `python_helper_tests`): `test_generate_memory.py` (`Firmware/scripts/generate_memory.py`),
+`test_dwc2_info.py` (`dwc2_info.py`).
 
 Test cases marked `KNOWN_ISSUE` and the suspected defects behind them are listed in `Tests/PROGRESS.md` (repository root).
 
@@ -150,12 +248,25 @@ Test cases marked `KNOWN_ISSUE` and the suspected defects behind them are listed
 | `MockSPIDevice`, `MockI2CDevice` | `SPIDevice` / `I2CDevice` recording the calls of the port (transfer begin/end, completions, errors) for tests of `SPI.cpp` / `I2C.cpp` (`ffb_target_tests`). |
 | `PidHost` | Simulates the PID driver of the host: create effect, set effect/condition/periodic..., effect operation, device control. |
 | `Axis` (fake) | Replaces the real axis for the effect calculation: metrics are set by the test, the effect torque is recorded. |
-| `CommandSystemFixture` | Resets everything, owns the command thread. `process()` runs all threads until idle. |
-| `FfbFixture` | Effects calculator + `HidFFB` + `PidHost` + two fake axes. |
+
+Fixtures (in `support/`; test files derive local fixtures from them):
+
+| Fixture | Executable | Use |
+|---|---|---|
+| `FirmwareFixture` | `ffb_unit_tests`, `ffb_target_tests` | Resets the fake platform (time, RTOS, USB, UART, flash map) and the global firmware state (command handlers, error handler, ...) before and after the test. |
+| `CommandSystemFixture` | `ffb_unit_tests` | `FirmwareFixture` + the command thread. `process()` runs all threads until idle. |
+| `FfbFixture`, `FfbFixture1Axis` | `ffb_unit_tests` | Effects calculator + `HidFFB` + `PidHost` + two (one) fake axes. |
+| `TargetFixture` | `ffb_target_tests` | `FirmwareFixture` + the F407 fake platform (`HostTarget`); fails the test on HAL calls without a fake. |
+| `AxisFixture` | `ffb_target_tests` | `TargetFixture` + real `Axis` objects with `MockMotorDriver` / `MockEncoder`, `EffectsCalculator`, `HidFFB`, `PidHost`. |
+| `FlashFixture` | `ffb_flash_tests` | Fake flash, time, RTOS and flash-layer state; `init`, `powerCycle`, `reboot`, page image helpers. |
+| `RtosFixture` | `ffb_rtos_tests` | Fake FreeRTOS API reset, `advance`, `runReady`, `runInTask`, leak and kernel fault checks. |
+| `UsbFixture` | `ffb_usb_tests` | TinyUSB, fake device controller, RTOS and F407 platform reset; `startDevice`, `process`, `enumerate`, a simulated host. |
+
+The fixtures of the other executables are described in their sections below.
 
 `MockMotorDriver` and `MockEncoder` provide `classEntry()` to make them selectable in a `ClassChooser`.
 `Axis::driverChooser` and `Axis::encoderChooser` are public, so a test can select the mocks in a real axis
-without changing the firmware (see next steps).
+without changing the firmware (`AxisFixture`).
 
 ## Writing tests
 
@@ -185,7 +296,11 @@ Rules:
 
 * **`characterization: ...`** documents what the firmware does today where the correct behaviour still has to be
   verified (for example the axis magnitudes against the PID specification). These tests protect against
-  unintended changes during refactoring but do not claim the behaviour is correct.
+  unintended changes during refactoring but do not claim the behaviour is correct. Every such open question is a
+  **NEEDS REVIEW** item: a numbered row of the "NEEDS REVIEW items" table in `Tests/PROGRESS.md` (repository root),
+  collected with the suspected bugs in `Tests/BUG_REPORT.md`. The test names its item in a comment next to the case
+  (`// NEEDS REVIEW 29: ...`, above the case or at the start of its body) or in its name; the table row names the test.
+  When the item is answered the test is renamed (correct behaviour) or turned into a `KNOWN_ISSUE` test (defect).
 * **`KNOWN_ISSUE("...")`** marks a test that describes the intended behaviour but fails because of a suspected
   defect in the firmware. The suite stays green while the defect exists. When the firmware is fixed the test
   is reported as *"Should have failed but didn't"* and the marker must be removed.
@@ -194,6 +309,14 @@ Rules:
   asserts the intended result and passes in normal builds, and is skipped in sanitizer builds. The defect is only
   visible on a sanitizer build run with `--no-skip`. Its description starts with "KNOWN ISSUE", so the inventory below
   lists it.
+* **Skipped crash:** a test of a suspected defect that would terminate the whole run (segmentation fault, abort by
+  `_GLIBCXX_ASSERTIONS`, floating point exception) is written like a `KNOWN_ISSUE` test but marked
+  `doctest::description("KNOWN ISSUE (crash): ...") * doctest::skip()`: it is reported as skipped in every build. Run
+  it on purpose with `-tc="<name>" --no-skip`.
+* **Traceability:** every `KNOWN_ISSUE`, `KNOWN_ISSUE_UB`, `KNOWN_ISSUE_UB_HIDDEN` and skipped crash case names its
+  suspected bug in the marker text (`KNOWN_ISSUE("(bug 16) ...")`, vendor bugs `V<n>`), every `characterization:` case
+  its NEEDS REVIEW number (see above). The tables in `Tests/PROGRESS.md` list the test names as evidence. The 318
+  baseline cases of `ffb_unit_tests` are left unchanged (NEEDS REVIEW 3 lists their 17 `KNOWN_ISSUE` cases).
 
   In `ffb_target_tests` the fixture checks for HAL functions without a fake with a `CHECK` in its destructor. In a
   `KNOWN_ISSUE` test that check would also count as the expected failure, so such tests call
@@ -386,9 +509,11 @@ Later phases add encoders, buses and CAN; since P5 the SPI and I2C HAL are faked
     executable, so there is no `otp` command, unlike the F407 target).
   * **RTOS heap:** `HostRtos::heapStats()` counts `pvPortMalloc` / `vPortFree` calls (all executables; reset by
     `HostRtos::reset()`), e.g. to check that the `malloc`/`free` of `cppmain.cpp` forward to the RTOS heap.
-  * **MinGW (unverified, no MinGW toolchain here):** `SystemCommands.cpp` uses `struct mallinfo` / `mallinfo()` from
-    `<malloc.h>`, which mingw-w64 does not declare. Under `if(MINGW)` the include path gets `platform/mingw`
-    (`malloc.h` shim with `#include_next`) and `platform/mingw/host_mallinfo.cpp` (returns zeros) is compiled.
+  * **MinGW and macOS (unverified, no MinGW or macOS toolchain here):** `SystemCommands.cpp` uses `struct mallinfo` /
+    `mallinfo()` from `<malloc.h>`, which mingw-w64 does not declare and the macOS SDK does not have. Under
+    `if(MINGW OR APPLE)` the include path gets `platform/mingw` (`malloc.h` shim: `#include_next <malloc.h>` if the
+    system has one, otherwise `<stdlib.h>`) and `platform/mingw/host_mallinfo.cpp` (returns zeros) is compiled. Linux
+    builds do not use them.
 * **Unmodelled-HAL guard:** every HAL function the compiled sources call has a fake. A call the fake does not model
   (e.g. SPI slave mode, I2C 10-bit addressing, `triggerExti` on a pin without EXTI line) records a description in
   `HostTarget::state().unmodelledHalCalls` and returns `HAL_ERROR`; `TargetFixture` fails the test at the end if the
@@ -622,13 +747,16 @@ paths and a loader that imports a script without writing `__pycache__`.
 * No preemption. Race conditions between threads and interrupts can not be found.
 * The real motor drivers are not compiled (out of scope). `Axis`, the main classes and `SystemCommands` are only
   compiled in `ffb_target_tests`.
-* The USB descriptors are not parsed. The report layouts are compared with constants in the tests.
+* Outside `ffb_usb_tests` the USB descriptors are not parsed; the report layouts are compared with constants in the
+  tests. `ffb_usb_tests` parses the configuration descriptor during the enumeration (interfaces and endpoints only).
+* macOS and Windows (MinGW) builds are unverified: no such toolchain was available. `ffb_flash_tests` is not built on
+  macOS.
 
 ## Next steps
 
-* Verification of the `characterization` tests of `HidFFB` against the USB HID PID 1.01 specification (direction handling,
-  condition blocks, device control, block load status).
-* Integration test with the real `Axis.cpp`: PID report -> effect -> axis -> `MockMotorDriver` torque with the
-  position from `MockEncoder`. Requires a few more HAL declarations for the headers included by `Axis.h`
-  and `#include <cmath>` in `Axis.cpp`.
-* Tests for `Axis` (scaling, endstop, speed and slew rate limiter), `Filters` and `ErrorHandler`.
+* **P9:** TinyUSB (tier B), the CMSIS-DSP functions the firmware calls (tier C) and the Python helpers. It was on hold
+  for the wrap-up review and has since been started: batch 0 (`ffb_usb_tests`, the Python helper tests) is in place,
+  the module tests follow (plan in `Tests/TEST_PLAN.md`, status in `Tests/PROGRESS.md`).
+* Open questions (USB HID PID 1.01 specification for the `HidFFB` characterization tests, the CI job, Windows / macOS
+  verification) are listed under "Open questions for me" in `Tests/PROGRESS.md`; suspected bugs and NEEDS REVIEW items
+  in `Tests/BUG_REPORT.md`.

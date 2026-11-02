@@ -156,4 +156,15 @@ TEST_CASE_FIXTURE(FlashFixture, "a power loss at any program step of a page tran
 	}
 }
 
+
+TEST_CASE_FIXTURE(FlashFixture, "a raw 32 bit write is stored little endian like on the target") {
+	const uint32_t adr = HostFlash::sectorBase(3);
+
+	HostFlash::write32(adr, 0x12345678U);
+
+	CHECK(HostFlash::read32(adr) == 0x12345678U);
+	CHECK(HostFlash::read16(adr) == 0x5678);
+	CHECK(HostFlash::read16(adr + 2) == 0x1234);
+}
+
 } // TEST_SUITE
