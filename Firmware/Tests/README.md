@@ -150,7 +150,7 @@ python3 -B tools/run_all_tests.py --build-dir build [--out FILE] [--timeout S]  
 * **File under test:** the source files of the numbered row in `Tests/PROGRESS.md`; otherwise a firmware source
   named like the test suite or the test file (`test_<name>[_gaps].cpp`, also a source name the file name starts
   with) or an included header matching the file name; else `unknown`.
-* Exit status 0 when Failed is 0. Not part of `ctest`; `python/test_run_all_tests.py` tests the script itself.
+* A failed test is reported as failed and the run carries on with the next test case. The `test_report` target always succeeds (`--exit-zero`); run directly, the script exits with 0 when Failed is 0 and 1 otherwise (for CI), unless `--exit-zero` is given. Not part of `ctest`; `python/test_run_all_tests.py` tests the script itself.
 
 ## Directory layout
 

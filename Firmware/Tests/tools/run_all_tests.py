@@ -1152,6 +1152,8 @@ def main(argv=None):
 		help="PROGRESS.md with the bug and NEEDS REVIEW tables (default: Tests/PROGRESS.md)")
 	parser.add_argument("--python", default=sys.executable, help="Python interpreter for the Python helper tests")
 	parser.add_argument("--no-python", action="store_true", help="do not run the Python helper tests")
+	parser.add_argument("--exit-zero", action="store_true",
+	                    help="always exit with status 0 (failed tests are still reported in the log and the summary)")
 	args = parser.parse_args(argv)
 
 	build_dir = os.path.abspath(args.build_dir)
@@ -1210,6 +1212,8 @@ def main(argv=None):
 	if problems:
 		print("Run problems: %d" % len(problems))
 	print("Report: %s" % out_path)
+	if args.exit_zero:
+		return 0
 	return 0 if c[FAILED] == 0 and not problems else 1
 
 

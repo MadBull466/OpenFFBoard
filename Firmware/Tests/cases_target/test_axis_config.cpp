@@ -993,15 +993,15 @@ TEST_CASE_FIXTURE(AxisFixture, "a driver selected while USB is not connected is 
 	CHECK(driver().torqueHistory == std::vector<int16_t>{0, 0}); // turn(0) by usbSuspend and by MotorDriver::stopMotor
 }
 
-// bug 133
-TEST_CASE_FIXTURE(AxisFixture, "characterization: selecting a driver while USB is not connected clears the usb_disabled flag") {
-	// NEEDS REVIEW: Axis.cpp:535-538 sets control->usb_disabled = false when tud_connected() is false. The flag means
-	// "FFB is disabled by USB" and FFBHIDMain::usbSuspend returns early while it is set. Intended (so that the next
-	// suspend runs), or inverted?
+TEST_CASE_FIXTURE(AxisFixture, "selecting a driver while USB is not connected keeps the usb_disabled flag set (bug 133)" *
+								   KNOWN_ISSUE("(bug 133) Axis.cpp:535-538 sets control->usb_disabled = false in the branch where "
+											   "tud_connected() is false (looks inverted). The flag means \"FFB is disabled by USB\" "
+											   "(FFBHIDMain.cpp:308-326), so while USB is not connected it should stay set")) {
 	control.usb_disabled = true;
 	HostUsb::state().mounted = false;
 	axisCommand(Axis_commands::drvtype, CMDtype::set, MockMotorDriver::SELECTION_ID);
-	CHECK_FALSE(control.usb_disabled);
+	REQUIRE_ALL_HAL_MODELLED();
+	CHECK(control.usb_disabled);
 }
 
 // ---------------------------------------------------------------- encoder selection
