@@ -14,6 +14,7 @@ import pathlib
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 
 import helper_paths as paths
@@ -36,6 +37,7 @@ LAYOUT = {
                 ("acg_support", 12, 1), ("enhanced_lpm_support", 13, 1), ("phy_data_width", 14, 2),
                 ("ctrl_ep_num", 16, 4), ("iddg_filter", 20, 1), ("vbus_valid_filter", 21, 1),
                 ("a_valid_filter", 22, 1), ("b_valid_filter", 23, 1), ("session_end_filter", 24, 1),
+                # dwc2_type.h calls bit 30 dma_desc_enabled; the script (and so this table) says dma_desc_enable
                 ("dedicated_fifos", 25, 1), ("num_dev_in_eps", 26, 4), ("dma_desc_enable", 30, 1),
                 ("dma_desc_dynamic", 31, 1)],
 }
@@ -54,6 +56,10 @@ NAMES = {
 }
 
 F407_FS = "ST F207/F407/411/429 FS"
+SYNOPSYS_ID = 0x4F54  # upper half of GSNPSID of a Synopsys DWC_otg core ("OT")
+# Fields whose register value is an encoding of a size, not the size (dwc2_type.h): xfer_size_width n = 11 + n bits,
+# packet_size_width n = 4 + n bits, num_host_ch n = n + 1 channels. The script shows the raw n (NEEDS REVIEW 165).
+ENCODED_FIELDS = {"xfer_size_width", "packet_size_width", "num_host_ch"}
 COMMITTED_MD = paths.DWC2_INFO.parent / "dwc2_info.md"
 
 
@@ -122,11 +128,17 @@ class RegisterLayoutTest(Dwc2Case):
 
 
 class DecodingTest(Dwc2Case):
-    def test_every_field_of_every_known_core_decodes_like_the_bit_layout(self):
+    def test_every_field_of_every_synopsys_core_decodes_like_the_bit_layout(self):
+        # cores with a Synopsys GSNPSID only (GD32VF103's zeros are placeholders) and without the size encodings
+        # (both NEEDS REVIEW 165, see the characterization cases)
         rows = self.rows()
         for device, registers in self.module.dwc2_info.items():
+            if registers["GSNPSID"] >> 16 != SYNOPSYS_ID:
+                continue
             for register, layout in LAYOUT.items():
                 for name, lsb, width in layout:
+                    if name in ENCODED_FIELDS:
+                        continue
                     with self.subTest(device=device, field=name):
                         self.assertEqual(rows[device][f" - {name}"],
                                          expected_field(registers[register], lsb, width, name))
@@ -194,6 +206,14 @@ class DecodingTest(Dwc2Case):
         self.assertEqual(row[" - specs version"], "0.00W")
         self.assertEqual(row[" - op_mode"], "HNP SRP")
 
+    def test_characterization_size_fields_show_the_register_encoding_not_the_size_needs_review_165(self):
+        # F407 FS: GHWCFG3 0x020001E8, GHWCFG2 0x229DCD20 -> 19 bit transfer size, 10 bit packet size, 8 host
+        # channels (RM0090 OTG_FS: 8 host channels), shown as the encodings 8, 6 and 7
+        row = self.rows()[F407_FS]
+        self.assertEqual(row[" - xfer_size_width"], 8)
+        self.assertEqual(row[" - packet_size_width"], 6)
+        self.assertEqual(row[" - num_host_ch"], 7)
+
 
 class MarkdownOutputTest(Dwc2Case):
     def test_the_markdown_file_is_the_table_text_followed_by_a_newline(self):
@@ -208,7 +228,9 @@ class MarkdownOutputTest(Dwc2Case):
         self.assertEqual([r["Device"] for r in frame.rows], list(self.module.dwc2_reg_value))
 
     def test_the_committed_dwc2_info_md_matches_the_decoded_table(self):
-        # the committed file was written by the real pandas (DataFrame.T.to_markdown); compare cell by cell
+        # the committed file was written by the real pandas (DataFrame.T.to_markdown); compare cell by cell. This is a
+        # consistency check of the committed artifact with the script: any change of the decoding (e.g. a fix of
+        # NEEDS REVIEW 165) must regenerate dwc2_info.md, and then this case follows it.
         table, labels = parse_markdown(COMMITTED_MD.read_text(encoding="utf-8"))
         rows = self.rows()
         self.assertEqual(list(table), list(rows))
@@ -218,6 +240,29 @@ class MarkdownOutputTest(Dwc2Case):
                 if key != "Device":
                     with self.subTest(device=device, row=key):
                         self.assertEqual(table[device][key.strip()], str(value))
+
+    def test_the_table_is_transposed_so_that_the_devices_are_the_columns(self):
+        # batch 0's stand-in makes .T the identity; this one records whether the transposed frame is written
+        written = []
+
+        class Frame:
+            def __init__(self, rows, transposed=False):
+                self.rows, self.transposed = rows, transposed
+
+            def set_index(self, column):
+                return self
+
+            @property
+            def T(self):  # noqa: N802 (pandas name)
+                return Frame(self.rows, not self.transposed)
+
+            def to_markdown(self):
+                written.append(self.transposed)
+                return ""
+
+        self.module.pd = types.SimpleNamespace(DataFrame=Frame)
+        self.module.main()
+        self.assertEqual(written, [True])
 
     def test_an_argument_is_rejected_with_exit_status_2(self):
         sys.argv = ["dwc2_info.py", "--bogus"]

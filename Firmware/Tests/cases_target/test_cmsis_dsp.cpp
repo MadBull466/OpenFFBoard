@@ -21,8 +21,11 @@
  *    table values and the interpolation adds a few 1e-8. The scaling of the angle (x * 0.159154943092f in float)
  *    adds a phase error of about |x| * 2^-24 (rounding of the product) + |x| * 4e-8 (the float constant): 1.2e-7
  *    per radian with margin. Tolerance: 2.0e-5 + 1.2e-7 * |x|.
- *  - everything else: float (24 bit) against double; relative tolerances of 1e-5 (a few hundred float ulps) for
- *    short recursions, stated per case.
+ *  - biquad, spline, PID, variance: float (24 bit, ulp 6e-8 relative) against double; TOL = 2e-6 (absolute for
+ *    the biquad and PID outputs of magnitude <= 5, relative with scale 1 for spline / statistics). Measured worst on
+ *    the host: biquad 6.5e-7 (the poles at radius 0.87 accumulate a few ulps), spline 5.9e-7, PID 3.6e-7, so about
+ *    3x margin for a different rounding on the target (VFMA, below). Exact comparisons only where every operation is
+ *    exact (powers of 2, sqrt).
  *
  * Host vs target: the host compiles the portable C code of CMSIS-DSP (__GNUC_PYTHON__ selects sqrtf in
  * arm_sqrt_f32; the target uses VSQRT.F32, both are correctly rounded IEEE square roots). The target (Makefile:
@@ -57,6 +60,9 @@
 namespace {
 
 constexpr double TWO_PI = 6.283185307179586476925;
+
+/** Tolerance of the float recursions against the double references (see the file header) */
+constexpr double TOL = 2e-6;
 
 /** Tolerance of arm_sin_f32 / arm_cos_f32 against the exact value (see the file header) */
 double trigTolerance(float x) {
@@ -315,6 +321,9 @@ TEST_CASE("arm_sin_f32 and arm_cos_f32 of large angles lose accuracy only by the
 	}
 }
 
+// The two wrap cases check the value. "Instead of reading past its end" is only verified in sanitizer builds: without
+// the rotation the index is 512 with fract 0 and the code reads sinTable_f32[513], one past the 513-entry table, with
+// weight 0, so the value is still right and only ASan reports the read (review p9r3 mutant s5).
 TEST_CASE("arm_sin_f32 of an angle just below 0 uses the start of the table instead of reading past its end") {
 	// x * (1/2pi) = -1.6e-10; mapped to [0, 1] it rounds to exactly 1.0, the index 512 is rotated to 0
 	// (arm_sin_f32.c "when in is exactly 1")
@@ -333,7 +342,9 @@ TEST_CASE("arm_cos_f32 of an angle just below -pi/2 uses the start of the table 
 	"rad), infinity or NaN the float -> int32 conversion is undefined (x86: 0x80000000, ARM VCVT saturates) and for " \
 	"negative x `n--` then overflows INT32_MIN; `(uint16_t)findex` is out of range too. The host returns about "     \
 	"3.3e10 for sin(2e10) instead of a value in [-1, 1] (ARM: also far outside, via the saturated index). Latent: "  \
-	"the firmware's angles are bounded (Filters.cpp:102 pi*Fc, HidFFB.cpp:333-339 directions, Axis.cpp:717 ramp)"
+	"the firmware's angles are bounded (Filters.cpp:102 pi*Fc, HidFFB.cpp:333-339 directions, Axis.cpp:717 ramp). "   \
+	"Chosen intended result: a value within [-1, 1] (like C sinf/cosf, which are finite for every finite x); a fix "    \
+	"returning NaN for these inputs keeps this case failing"
 
 TEST_CASE("arm_sin_f32 and arm_cos_f32 of an angle beyond the int32 range stay within -1 and 1" *
 		  KNOWN_ISSUE_UB(V32_TEXT)) {
@@ -362,6 +373,7 @@ TEST_CASE("arm_sqrt_f32 of zero is zero and succeeds") {
 	out = -1.0f;
 	CHECK(arm_sqrt_f32(-0.0f, &out) == ARM_MATH_SUCCESS); // -0 >= 0: IEEE sqrt(-0) = -0
 	CHECK(out == 0.0f);
+	CHECK(std::signbit(out));
 }
 
 TEST_CASE("arm_sqrt_f32 of a negative number reports an argument error and outputs 0") {
@@ -371,6 +383,13 @@ TEST_CASE("arm_sqrt_f32 of a negative number reports an argument error and outpu
 		CHECK(arm_sqrt_f32(in, &out) == ARM_MATH_ARGUMENT_ERROR);
 		CHECK(out == 0.0f);
 	}
+}
+
+TEST_CASE("arm_sqrt_f32 of NaN reports an argument error and outputs 0") {
+	// NaN >= 0 is false (fast_math_functions.h:240): the negative branch
+	float out = -1.0f;
+	CHECK(arm_sqrt_f32(std::numeric_limits<float>::quiet_NaN(), &out) == ARM_MATH_ARGUMENT_ERROR);
+	CHECK(out == 0.0f);
 }
 
 TEST_CASE("arm_sqrt_f32 of infinity is infinity") {
@@ -408,7 +427,7 @@ TEST_CASE("a single biquad stage processed one sample at a time matches a direct
 		out.push_back(dsp.run(&x, 1)[0]);
 		expected.push_back(ref.step(x));
 	}
-	CHECK(maxAbsDiff(out, expected) <= 1e-5);
+	CHECK(maxAbsDiff(out, expected) <= TOL);
 }
 
 TEST_CASE("the biquad feedback coefficients are added to the output (CMSIS sign convention)") {
@@ -440,8 +459,19 @@ TEST_CASE("a biquad block of any size matches the direct form I reference") {
 		}
 		std::vector<double> expected;
 		for (float x : in) expected.push_back(ref.step(x));
-		CHECK(maxAbsDiff(out, expected) <= 1e-5);
+		CHECK(maxAbsDiff(out, expected) <= TOL);
 	}
+}
+
+TEST_CASE("a biquad block of 0 samples writes nothing and keeps the state") {
+	DspCascade dsp({LOWPASS, PEAK});
+	const std::vector<float> in = testSignal(5, 3);
+	dsp.run(in.data(), in.size());
+	const std::vector<float> before = dsp.state;
+	float out = -1.0f;
+	arm_biquad_cascade_df1_f32(&dsp.inst, in.data(), &out, 0);
+	CHECK(out == -1.0f);
+	CHECK(dsp.state == before);
 }
 
 TEST_CASE("a two stage biquad cascade feeds the output of the first stage into the second") {
@@ -450,7 +480,7 @@ TEST_CASE("a two stage biquad cascade feeds the output of the first stage into t
 	ReferenceCascade ref({LOWPASS, PEAK});
 	std::vector<double> expected;
 	for (float x : in) expected.push_back(ref.step(x));
-	CHECK(maxAbsDiff(dsp.run(in.data(), in.size()), expected) <= 1e-5);
+	CHECK(maxAbsDiff(dsp.run(in.data(), in.size()), expected) <= TOL);
 	// the same as two separate single stages in a row
 	DspCascade first({LOWPASS}), second({PEAK});
 	const std::vector<float> mid = first.run(in.data(), in.size());
@@ -480,22 +510,26 @@ TEST_CASE("the biquad state holds the last two inputs and outputs of every stage
 
 #define V33_TEXT                                                                                                       \
 	"bug V33 (crash, skipped): arm_biquad_cascade_df1_f32.c:534-687 (portable C version, the one the F407 uses) "     \
-	"processes the stages in a do { } while (--stage > 0) loop: a cascade initialised with numStages 0 runs one "     \
+	"processes the stages in a do { ... stage--; } while (stage > 0U) loop: a cascade with numStages 0 runs one "      \
 	"stage and then stage wraps to 0xFFFFFFFF, so it walks about 2^32 stages through memory beyond the coefficient "  \
 	"and state arrays (host SIGSEGV; target BusFault or watchdog). The NEON version (:382) uses while (stage > 0) "   \
-	"and does nothing. Reachable through bug 124 (a null Biquad reads numStages 0)"
+	"and does nothing: the chosen intended result follows it (no output written, nothing read or written beyond the " \
+	"arrays), so a fix that copies the input to the output (identity for an empty cascade) keeps this case failing. " \
+	"Reachable through bug 124 (a null Biquad reads numStages 0)"
 
-TEST_CASE("a biquad cascade with zero stages leaves the output and the memory around it untouched" * doctest::skip() *
-		  doctest::description("KNOWN ISSUE (crash): " V33_TEXT)) {
-	std::array<float, 5> coeffs = {1, 0, 0, 0, 0};
-	std::array<float, 4> state{};
+TEST_CASE("a biquad cascade with zero stages leaves the output and the coefficient and state memory untouched" *
+		  doctest::skip() * doctest::description("KNOWN ISSUE (crash): " V33_TEXT)) {
+	std::array<float, 6> coeffs = {1, 0, 0, 0, 0, 55.0f}; // last word: guard
+	std::array<float, 5> state = {11.0f, 22.0f, 33.0f, 44.0f, 66.0f};
 	arm_biquad_casd_df1_inst_f32 inst{};
-	arm_biquad_cascade_df1_init_f32(&inst, 0, coeffs.data(), state.data());
+	arm_biquad_cascade_df1_init_f32(&inst, 0, coeffs.data(), state.data()); // clears 0 words
 	const std::array<float, 2> in = {1.0f, 2.0f};
 	std::array<float, 2> out = {-1.0f, -1.0f};
 	arm_biquad_cascade_df1_f32(&inst, in.data(), out.data(), 2);
 	CHECK(out[0] == -1.0f);
 	CHECK(out[1] == -1.0f);
+	CHECK(state == std::array<float, 5>{11.0f, 22.0f, 33.0f, 44.0f, 66.0f});
+	CHECK(coeffs[5] == 55.0f);
 }
 
 // ============================================================================================ cubic spline
@@ -506,7 +540,7 @@ TEST_CASE("a natural spline through points on a straight line is that line insid
 	const std::vector<float> out = spline.run(q);
 	for (size_t i = 0; i < q.size(); i++) {
 		CAPTURE(q[i]);
-		CHECK(out[i] == doctest::Approx(2.0 * q[i] + 1.0).epsilon(1e-5).scale(1.0));
+		CHECK(out[i] == doctest::Approx(2.0 * q[i] + 1.0).epsilon(TOL).scale(1.0));
 	}
 }
 
@@ -519,7 +553,7 @@ TEST_CASE("a parabolic runout spline through points on a parabola is that parabo
 	const std::vector<float> out = spline.run(q);
 	for (size_t i = 0; i < q.size(); i++) {
 		CAPTURE(q[i]);
-		CHECK(out[i] == doctest::Approx(0.5 * q[i] * q[i] - q[i] + 2.0).epsilon(1e-5).scale(1.0));
+		CHECK(out[i] == doctest::Approx(0.5 * q[i] * q[i] - q[i] + 2.0).epsilon(TOL).scale(1.0));
 	}
 }
 
@@ -530,7 +564,7 @@ TEST_CASE("a natural spline matches the textbook cubic spline at non-uniform kno
 	const std::vector<float> out = spline.run(q);
 	for (size_t i = 0; i < q.size(); i++) {
 		CAPTURE(q[i]);
-		CHECK(out[i] == doctest::Approx(ref(q[i])).epsilon(1e-5).scale(1.0));
+		CHECK(out[i] == doctest::Approx(ref(q[i])).epsilon(TOL).scale(1.0));
 	}
 }
 
@@ -541,7 +575,7 @@ TEST_CASE("a parabolic runout spline matches the textbook cubic spline at non-un
 	const std::vector<float> out = spline.run(q);
 	for (size_t i = 0; i < q.size(); i++) {
 		CAPTURE(q[i]);
-		CHECK(out[i] == doctest::Approx(ref(q[i])).epsilon(1e-5).scale(1.0));
+		CHECK(out[i] == doctest::Approx(ref(q[i])).epsilon(TOL).scale(1.0));
 	}
 }
 
@@ -559,7 +593,7 @@ TEST_CASE("a spline passes through every knot") {
 		const std::vector<float> out = spline.run(KNOTS_X);
 		for (size_t i = 0; i < KNOTS_X.size(); i++) {
 			CAPTURE(i);
-			CHECK(out[i] == doctest::Approx(KNOTS_Y[i]).epsilon(1e-5).scale(1.0));
+			CHECK(out[i] == doctest::Approx(KNOTS_Y[i]).epsilon(TOL).scale(1.0));
 		}
 	}
 }
@@ -581,8 +615,8 @@ TEST_CASE("the coefficients of a parabolic runout spline give equal curvature in
 	const float* c = spline.coeffs.data() + m;
 	const float* d = spline.coeffs.data() + 2 * m;
 	const float hLast = KNOTS_X[m] - KNOTS_X[m - 1];
-	CHECK(c[0] == doctest::Approx(c[1]).epsilon(1e-5).scale(1.0));
-	CHECK(c[m - 1] + 3 * d[m - 1] * hLast == doctest::Approx(c[m - 1]).epsilon(1e-5).scale(1.0));
+	CHECK(c[0] == doctest::Approx(c[1]).epsilon(TOL).scale(1.0));
+	CHECK(c[m - 1] + 3 * d[m - 1] * hLast == doctest::Approx(c[m - 1]).epsilon(TOL).scale(1.0));
 	CHECK(std::fabs(c[0]) > 0.1f); // not trivially a natural spline
 }
 
@@ -593,10 +627,10 @@ TEST_CASE("outside the range a spline continues with the polynomial of the first
 		const ReferenceSpline ref(KNOTS_X, KNOTS_Y, type);
 		const std::vector<float> q = {-1.5f, -0.25f, 6.5f, 8.0f};
 		const std::vector<float> out = spline.run(q);
-		CHECK(out[0] == doctest::Approx(ref.poly(0, q[0])).epsilon(1e-5).scale(1.0));
-		CHECK(out[1] == doctest::Approx(ref.poly(0, q[1])).epsilon(1e-5).scale(1.0));
-		CHECK(out[2] == doctest::Approx(ref.poly(KNOTS_X.size() - 2, q[2])).epsilon(1e-5).scale(1.0));
-		CHECK(out[3] == doctest::Approx(ref.poly(KNOTS_X.size() - 2, q[3])).epsilon(1e-5).scale(1.0));
+		CHECK(out[0] == doctest::Approx(ref.poly(0, q[0])).epsilon(TOL).scale(1.0));
+		CHECK(out[1] == doctest::Approx(ref.poly(0, q[1])).epsilon(TOL).scale(1.0));
+		CHECK(out[2] == doctest::Approx(ref.poly(KNOTS_X.size() - 2, q[2])).epsilon(TOL).scale(1.0));
+		CHECK(out[3] == doctest::Approx(ref.poly(KNOTS_X.size() - 2, q[3])).epsilon(TOL).scale(1.0));
 	}
 }
 
@@ -606,7 +640,7 @@ TEST_CASE("a single query point beyond the last knot uses the last interval") {
 	const float q = 7.0f;
 	float out = 0;
 	arm_spline_f32(&spline.inst, &q, &out, 1); // the last point is beyond x(n): read of q only, no over-read
-	CHECK(out == doctest::Approx(ref.poly(KNOTS_X.size() - 2, q)).epsilon(1e-5).scale(1.0));
+	CHECK(out == doctest::Approx(ref.poly(KNOTS_X.size() - 2, q)).epsilon(TOL).scale(1.0));
 }
 
 TEST_CASE("a natural spline through two points is the straight line") {
@@ -637,8 +671,8 @@ TEST_CASE("characterization: a query point after a larger one is evaluated with 
 	DspSpline spline(KNOTS_X, KNOTS_Y, ARM_SPLINE_NATURAL);
 	const ReferenceSpline ref(KNOTS_X, KNOTS_Y, ARM_SPLINE_NATURAL);
 	const std::vector<float> out = spline.run({5.0f, 1.0f});
-	CHECK(out[0] == doctest::Approx(ref(5.0)).epsilon(1e-5).scale(1.0));
-	CHECK(out[1] == doctest::Approx(ref.poly(KNOTS_X.size() - 2, 1.0)).epsilon(1e-5).scale(1.0));
+	CHECK(out[0] == doctest::Approx(ref(5.0)).epsilon(TOL).scale(1.0));
+	CHECK(out[1] == doctest::Approx(ref.poly(KNOTS_X.size() - 2, 1.0)).epsilon(TOL).scale(1.0));
 	CHECK(std::fabs(out[1] - ref(1.0)) > 1.0); // not the spline value at 1.0
 }
 
@@ -709,7 +743,20 @@ TEST_CASE("arm_pid_f32 equals the positional PID Kp e + Ki sum(e) + Kd (e - prev
 		previous = err;
 		worst = std::max(worst, std::fabs(arm_pid_f32(&pid, err) - expected));
 	}
-	CHECK(worst <= 1e-5);
+	CHECK(worst <= TOL);
+}
+
+TEST_CASE("arm_pid_f32 does not limit its output") {
+	// documented CMSIS behaviour (controller_functions.h:287-303): no saturation or anti-windup, the state keeps the
+	// full output (the Axis speed limiter relies on this, NEEDS REVIEW 158 in test_axis_speed_limiter.cpp)
+	arm_pid_instance_f32 pid{};
+	pid.Kp = 0.5f;
+	pid.Ki = 1.0f;
+	arm_pid_init_f32(&pid, 1);
+	float out = 0;
+	for (int n = 0; n < 100000; n++) out = arm_pid_f32(&pid, 1.0f);
+	CHECK(out == doctest::Approx(100000.5).epsilon(TOL));
+	CHECK(pid.state[2] == out);
 }
 
 TEST_CASE("arm_pid_f32 integrates a constant error linearly") {
@@ -721,7 +768,7 @@ TEST_CASE("arm_pid_f32 integrates a constant error linearly") {
 	arm_pid_init_f32(&pid, 1);
 	for (int n = 0; n < 50; n++) {
 		CAPTURE(n);
-		CHECK(arm_pid_f32(&pid, 10.0f) == doctest::Approx(3.0 + 0.3 * (n + 1)).epsilon(1e-5));
+		CHECK(arm_pid_f32(&pid, 10.0f) == doctest::Approx(3.0 + 0.3 * (n + 1)).epsilon(TOL));
 	}
 }
 
@@ -747,7 +794,7 @@ TEST_CASE("arm_var_f32 is the sample variance with n - 1 in the denominator for 
 		const std::vector<float> v(all.begin(), all.begin() + static_cast<long>(n));
 		float var = -1;
 		arm_var_f32(v.data(), static_cast<uint32_t>(n), &var);
-		CHECK(var == doctest::Approx(referenceVariance(v)).epsilon(1e-5));
+		CHECK(var == doctest::Approx(referenceVariance(v)).epsilon(TOL));
 	}
 }
 
@@ -758,12 +805,16 @@ TEST_CASE("arm_var_f32 of two values is half their squared difference") {
 	CHECK(var == 4.5f);
 }
 
-TEST_CASE("arm_var_f32 of one sample and of no samples is 0") {
+TEST_CASE("arm_var_f32 of one sample is 0") {
 	const float v = 42.0f;
 	float var = -1;
 	arm_var_f32(&v, 1, &var);
 	CHECK(var == 0.0f);
-	var = -1;
+}
+
+TEST_CASE("arm_var_f32 of no samples is 0") {
+	const float v = 42.0f;
+	float var = -1;
 	arm_var_f32(&v, 0, &var);
 	CHECK(var == 0.0f);
 }
@@ -791,7 +842,7 @@ TEST_CASE("arm_std_f32 is the square root of the sample variance") {
 	for (float d : testSignal(16, 77)) v.push_back(50.0f * d);
 	float sd = -1;
 	arm_std_f32(v.data(), 16, &sd);
-	CHECK(sd == doctest::Approx(std::sqrt(referenceVariance(v))).epsilon(1e-5));
+	CHECK(sd == doctest::Approx(std::sqrt(referenceVariance(v))).epsilon(TOL));
 }
 
 TEST_CASE("arm_std_f32 of one sample is 0") {

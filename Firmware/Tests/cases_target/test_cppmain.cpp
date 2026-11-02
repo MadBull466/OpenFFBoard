@@ -312,12 +312,21 @@ TEST_CASE_FIXTURE(UsbFixture, "the USB task initialises TinyUSB and then process
 	CHECK(HostTarget::state().usbEventsProcessed == 1);
 }
 
-TEST_CASE_FIXTURE(UsbFixture, "the device descriptor and the configuration descriptor of every index are the ones given to the device") {
+TEST_CASE_FIXTURE(UsbFixture, "the device descriptor and the configuration descriptor of index 0 are the ones given to the device") {
 	USBdevice device(&compositeDesc(), usb_cdc_conf, &strings);
 
 	CHECK(device.getUsbDeviceDesc() == reinterpret_cast<const uint8_t *>(&compositeDesc()));
 	CHECK(device.getUsbConfigurationDesc(0) == usb_cdc_conf);
-	CHECK(device.getUsbConfigurationDesc(1) == usb_cdc_conf);
+}
+
+TEST_CASE_FIXTURE(UsbFixture, "the configuration descriptor of an index the device does not have is not available (bug 134)" *
+								  KNOWN_ISSUE("(bug 134) USBdevice.cpp:55-57 getUsbConfigurationDesc ignores the index and returns the only "
+											  "configuration for every index; TinyUSB (usbd.c:970-971) answers a Request Error only for NULL. The "
+											  "first failing assertion is the one for index 1")) {
+	USBdevice device(&compositeDesc(), usb_cdc_conf, &strings);
+	REQUIRE(device.getUsbConfigurationDesc(0) == usb_cdc_conf);
+	REQUIRE_ALL_HAL_MODELLED();
+	CHECK(device.getUsbConfigurationDesc(1) == nullptr); // Defect: usb_cdc_conf
 }
 
 TEST_CASE_FIXTURE(UsbFixture, "the USB serial number is the 96 bit unique id as 24 hex digits, highest word first") {

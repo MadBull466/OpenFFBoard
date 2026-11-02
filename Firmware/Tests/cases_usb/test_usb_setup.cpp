@@ -4,6 +4,7 @@
  * are covered by the module tests.
  */
 #include "doctest.h"
+#include "TestHelpers.h"
 #include "UsbFixture.h"
 
 #include "ffb_defs.h"
@@ -159,8 +160,8 @@ TEST_CASE_FIXTURE(UsbFixture, "a bus resume reported by TinyUSB resumes the main
 	CHECK(main->resumes == resumes + 1); // tud_resume_cb -> mainclass->usbResume()
 }
 
-TEST_CASE_FIXTURE(UsbFixture, "a USB bus suspend reported by TinyUSB suspends the main class (bug 42)" * doctest::should_fail() *
-								  doctest::description("KNOWN ISSUE bug 42: global_callbacks.cpp defines tud_suspend_cb() without the bool parameter of "
+TEST_CASE_FIXTURE(UsbFixture, "a USB bus suspend reported by TinyUSB suspends the main class (bug 42)" * 
+								  KNOWN_ISSUE("bug 42: global_callbacks.cpp defines tud_suspend_cb() without the bool parameter of "
 													   "usbd.h:162, so TinyUSB calls its weak default (usbd.c:77) and never the main class")) {
 	startDevice();
 	enumerate();
@@ -171,11 +172,13 @@ TEST_CASE_FIXTURE(UsbFixture, "a USB bus suspend reported by TinyUSB suspends th
 	CHECK(main->suspends == 1); // Defect: the firmware's tud_suspend_cb() overload is never called
 }
 
-TEST_CASE_FIXTURE(UsbFixture, "the CDC data endpoint receives again after the host clears its halt (V21)" * doctest::should_fail() *
-								  doctest::description("KNOWN ISSUE V21 (TinyUSB, vendor): SET_FEATURE(ENDPOINT_HALT) drops the armed OUT transfer "
-													   "(dcd_edpt_stall); CLEAR_FEATURE only clears the halt (usbd.c usbd_edpt_clear_stall) and "
-													   "cdcd_control_xfer_cb ignores standard requests, so nothing re-arms the endpoint: the device NAKs "
-													   "every OUT packet until the application reads (the firmware only reads in tud_cdc_rx_cb)")) {
+TEST_CASE_FIXTURE(UsbFixture, "the CDC data endpoint receives again after the host clears its halt (V21)" * 
+								  KNOWN_ISSUE("V21 (TinyUSB, vendor): SET_FEATURE(ENDPOINT_HALT) drops the armed OUT transfer "
+											  "(dcd_edpt_stall) but leaves the endpoint claimed (only a transfer completion clears 'claimed', "
+											  "usbd.c:637-638; usbd_edpt_stall / usbd_edpt_clear_stall never do); CLEAR_FEATURE only clears "
+											  "the halt and cdcd_control_xfer_cb ignores standard requests. Nothing re-arms the endpoint and "
+											  "tud_cdc_n_read cannot either (the claim fails): the device NAKs every OUT packet until a bus "
+											  "reset or re-enumeration. The HID OUT endpoint (hidd_control_xfer_cb) is in the same family")) {
 	startDevice();
 	enumerate();
 	REQUIRE(host.cdcSetControlLineState(true, true).ok());
@@ -185,7 +188,7 @@ TEST_CASE_FIXTURE(UsbFixture, "the CDC data endpoint receives again after the ho
 	REQUIRE(host.control(UsbHost::request(0x02, TUSB_REQ_CLEAR_FEATURE, TUSB_REQ_FEATURE_EDPT_HALT, epOut, 0)).ok());
 	REQUIRE_FALSE(HostDcd::endpoint(epOut).stalled);
 	REQUIRE_USB_MODELLED();
-	CHECK(host.cdcWrite("sys.main?\n") == HostDcd::Handshake::Ack); // Defect: NAK (no transfer armed) until the host times out
+	CHECK(host.cdcWrite("sys.main?\n") == HostDcd::Handshake::Ack); // Defect: NAK (no transfer armed, endpoint claimed) until the host times out
 	process();
 	CHECK(host.cdcRead() == "[sys.main?|0]\n");
 }

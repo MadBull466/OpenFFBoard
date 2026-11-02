@@ -26,18 +26,25 @@
  *    9.1.2). Otherwise every transaction gets no response (Handshake::NoResponse), like one to a wrong address.
  *  - SET_ADDRESS timing (USB 2.0 9.4.6, 9.2.6.3): dcd_set_address queues the status-stage ZLP on EP0 IN like
  *    dcd_dwc2.c:472-478; the new address takes effect when the host has received that ZLP. Until then the device
- *    answers at its old address. (The DWC2 writes DCFG.DAD at once and the core keeps the old address for the
- *    status stage; the observable behaviour is the same.)
+ *    answers at its old address, and a SETUP before that status stage cancels the pending address. This is the
+ *    USB 2.0 behaviour, not a register model: the DWC2 writes DCFG.DAD at once (dcd_dwc2.c:474), so on the F407 the
+ *    new address is in the register even if the status stage never completes (a new SETUP does not undo it). Only a
+ *    completed SET_ADDRESS gives the same result on the bus.
  *  - Transactions (USB 2.0 8.4.6, 8.5): setup() is always accepted (8.5.3, a device cannot NAK a SETUP); it clears
  *    a STALL of EP0 (8.5.3.4) and drops pending EP0 transfers, then raises DCD_EVENT_SETUP_RECEIVED.
+ *    Simplification: the DWC2 does not drop an enabled EP0 IN transfer on a SETUP (its TX FIFO keeps the data until
+ *    the stack re-arms EP0); TinyUSB re-arms EP0 for every control transfer, so this is only visible to a host that
+ *    reads EP0 IN before the stack has processed the new SETUP (the fake answers NAK, the core could send stale data).
  *    out() delivers one OUT data packet: STALL if the endpoint is halted, NAK if no transfer is armed (dcd_edpt_xfer),
  *    else the bytes are copied into the armed buffer; the transfer completes (DCD_EVENT_XFER_COMPLETE with the bytes
  *    received) after a short packet (including a ZLP) or when the requested length is reached (5.8.3, 8.5.2; the DWC2
  *    XFRC interrupt). in() reads one IN data packet: STALL / NAK like above, else up to wMaxPacketSize bytes of the
  *    armed buffer; a transfer of n bytes is ceil(n / wMaxPacketSize) packets, a 0-byte transfer is one ZLP, no
  *    automatic ZLP after a full last packet (dcd_dwc2.c:595-624: num_packets; the stack queues ZLPs itself).
- *    A non-zero-length OUT packet in the status stage of a control read (an armed 0-byte EP0 OUT transfer) is
- *    answered with STALL (DCFG.NZLSOHSK set by dcd_dwc2.c:444).
+ *    A non-zero-length OUT packet in the status stage of a control read (an armed 0-byte EP0 OUT transfer after a
+ *    device-to-host SETUP) is answered with STALL and dropped (DCFG.NZLSOHSK set by dcd_dwc2.c:444). A data packet into
+ *    a 0-byte EP0 OUT transfer of a control write (V34) is recorded as an overrun fault.
+ *    Packets the fake answers with a fault (babble, overrun) are recorded with "no response".
  *  - Endpoints: dcd_edpt_open (wMaxPacketSize, type, DATA0), dcd_edpt_close_all (endpoints 1..3 disabled, transfers
  *    dropped, dcd_dwc2.c:558-581), dcd_edpt_stall (halt, the armed transfer is dropped: edpt_disable :235-283),
  *    dcd_edpt_clear_stall (halt cleared, data toggle DATA0, :665-675; an armed transfer stays dropped).
@@ -49,7 +56,8 @@
  * (dcd_edpt_iso_alloc / _activate), dcd_edpt_xfer_fifo, dcd_int_handler (no interrupt source: the fake raises the
  * events directly), test mode, a transfer armed on a closed endpoint or on an endpoint with an armed transfer, a
  * packet larger than wMaxPacketSize or larger than the rest of the armed transfer, dcd_remote_wakeup while the bus is
- * not suspended (USB 2.0 7.1.7.7), more than 4 endpoints per direction. Also not modelled: the FIFO RAM allocation
+ * not suspended (USB 2.0 7.1.7.7), more than 4 endpoints per direction (open, stall and clear stall of an endpoint
+ * number >= 4: the dwc2 port would write registers the core does not have, vendor V31). Also not modelled: the FIFO RAM allocation
  * (1.25 KB of the F407 OTG_FS core), DMA, bus timing (suspend after 3 ms, resume 20 ms, remote wakeup 1-15 ms),
  * babble, CRC / bit errors, low speed, LPM.
  */
@@ -137,6 +145,11 @@ const Endpoint &endpoint(uint8_t epAddr);
 void reset();
 /** Returns and clears faults() */
 std::vector<std::string> takeFaults();
+/**
+ * Removes the first entry of faults() containing `part` (a fault the test expects, e.g. an unmodelled call caused by
+ * the defect under test). @return true if there was one
+ */
+bool takeFault(const std::string &part);
 /** Adds an entry to faults() (also used by the OSAL additions in host_usb_osal.cpp) */
 void recordFault(const std::string &what);
 

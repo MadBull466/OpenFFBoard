@@ -14,6 +14,7 @@
  * vendorConfiguration (declared there).
  */
 #include "doctest.h"
+#include "TestHelpers.h"
 #include "UsbFixture.h"
 
 #include "common/tusb_private.h"
@@ -268,8 +269,8 @@ TEST_CASE_FIXTURE(UsbdCoreFixture, "the device works again after its configurati
 	CHECK(host.cdcRead() == "[sys.main?|0]\n");
 }
 
-TEST_CASE_FIXTURE(UsbdCoreFixture, "SET_CONFIGURATION with a configuration value the device does not have is rejected (bug 134)" * doctest::should_fail() *
-								  doctest::description("KNOWN ISSUE bug 134 (firmware USB glue): USBdevice::getUsbConfigurationDesc (USBdevice.cpp:55-57, "
+TEST_CASE_FIXTURE(UsbdCoreFixture, "SET_CONFIGURATION with a configuration value the device does not have is rejected (bug 134)" * 
+								  KNOWN_ISSUE("bug 134 (firmware USB glue): USBdevice::getUsbConfigurationDesc (USBdevice.cpp:55-57, "
 													   "called by tud_descriptor_configuration_cb, global_callbacks.cpp:282-284) ignores the index and "
 													   "returns configuration 1 for every index; process_set_config (usbd.c:970-971) only rejects a NULL "
 													   "descriptor, so SET_CONFIGURATION(2) mounts configuration 1 as configuration 2 instead of a Request "
@@ -282,8 +283,8 @@ TEST_CASE_FIXTURE(UsbdCoreFixture, "SET_CONFIGURATION with a configuration value
 	CHECK_FALSE(tud_mounted());
 }
 
-TEST_CASE_FIXTURE(UsbdCoreFixture, "GET_DESCRIPTOR of a configuration index the device does not have is rejected (bug 134)" * doctest::should_fail() *
-								  doctest::description("KNOWN ISSUE bug 134 (firmware USB glue): USBdevice::getUsbConfigurationDesc (USBdevice.cpp:55-57) "
+TEST_CASE_FIXTURE(UsbdCoreFixture, "GET_DESCRIPTOR of a configuration index the device does not have is rejected (bug 134)" * 
+								  KNOWN_ISSUE("bug 134 (firmware USB glue): USBdevice::getUsbConfigurationDesc (USBdevice.cpp:55-57) "
 													   "ignores the index: GET_DESCRIPTOR(CONFIGURATION, 1) returns configuration 0 instead of a Request "
 													   "Error (USB 2.0 9.4.3, 9.6.1 bNumConfigurations 1)")) {
 	startDevice();
@@ -629,8 +630,8 @@ TEST_CASE_FIXTURE(UsbdCoreFixture, "SET_INTERFACE with alternate setting 0 is ac
 	CHECK(req(0x01, TUSB_REQ_SET_INTERFACE, 0, 2, 0).ok());
 }
 
-TEST_CASE_FIXTURE(UsbdCoreFixture, "SET_INTERFACE with an alternate setting the interface does not have is rejected (V22)" * doctest::should_fail() *
-								  doctest::description("KNOWN ISSUE V22 (TinyUSB, vendor): when the class driver refuses a standard interface request, "
+TEST_CASE_FIXTURE(UsbdCoreFixture, "SET_INTERFACE with an alternate setting the interface does not have is rejected (V22)" * 
+								  KNOWN_ISSUE("V22 (TinyUSB, vendor): when the class driver refuses a standard interface request, "
 													   "the fallback of usbd.c:876-895 acknowledges SET_INTERFACE for any alternate setting without "
 													   "checking the descriptor (USB 2.0 9.4.10: Request Error if the alternate setting does not exist)")) {
 	startDevice();
@@ -640,8 +641,8 @@ TEST_CASE_FIXTURE(UsbdCoreFixture, "SET_INTERFACE with an alternate setting the 
 	CHECK(r.stalled()); // Defect: acknowledged
 }
 
-TEST_CASE_FIXTURE(UsbdCoreFixture, "GET_STATUS of an interface returns two zero bytes (V22)" * doctest::should_fail() *
-								  doctest::description("KNOWN ISSUE V22 (TinyUSB, vendor): the fallback for standard interface requests the class driver "
+TEST_CASE_FIXTURE(UsbdCoreFixture, "GET_STATUS of an interface returns two zero bytes (V22)" * 
+								  KNOWN_ISSUE("V22 (TinyUSB, vendor): the fallback for standard interface requests the class driver "
 													   "refuses (usbd.c:876-895) handles only GET_INTERFACE / SET_INTERFACE: GET_STATUS of an interface is "
 													   "stalled although USB 2.0 9.4.5 requires two zero bytes in the configured state (the CDC and HID "
 													   "drivers do not answer it)")) {
@@ -739,32 +740,47 @@ TEST_CASE_FIXTURE(UsbdCoreFixture, "unsupported standard endpoint requests are r
 	CHECK(host.getConfiguration().ok());
 }
 
-TEST_CASE_FIXTURE(UsbdCoreFixture, "GET_STATUS of an endpoint that is not in the configuration is rejected (V23)" * doctest::should_fail() *
-								  doctest::description("KNOWN ISSUE V23 (TinyUSB, vendor): standard endpoint requests (usbd.c:901-953) only check the "
+TEST_CASE_FIXTURE(UsbdCoreFixture, "GET_STATUS of an endpoint that is not in the configuration is rejected (V23)" * 
+								  KNOWN_ISSUE("V23 (TinyUSB, vendor): standard endpoint requests (usbd.c:901-953) only check the "
 													   "endpoint number against CFG_TUD_ENDPPOINT_MAX, not whether the endpoint belongs to the "
-													   "configuration: GET_STATUS of endpoint 0x85 returns 'not halted' instead of a Request Error "
+													   "configuration: GET_STATUS of endpoint 0x03 (exists in the core, not in the configuration) returns 'not halted' instead of a Request Error "
 													   "(USB 2.0 9.4.5)")) {
 	startDevice();
 	enumerate();
-	UsbHost::ControlResult r = getStatus(RCPT_ENDPOINT, 0x85);
+	UsbHost::ControlResult r = getStatus(RCPT_ENDPOINT, 0x03); // endpoint 3 exists in the OTG_FS core
 	REQUIRE_USB_MODELLED();
 	CHECK(r.stalled()); // Defect: ACK with 0x0000
 }
 
-TEST_CASE_FIXTURE(UsbdCoreFixture, "SET_FEATURE(ENDPOINT_HALT) of an endpoint that is not in the configuration is rejected (V23)" * doctest::should_fail() *
-								  doctest::description("KNOWN ISSUE V23 (TinyUSB, vendor): SET/CLEAR_FEATURE to an endpoint without a class driver "
+TEST_CASE_FIXTURE(UsbdCoreFixture, "SET_FEATURE(ENDPOINT_HALT) of an endpoint that is not in the configuration is rejected (V23)" * 
+								  KNOWN_ISSUE("V23 (TinyUSB, vendor): SET/CLEAR_FEATURE to an endpoint without a class driver "
 													   "(usbd.c:922-944: the status stage is only queued inside 'if (driver)') is neither acknowledged nor "
 													   "stalled: the host's status stage is NAKed until it times out (USB 2.0 9.4.9: Request Error for an "
 													   "endpoint that does not exist, and for endpoints other than 0 in the address state)")) {
 	startDevice();
 	enumerate();
-	UsbHost::ControlResult r = feature(true, RCPT_ENDPOINT, TUSB_REQ_FEATURE_EDPT_HALT, 0x85);
+	UsbHost::ControlResult r = feature(true, RCPT_ENDPOINT, TUSB_REQ_FEATURE_EDPT_HALT, 0x03); // endpoint 3 exists in the OTG_FS core
 	REQUIRE_USB_MODELLED();
 	CHECK(r.stalled()); // Defect: NAK in the status stage
 }
 
-TEST_CASE_FIXTURE(UsbdCoreFixture, "CLEAR_FEATURE(ENDPOINT_HALT) of the default control endpoint completes (V23)" * doctest::should_fail() *
-								  doctest::description("KNOWN ISSUE V23 (TinyUSB, vendor): EP0 has no class driver, so CLEAR_FEATURE(ENDPOINT_HALT, 0) "
+TEST_CASE_FIXTURE(UsbdCoreFixture, "SET_FEATURE(ENDPOINT_HALT) of an endpoint number the controller does not have is rejected (V31)" *
+								  KNOWN_ISSUE("V31 (TinyUSB, vendor): usbd.c checks endpoint numbers only against CFG_TUD_ENDPPOINT_MAX, "
+											  "which is TUP_DCD_ENDPOINT_MAX 6 for every STM32F4 (tusb_mcu.h:201); the F407 OTG_FS core has 4. "
+											  "SET/CLEAR_FEATURE(ENDPOINT_HALT) of 0x84 / 0x85 / 0x04 / 0x05 reaches dcd_edpt_stall / "
+											  "dcd_edpt_clear_stall (dwc2 edpt_disable, dfifo_flush_tx) for registers the core does not have, "
+											  "and the request is not stalled (USB 2.0 9.4.9: Request Error for an endpoint that does not exist)")) {
+	startDevice();
+	enumerate();
+	UsbHost::ControlResult r = feature(true, RCPT_ENDPOINT, TUSB_REQ_FEATURE_EDPT_HALT, 0x84);
+	HostDcd::takeFault("dcd_edpt_stall of endpoint 0x84"); // Part of the defect (not modelled: no such registers), not asserted
+	REQUIRE_USB_MODELLED();
+	INFO("stage " << r.stage << ", " << r.status);
+	CHECK(r.stalled()); // Defect: the stall reaches the controller, then no status stage (NAK until the host times out)
+}
+
+TEST_CASE_FIXTURE(UsbdCoreFixture, "CLEAR_FEATURE(ENDPOINT_HALT) of the default control endpoint completes (V23)" * 
+								  KNOWN_ISSUE("V23 (TinyUSB, vendor): EP0 has no class driver, so CLEAR_FEATURE(ENDPOINT_HALT, 0) "
 													   "gets no status stage (usbd.c:932-943) and the host times out; USB 2.0 9.4.1 / 9.4.9 allow an "
 													   "acknowledgement or a Request Error, not a control transfer that never ends")) {
 	startDevice();
@@ -784,8 +800,8 @@ TEST_CASE_FIXTURE(UsbdCoreFixture, "characterization: SET_FEATURE with a feature
 	CHECK_FALSE(HostDcd::endpoint(0x81).stalled);
 }
 
-TEST_CASE_FIXTURE(UsbdCoreFixture, "CLEAR_FEATURE(ENDPOINT_HALT) of an endpoint that is not halted keeps its armed transfer busy (V24)" * doctest::should_fail() *
-								  doctest::description("KNOWN ISSUE V24 (TinyUSB, vendor): usbd_edpt_clear_stall (usbd.c:1398-1409, comment 'only clear "
+TEST_CASE_FIXTURE(UsbdCoreFixture, "CLEAR_FEATURE(ENDPOINT_HALT) of an endpoint that is not halted keeps its armed transfer busy (V24)" * 
+								  KNOWN_ISSUE("V24 (TinyUSB, vendor): usbd_edpt_clear_stall (usbd.c:1398-1409, comment 'only clear "
 													   "if currently stalled') clears 'busy' also when the endpoint was not halted and its transfer is still "
 													   "armed in the controller; the class driver can then claim the endpoint and arm a second transfer on top "
 													   "of the first (e.g. tud_cdc_n_read -> _prep_out_transaction). USB 2.0 9.4.1: hosts may send "

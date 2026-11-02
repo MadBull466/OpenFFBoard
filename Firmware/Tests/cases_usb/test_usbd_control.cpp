@@ -8,6 +8,7 @@
  * test_usbd_core.cpp (a vendor interface 0, see there) whose control callback is set per test.
  */
 #include "doctest.h"
+#include "TestHelpers.h"
 #include "UsbFixture.h"
 
 #include "device/usbd_pvt.h"
@@ -36,7 +37,7 @@ struct ControlState {
 	uint16_t readLength = 0;	   //!< Length passed to tud_control_xfer for REQ_READ
 	bool readNullBuffer = false;   //!< Pass NULL as buffer
 	uint8_t writeBuffer[256] = {};
-	bool dataStageResult = true; //!< Return value of the DATA stage callback
+	bool dataStageResult = true; //!< Return value of the DATA stage callback (REQ_READ and REQ_WRITE)
 	std::vector<uint8_t> stages; //!< Stages of every callback, in order
 	uint16_t lastWLength = 0;
 };
@@ -52,6 +53,9 @@ bool controlHook(uint8_t rhport, uint8_t stage, tusb_control_request_t const *re
 	case REQ_READ:
 		if (stage == CONTROL_STAGE_SETUP) {
 			return tud_control_xfer(rhport, request, ctl.readNullBuffer ? nullptr : ctl.readData.data(), ctl.readLength);
+		}
+		if (stage == CONTROL_STAGE_DATA) {
+			return ctl.dataStageResult;
 		}
 		return true;
 	case REQ_WRITE:
@@ -293,6 +297,39 @@ TEST_CASE_FIXTURE(UsbdControlFixture, "a driver that refuses the received data s
 	CHECK(host.getConfiguration().ok()); // the next SETUP clears the stall
 }
 
+TEST_CASE_FIXTURE(UsbdControlFixture, "a driver that refuses the end of the data stage of a control read stalls the status stage") {
+	startVendorDevice();
+	ctl.readData = pattern(10);
+	ctl.readLength = 10;
+	ctl.dataStageResult = false;
+	UsbHost::ControlResult r = read(10);
+	CHECK(r.data == pattern(10)); // the data stage itself is sent
+	CHECK(r.stalled());
+	CHECK(r.stage == "status"); // usbd_control.c:209-212: both EP0 directions stalled instead of arming the status OUT
+	CHECK(HostDcd::endpoint(0x00).stalled);
+	CHECK(ctl.stages == std::vector<uint8_t>{CONTROL_STAGE_SETUP, CONTROL_STAGE_DATA}); // no ACK stage
+	CHECK(host.getConfiguration().ok()); // the next SETUP clears the stall
+}
+
+TEST_CASE_FIXTURE(UsbdControlFixture, "a data packet in the status stage of a control read is answered with a stall") {
+	// Fake controller (DCFG.NZLSOHSK, dcd_dwc2.c:444): the core stalls a non-zero-length status OUT and drops the packet
+	startVendorDevice();
+	ctl.readData = pattern(4);
+	ctl.readLength = 4;
+	REQUIRE(HostDcd::setup(5, UsbHost::request(0xA1, REQ_READ, 0, 0, 4)) == Handshake::Ack);
+	process();
+	std::vector<uint8_t> data;
+	REQUIRE(HostDcd::in(5, 0, data) == Handshake::Ack);
+	REQUIRE(data == pattern(4));
+	process();
+	REQUIRE(HostDcd::endpoint(0x00).armed); // the status OUT (0 bytes) is armed
+	CHECK(HostDcd::out(5, 0, {0x55}) == Handshake::Stall);
+	CHECK(HostDcd::endpoint(0x00).armed); // the packet was dropped, the status stage is still open
+	CHECK(HostDcd::out(5, 0, {}) == Handshake::Ack);
+	process();
+	CHECK(ctl.stages.back() == CONTROL_STAGE_ACK);
+}
+
 TEST_CASE_FIXTURE(UsbdControlFixture, "a request without data stage gets an IN status stage and the ACK callback") {
 	startVendorDevice();
 	UsbHost::ControlResult r = host.control(UsbHost::request(0x21, REQ_WRITE, 0, 0, 0));
@@ -325,8 +362,8 @@ TEST_CASE_FIXTURE(UsbdControlFixture, "the status stage of SET_ADDRESS is sent b
 	CHECK(host.getDescriptor(TUSB_DESC_DEVICE, 0, 18).ok());
 }
 
-TEST_CASE_FIXTURE(UsbdControlFixture, "a device-to-host request with wLength 0 completes with an IN status stage (V30)" * doctest::should_fail() *
-									 doctest::description("KNOWN ISSUE V30 (TinyUSB, vendor): "
+TEST_CASE_FIXTURE(UsbdControlFixture, "a device-to-host request with wLength 0 completes with an IN status stage (V30)" * 
+									 KNOWN_ISSUE("V30 (TinyUSB, vendor): "
 														  "_status_stage_xact (usbd_control.c:76-80) takes the status direction from bmRequestType only "
 														  "('opposite to the data phase'); a request with the IN direction bit and wLength 0 has no data "
 														  "stage, so its status stage is IN (USB 2.0 8.5.3, figure 8-37 'no-data control'), but TinyUSB "

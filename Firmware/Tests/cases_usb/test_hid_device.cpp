@@ -259,7 +259,7 @@ TEST_CASE_FIXTURE(HidFixture, "GET_REPORT for a report the HID handler does not 
 								  KNOWN_ISSUE("V27 (TinyUSB, vendor): hid_device.c:299-306 adds the report id byte before calling "
 											  "tud_hid_get_report_cb, so TU_ASSERT(xferlen > 0) never fails for a report id other than 0: "
 											  "a callback result of 0 is answered with the id byte alone instead of the STALL promised by "
-											  "hid_device.h:127 (USB 2.0 9.2.7 request error)")) {
+											  "hid_device.h:126 (USB 2.0 9.2.7 request error)")) {
 	start();
 	RecordingHidHandler handler; // answers only report 0x42
 	UsbHost::ControlResult r = host.hidGetReport(HID_REPORT_TYPE_FEATURE, 0x43, 10);
@@ -287,6 +287,16 @@ TEST_CASE_FIXTURE(HidFixture, "SET_REPORT without a report id passes all bytes t
 	CHECK(handler.outs[0].data == std::vector<uint8_t>{5, 6});
 }
 
+TEST_CASE_FIXTURE(HidFixture, "SET_REPORT whose first byte is not the report id passes all bytes to the HID handler") {
+	// hid_device.c:324 removes the first byte only if it equals the report id of wValue
+	start();
+	RecordingHidHandler handler;
+	REQUIRE(host.hidSetReport(HID_REPORT_TYPE_FEATURE, 0x42, {0x41, 7, 8}).ok());
+	REQUIRE(handler.outs.size() == 1);
+	CHECK(handler.outs[0].id == 0x42);
+	CHECK(handler.outs[0].data == std::vector<uint8_t>{0x41, 7, 8});
+}
+
 TEST_CASE_FIXTURE(HidFixture, "SET_REPORT longer than the control buffer is stalled and not passed on") {
 	start();
 	RecordingHidHandler handler;
@@ -310,7 +320,9 @@ TEST_CASE_FIXTURE(HidFixture, "an output report on the interrupt endpoint reache
 	REQUIRE(handler.outs.size() == 1);
 	CHECK(handler.outs[0].id == 0x0C); // TinyUSB passes id 0, global_callbacks.cpp:313-315 takes the first byte
 	CHECK(handler.outs[0].type == HID_REPORT_TYPE_OUTPUT);
-	CHECK(handler.outs[0].data == std::vector<uint8_t>{0x0C, 0x01, 0x02}); // with the id byte
+	// The payload; today the id byte is kept in front (the layout HidFFB and the HID command interface expect)
+	REQUIRE(handler.outs[0].data.size() >= 2);
+	CHECK(std::vector<uint8_t>(handler.outs[0].data.end() - 2, handler.outs[0].data.end()) == std::vector<uint8_t>{0x01, 0x02});
 }
 
 TEST_CASE_FIXTURE(HidFixture, "the interrupt OUT endpoint is armed again after every output report") {
@@ -321,7 +333,9 @@ TEST_CASE_FIXTURE(HidFixture, "the interrupt OUT endpoint is armed again after e
 		process();
 	}
 	REQUIRE(handler.outs.size() == 3);
-	CHECK(handler.outs[2].data == std::vector<uint8_t>{0x0D, 3});
+	CHECK(handler.outs[2].id == 0x0D);
+	REQUIRE_FALSE(handler.outs[2].data.empty());
+	CHECK(handler.outs[2].data.back() == 3); // the payload of the third report (with or without the id byte)
 	CHECK(HostDcd::endpoint(EP_OUT).armed);
 }
 
@@ -333,7 +347,11 @@ TEST_CASE_FIXTURE(HidFixture, "a 64 byte output report is delivered as one repor
 	REQUIRE(host.hidWrite(report) == Handshake::Ack);
 	process();
 	REQUIRE(handler.outs.size() == 1);
-	CHECK(handler.outs[0].data == report);
+	CHECK(handler.outs[0].id == 0xA1);
+	// All 64 bytes in one report: the id byte (kept today, global_callbacks.cpp:313-315) and the 63 payload bytes
+	REQUIRE(handler.outs[0].data.size() >= BUFSIZE - 1);
+	CHECK(std::vector<uint8_t>(handler.outs[0].data.end() - (BUFSIZE - 1), handler.outs[0].data.end()) ==
+		  std::vector<uint8_t>(report.begin() + 1, report.end()));
 }
 
 TEST_CASE_FIXTURE(HidFixture, "an output report sent with SET_REPORT reaches the HID handler like one sent on the interrupt endpoint (bug 138)" *

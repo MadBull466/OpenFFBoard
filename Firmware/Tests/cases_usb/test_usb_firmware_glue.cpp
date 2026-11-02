@@ -161,7 +161,9 @@ TEST_CASE_FIXTURE(UsbFixture, "the interface strings read by the host name the C
 	CHECK(cdc.rfind("FFBoard CDC(", 0) == 0);
 	CHECK(hid.rfind("FFBoard HID(", 0) == 0);
 	CHECK(cdc.back() == ')');
+	CHECK(hid.back() == ')');
 	CHECK(cdc.size() == std::string("FFBoard CDC()").size() + 4); // appendSerial 4 (suffix content: bug 47)
+	CHECK(hid.size() == std::string("FFBoard HID()").size() + 4);
 }
 
 TEST_CASE_FIXTURE(UsbFixture, "a string index without a string is stalled") {

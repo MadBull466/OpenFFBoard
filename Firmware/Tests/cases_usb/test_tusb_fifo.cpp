@@ -11,6 +11,7 @@
  * shows which mutex a FIFO call takes. The test removes the records it expects.
  */
 #include "doctest.h"
+#include "TestHelpers.h"
 #include "UsbFixture.h"
 
 #include "common/tusb_fifo.h"
@@ -355,8 +356,8 @@ TEST_CASE("write_n into an overflowed overwritable FIFO keeps it full with the n
 	// shifted out ("result in incorrect data read back")
 }
 
-TEST_CASE("an overwritable FIFO written item by item with twice its depth holds the newest items (V25)" * doctest::should_fail() *
-		  doctest::description("KNOWN ISSUE V25 (TinyUSB, vendor): tu_fifo_write (tusb_fifo.c:819-845) has no double-overflow "
+TEST_CASE("an overwritable FIFO written item by item with twice its depth holds the newest items (V25)" * 
+		  KNOWN_ISSUE("V25 (TinyUSB, vendor): tu_fifo_write (tusb_fifo.c:819-845) has no double-overflow "
 							   "handling (unlike _tu_fifo_write_n :514-525): after 2 * depth single writes the write index "
 							   "wraps onto the read index and the full FIFO reads as empty (tusb_fifo.h:72-77: 'This must be "
 							   "prevented')")) {
@@ -503,8 +504,8 @@ TEST_CASE("the write info of a wrapped FIFO is the linear space up to the read p
 	CHECK(info.ptr_wrap == nullptr);
 }
 
-TEST_CASE("the read and write info of a FIFO with items of 4 bytes point at the item positions (V26)" * doctest::should_fail() *
-		  doctest::description("KNOWN ISSUE V26 (TinyUSB, vendor): tu_fifo_get_read_info / tu_fifo_get_write_info "
+TEST_CASE("the read and write info of a FIFO with items of 4 bytes point at the item positions (V26)" * 
+		  KNOWN_ISSUE("V26 (TinyUSB, vendor): tu_fifo_get_read_info / tu_fifo_get_write_info "
 							   "(tusb_fifo.c:1022, :1077) index the byte buffer with the item position (&f->buffer[rd_ptr]) "
 							   "instead of rd_ptr * item_size; the lengths are in items (tusb_fifo.h:131-132), so for items "
 							   "larger than one byte the pointers point into the wrong item")) {

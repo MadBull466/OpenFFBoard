@@ -25,6 +25,7 @@ HostDcd::State dcd;
 HostDcd::Endpoint endpoints[EP_COUNT][2]; // [number][tusb_dir_t]
 HostDcd::Endpoint invalidEndpoint;		  // returned for endpoint numbers the core does not have
 std::vector<dcd_event_t> heldEvents;	  // raised while the interrupt was disabled
+bool controlRead = false;				  // The last SETUP was device-to-host (the core tracks the control direction)
 
 HostDcd::Endpoint &ep(uint8_t epAddr) {
 	const uint8_t num = tu_edpt_number(epAddr);
@@ -160,9 +161,20 @@ void reset() {
 		}
 	}
 	heldEvents.clear();
+	controlRead = false;
 }
 
 void recordFault(const std::string &what) { fault(what); }
+
+bool takeFault(const std::string &part) {
+	for (auto it = dcd.faults.begin(); it != dcd.faults.end(); ++it) {
+		if (it->find(part) != std::string::npos) {
+			dcd.faults.erase(it);
+			return true;
+		}
+	}
+	return false;
+}
 
 std::vector<std::string> takeFaults() {
 	std::vector<std::string> f;
@@ -244,6 +256,7 @@ Handshake setup(uint8_t address, const tusb_control_request_t &request) {
 		e.data1 = true;
 	}
 	dcd.pendingAddress = -1; // A SET_ADDRESS whose status stage did not complete has no effect
+	controlRead = (request.bmRequestType & TUSB_DIR_IN_MASK) != 0;
 	record(Packet::Pid::Setup, address, 0, bytes, false, Handshake::Ack);
 	dcd_event_t e = event(DCD_EVENT_SETUP_RECEIVED);
 	std::memcpy(&e.setup_received, &request, sizeof(request));
@@ -261,25 +274,25 @@ Handshake out(uint8_t address, uint8_t epNum, const std::vector<uint8_t> &data) 
 		h = Handshake::Stall;
 	} else if (!e.armed) {
 		h = Handshake::Nak;
-	} else if (epNum == 0 && e.length == 0 && !data.empty()) {
-		// Status stage of a control read with data: DCFG.NZLSOHSK (dwc2:444) answers STALL and discards the packet
+	} else if (epNum == 0 && controlRead && e.length == 0 && !data.empty()) {
+		// Status stage (OUT) of a control read with a data packet: DCFG.NZLSOHSK (dwc2:444) answers STALL and discards
+		// it. Only for the status OUT of a control read: the core knows the control direction from the SETUP
 		h = Handshake::Stall;
+	} else if (data.size() > e.maxPacket) {
+		fault("host sent " + std::to_string(data.size()) + " bytes to OUT endpoint " + hex(epAddr) + " with wMaxPacketSize " +
+			  std::to_string(e.maxPacket) + " (babble, not modelled)");
+		h = Handshake::NoResponse;
+	} else if (data.size() > (size_t)(e.length - e.done)) {
+		// Includes a data packet into a 0-byte OUT transfer armed in the data stage of a control write (V34)
+		fault("host sent " + std::to_string(data.size()) + " bytes to OUT endpoint " + hex(epAddr) + " with only " +
+			  std::to_string(e.length - e.done) + " bytes left in the armed transfer (overrun, not modelled)");
+		h = Handshake::NoResponse;
 	} else {
 		h = Handshake::Ack;
 	}
 	record(Packet::Pid::Out, address, epAddr, data, e.data1, h);
 	if (h != Handshake::Ack) {
 		return h;
-	}
-	if (data.size() > e.maxPacket) {
-		fault("host sent " + std::to_string(data.size()) + " bytes to OUT endpoint " + hex(epAddr) + " with wMaxPacketSize " +
-			  std::to_string(e.maxPacket) + " (babble, not modelled)");
-		return Handshake::NoResponse;
-	}
-	if (data.size() > (size_t)(e.length - e.done)) {
-		fault("host sent " + std::to_string(data.size()) + " bytes to OUT endpoint " + hex(epAddr) + " with only " +
-			  std::to_string(e.length - e.done) + " bytes left in the armed transfer (overrun, not modelled)");
-		return Handshake::NoResponse;
 	}
 	if (!data.empty()) {
 		std::memcpy(e.buffer + e.done, data.data(), data.size());
@@ -474,6 +487,11 @@ bool dcd_edpt_xfer_fifo(uint8_t, uint8_t ep_addr, tu_fifo_t *, uint16_t) {
 
 /** dwc2:657-663 (edpt_disable with stall :235-283): halted, the armed transfer is dropped without completion */
 void dcd_edpt_stall(uint8_t, uint8_t ep_addr) {
+	if (tu_edpt_number(ep_addr) >= EP_COUNT) {
+		// dwc2 edpt_disable would write DIEPCTL/DOEPCTL of an endpoint the core does not have (V31)
+		fault("dcd_edpt_stall of endpoint " + hex(ep_addr) + ": the F407 OTG_FS core has 4 endpoints per direction");
+		return;
+	}
 	HostDcd::Endpoint &e = ep(ep_addr);
 	e.stalled = true;
 	dropTransfer(e);
@@ -481,6 +499,10 @@ void dcd_edpt_stall(uint8_t, uint8_t ep_addr) {
 
 /** dwc2:665-675: halt cleared, data toggle reset to DATA0. A transfer dropped by the stall stays dropped */
 void dcd_edpt_clear_stall(uint8_t, uint8_t ep_addr) {
+	if (tu_edpt_number(ep_addr) >= EP_COUNT) {
+		fault("dcd_edpt_clear_stall of endpoint " + hex(ep_addr) + ": the F407 OTG_FS core has 4 endpoints per direction");
+		return;
+	}
 	HostDcd::Endpoint &e = ep(ep_addr);
 	e.stalled = false;
 	e.data1 = false;

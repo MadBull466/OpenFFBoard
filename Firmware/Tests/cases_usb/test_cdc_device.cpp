@@ -11,9 +11,9 @@
  * versions for the whole ffb_usb_tests executable (they only record) to test that TinyUSB calls them.
  * Host-vs-target: on the target these four callbacks are not linked, so cdc_device.c skips them (the `if (cb)` checks).
  *
- * Tests about TinyUSB's receive FIFO stop the firmware from reading it: tud_cdc_rx_cb only reads while `mainclass` is
- * set (global_callbacks.cpp:296), so those tests clear `mainclass` after the enumeration (and must not unplug,
- * suspend or reconfigure the device then: the mount / suspend callbacks dereference `mainclass` without a check).
+ * Tests about TinyUSB's receive FIFO stop the firmware from reading it: CdcFixture starts the device with CdcTestMain,
+ * a UsbTestMain whose cdcRcvReady (called by tud_cdc_rx_cb) can be told not to read. `mainclass` stays set, so the
+ * mount / unmount / suspend callbacks (which dereference it without a check) stay safe.
  */
 #include "doctest.h"
 #include "TestHelpers.h"
@@ -22,6 +22,7 @@
 #include "CDCcomm.h"
 
 #include <cstring>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -84,8 +85,39 @@ std::string pattern(size_t n, size_t offset = 0) {
 	return s;
 }
 
+/** UsbTestMain whose receive callback can stop reading the CDC port (the data then stays in TinyUSB's receive FIFO) */
+class CdcTestMain : public UsbTestMain {
+public:
+	bool reading = true;
+	void cdcRcvReady(uint8_t itf) override {
+		if (reading) {
+			UsbTestMain::cdcRcvReady(itf);
+		} else {
+			cdcReadyCalls++;
+		}
+	}
+};
+
 struct CdcFixture : UsbFixture {
 	CdcFixture() { cdcLog = CdcCallbackLog(); }
+
+	/**
+	 * UsbFixture::startDevice with CdcTestMain as the main class (same steps: resumable CDCCMD / CMD_MAIN, mainclass,
+	 * usb_device with the F407 wheel configuration, HID descriptor, tusb_init)
+	 */
+	void startDevice() {
+		auto m = std::make_unique<CdcTestMain>();
+		cdcMain = m.get();
+		main = std::move(m);
+		REQUIRE(HostRtos::makeResumable("CDCCMD") != nullptr);
+		REQUIRE(HostRtos::makeResumable("CMD_MAIN") != nullptr);
+		mainclass = main.get();
+		usb_device = usbDevice(usb_cdc_hid_conf_2axis);
+		UsbHidHandler::setHidDesc(hid_2ffb_desc);
+		REQUIRE(tusb_init());
+		process();
+	}
+	CdcTestMain *cdcMain = nullptr;
 
 	/** Starts the F407 wheel device, enumerates it and (if dtr) opens the port like a terminal (DTR and RTS set) */
 	void start(bool dtr = true) {
@@ -96,7 +128,7 @@ struct CdcFixture : UsbFixture {
 		}
 	}
 	/** The firmware no longer reads the CDC port: received data stays in TinyUSB's receive FIFO (see file comment) */
-	static void stopFirmwareReading() { mainclass = nullptr; }
+	void stopFirmwareReading() { cdcMain->reading = false; }
 
 	/** One IN transaction on the CDC data IN endpoint without NAK retries */
 	Handshake inPacket(std::vector<uint8_t> &data) { return HostDcd::in(host.address, EP_IN & 0x0F, data); }
@@ -262,17 +294,39 @@ TEST_CASE_FIXTURE(CdcFixture, "data from the host is stored in the receive FIFO 
 	stopFirmwareReading();
 	REQUIRE(host.cdcWrite("hello") == Handshake::Ack);
 	process();
+	CHECK(main->cdcReadyCalls == 1);
 	CHECK(tud_cdc_n_available(0) == 5);
+	CHECK(readAll() == "hello");
+	CHECK(tud_cdc_n_available(0) == 0);
+}
+
+TEST_CASE_FIXTURE(CdcFixture, "peek returns the first received byte without removing it") {
+	start();
+	stopFirmwareReading();
+	REQUIRE(host.cdcWrite("hello") == Handshake::Ack);
+	process();
 	uint8_t first = 0;
 	CHECK(tud_cdc_n_peek(0, &first));
 	CHECK(first == 'h');
-	CHECK(tud_cdc_n_available(0) == 5); // peek does not remove
+	CHECK(tud_cdc_n_available(0) == 5);
+}
+
+TEST_CASE_FIXTURE(CdcFixture, "peek fails while the receive FIFO is empty") {
+	start();
+	uint8_t first = 0;
+	CHECK_FALSE(tud_cdc_n_peek(0, &first));
+}
+
+TEST_CASE_FIXTURE(CdcFixture, "a read smaller than the received data leaves the rest in the receive FIFO") {
+	start();
+	stopFirmwareReading();
+	REQUIRE(host.cdcWrite("hello") == Handshake::Ack);
+	process();
 	char buf[3];
 	CHECK(tud_cdc_n_read(0, buf, sizeof(buf)) == 3);
 	CHECK(std::string(buf, 3) == "hel");
+	CHECK(tud_cdc_n_available(0) == 2);
 	CHECK(readAll() == "lo");
-	CHECK(tud_cdc_n_available(0) == 0);
-	CHECK_FALSE(tud_cdc_n_peek(0, &first));
 }
 
 TEST_CASE_FIXTURE(CdcFixture, "the receive FIFO accepts packets while 64 bytes are free and then NAKs the host until the application reads") {
@@ -327,7 +381,7 @@ TEST_CASE_FIXTURE(CdcFixture, "a bus reset discards received data that the appli
 	REQUIRE(host.cdcWrite("old") == Handshake::Ack);
 	process();
 	REQUIRE(tud_cdc_n_available(0) == 3);
-	host.busReset(); // No mount / unmount callback: mainclass may stay cleared
+	host.busReset();
 	CHECK(tud_cdc_n_available(0) == 0);
 }
 
@@ -648,8 +702,57 @@ TEST_CASE_FIXTURE(CdcFixture, "the CDC reply path works again after the host res
 	REQUIRE(host.cdcSetControlLineState(true, true).ok());
 	REQUIRE(host.cdcWrite("sys.main?\n") == Handshake::Ack);
 	process();
+	HostPlatform::advanceMs(1000); // Lets a timeout based fix (e.g. a finite Take) expire
+	process();
 	REQUIRE_USB_MODELLED();
 	CHECK(host.cdcRead() == "[sys.main?|0]\n"); // Defect: empty, the CDC thread waits for the semaphore forever
+}
+
+TEST_CASE_FIXTURE(CdcFixture, "the CDC reply path works again after the host reset the device while a reply longer than the FIFO was pending (bug 137)" *
+								  KNOWN_ISSUE("bug 137: as above; in addition the unsent rest of the long reply stays in "
+											  "CDCcomm::remainingStrs with usb_busy_retry set (CDCcomm.cpp:74-77), so even with the semaphore "
+											  "given back the next cdcSend does not flush (CDCcomm.cpp:70) and its reply is not sent")) {
+	start();
+	std::string pending = pattern(3000);
+	REQUIRE(CDCcomm::cdcSend(&pending, 0) == TX_FIFO); // 1976 bytes remain for the retry, semaphore taken
+	enumerate();
+	REQUIRE(host.cdcSetControlLineState(true, true).ok());
+	REQUIRE(host.cdcWrite("sys.main?\n") == Handshake::Ack);
+	process();
+	HostPlatform::advanceMs(1000);
+	process();
+	REQUIRE_USB_MODELLED();
+	const std::string received = host.cdcRead();
+	const std::string reply = "[sys.main?|0]\n";
+	// Whether the rest of the old reply is dropped or sent first is not specified: the new reply must arrive at the end
+	CHECK((received.size() >= reply.size() && received.compare(received.size() - reply.size(), reply.size(), reply) == 0)); // Defect: empty
+	// Cleanup for the next test (until UsbFixture resets it): the defect leaves CDCcomm's private busy retry flag set,
+	// which only a complete cdcSend clears; give the semaphore back and send one byte
+	CDCcomm::clearRemainingBuffer(0);
+	CDCcomm::cdcFinished(0);
+	std::string idle = "z";
+	CDCcomm::cdcSend(&idle, 0);
+	tud_cdc_n_write_flush(0);
+	host.cdcRead();
+}
+
+TEST_CASE_FIXTURE(CdcFixture, "the CDC reply path works again after the cable was unplugged while a reply was pending (bug 137)" *
+								  KNOWN_ISSUE("bug 137: as above, after an unplug (DCD_EVENT_UNPLUGGED, tud_umount_cb) instead of a bus "
+											  "reset: the dropped IN transfer never completes and cdcSems[0] stays taken")) {
+	start();
+	std::string pending = pattern(100);
+	REQUIRE(CDCcomm::cdcSend(&pending, 0) == 100);
+	HostDcd::detach();
+	process();
+	HostDcd::attach();
+	enumerate();
+	REQUIRE(host.cdcSetControlLineState(true, true).ok());
+	REQUIRE(host.cdcWrite("sys.main?\n") == Handshake::Ack);
+	process();
+	HostPlatform::advanceMs(1000);
+	process();
+	REQUIRE_USB_MODELLED();
+	CHECK(host.cdcRead() == "[sys.main?|0]\n"); // Defect: empty
 }
 
 } // TEST_SUITE

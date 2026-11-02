@@ -159,17 +159,28 @@ class HeaderFileTest(ScriptCase):
         self.assertIn("// FFBWheel\n#define ADR_A 1// c\n", header)
         self.assertTrue(header.endswith("#endif /* EEPROM_ADDRESSES_H_ */\n"))
 
+
+
+class IncompleteEnabledRowTest(ScriptCase):
+    """bug V36: generate_header counts every row with enable "1" (generate_memory.py:111-113) but generatesrc and
+    generate_header only emit rows with a name AND an address (:84, :118). An enabled row whose address (or name) is
+    missing makes NB_OF_VAR larger than the initialiser list: C zero-fills the rest of VirtAddVarTab, so virtual
+    address 0 becomes a registered variable for the EEPROM page transfer. The same for NB_EXPORTABLE_ADR (address 0
+    in the flash dump list).
+
+    The generation runs in setUp (not under @expectedFailure): a fix that rejects the row with an exception is
+    reported as an error instead of being swallowed as the expected failure; only the count assertion is expected
+    to fail today."""
+
+    def setUp(self):
+        super().setUp()
+        self.header = self.gm.generate_header([entry(name="ADR_A", adr="1", enable="1", export="1"),
+                                               entry(name="ADR_TODO", enable="1", export="1")])
+
     @unittest.expectedFailure
     def test_the_variable_count_matches_the_array_elements_also_for_an_enabled_row_without_an_address(self):
-        # bug V36: generate_header counts every row with enable "1" (generate_memory.py:111-113) but generatesrc and
-        # generate_header only emit rows with a name AND an address (:84, :118). An enabled row whose address (or
-        # name) is missing makes NB_OF_VAR larger than the initialiser list: C zero-fills the rest of
-        # VirtAddVarTab, so virtual address 0 becomes a registered variable for the EEPROM page transfer. The same
-        # for NB_EXPORTABLE_ADR (address 0 in the flash dump list).
-        entries = [entry(name="ADR_A", adr="1", enable="1", export="1"), entry(name="ADR_TODO", enable="1", export="1")]
-        header = self.gm.generate_header(entries)
-        self.assertIn("#define NB_OF_VAR 1\n", header)
-        self.assertIn("#define NB_EXPORTABLE_ADR 1\n", header)
+        self.assertIn("#define NB_OF_VAR 1\n", self.header)
+        self.assertIn("#define NB_EXPORTABLE_ADR 1\n", self.header)
 
 
 class DuplicateCheckTest(ScriptCase):
@@ -194,18 +205,6 @@ class DuplicateCheckTest(ScriptCase):
         count, _ = self.duplicates([entry(name="A", adr="5", enable="1"), entry(name="OLD", adr="5")])
         self.assertEqual(count, 0)
 
-    @unittest.expectedFailure
-    def test_the_same_address_written_in_decimal_and_in_hex_is_a_duplicate(self):
-        # bug V35: check_duplicated (generate_memory.py:137-143) compares the address cells as strings. The map mixes
-        # notations (memory_map.csv: "1", "10" decimal, "0xC1" hex), so 16 and 0x10, 0x101 and 0x0101 or 0x1A and
-        # 0x1a are not found although the C compiler sees the same virtual address: two variables would share one
-        # EEPROM cell. Intended: compare the numeric values (int(adr, 0)).
-        for pair in (("16", "0x10"), ("0x101", "0x0101"), ("0x1A", "0x1a")):
-            with self.subTest(pair=pair):
-                count, _ = self.duplicates([entry(name="A", adr=pair[0], enable="1"),
-                                            entry(name="B", adr=pair[1], enable="1")])
-                self.assertEqual(count, 1)
-
     # NEEDS REVIEW 164: check_duplicated only looks at addresses. Two rows with the same name and different
     # addresses pass and give two different #defines of one macro (a compiler error or warning in the firmware
     # build, not in the script); a flag cell "0" counts as set for the check (`d["enable"] or d["export"]` is true
@@ -220,6 +219,26 @@ class DuplicateCheckTest(ScriptCase):
         count, _ = self.duplicates([entry(name="A", adr="5", enable="1"), entry(name="B", adr="5", enable="0",
                                                                                export="0")])
         self.assertEqual(count, 1)
+
+
+class NumericDuplicateTest(ScriptCase):
+    """bug V35: check_duplicated (generate_memory.py:137-143) compares the address cells as strings. The map mixes
+    notations (memory_map.csv: "1", "10" decimal, "0xC1" hex), so 16 and 0x10, 0x101 and 0x0101 or 0x1A and 0x1a are
+    not found although the C compiler sees the same virtual address: two variables would share one EEPROM cell.
+    Intended: compare the numeric values (int(adr, 0)).
+
+    The checks run in setUp (not under @expectedFailure), so a fix that raises is reported as an error."""
+
+    PAIRS = (("16", "0x10"), ("0x101", "0x0101"), ("0x1A", "0x1a"))
+
+    def setUp(self):
+        super().setUp()
+        self.counts = [self.duplicates([entry(name="A", adr=a, enable="1"), entry(name="B", adr=b, enable="1")])[0]
+                       for a, b in self.PAIRS]
+
+    @unittest.expectedFailure
+    def test_the_same_address_written_in_decimal_and_in_hex_is_a_duplicate(self):
+        self.assertEqual(self.counts, [1, 1, 1])
 
 
 class CommandLineTest(ScriptCase):
@@ -269,7 +288,6 @@ class CommandLineTest(ScriptCase):
     def test_a_row_with_a_missing_column_fails_without_writing_outputs(self):
         result = self.run_on([",ADR_A,1,,1,1", ",ADR_B,2,,1"])
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("ValueError", result.stderr)
         self.assertFalse(self.outputs_exist())
 
     def test_an_output_directory_that_does_not_exist_fails(self):
@@ -288,6 +306,11 @@ class CommandLineTest(ScriptCase):
         self.assertIn("Found 1 duplicate addresses", result.stdout)
         self.assertTrue(result.stdout.endswith("Aborting\n"))
         self.assertFalse(self.outputs_exist())
+
+    def test_characterization_a_row_with_too_few_cells_stops_the_script_with_a_traceback_needs_review_163(self):
+        result = self.run_on([",ADR_A,1,,1,1", ",ADR_B,2,,1"])
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("ValueError: not enough values to unpack", result.stderr)
 
     def test_characterization_a_blank_line_stops_the_script_with_a_traceback_needs_review_163(self):
         result = self.run_on([",ADR_A,1,,1,1", "", ",ADR_B,2,,1,1"])
