@@ -42,7 +42,7 @@ class GenerateMemoryTest(unittest.TestCase):
                             ",ADR_A,0x0101,first,1,1\n"
                             ",ADR_B,0x0101,same address,1,0\n", encoding="utf-8")
         result = self.run_script(csv_file)
-        self.assertEqual(result.returncode, 0)  # main() returns normally after printing "Aborting"
+        # The exit status is not asserted: today main() returns 0 after printing "Aborting" (NEEDS REVIEW 163)
         self.assertIn("Found 1 duplicate addresses", result.stdout)
         self.assertIn("Aborting", result.stdout)
         self.assertFalse((self.dir / "out.c").exists())
