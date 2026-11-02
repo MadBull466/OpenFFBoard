@@ -402,8 +402,9 @@ TEST_CASE_FIXTURE(SysFixture, "uid as info request returns the 96 bit unique id 
 	HostTarget::state().uid[0] = 0x0000ABCD;
 	HostTarget::state().uid[1] = 0x12345678;
 	HostTarget::state().uid[2] = 0x9ABCDEF0;
-	// SystemCommands.cpp:307 prints the uint32_t words with %08lx: correct on ARM and MinGW (uint32_t is unsigned long
-	// there); on LP64 Linux it only works because the 32 bit argument is passed zero-extended in a 64 bit register
+	// SystemCommands.cpp:307 prints the uint32_t words with %08lx: correct on ARM (arm-none-eabi: uint32_t is unsigned
+	// long); on MinGW uint32_t is unsigned int, which works because long is 32 bit there (LLP64); on LP64 Linux it
+	// only works because the 32 bit argument is passed zero-extended in a 64 bit register
 	CHECK(run(FFBoardMain_commands::uid, CMDtype::info) == CommandStatus::OK);
 	REQUIRE(replies.size() == 1);
 	CHECK(replies[0].type == CommandReplyType::STRING);

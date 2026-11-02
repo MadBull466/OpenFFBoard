@@ -417,7 +417,7 @@ TEST_CASE_FIXTURE(RealAxisFixture, "the config word stores the encoder type in b
 }
 
 TEST_CASE_FIXTURE(RealAxisFixture, "characterization: a stored driver type that is not available is reported although the axis has no such driver") {
-	// NEEDS REVIEW: restoreFlash decodes drvtype 1 (TMC4671, compiled out) into conf before setDrvType(1) rejects it
+	// NEEDS REVIEW 26: restoreFlash decodes drvtype 1 (TMC4671, compiled out) into conf before setDrvType(1) rejects it
 	// (Axis.cpp:226, 514-516). The axis keeps its "None" driver but drvtype reports 1 and saveFlash keeps writing 1.
 	// Keeping the user's selection for a later firmware may be intended
 	flashWrite(X_CONFIG, confWord(1, 0));
@@ -437,7 +437,7 @@ TEST_CASE_FIXTURE(RealAxisFixture, "a stored range of 0 degrees is replaced by t
 
 TEST_CASE_FIXTURE(AxisFixture, "a stored filter profile out of range is limited to the last profile like the command does" *
 		doctest::skip() *
-		doctest::description("KNOWN ISSUE (crash): restoreFlash uses the stored profile byte as index into the 4 element "
+		doctest::description("KNOWN ISSUE (crash): (bug 31) restoreFlash uses the stored profile byte as index into the 4 element "
 							 "filterSpeedCst / filterAccelCst arrays without a range check (Axis.cpp:294-299): out of "
 							 "bounds read, aborts the run with _GLIBCXX_ASSERTIONS. Skipped")) {
 	flashWrite(X_SPEEDACCEL_FILTER, 7);
@@ -446,7 +446,7 @@ TEST_CASE_FIXTURE(AxisFixture, "a stored filter profile out of range is limited 
 }
 
 TEST_CASE_FIXTURE(AxisFixture, "a hands-off acceleration threshold set by command survives a flash save and restore" *
-		KNOWN_ISSUE("saveFlash truncates (uint16_t)(handsOffAccelThreshold * 1000.0) (Axis.cpp:366): the float 0.01f "
+		KNOWN_ISSUE("(bug 28) saveFlash truncates (uint16_t)(handsOffAccelThreshold * 1000.0) (Axis.cpp:366): the float 0.01f "
 					"times 1000 is 9.99999977, saved as 9. About half of all values lose 1 per save. The first CHECK "
 					"on the flash value fails")) {
 	axisCommand(Axis_commands::handsoff_accel, CMDtype::set, 10);
@@ -466,7 +466,7 @@ TEST_CASE_FIXTURE(AxisFixture, "power is read back as set and passed to the driv
 }
 
 TEST_CASE_FIXTURE(AxisFixture, "characterization: a power value above 16 bits keeps only its low 16 bits") {
-	// NEEDS REVIEW: the command value is converted to setPower(uint16_t) without a range check (Axis.cpp:1051, 498)
+	// NEEDS REVIEW 29: the command value is converted to setPower(uint16_t) without a range check (Axis.cpp:1051, 498)
 	axisCommand(Axis_commands::power, CMDtype::set, 0x10000 + 7);
 	CHECK(axisGet(Axis_commands::power) == 7);
 }
@@ -482,7 +482,7 @@ TEST_CASE_FIXTURE(AxisFixture, "power above 0x7fff is limited to 0x7fff" *
 }
 
 TEST_CASE_FIXTURE(AxisFixture, "characterization: the 8 bit settings keep the low byte of a value above 255") {
-	// NEEDS REVIEW: no range check, the value is converted to uint8_t (Axis.cpp:1060, 1086, 1097, 1108, 1119, 1202)
+	// NEEDS REVIEW 29: no range check, the value is converted to uint8_t (Axis.cpp:1060, 1086, 1097, 1108, 1119, 1202)
 	axisCommand(Axis_commands::esgain, CMDtype::set, 300);
 	axisCommand(Axis_commands::idlespring, CMDtype::set, 301);
 	axisCommand(Axis_commands::axisdamper, CMDtype::set, 302);
@@ -557,7 +557,7 @@ TEST_CASE_FIXTURE(AxisFixture, "a new range is not applied while the position is
 }
 
 TEST_CASE_FIXTURE(AxisFixture, "characterization: a range of 0 degrees restores the range before the last change") {
-	// NEEDS REVIEW: setDegrees(0) selects previousDegreesOfRotation (Axis.cpp:1010-1011) instead of rejecting 0
+	// NEEDS REVIEW 29: setDegrees(0) selects previousDegreesOfRotation (Axis.cpp:1010-1011) instead of rejecting 0
 	axisCommand(Axis_commands::degrees, CMDtype::set, 1080);
 	update();
 	axisCommand(Axis_commands::degrees, CMDtype::set, 0);
@@ -566,7 +566,7 @@ TEST_CASE_FIXTURE(AxisFixture, "characterization: a range of 0 degrees restores 
 }
 
 TEST_CASE_FIXTURE(AxisFixture, "characterization: the range keeps only the lower 15 bits of the value") {
-	// NEEDS REVIEW: bit 15 is the inversion flag in flash; a larger value is masked, not rejected (Axis.cpp:1009)
+	// NEEDS REVIEW 29: bit 15 is the inversion flag in flash; a larger value is masked, not rejected (Axis.cpp:1009)
 	axisCommand(Axis_commands::degrees, CMDtype::set, 0x8000 | 540);
 	update();
 	CHECK(axisGet(Axis_commands::degrees) == 540);
@@ -679,7 +679,7 @@ TEST_CASE_FIXTURE(AxisFixture, "each equalizer band gain is stored separately an
 }
 
 TEST_CASE_FIXTURE(AxisFixture, "characterization: an equalizer gain outside of -128..127 wraps around before it is limited") {
-	// NEEDS REVIEW: setEqGain(uint8_t, int8_t) converts the command value to int8_t before the clip (Axis.cpp:1287, 1413-1415):
+	// NEEDS REVIEW 29: setEqGain(uint8_t, int8_t) converts the command value to int8_t before the clip (Axis.cpp:1287, 1413-1415):
 	// 200 becomes -56 instead of 120
 	axisCommand(Axis_commands::eqb1, CMDtype::set, 200);
 	CHECK(axisGet(Axis_commands::eqb1) == -56);
@@ -697,7 +697,7 @@ TEST_CASE_FIXTURE(AxisFixture, "hands-off detection settings are read back as se
 }
 
 TEST_CASE_FIXTURE(AxisFixture, "the hands-off acceleration threshold reads back the value that was set" *
-		KNOWN_ISSUE("The get reply is handsOffAccelThreshold * 1000 in float, truncated to an integer (Axis.cpp:1320): "
+		KNOWN_ISSUE("(bug 29) The get reply is handsOffAccelThreshold * 1000 in float, truncated to an integer (Axis.cpp:1320): "
 					"0.251f * 1000 = 250.99998, read back as 250 (10 of the values 0..1999). The CHECK fails")) {
 	axisCommand(Axis_commands::handsoff_accel, CMDtype::set, 251);
 	REQUIRE_ALL_HAL_MODELLED();
@@ -731,7 +731,7 @@ TEST_CASE_FIXTURE(AxisFixture, "a plain set of the gear reduction is ignored") {
 }
 
 TEST_CASE_FIXTURE(AxisFixture, "characterization: a gear reduction value of 0 wraps around to 256") {
-	// NEEDS REVIEW: setGearRatio(cmd.val-1, cmd.adr-1) into uint8_t without a range check (Axis.cpp:1223); the help text says 1-256
+	// NEEDS REVIEW 29: setGearRatio(cmd.val-1, cmd.adr-1) into uint8_t without a range check (Axis.cpp:1223); the help text says 1-256
 	std::vector<CommandReply> replies;
 	axisCommand(Axis_commands::reductionScaler, CMDtype::setat, 0, nullptr, 1);
 	axisCommand(Axis_commands::reductionScaler, CMDtype::get, 0, &replies);
@@ -806,7 +806,7 @@ TEST_CASE_FIXTURE(AxisFixture, "zeroenc restarts the force fade-in at 25 percent
 }
 
 TEST_CASE_FIXTURE(AxisFixture, "zeroenc fades the force in within the 0.5 s fade time" *
-		KNOWN_ISSUE("startForceFadeIn(start, fadeTime) is documented as 'fade from start to 1 over fadeTime' "
+		KNOWN_ISSUE("(bug 30) startForceFadeIn(start, fadeTime) is documented as 'fade from start to 1 over fadeTime' "
 					"(Axis.h:356-361, Axis.cpp:995-1001), but updateTorque adds fadeTime / samplerate per cycle "
 					"(Axis.cpp:875): the fade takes (1 - start) / fadeTime seconds, 1.5 s instead of 0.5 s after zeroenc "
 					"(setPos: start 0.25, fadeTime 0.5). The CHECK after 0.5 s fails")) {
@@ -836,7 +836,7 @@ TEST_CASE_FIXTURE(AxisFixture, "curtorque reports the torque of the last update"
 }
 
 TEST_CASE_FIXTURE(AxisFixture, "characterization: curpos, curspd and curaccel report the metrics of the cycle before the last update") {
-	// NEEDS REVIEW: the commands read metric.previous (Axis.cpp:1207, 1213, 1216), one cycle behind the axis metrics
+	// NEEDS REVIEW 30: the commands read metric.previous (Axis.cpp:1207, 1213, 1216), one cycle behind the axis metrics
 	axisCommand(Axis_commands::invert, CMDtype::set, 0);
 	encoder().setDegrees(90.0f);
 	run(1);
@@ -971,7 +971,7 @@ TEST_CASE_FIXTURE(AxisFixture, "an unknown driver type is ignored") {
 }
 
 TEST_CASE_FIXTURE(AxisFixture, "selecting a driver that cannot be created keeps a driver on the axis" *
-		KNOWN_ISSUE("setDrvType resets the driver to the nullptr returned by ClassChooser::Create for a valid but not "
+		KNOWN_ISSUE("(bug 27) setDrvType resets the driver to the nullptr returned by ClassChooser::Create for a valid but not "
 					"creatable id (Axis.cpp:519-525). The axis has no driver and getEncType, setEncType, "
 					"updateDriveTorque, emergencyStop would dereference nullptr. The first CHECK fails")) {
 	MockMotorDriver::creatable() = false;
@@ -993,6 +993,7 @@ TEST_CASE_FIXTURE(AxisFixture, "a driver selected while USB is not connected is 
 	CHECK(driver().torqueHistory == std::vector<int16_t>{0, 0}); // turn(0) by usbSuspend and by MotorDriver::stopMotor
 }
 
+// bug 133
 TEST_CASE_FIXTURE(AxisFixture, "characterization: selecting a driver while USB is not connected clears the usb_disabled flag") {
 	// NEEDS REVIEW: Axis.cpp:535-538 sets control->usb_disabled = false when tud_connected() is false. The flag means
 	// "FFB is disabled by USB" and FFBHIDMain::usbSuspend returns early while it is set. Intended (so that the next
@@ -1045,7 +1046,7 @@ TEST_CASE_FIXTURE(AxisFixture, "enctype 0 selects the None encoder that always r
 }
 
 TEST_CASE_FIXTURE(AxisFixture, "characterization: an unknown encoder type reports the None encoder but keeps the current encoder") {
-	// NEEDS REVIEW: setEncType sets conf.enctype = 0 for an invalid id but does not replace the encoder (Axis.cpp:561-563).
+	// NEEDS REVIEW 27: setEncType sets conf.enctype = 0 for an invalid id but does not replace the encoder (Axis.cpp:561-563).
 	// The reported (and saved) type no longer matches the encoder in use
 	MockEncoder *old = &encoder();
 	axisCommand(Axis_commands::enctype, CMDtype::set, 7);
@@ -1066,7 +1067,7 @@ TEST_CASE_FIXTURE(AxisFixture, "a driver with an integrated encoder reports enco
 }
 
 TEST_CASE_FIXTURE(RealAxisFixture, "characterization: an encoder that is in use by another axis leaves the second axis without encoder") {
-	// NEEDS REVIEW: ClassChooser::Create returns nullptr for the local encoder (EncoderLocal::isCreatable is false while
+	// NEEDS REVIEW 27: ClassChooser::Create returns nullptr for the local encoder (EncoderLocal::isCreatable is false while
 	// it is in use); setEncType stores type 2 and passes nullptr to the driver (Axis.cpp:557-560) instead of rejecting it
 	flashWrite(X_CONFIG, confWord(0, 2));
 	auto x = makeAxis('X');

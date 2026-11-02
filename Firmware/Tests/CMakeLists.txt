@@ -382,8 +382,11 @@ target_compile_options(ffb_target_tests PRIVATE -Wall $<$<COMPILE_LANGUAGE:CXX>:
 if(MINGW)
 	target_compile_options(ffb_target_tests PRIVATE -mno-ms-bitfields)
 	target_link_options(ffb_target_tests PRIVATE -static)
-	# SystemCommands.cpp uses struct mallinfo / mallinfo() from <malloc.h>, which mingw-w64 does not declare:
-	# shim header (#include_next) and a stub returning zeros. Unverified (no MinGW toolchain available).
+endif()
+if(MINGW OR APPLE)
+	# SystemCommands.cpp uses struct mallinfo / mallinfo() from <malloc.h>, which mingw-w64 does not declare and the
+	# macOS SDK does not have: shim header (#include_next if a <malloc.h> exists) and a stub returning zeros.
+	# Unverified (no MinGW or macOS toolchain available). Not used on Linux (glibc declares both).
 	target_include_directories(ffb_target_tests BEFORE PRIVATE platform/mingw)
 	target_sources(ffb_target_tests PRIVATE platform/mingw/host_mallinfo.cpp)
 endif()

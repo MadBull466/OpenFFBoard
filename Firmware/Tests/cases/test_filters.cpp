@@ -250,7 +250,7 @@ TEST_CASE("coefficients are stored in CMSIS-DSP order with negated feedback term
 
 // ---------------- Peak and shelf filters ----------------
 
-// NEEDS REVIEW: the peak filter uses the earlevel/Zoelzer form with V = 10^(gain/20) in the numerator
+// NEEDS REVIEW 14: the peak filter uses the earlevel/Zoelzer form with V = 10^(gain/20) in the numerator
 // only. The RBJ cookbook uses A = 10^(gain/40) in numerator and denominator. Both have the same gain at
 // fc, DC and Nyquist but a different bandwidth for the same Q. Which Q definition is intended?
 TEST_CASE("characterization: peak filter coefficients follow the earlevel/Zoelzer design, not the RBJ cookbook") {
@@ -287,7 +287,7 @@ TEST_CASE("peak filter with 0 dB gain passes all frequencies unchanged") {
 	}
 }
 
-// NEEDS REVIEW: the shelf filters ignore Q (fixed Q = 1/sqrt(2)) and use the Zoelzer/earlevel design.
+// NEEDS REVIEW 15: the shelf filters ignore Q (fixed Q = 1/sqrt(2)) and use the Zoelzer/earlevel design.
 // RBJ cookbook shelves with S = 1 give different coefficients (the cookbook fc is the half gain point).
 TEST_CASE("characterization: shelf filter coefficients follow the earlevel/Zoelzer design") {
 	for (BiquadType type : {BiquadType::lowshelf, BiquadType::highshelf}) {
@@ -303,6 +303,7 @@ TEST_CASE("characterization: shelf filter coefficients follow the earlevel/Zoelz
 	}
 }
 
+// NEEDS REVIEW 15
 TEST_CASE("characterization: Q has no influence on shelf filters") {
 	for (BiquadType type : {BiquadType::lowshelf, BiquadType::highshelf}) {
 		CAPTURE((int)type);
@@ -568,7 +569,7 @@ TEST_CASE("a filter after a parameter change behaves like a new filter") {
 
 // ---------------- Invalid parameters ----------------
 
-// NEEDS REVIEW: a frequency of 0 (or a negative one, clipped to 0) gives an all-zero numerator,
+// NEEDS REVIEW 16: a frequency of 0 (or a negative one, clipped to 0) gives an all-zero numerator,
 // the filter outputs 0 for every input instead of being a pass-through or rejected.
 TEST_CASE("characterization: a lowpass with frequency 0 outputs zero") {
 	Biquad filter(BiquadType::lowpass, -0.2f, 0.707f, 0);
@@ -583,7 +584,7 @@ TEST_CASE("characterization: a lowpass with frequency 0 outputs zero") {
 // Note: this test divides floats by zero on purpose (K / Q with Q = 0). The result (inf, then NaN) is
 // defined by IEEE 754 but undefined in ISO C++; UBSan's -fsanitize=undefined does not include
 // float-divide-by-zero, so the sanitizer build accepts it.
-// NEEDS REVIEW: Biquad does not validate Q. Q = 0 divides by zero (K/Q = inf) and gives a NaN
+// NEEDS REVIEW 17: Biquad does not validate Q. Q = 0 divides by zero (K/Q = inf) and gives a NaN
 // feedback coefficient, the filter output is NaN from then on. EffectsCalculator::checkFilterCoeff
 // maps q = 0 to 1, the Axis constants are non zero, so no caller is known to pass 0.
 TEST_CASE("characterization: a Q of zero makes the filter output NaN") {

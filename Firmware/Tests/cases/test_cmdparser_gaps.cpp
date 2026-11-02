@@ -67,7 +67,7 @@ TEST_CASE_FIXTURE(ParserGapFixture, "a chunk one byte smaller than the free spac
 }
 
 TEST_CASE_FIXTURE(ParserGapFixture, "characterization: a terminated chunk exactly as large as the free space is discarded") {
-	// NEEDS REVIEW: CmdParser::add stores data only if freeSpace() > len. freeSpace() already excludes the
+	// NEEDS REVIEW 4: CmdParser::add stores data only if freeSpace() > len. freeSpace() already excludes the
 	// slot the ring buffer keeps empty, so a chunk that would exactly fill the buffer is dropped although it fits.
 	// Is the strict comparison intended (one byte of the buffer is never usable)?
 	REQUIRE(parser.bufferCapacity() == (int32_t)freeSpace);
@@ -100,7 +100,7 @@ TEST_CASE_FIXTURE(ParserGapFixture, "an unterminated chunk that does not fit kee
 // ---------------------------------------------------------------------------
 
 TEST_CASE_FIXTURE(ParserGapFixture, "characterization: a set with a malformed address is parsed as a plain set") {
-	// NEEDS REVIEW: "cmd=<int>?<garbage>" is not rejected. The '?' part is invalid, so the command becomes a plain
+	// NEEDS REVIEW 5: "cmd=<int>?<garbage>" is not rejected. The '?' part is invalid, so the command becomes a plain
 	// set of the value before '?' (strtoll stops at '?'). Should a malformed address reject the whole command?
 	const char *inputs[] = {
 		"mock.value=5?-a;", // sign without digit

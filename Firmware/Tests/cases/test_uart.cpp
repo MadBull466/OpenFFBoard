@@ -207,7 +207,7 @@ TEST_CASE_FIXTURE(UartPortFixture, "reconfigurePort reports a failed initialisat
 	CHECK(HostPlatform::uart().initCount == 1);
 }
 
-// NEEDS REVIEW: the configuration is stored in the handle before HAL_UART_Init is called. After a failed
+// NEEDS REVIEW 18: the configuration is stored in the handle before HAL_UART_Init is called. After a failed
 // initialisation the same configuration counts as "unchanged" and is not initialised again. Intended?
 TEST_CASE_FIXTURE(UartPortFixture, "characterization: a configuration that failed to initialise is not retried") {
 	HostPlatform::uart().initResult = HAL_ERROR;
@@ -278,7 +278,7 @@ TEST_CASE_FIXTURE(UartPortFixture, "a device created with the default constructo
 }
 
 TEST_CASE("a device created without a port can be destroyed" * doctest::skip() *
-		doctest::description("KNOWN ISSUE (crash): UARTDevice::~UARTDevice calls uartport->freePort(this) without checking uartport, which is nullptr after the default constructor (UART.cpp:212-222). Skipped because it terminates the test run")) {
+		doctest::description("KNOWN ISSUE (crash): (bug 17) UARTDevice::~UARTDevice calls uartport->freePort(this) without checking uartport, which is nullptr after the default constructor (UART.cpp:212-222). Skipped because it terminates the test run")) {
 	{
 		UARTDevice device;
 	}
@@ -410,7 +410,7 @@ TEST_CASE_FIXTURE(UartPortFixture, "completions do not release a port that has n
 	port.giveSemaphore(true);
 }
 
-TEST_CASE_FIXTURE(UartPortFixture, "a failed interrupt transmit releases the port" * KNOWN_ISSUE("UARTPort::transmit_IT takes the port before HAL_UART_Transmit_IT and only the tx complete interrupt releases it. If the HAL call fails no interrupt follows and the port stays taken forever (UART.cpp:78-83). UART_CommandInterface::Run then waits forever in `while(uartport->isTaken())`")) {
+TEST_CASE_FIXTURE(UartPortFixture, "a failed interrupt transmit releases the port" * KNOWN_ISSUE("(bug 16) UARTPort::transmit_IT takes the port before HAL_UART_Transmit_IT and only the tx complete interrupt releases it. If the HAL call fails no interrupt follows and the port stays taken forever (UART.cpp:78-83). UART_CommandInterface::Run then waits forever in `while(uartport->isTaken())`")) {
 	RecordingDevice device(port);
 	HostPlatform::uart().txResult = HAL_BUSY;
 	CHECK_FALSE(port.transmit_IT("a", 1));
@@ -418,7 +418,7 @@ TEST_CASE_FIXTURE(UartPortFixture, "a failed interrupt transmit releases the por
 	CHECK(txFree());
 }
 
-TEST_CASE_FIXTURE(UartPortFixture, "a failed DMA transmit releases the port" * KNOWN_ISSUE("UARTPort::transmit_DMA takes the port before HAL_UART_Transmit_DMA and only the tx complete interrupt releases it. If the HAL call fails the port stays taken forever (UART.cpp:62-67)")) {
+TEST_CASE_FIXTURE(UartPortFixture, "a failed DMA transmit releases the port" * KNOWN_ISSUE("(bug 16) UARTPort::transmit_DMA takes the port before HAL_UART_Transmit_DMA and only the tx complete interrupt releases it. If the HAL call fails the port stays taken forever (UART.cpp:62-67)")) {
 	RecordingDevice device(port);
 	HostPlatform::uart().txResult = HAL_ERROR;
 	CHECK_FALSE(port.transmit_DMA("a", 1));
@@ -560,7 +560,7 @@ TEST_CASE_FIXTURE(UartPortFixture, "a receive complete without a device is ignor
 	CHECK_FALSE(port.isTaken());
 }
 
-TEST_CASE_FIXTURE(UartPortFixture, "a failed interrupt receive releases the port" * KNOWN_ISSUE("UARTPort::receive_IT takes the receive side of the port before HAL_UART_Receive_IT. If the HAL call fails no rx complete interrupt follows and the port stays taken (UART.cpp:101-106)")) {
+TEST_CASE_FIXTURE(UartPortFixture, "a failed interrupt receive releases the port" * KNOWN_ISSUE("(bug 16) UARTPort::receive_IT takes the receive side of the port before HAL_UART_Receive_IT. If the HAL call fails no rx complete interrupt follows and the port stays taken (UART.cpp:101-106)")) {
 	RecordingDevice device(port);
 	HostPlatform::uart().rxArmResult = HAL_BUSY;
 	char buf[1] = {};
@@ -569,7 +569,7 @@ TEST_CASE_FIXTURE(UartPortFixture, "a failed interrupt receive releases the port
 	CHECK(rxFree());
 }
 
-TEST_CASE_FIXTURE(UartPortFixture, "a failed DMA receive releases the port" * KNOWN_ISSUE("UARTPort::receive_DMA takes the receive side of the port before HAL_UART_Receive_DMA. If the HAL call fails no rx complete interrupt follows and the port stays taken (UART.cpp:94-99)")) {
+TEST_CASE_FIXTURE(UartPortFixture, "a failed DMA receive releases the port" * KNOWN_ISSUE("(bug 16) UARTPort::receive_DMA takes the receive side of the port before HAL_UART_Receive_DMA. If the HAL call fails no rx complete interrupt follows and the port stays taken (UART.cpp:94-99)")) {
 	RecordingDevice device(port);
 	HostPlatform::uart().rxArmResult = HAL_ERROR;
 	char buf[1] = {};
@@ -578,7 +578,7 @@ TEST_CASE_FIXTURE(UartPortFixture, "a failed DMA receive releases the port" * KN
 	CHECK(rxFree());
 }
 
-TEST_CASE_FIXTURE(UartPortFixture, "after an aborted receive the next single byte completion delivers the received byte" * KNOWN_ISSUE("UARTPort::abortReceive does not clear rxbuf_t set by receive_IT/receive_DMA (UART.cpp:97, 104, 116-123). The next completion armed by registerInterrupt passes the old user buffer to uartRcv (UART.cpp:189-191) instead of the received byte; the buffer may be out of scope by then")) {
+TEST_CASE_FIXTURE(UartPortFixture, "after an aborted receive the next single byte completion delivers the received byte" * KNOWN_ISSUE("(bug 22) UARTPort::abortReceive does not clear rxbuf_t set by receive_IT/receive_DMA (UART.cpp:97, 104, 116-123). The next completion armed by registerInterrupt passes the old user buffer to uartRcv (UART.cpp:189-191) instead of the received byte; the buffer may be out of scope by then")) {
 	RecordingDevice device(port);
 	char buf[1] = {'S'};
 	port.receive_IT(buf, 1);
@@ -589,7 +589,7 @@ TEST_CASE_FIXTURE(UartPortFixture, "after an aborted receive the next single byt
 	CHECK(device.lastRcvAddress != buf);
 }
 
-TEST_CASE_FIXTURE(UartPortFixture, "after a failed receive the next single byte completion delivers the received byte" * KNOWN_ISSUE("UARTPort::receive_IT/receive_DMA store rxbuf_t before the HAL call and do not clear it if the call fails (UART.cpp:97, 104). The next completion armed by registerInterrupt passes the old user buffer to uartRcv (UART.cpp:189-191) instead of the received byte")) {
+TEST_CASE_FIXTURE(UartPortFixture, "after a failed receive the next single byte completion delivers the received byte" * KNOWN_ISSUE("(bug 22) UARTPort::receive_IT/receive_DMA store rxbuf_t before the HAL call and do not clear it if the call fails (UART.cpp:97, 104). The next completion armed by registerInterrupt passes the old user buffer to uartRcv (UART.cpp:189-191) instead of the received byte")) {
 	RecordingDevice device(port);
 	char buf[1] = {'S'};
 	HostPlatform::uart().rxArmResult = HAL_BUSY;
@@ -601,7 +601,7 @@ TEST_CASE_FIXTURE(UartPortFixture, "after a failed receive the next single byte 
 	CHECK(device.lastRcvAddress != buf);
 }
 
-// NEEDS REVIEW: one isTaken flag is shared by the transmit and the receive semaphore. A receive completion
+// NEEDS REVIEW 19: one isTaken flag is shared by the transmit and the receive semaphore. A receive completion
 // (even of a single byte armed by registerInterrupt) clears it while a transmit is still running, so isTaken()
 // and UART_CommandInterface::readyToSend() report a free port although the tx semaphore is still taken.
 TEST_CASE_FIXTURE(UartPortFixture, "characterization: a receive completion clears the taken flag of a running transmit") {

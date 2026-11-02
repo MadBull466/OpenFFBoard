@@ -252,7 +252,7 @@ TEST_CASE_FIXTURE(HidMainFixture, "analog values beyond the 8 report slots are d
 }
 
 TEST_CASE_FIXTURE(HidMainFixture, "characterization: without an encoder the analog inputs start at the X slot of the report" * DELETES_FFBHIDMAIN) {
-	// NEEDS REVIEW: AxesManager::getAxisValues skips axes without an encoder, so the analog inputs move into the slots
+	// NEEDS REVIEW 25: AxesManager::getAxisValues skips axes without an encoder, so the analog inputs move into the slots
 	// of the FFB axes. A host game then sees an analog input as the steering axis. Intended?
 	FFBWheel wheel; // default axis: no encoder selected
 	REQUIRE(cmd(wheel, "aintypes", CMDtype::set, 1) == CommandStatus::OK);
@@ -392,7 +392,7 @@ TEST_CASE_FIXTURE(HidMainFixture, "pending HID command replies delay the gamepad
 }
 
 TEST_CASE_FIXTURE(HidMainFixture, "characterization: a report rejected by the USB stack is not sent again while unchanged" * DELETES_FFBHIDMAIN) {
-	// NEEDS REVIEW: send_report ignores the result of tud_hid_report and swaps the buffers anyway. The rejected report
+	// NEEDS REVIEW 35: send_report ignores the result of tud_hid_report and swaps the buffers anyway. The rejected report
 	// counts as sent: the host gets the position only after the next change or the 100 cycle timeout. tud_hid_n_ready
 	// is checked before, so a rejection should be rare. Intended?
 	FFBWheel wheel;
@@ -527,7 +527,7 @@ TEST_CASE_FIXTURE(HidMainFixture, "hidsendspd info lists the FFB and USB rate of
 }
 
 TEST_CASE_FIXTURE(HidMainFixture, "hidsendspd with an index beyond the last rate selects the last rate" *
-		doctest::description("KNOWN ISSUE (crash): FFBHIDMain::setReportRate (FFBHIDMain.cpp:250) clips the index to "
+		doctest::description("KNOWN ISSUE (crash): (bug 37) FFBHIDMain::setReportRate (FFBHIDMain.cpp:250) clips the index to "
 							 "dividers.size() instead of size()-1 and reads ffbrates.dividers[4] of a 4 element std::array "
 							 "(lines 256, 260, 262). Out of bounds: aborts the run with _GLIBCXX_ASSERTIONS (GCC 16 -O0). "
 							 "Skipped like known issue 3") *
@@ -740,7 +740,7 @@ TEST_CASE_FIXTURE(HidMainFixture, "addbtn adds a button source whose buttons are
 }
 
 TEST_CASE_FIXTURE(HidMainFixture, "addbtn adds a button source once" *
-		KNOWN_ISSUE("SelectableInputs::addBtnType (SelectableInputs.cpp:44-46) compares the class id of the existing "
+		KNOWN_ISSUE("(bug 38) SelectableInputs::addBtnType (SelectableInputs.cpp:44-46) compares the class id of the existing "
 					"sources (getInfo().id, LocalButtons 0x21) with the selection id (0): the duplicate check never "
 					"matches and a second LocalButtons is created. The CHECK on the handler count fails") *
 		DELETES_FFBHIDMAIN) {
@@ -759,7 +759,7 @@ TEST_CASE_FIXTURE(HidMainFixture, "addbtn with a get request adds nothing" * DEL
 }
 
 TEST_CASE_FIXTURE(HidMainFixture, "characterization: addbtn does not change the btntypes mask that is saved to flash" * DELETES_FFBHIDMAIN) {
-	// NEEDS REVIEW: SelectableInputs::addBtnType/addAinType create the source without setting its bit in
+	// NEEDS REVIEW 36: SelectableInputs::addBtnType/addAinType create the source without setting its bit in
 	// btnsources/ainsources. saveFlash then stores the old mask: the added source is gone after a restart. Intended?
 	FFBWheel wheel;
 	REQUIRE(cmd(wheel, "addbtn", CMDtype::set, 0) == CommandStatus::OK);
@@ -794,7 +794,7 @@ TEST_CASE_FIXTURE(HidMainFixture, "addain with a get request adds nothing" * DEL
 }
 
 TEST_CASE_FIXTURE(HidMainFixture, "addain adds an analog source once" *
-		KNOWN_ISSUE("SelectableInputs::addAinType (SelectableInputs.cpp:76-78) compares the class id of the existing "
+		KNOWN_ISSUE("(bug 38) SelectableInputs::addAinType (SelectableInputs.cpp:76-78) compares the class id of the existing "
 					"sources (getInfo().id, LocalAnalog 0x41) with the selection id (0): the duplicate check never "
 					"matches and a second LocalAnalog is created. The CHECK on the handler count fails") *
 		DELETES_FFBHIDMAIN) {
@@ -1057,7 +1057,7 @@ TEST_CASE_FIXTURE(HidMainFixture, "a new error pulses the error LED" * DELETES_F
 }
 
 TEST_CASE_FIXTURE(HidMainFixture, "a critical error puts the main class into emergency stop" *
-		KNOWN_ISSUE("FFBHIDMain::errorCallback (FFBHIDMain.cpp:361-364) calls emergencyStop(true) for a new critical "
+		KNOWN_ISSUE("(bug 39) FFBHIDMain::errorCallback (FFBHIDMain.cpp:361-364) calls emergencyStop(true) for a new critical "
 					"error. The parameter means reset (line 297-299: control.emergency = !reset), so a critical error "
 					"RELEASES an active emergency stop instead of triggering one. The first CHECK fails") *
 		DELETES_FFBHIDMAIN) {

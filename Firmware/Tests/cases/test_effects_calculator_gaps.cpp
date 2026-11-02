@@ -88,7 +88,7 @@ TEST_CASE_FIXTURE(SquareFixture, "a square phase of 18000 shifts the wave at 25 
 }
 
 TEST_CASE_FIXTURE(SquareFixture, "square phase is a fraction of the period like for the other periodic effects" *
-		KNOWN_ISSUE("EffectsCalculator.cpp:235 adds the raw phase (0.01 degrees) as milliseconds instead of scaling it with the period. "
+		KNOWN_ISSUE("(bug 10) EffectsCalculator.cpp:235 adds the raw phase (0.01 degrees) as milliseconds instead of scaling it with the period. "
 					"90 degrees on a 1000ms square shifts the wave by 984ms instead of 250ms")) {
 	// 90 degrees = 250ms on a 1000ms period: torque(t) = torque without phase at t + 250ms
 	startSquare(5000, 9000, 1000);
@@ -175,7 +175,7 @@ TEST_CASE_FIXTURE(EffectsThreadFixture, "effects thread waits 500ms after start 
 }
 
 TEST_CASE_FIXTURE(EffectsThreadFixture, "characterization: effects thread broadcasts nothing even with effect monitoring enabled") {
-	// NEEDS REVIEW (PROGRESS.md #9): Run() skips the effectsDetails broadcast with `continue` ("TODO uncomment when stream is ok",
+	// NEEDS REVIEW 9: Run() skips the effectsDetails broadcast with `continue` ("TODO uncomment when stream is ok",
 	// EffectsCalculator.cpp:1211) and the thread is never started (constructor, line 64). The monitorEffect command
 	// is not registered (line 51 commented out). Is the monitoring stream meant to be enabled later?
 	MockCommandInterface observer;

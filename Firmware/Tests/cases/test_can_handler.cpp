@@ -142,7 +142,7 @@ TEST_CASE_FIXTURE(CanFixture, "a destroyed port is no longer found") {
 	CHECK(CANPort::handleToPort(&hcanB) == &stays);
 }
 
-// NEEDS REVIEW: the search loop in handleToPort has no break (CAN.cpp:25-29), so with two ports on the
+// NEEDS REVIEW 23: the search loop in handleToPort has no break (CAN.cpp:25-29), so with two ports on the
 // same handle (a misconfiguration) the port registered last wins. Intended or should the first match win?
 TEST_CASE_FIXTURE(CanFixture, "characterization: with two ports on the same handle the last registered port is returned") {
 	HandlePort first(&hcanA);

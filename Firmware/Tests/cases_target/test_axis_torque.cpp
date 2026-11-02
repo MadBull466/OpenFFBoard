@@ -207,7 +207,7 @@ TEST_CASE_FIXTURE(TorqueFixture, "the clip led does not pulse for a torque withi
 }
 
 TEST_CASE_FIXTURE(TorqueFixture, "the driver never receives a torque above 0x7fff or with the wrong sign when the power is above 0x7fff" *
-		KNOWN_ISSUE("Axis.cpp:498-501, 892-894: power is not limited to 0x7fff (setPower takes any uint16_t), the torque is "
+		KNOWN_ISSUE("(bug 32) Axis.cpp:498-501, 892-894: power is not limited to 0x7fff (setPower takes any uint16_t), the torque is "
 					"clipped to +-power and passed to MotorDriver::turn(int16_t): the torque of 40000 wraps to -25536 (reversed torque). "
 					"The first CHECK fails")) {
 	axisCommand(Axis_commands::power, CMDtype::set, 40000);
@@ -298,7 +298,7 @@ TEST_CASE_FIXTURE(TorqueFixture, "after a USB resume the driver is started and t
 }
 
 TEST_CASE_FIXTURE(TorqueFixture, "after a USB resume the torque is back to full within the documented fade time of 0.5 s" *
-		KNOWN_ISSUE("Axis.cpp:875: the multiplier grows by fadeTime / samplerate per cycle, so startForceFadeIn(start, "
+		KNOWN_ISSUE("(bug 30) Axis.cpp:875: the multiplier grows by fadeTime / samplerate per cycle, so startForceFadeIn(start, "
 					"fadeTime) (documented in Axis.h:357-360 and :473 as duration in s) takes (1 - start) / fadeTime s: the default "
 					"0.5 s fade of usbResume and of the emergency stop reset (start 0) takes 2 s, zeroing (start 0.25) 1.5 s. The first CHECK fails")) {
 	finishFadeIn();
@@ -358,7 +358,7 @@ TEST_CASE_FIXTURE(TorqueFixture, "resetting the emergency stop clears it and fad
 }
 
 TEST_CASE_FIXTURE(TorqueFixture, "after an emergency stop reset the slew rate limiter starts from the zero torque of the stopped motor" *
-		KNOWN_ISSUE("Axis.cpp:917-921: the slew rate limiter compares with metric.previous.torque, which keeps the last "
+		KNOWN_ISSUE("(bug 33) Axis.cpp:917-921: the slew rate limiter compares with metric.previous.torque, which keeps the last "
 					"torque before the emergency stop (emergencyStop only calls drv->turn(0), Axis.cpp:618). After the reset "
 					"the first torque jumps from 0 to the old torque - slewrate (9899 instead of <= 100), bypassing the "
 					"fade-in. The first CHECK fails")) {
@@ -375,7 +375,7 @@ TEST_CASE_FIXTURE(TorqueFixture, "after an emergency stop reset the slew rate li
 }
 
 TEST_CASE_FIXTURE(TorqueFixture, "after a USB resume the slew rate limiter starts from the zero torque of the stopped motor" *
-		KNOWN_ISSUE("Axis.cpp:917-921: same root cause as after an emergency stop reset. usbSuspend only calls drv->turn(0) "
+		KNOWN_ISSUE("(bug 33) Axis.cpp:917-921: same root cause as after an emergency stop reset. usbSuspend only calls drv->turn(0) "
 					"and stopMotor (Axis.cpp:629-634); metric.previous.torque keeps the torque before the suspend. After the "
 					"resume the first torque jumps from 0 to the old torque - slewrate (9899 with slew rate 100) although the "
 					"fade-in restarts at 0. The first CHECK fails")) {
@@ -668,7 +668,7 @@ TEST_CASE_FIXTURE(TorqueFixture, "the scaled gamepad position is the position in
 }
 
 TEST_CASE_FIXTURE(TorqueFixture, "an axis beyond the end of its range reports the largest gamepad position" *
-		KNOWN_ISSUE_UB("Axis.cpp:656: clip(pos_f * 0x7fffffff, ...) is done in float, where 0x7fffffff becomes 2^31; "
+		KNOWN_ISSUE_UB("(bug 36) Axis.cpp:656: clip(pos_f * 0x7fffffff, ...) is done in float, where 0x7fffffff becomes 2^31; "
 					   "for pos_f >= 1 the float 2^31 or more is converted to int32_t (undefined behaviour: ARM saturates to "
 					   "0x7fffffff, x86-64 gives INT_MIN, i.e. the opposite end in the HID report). The first CHECK fails on the host")) {
 	setDeg(500);
@@ -681,7 +681,7 @@ TEST_CASE_FIXTURE(TorqueFixture, "without an encoder the axis angle is 0") {
 }
 
 TEST_CASE_FIXTURE(TorqueFixture, "characterization: scaling to a range of 0 degrees gives 0x7fff and 0.0") {
-	// NEEDS REVIEW: the integer result is the end of the range (0x7fff) but the float result is the center (0.0).
+	// NEEDS REVIEW 33: the integer result is the end of the range (0x7fff) but the float result is the center (0.0).
 	// Not reachable through setDegrees (0 restores the previous range); only through a degrees value of 0 in flash.
 	auto scaled = axis().scaleEncValue(123.0f, 0);
 	CHECK(scaled.first == 0x7fff);
@@ -1204,7 +1204,7 @@ TEST_CASE_FIXTURE(TorqueFixture, "with hands-off detection enabled a small game 
 }
 
 TEST_CASE_FIXTURE(TorqueFixture, "hands-off detection cuts the torque when the wheel spins faster than the speed threshold" *
-		KNOWN_ISSUE("Axis.cpp:1346-1349 sets handsOff ('Safety override: if speed is very high, cut torque') but handsOff is "
+		KNOWN_ISSUE("(bug 35) Axis.cpp:1346-1349 sets handsOff ('Safety override: if speed is very high, cut torque') but handsOff is "
 					"never read: updateTorque does not use it. The first CHECK fails")) {
 	axisCommand(Axis_commands::handsoff, CMDtype::set, 1);
 	useLargeRange();
@@ -1214,7 +1214,7 @@ TEST_CASE_FIXTURE(TorqueFixture, "hands-off detection cuts the torque when the w
 }
 
 TEST_CASE_FIXTURE(TorqueFixture, "hands-off detection reduces the game torque after 500 ms without hands on the wheel" *
-		KNOWN_ISSUE("Axis.cpp:1377-1382 detects hands off (acceleration std dev below the threshold for 500 ms with a game "
+		KNOWN_ISSUE("(bug 35) Axis.cpp:1377-1382 detects hands off (acceleration std dev below the threshold for 500 ms with a game "
 					"torque above 1000) but handsOff is never used (Axis.h:455: 'updates the torque accordingly'). "
 					"The first CHECK fails")) {
 	axisCommand(Axis_commands::handsoff, CMDtype::set, 1);

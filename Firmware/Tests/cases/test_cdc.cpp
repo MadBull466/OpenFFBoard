@@ -163,7 +163,7 @@ TEST_CASE_FIXTURE(CdcFixture, "a second reply waits until the running transfer i
 	CHECK(HostUsb::state().cdcTx == "firstsecond");
 }
 
-TEST_CASE_FIXTURE(CdcFixture, "a reply longer than 65535 bytes is sent in fifo sized parts" * KNOWN_ISSUE("CDCcomm::cdcSend limits the write with std::min<uint16_t>(reply->length(), bufferRemaining) (CDCcomm.cpp:69). The length is truncated to 16 bit: a 65546 byte reply sends only 10 bytes, the remainder of exactly 65536 bytes is truncated to 0. The retry from cdcFinished writes 0 bytes without a flush (usb_busy_retry is set), so no tx complete follows, cdcSems[0] is never given back and every later cdcSend blocks: CDC output is dead. Same for any length that is a multiple of 65536")) {
+TEST_CASE_FIXTURE(CdcFixture, "a reply longer than 65535 bytes is sent in fifo sized parts" * KNOWN_ISSUE("(bug 20) CDCcomm::cdcSend limits the write with std::min<uint16_t>(reply->length(), bufferRemaining) (CDCcomm.cpp:69). The length is truncated to 16 bit: a 65546 byte reply sends only 10 bytes, the remainder of exactly 65536 bytes is truncated to 0. The retry from cdcFinished writes 0 bytes without a flush (usb_busy_retry is set), so no tx complete follows, cdcSems[0] is never given back and every later cdcSend blocks: CDC output is dead. Same for any length that is a multiple of 65536")) {
 	std::string reply(65536 + 10, 'x');
 	CHECK(CDCcomm::cdcSend(&reply, 0) == 1024); // Free space of the fake fifo (actual: 10)
 	CDCcomm::cdcFinished(0);					// Retry with the remainder

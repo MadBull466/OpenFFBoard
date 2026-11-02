@@ -240,7 +240,7 @@ TEST_CASE_FIXTURE(HidGapFixture, "broadcast of a command unknown to the class is
 }
 
 TEST_CASE_FIXTURE(HidGapFixture, "characterization: a broadcast rejected by one handler leaves the command of an earlier handler pending") {
-	// NEEDS REVIEW: hidCmdCallback returns on the first handler that does not know the command, after the commands
+	// NEEDS REVIEW 7: hidCmdCallback returns on the first handler that does not know the command, after the commands
 	// for earlier handlers of the class were already queued, without waking the command thread. They are executed
 	// together with the next valid report. Should a rejected broadcast execute nothing (or all valid parts at once)?
 	HidGapHandler sameClass{CLSID_CUSTOM, 1}; // registered after mock, does not know MockCmd::value

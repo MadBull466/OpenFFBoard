@@ -403,7 +403,7 @@ TEST_CASE_FIXTURE(UsbFixture, "a string longer than the descriptor buffer is cut
 }
 
 TEST_CASE_FIXTURE(UsbFixture, "a string of 256 characters is cut to 31 characters" *
-	KNOWN_ISSUE("USBdevice.cpp:87 std::min<uint8_t>(USB_STRING_DESC_BUF_SIZE-1, field.length()) truncates the length to "
+	KNOWN_ISSUE("(bug 44) USBdevice.cpp:87 std::min<uint8_t>(USB_STRING_DESC_BUF_SIZE-1, field.length()) truncates the length to "
 				"8 bit before the comparison: a 256 character string becomes 0 characters (latent: no current string "
 				"has 256 characters or more)")) {
 	usb_string_desc_t longStrings{0x0409, "Maker", std::string(256, 'x'), {}};

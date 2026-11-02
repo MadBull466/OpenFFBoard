@@ -195,7 +195,7 @@ TEST_CASE_FIXTURE(TargetFixture, "a frame of another CAN id that passes another 
 }
 
 TEST_CASE_FIXTURE(TargetFixture, "an extended frame whose low 11 bits equal the CAN id changes no axis" *
-				  KNOWN_ISSUE("canRxPendCallback compares only (id & 0x7FF) with the CAN id and does not check "
+				  KNOWN_ISSUE("(bug 59) canRxPendCallback compares only (id & 0x7FF) with the CAN id and does not check "
 							  "msg.header.extId (CanAnalog.cpp:110-121): an extended frame accepted by any other filter "
 							  "of the port (frames go to every CanHandler) is decoded as axis values. The CHECK on the "
 							  "axis value fails")) {
@@ -340,7 +340,7 @@ TEST_CASE_FIXTURE(TargetFixture, "with 5 axes the canid command keeps the second
 }
 
 TEST_CASE_FIXTURE(TargetFixture, "with 8 axes the canid command accepts the id 0x7FE for two frames" *
-				  KNOWN_ISSUE("the canid limit is 0x7FF - axes/4 (CanAnalog.cpp:97) instead of 0x7FF - (packets - 1): "
+				  KNOWN_ISSUE("(bug 60) the canid limit is 0x7FF - axes/4 (CanAnalog.cpp:97) instead of 0x7FF - (packets - 1): "
 							  "with 8 axes (2 frames, ids canId and canId+1) the id is limited to 0x7FD, so 0x7FE can not be "
 							  "used (with 4 axes 0x7FF is likewise refused). The CHECK on the id fails")) {
 	CanAnalog8 analog;
@@ -352,7 +352,7 @@ TEST_CASE_FIXTURE(TargetFixture, "with 8 axes the canid command accepts the id 0
 }
 
 TEST_CASE_FIXTURE(TargetFixture, "raising the amount of axes keeps the id of the last frame within 11 bits" *
-				  KNOWN_ISSUE("setAxisNum does not re-check the CAN id (only the canid command clips it, CanAnalog.cpp:97): "
+				  KNOWN_ISSUE("(bug 61) setAxisNum does not re-check the CAN id (only the canid command clips it, CanAnalog.cpp:97): "
 							  "canid 0x7FF with 1 axis, then amount 8 needs a second frame with id 0x800, which no standard "
 							  "frame can have (the received id is masked with 0x7FF), so the axes 5 to 8 are never "
 							  "received. The CHECK on the id fails")) {

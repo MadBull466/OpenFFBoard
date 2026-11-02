@@ -78,7 +78,7 @@ TEST_CASE_FIXTURE(FfbFixture, "set effect with another effect type resets the st
 }
 
 TEST_CASE_FIXTURE(FfbFixture, "set effect with another effect type sets up the filters of the new type" *
-		KNOWN_ISSUE("HidFFB.cpp:301-307 calls set_filters before the new type is stored, so the filters are set up for the previous type. "
+		KNOWN_ISSUE("(bug 11) HidFFB.cpp:301-307 calls set_filters before the new type is stored, so the filters are set up for the previous type. "
 					"A constant force changed to a damper keeps the 500Hz constant force filter")) {
 	uint8_t index = host.allocateEffect(FFB_EFFECT_CONSTANT);
 	host.setEffect(index, FFB_EFFECT_CONSTANT);
@@ -92,7 +92,7 @@ TEST_CASE_FIXTURE(FfbFixture, "set effect with another effect type sets up the f
 }
 
 TEST_CASE_FIXTURE(FfbFixture, "a running effect changed to a damper by set effect has damper filters" *
-		KNOWN_ISSUE("HidFFB.cpp:301-307: set_filters runs with the previous type (sine: no filters) and the start at line 423 skips "
+		KNOWN_ISSUE("(bug 12) HidFFB.cpp:301-307: set_filters runs with the previous type (sine: no filters) and the start at line 423 skips "
 					"set_filters for a running effect. The damper then calls process() on a null filter (EffectsCalculator.cpp:425): "
 					"null pointer dereference (UB): SIGSEGV on the host; undefined on the target (address 0 aliases flash: "
 					"may output garbage torque or corrupt memory instead of faulting)")) {

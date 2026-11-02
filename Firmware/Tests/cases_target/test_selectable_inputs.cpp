@@ -159,7 +159,7 @@ TEST_CASE_FIXTURE(InputsFixture, "two sources of 32 buttons fill all 64 buttons"
 }
 
 TEST_CASE_FIXTURE(InputsFixture, "buttons of a source beyond the 64th button do not change the first buttons" *
-									  KNOWN_ISSUE_UB("getButtonValues shifts the buttons of each source by the sum of the previous counts "
+									  KNOWN_ISSUE_UB("(bug 73) getButtonValues shifts the buttons of each source by the sum of the previous counts "
 													 "(SelectableInputs.cpp:95) without a limit: with 64 previous buttons the shift is 64, "
 													 "undefined for uint64_t (x86 shifts by 0 and ORs the buttons onto buttons 1-8, ARM gives 0). "
 													 "The uint8_t shift also wraps above 255 buttons. The CHECK fails on x86")) {

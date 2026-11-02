@@ -109,7 +109,7 @@ TEST_CASE_FIXTURE(SpiButtonsFixture, "SPI buttons reserve the first free CS pin 
 }
 
 TEST_CASE_FIXTURE(SpiButtonsFixture, "SPI buttons do not use a CS pin that another device of the port has reserved" *
-										  KNOWN_ISSUE("The constructor reserves the first free CS pin (SPIButtons.cpp:48), but restoreFlash -> "
+										  KNOWN_ISSUE("(bug 68) The constructor reserves the first free CS pin (SPIButtons.cpp:48), but restoreFlash -> "
 													  "setConfig frees it and selects the stored CS number (default 1 = pin 0) without checking that "
 													  "the pin is free (SPIButtons.cpp:94-100, 'TODO check if pin is free' at line 46): both devices "
 													  "drive the same CS pin, and deleting the buttons frees the pin of the other device. The first "
@@ -149,7 +149,7 @@ TEST_CASE_FIXTURE(SpiButtonsFixture, "SPI buttons 1 are creatable while the exte
 }
 
 TEST_CASE_FIXTURE(SpiButtonsFixture, "SPI buttons are not creatable while every CS pin of the external SPI port is in use" *
-										  KNOWN_ISSUE("SPI_Buttons_1::isCreatable (SPIButtons.cpp:29-31) uses SPIPort::hasFreePins, which checks "
+										  KNOWN_ISSUE("(bug 67) SPI_Buttons_1::isCreatable (SPIButtons.cpp:29-31) uses SPIPort::hasFreePins, which checks "
 													  "getCsPins().size() (all pins of the port, SPI.cpp:220-222) instead of the free pins: the "
 													  "source is offered while no CS pin is free, and its constructor then reads "
 													  "getFreeCsPins()[0] of an empty vector (SPIButtons.cpp:48). The CHECK fails")) {
@@ -427,7 +427,7 @@ TEST_CASE_FIXTURE(SpiButtonsFixture, "a mode change sets the cut flag of the mod
 }
 
 TEST_CASE_FIXTURE(SpiButtonsFixture, "btncut set cuts the extra bits of 74xx165 buttons on the right" *
-										  KNOWN_ISSUE("setConfig stores the requested cutRight and then overwrites it with the mode preset "
+										  KNOWN_ISSUE("(bug 75) setConfig stores the requested cutRight and then overwrites it with the mode preset "
 													  "(TM: true, 74xx165: false, SPIButtons.cpp:104, 110), so the registered btncut set "
 													  "(SPIButtons.cpp:219-224) never has an effect. The CHECK on the read buttons fails")) {
 	SPI_Buttons_1 buttons;
@@ -588,7 +588,7 @@ TEST_CASE_FIXTURE(SpiButtonsFixture, "a saved configuration is restored unchange
 }
 
 TEST_CASE_FIXTURE(SpiButtonsFixture, "a button count set to 0 is restored as the count the source reported before saving" *
-										  KNOWN_ISSUE("btnnum accepts 0 (SPIButtons.cpp:91 only limits the maximum), but saveFlash stores "
+										  KNOWN_ISSUE("(bug 69) btnnum accepts 0 (SPIButtons.cpp:91 only limits the maximum), but saveFlash stores "
 													  "(numButtons-1) & 0x3F (SPIButtons.cpp:278): 0 is saved as 63 and restored as 64 buttons. "
 													  "CanButtons and PCF8574Buttons limit the count to 1..64. The CHECK after the restore fails")) {
 	int64_t before = -1;

@@ -119,7 +119,7 @@ TEST_CASE_FIXTURE(HidHandlerFixture, "destroying a handler that is not registere
 	CHECK(UsbHidHandler::globalHidHandler == &registered);
 }
 
-TEST_CASE_FIXTURE(HidHandlerFixture, "a registered handler unregisters when destroyed" * KNOWN_ISSUE("UsbHidHandler::~UsbHidHandler does not clear globalHidHandler (UsbHidHandler.cpp:19-21). Reports received afterwards are passed to a destroyed object by the tinyusb callbacks (global_callbacks.cpp:317, 332, 344). Same root cause as the HidFFB case `handler unregisters when destroyed`")) {
+TEST_CASE_FIXTURE(HidHandlerFixture, "a registered handler unregisters when destroyed" * KNOWN_ISSUE("(bug 19) UsbHidHandler::~UsbHidHandler does not clear globalHidHandler (UsbHidHandler.cpp:19-21). Reports received afterwards are passed to a destroyed object by the tinyusb callbacks (global_callbacks.cpp:317, 332, 344). Same root cause as the HidFFB case `handler unregisters when destroyed`")) {
 	{
 		UsbHidHandler handler;
 		handler.registerHidCallback();

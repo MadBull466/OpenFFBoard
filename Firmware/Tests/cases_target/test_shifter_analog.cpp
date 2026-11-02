@@ -295,7 +295,7 @@ TEST_CASE_FIXTURE(ShifterFixture, "a command id that is not a shifter command is
 }
 
 TEST_CASE_FIXTURE(ShifterFixture, "xchan accepts only the analog pins 1 to 6" *
-									   KNOWN_ISSUE("xchan / ychan store any value (ShifterAnalog.cpp:243-246, handleGetSet), and updateAdc "
+									   KNOWN_ISSUE("(bug 70) xchan / ychan store any value (ShifterAnalog.cpp:243-246, handleGetSet), and updateAdc "
 												   "indexes the ADC1 DMA buffer with x_chan-1 unchecked (ShifterAnalog.cpp:55-56): channel 0 "
 												   "reads ADC1_BUF[-1], channels 7/8 read the temperature and VREFINT ranks, 9 and above read "
 												   "past the 8 element buffer. The CHECK after setting 0 fails")) {
@@ -388,7 +388,7 @@ TEST_CASE_FIXTURE(ShifterFixture, "a G27 shifter ignores the local reverse pin")
 }
 
 TEST_CASE_FIXTURE(ShifterFixture, "cspin selects the CS pin of the G27 button reads" *
-									   KNOWN_ISSUE("The cspin command only stores cs_pin_num (ShifterAnalog.cpp:241-242, handleGetSet); "
+									   KNOWN_ISSUE("(bug 71) The cspin command only stores cs_pin_num (ShifterAnalog.cpp:241-242, handleGetSet); "
 												   "setCSPin (ShifterAnalog.cpp:204-214) is never called and the G27 client always uses the "
 												   "first free CS pin (line 197). The CHECK on the selected CS pin fails")) {
 	ShifterAnalog shifter;

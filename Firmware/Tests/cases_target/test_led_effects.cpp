@@ -220,7 +220,7 @@ TEST_CASE_FIXTURE(LedFixture, "without updateLeds a pulse never ends") {
 }
 
 TEST_CASE_FIXTURE(LedFixture, "a sys LED pulse started 16 ms before the 32 bit tick wraps around lasts 25 ms" *
-		  KNOWN_ISSUE("ledEffects.cpp:85 compares HAL_GetTick() > tick + period: tick + period wraps to a small value, so the "
+		  KNOWN_ISSUE("(bug 48) ledEffects.cpp:85 compares HAL_GetTick() > tick + period: tick + period wraps to a small value, so the "
 					  "pulse ends at the next update (wrap-safe: HAL_GetTick() - tick > period)")) {
 	HostPlatform::setTimeMs(0xFFFFFFF0ull);
 	REQUIRE(HAL_GetTick() == 0xFFFFFFF0u);

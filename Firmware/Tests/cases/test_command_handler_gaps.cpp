@@ -281,7 +281,7 @@ TEST_CASE_FIXTURE(FirmwareFixture, "overriding the flags of an unregistered comm
 }
 
 TEST_CASE_FIXTURE(FirmwareFixture, "a command registered after a flag override gets its name and the masked flags" *
-		KNOWN_ISSUE("CommandHandler::overrideCommandFlags_INT creates the placeholder without CMDFLAG_EXTOVERRIDE, so registerCommand_INT treats it as already present and never registers the real command (CommandHandler.cpp:534, 560)")) {
+		KNOWN_ISSUE("(bug 13) CommandHandler::overrideCommandFlags_INT creates the placeholder without CMDFLAG_EXTOVERRIDE, so registerCommand_INT treats it as already present and never registers the real command (CommandHandler.cpp:534, 560)")) {
 	BareHandler bare;
 	bare.overrideCommandFlags(BareCmd::rw, CMDFLAG_GET);
 	bare.registerCommand("rw", BareCmd::rw, "Read write", CMDFLAG_GET | CMDFLAG_SET);
@@ -296,7 +296,7 @@ TEST_CASE_FIXTURE(FirmwareFixture, "a command registered after a flag override g
 }
 
 TEST_CASE_FIXTURE(FirmwareFixture, "registering an overridden command again keeps the override mask" *
-		KNOWN_ISSUE("registerCommand_INT should honor the flag mask of an override, but `flags &= flags | CMDFLAG_EXTOVERRIDE` (CommandHandler.cpp:536) does not change the flags. The new registration gets its own flags unmasked")) {
+		KNOWN_ISSUE("(bug 21) registerCommand_INT should honor the flag mask of an override, but `flags &= flags | CMDFLAG_EXTOVERRIDE` (CommandHandler.cpp:536) does not change the flags. The new registration gets its own flags unmasked")) {
 	// Independent of the placeholder defect: the command is registered before the override
 	BareHandler bare;
 	bare.registerCommand("rw", BareCmd::rw, "Read write", CMDFLAG_GET | CMDFLAG_SET);

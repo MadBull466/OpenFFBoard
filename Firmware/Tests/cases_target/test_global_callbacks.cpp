@@ -858,7 +858,7 @@ TEST_CASE_FIXTURE(CallbackFixture, "USB mount and resume resume the main class a
 }
 
 TEST_CASE_FIXTURE(CallbackFixture, "a USB bus suspend reported by TinyUSB suspends the main class" *
-	KNOWN_ISSUE("global_callbacks.cpp:365 defines tud_suspend_cb() without the bool parameter of TinyUSB's "
+	KNOWN_ISSUE("(bug 42) global_callbacks.cpp:365 defines tud_suspend_cb() without the bool parameter of TinyUSB's "
 				"tud_suspend_cb(bool remote_wakeup_en) (usbd.h:162, called at usbd.c:659): a C++ overload, so TinyUSB "
 				"keeps its empty weak default and the main class is never suspended on a bus suspend")) {
 	RecordingMain main;

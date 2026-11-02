@@ -162,7 +162,7 @@ TEST_CASE_FIXTURE(TargetFixture, "with a source but no options the processing re
 }
 
 TEST_CASE("a processing created without a command handler can be used without commands" * doctest::skip() *
-		  doctest::description("KNOWN ISSUE (crash): the constructor documents cmdHandler nullptr as 'disable commands', but "
+		  doctest::description("KNOWN ISSUE (crash): (bug 64) the constructor documents cmdHandler nullptr as 'disable commands', but "
 							   "registers values (AnalogAxisProcessing.cpp:44-45, when a source is given) and rawval (:47-48) "
 							   "without checking cmdHandler: null pointer call, SIGSEGV. Latent: every firmware caller passes "
 							   "itself. Skipped")) {
@@ -616,7 +616,7 @@ TEST_CASE_FIXTURE(TargetFixture, "the min and max commands reject a plain get an
 }
 
 TEST_CASE_FIXTURE(TargetFixture, "the min and max commands reject the axis number equal to the axis amount" * doctest::skip() *
-				  doctest::description("KNOWN ISSUE (crash): the address check is `cmd.adr <= axisAmount` "
+				  doctest::description("KNOWN ISSUE (crash): (bug 63) the address check is `cmd.adr <= axisAmount` "
 									   "(AnalogAxisProcessing.cpp:174/187) while minMaxVals has axisAmount entries: "
 									   "min/max getat/setat with adr == axisAmount read / write one MinMaxPair past the "
 									   "vector (heap out of bounds; aborts the run with _GLIBCXX_ASSERTIONS). Skipped")) {

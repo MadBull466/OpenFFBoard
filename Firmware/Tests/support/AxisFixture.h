@@ -46,11 +46,19 @@
  * undefined behaviour (ASan: new-delete-type-mismatch in ~FFBHIDMain). The test cases run and must pass in normal
  * builds; they are skipped in sanitizer builds. The defect itself is described by the KNOWN_ISSUE case
  * "the HID gamepad report of a main class is deleted through a base class with a virtual destructor".
+ *
+ * The marker sets no description (a doctest description replaces an earlier one, e.g. the text of KNOWN_ISSUE or
+ * of a skipped crash case) and in normal builds changes nothing (HostTestNoDecorator; doctest::skip(false) would
+ * un-skip a case that is skipped for another reason).
  */
+struct HostTestNoDecorator {
+	void fill(doctest::detail::TestCase &) const {}
+	void fill(doctest::detail::TestSuite &) const {}
+};
 #ifdef HOSTTEST_SANITIZERS
-#define DELETES_FFBHIDMAIN doctest::description("Skipped with sanitizers: deleting an FFBHIDMain is undefined behaviour (HID_GamepadReport_base has no virtual destructor)") * doctest::skip()
+#define DELETES_FFBHIDMAIN doctest::skip()
 #else
-#define DELETES_FFBHIDMAIN doctest::description("Deletes an FFBHIDMain: undefined behaviour (HID_GamepadReport_base has no virtual destructor), skipped with sanitizers")
+#define DELETES_FFBHIDMAIN HostTestNoDecorator()
 #endif
 
 /**

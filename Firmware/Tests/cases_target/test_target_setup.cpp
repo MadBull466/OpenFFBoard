@@ -90,7 +90,7 @@ TEST_CASE_FIXTURE(AxisFixture, "an emergency stop sends zero torque and puts the
 }
 
 TEST_CASE_FIXTURE(AxisFixture, "an axis restored from empty flash applies its default power of 5000 and effect ratio of 204" *
-		KNOWN_ISSUE("Axis::torqueScaler and effectRatioScaler stay 0 until power / fxratio are set by command or "
+		KNOWN_ISSUE("(bug 23) Axis::torqueScaler and effectRatioScaler stay 0 until power / fxratio are set by command or "
 					"restored from flash, although power reads 5000 and fxratio 204. No torque is output. "
 					"The first CHECK on the driver torque fails")) {
 	uint8_t cf = startEffect(FFB_EFFECT_CONSTANT);
@@ -169,7 +169,7 @@ TEST_CASE_FIXTURE(TargetFixture, "pressing button A of an FFBWheel zeros the axi
 }
 
 TEST_CASE("the HID gamepad report of a main class is deleted through a base class with a virtual destructor" *
-		KNOWN_ISSUE("FFBHIDMain owns its HID_GamepadReport<T> as unique_ptr<HID_GamepadReport_base>, which has no "
+		KNOWN_ISSUE("(bug 24) FFBHIDMain owns its HID_GamepadReport<T> as unique_ptr<HID_GamepadReport_base>, which has no "
 					"virtual destructor: deleting a main class is undefined behaviour. The first CHECK fails")) {
 	CHECK(std::has_virtual_destructor<HID_GamepadReport_base>::value);
 }

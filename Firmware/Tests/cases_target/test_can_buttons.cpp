@@ -179,7 +179,7 @@ TEST_CASE_FIXTURE(CanButtonsFixture, "a frame for another CAN handler with anoth
 }
 
 TEST_CASE_FIXTURE(CanButtonsFixture, "an extended frame whose low 11 bits equal the CAN id is ignored" *
-										  KNOWN_ISSUE("canRxPendCallback (CanButtons.cpp:137-138) masks the id to 11 bits and does not check "
+										  KNOWN_ISSUE("(bug 72) canRxPendCallback (CanButtons.cpp:137-138) masks the id to 11 bits and does not check "
 													  "header.extId: an extended (29 bit) frame for another CAN handler (every handler sees every "
 													  "accepted frame) with id 0x10064 sets the buttons of CAN id 100. The CHECK fails")) {
 	CanButtons buttons;

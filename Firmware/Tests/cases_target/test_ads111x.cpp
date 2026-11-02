@@ -291,7 +291,7 @@ TEST_CASE_FIXTURE(AdsFixture, "setting the thresholds starts the write of the lo
 }
 
 TEST_CASE_FIXTURE(AdsFixture, "a blocking register read returns the register value" *
-				  KNOWN_ISSUE("readReg returns the two bytes in bus order without swapping them (ADS111X.cpp:24-29), "
+				  KNOWN_ISSUE("(bug 62) readReg returns the two bytes in bus order without swapping them (ADS111X.cpp:24-29), "
 							  "unlike writeReg / writeRegIT (__REV16) and the conversion path (i2cRxCompleted): 0x8583 "
 							  "reads as 0x8385. Latent: readReg has no caller. The CHECK on the value fails")) {
 	ADS111X ads(i2cport);
@@ -663,7 +663,7 @@ TEST_CASE_FIXTURE(AdsFixture, "deleting the source during a transfer releases th
 }
 
 TEST_CASE_FIXTURE(AdsFixture, "lowering the number of inputs during a conversion read is safe" * doctest::skip() *
-				  doctest::description("KNOWN ISSUE (crash): setAxes resizes rawbuf (ADS111X.cpp:336-341) while the thread "
+				  doctest::description("KNOWN ISSUE (crash): (bug 65) setAxes resizes rawbuf (ADS111X.cpp:336-341) while the thread "
 									   "is in a cycle; i2cRxCompleted then writes rawbuf[lastAxis] with the old index "
 									   "(ADS111X.cpp:296): out of bounds (aborts the run with _GLIBCXX_ASSERTIONS; on the "
 									   "target a write into the vector's spare capacity). Reachable with the inputs or diff "

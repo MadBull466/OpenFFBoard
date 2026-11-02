@@ -165,7 +165,7 @@ TEST_CASE("discard removes bytes and clear empties the buffer") {
 	CHECK(ringBufferLen(&r.rb) == 0);
 }
 
-// NEEDS REVIEW: the C functions do not check the free space. Appending to a full buffer moves the write
+// NEEDS REVIEW 20: the C functions do not check the free space. Appending to a full buffer moves the write
 // position onto the read position, so all stored bytes are lost and the buffer looks empty. The only user
 // (RingBufferWrapper) clamps to the free space first, so this is reachable only through the raw C API.
 TEST_CASE("characterization: appending one byte to a full raw buffer makes it look empty") {
@@ -202,7 +202,7 @@ TEST_CASE("a wrapper with a size that is not a power of two is invalid") {
 }
 
 TEST_CASE("an invalid wrapper created with a size is empty, has no capacity and can be destroyed" * doctest::skip() *
-		doctest::description("KNOWN ISSUE (undefined behaviour): RingBufferWrapper(uint32_t) returns early for sizes that are not a power of two (ringbufferwrapper.cpp:29-34) without initialising the RingBuffer member. head, tail, sizeMask and data stay indeterminate, so capacity() and freeSpace() return garbage, and ~RingBufferWrapper deletes the indeterminate data pointer (ringbufferwrapper.cpp:45-50). Skipped in every build: the test itself would read indeterminate values and can crash the run. Unreachable in the firmware today: CmdParser is only constructed with 512 and 1024/4096")) {
+		doctest::description("KNOWN ISSUE (undefined behaviour): (bug 18) RingBufferWrapper(uint32_t) returns early for sizes that are not a power of two (ringbufferwrapper.cpp:29-34) without initialising the RingBuffer member. head, tail, sizeMask and data stay indeterminate, so capacity() and freeSpace() return garbage, and ~RingBufferWrapper deletes the indeterminate data pointer (ringbufferwrapper.cpp:45-50). Skipped in every build: the test itself would read indeterminate values and can crash the run. Unreachable in the firmware today: CmdParser is only constructed with 512 and 1024/4096")) {
 	{
 		RingBufferWrapper w(6);
 		CHECK_FALSE(w.isValid());

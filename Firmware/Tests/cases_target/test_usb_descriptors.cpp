@@ -563,7 +563,7 @@ TEST_CASE("the device descriptor has a 64 byte control endpoint, one configurati
 }
 
 TEST_CASE("the device descriptor uses the interface association class codes 0xEF/2/1 for its IAD composite configurations" *
-		  KNOWN_ISSUE("usb_descriptors.cpp:25 bDeviceClass is 0 (TUSB_CLASS_UNSPECIFIED) with subclass 2 and protocol 1; USB 2.0 9.6.1 "
+		  KNOWN_ISSUE("(bug 46) usb_descriptors.cpp:25 bDeviceClass is 0 (TUSB_CLASS_UNSPECIFIED) with subclass 2 and protocol 1; USB 2.0 9.6.1 "
 					  "requires subclass 0 for class 0, the IAD ECN requires class 0xEF")) {
 	// KNOWN_ISSUE: the comment at usb_descriptors.cpp:24 states the IAD rule, but bDeviceClass is TUSB_CLASS_UNSPECIFIED (0).
 	// IAD ECN / USB 2.0 9.6.1: with class 0 the subclass and protocol must also be 0; IAD devices use class 0xEF (misc),
@@ -1079,7 +1079,7 @@ TEST_CASE_FIXTURE(DescriptorFixture, "string index 7 and above have no string") 
 }
 
 TEST_CASE_FIXTURE(DescriptorFixture, "the interface strings end with the last 4 characters of the serial number in brackets" *
-		  KNOWN_ISSUE("USBdevice.cpp:81 appends the first 4 decimal digits of UID word 0, USBdevice.h:24 documents the last n "
+		  KNOWN_ISSUE("(bug 47) USBdevice.cpp:81 appends the first 4 decimal digits of UID word 0, USBdevice.h:24 documents the last n "
 					  "characters of the serial number")) {
 	registerDevice(usb_cdc_conf);
 	const std::string serial = decodeString(tud_descriptor_string_cb(3, 0x0409));

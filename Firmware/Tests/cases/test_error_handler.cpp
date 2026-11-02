@@ -123,7 +123,7 @@ TEST_CASE("toString prints no info for an empty info text") {
 }
 
 TEST_CASE("characterization: systemError and cmdNotFound share the error code 5") {
-	// NEEDS REVIEW: ErrorHandler.h defines systemError = 5 and cmdNotFound = 5. Clearing one by code
+	// NEEDS REVIEW 10: ErrorHandler.h defines systemError = 5 and cmdNotFound = 5. Clearing one by code
 	// also clears the other and both print as "5:...". Intended alias or numbering mistake?
 	CHECK(static_cast<uint32_t>(ErrorCode::systemError) == 5);
 	CHECK(static_cast<uint32_t>(ErrorCode::cmdNotFound) == 5);
@@ -275,7 +275,7 @@ TEST_CASE_FIXTURE(ErrorFixture, "clearing an error notifies every handler with t
 }
 
 TEST_CASE_FIXTURE(ErrorFixture, "characterization: clearing an error that is not active still notifies the handlers") {
-	// NEEDS REVIEW: clearError(const Error&) calls the callbacks unconditionally, also if the error was never set
+	// NEEDS REVIEW 11: clearError(const Error&) calls the callbacks unconditionally, also if the error was never set
 	RecordingErrorHandler rec;
 	ErrorHandler::clearError(overTemp);
 	REQUIRE(rec.calls.size() == 1);
@@ -291,7 +291,7 @@ TEST_CASE_FIXTURE(ErrorFixture, "clearing an error that is not active keeps the 
 }
 
 TEST_CASE_FIXTURE(ErrorFixture, "the other errors stay listed after one error is cleared" *
-						KNOWN_ISSUE("sortErrors() sorts the empty slots (code 0) before the active errors, "
+						KNOWN_ISSUE("(bug 7) sortErrors() sorts the empty slots (code 0) before the active errors, "
 									"getErrors() then stops at the first slot and returns an empty list")) {
 	ErrorHandler::addError(underVoltage);
 	ErrorHandler::addError(overTemp);
@@ -334,7 +334,7 @@ TEST_CASE_FIXTURE(ErrorFixture, "clearing a code that is not active does not not
 }
 
 TEST_CASE_FIXTURE(ErrorFixture, "clearing by code tells the handlers which error was cleared" *
-						KNOWN_ISSUE("clearError(ErrorCode) empties the slot first and then passes the emptied "
+						KNOWN_ISSUE("(bug 8) clearError(ErrorCode) empties the slot first and then passes the emptied "
 									"Error() to the callbacks (ErrorHandler.cpp:121-123)")) {
 	ErrorHandler::addError(overTemp);
 	RecordingErrorHandler rec;
@@ -366,7 +366,7 @@ TEST_CASE_FIXTURE(ErrorFixture, "clearTemp without temporary errors keeps all er
 }
 
 TEST_CASE_FIXTURE(ErrorFixture, "characterization: clearTemp does not notify the handlers") {
-	// NEEDS REVIEW: clearError() and clearAll() report cleared errors to the handlers, clearTemp() does not
+	// NEEDS REVIEW 12: clearError() and clearAll() report cleared errors to the handlers, clearTemp() does not
 	ErrorHandler::addError(encoderTemp);
 	RecordingErrorHandler rec;
 	ErrorHandler::clearTemp();
@@ -375,7 +375,7 @@ TEST_CASE_FIXTURE(ErrorFixture, "characterization: clearTemp does not notify the
 }
 
 TEST_CASE_FIXTURE(ErrorFixture, "clearTemp removes all temporary errors" *
-						KNOWN_ISSUE("clearTemp() leaves the loop after the first temporary error (break in "
+						KNOWN_ISSUE("(bug 9) clearTemp() leaves the loop after the first temporary error (break in "
 									"ErrorHandler.cpp:71) although it is documented to clear the temporary errors")) {
 	const Error otherTemp(ErrorCode::encoderReversed, ErrorType::temporary, "rev");
 	ErrorHandler::addError(encoderTemp);
@@ -414,7 +414,7 @@ TEST_CASE_FIXTURE(ErrorFixture, "clearAll reports every active error as cleared 
 }
 
 TEST_CASE_FIXTURE(ErrorFixture, "characterization: clearAll also calls the handlers for every empty slot") {
-	// NEEDS REVIEW: the callback is called ERRORHANDLER_MAXERRORS times per handler, with Error() for unused slots
+	// NEEDS REVIEW 13: the callback is called ERRORHANDLER_MAXERRORS times per handler, with Error() for unused slots
 	ErrorHandler::addError(overTemp);
 	RecordingErrorHandler rec;
 	ErrorHandler::clearAll();

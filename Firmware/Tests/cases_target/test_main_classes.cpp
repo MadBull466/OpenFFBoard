@@ -334,7 +334,7 @@ TEST_CASE_FIXTURE(MainClassFixture, "after usbInit a constant force in direction
 TEST_CASE_FIXTURE(MainClassFixture, "characterization: without usbInit the wheel treats direction 90 deg as a linear X direction of half strength" * DELETES_FFBHIDMAIN) {
 	// Shows that usbInit matters: with the HidFFB default mask (0x02) the direction enable bit 0x04 sent by the host is
 	// ignored and the X magnitude becomes (9000 - 18000) / 18000 = -0.5 (HidFFB.cpp set_effect).
-	// NEEDS REVIEW: only reachable if the main class is used before usbInit (cppmain calls usbInit at startup).
+	// NEEDS REVIEW 37: only reachable if the main class is used before usbInit (cppmain calls usbInit at startup).
 	FFBWheel wheel;
 
 	CHECK_NEAR(wheelTorqueForEastForce(wheel), -5000, 2);

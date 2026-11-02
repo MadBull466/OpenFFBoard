@@ -282,7 +282,7 @@ TEST_CASE_FIXTURE(VoltageFixture, "a brake that switched off normally is still a
 }
 
 TEST_CASE_FIXTURE(VoltageFixture, "a brake resistor shutdown reports the critical error Brake resistor stuck on" *
-		  KNOWN_ISSUE("voltagesense.cpp:24 defines the critical error 'Brake resistor stuck on', but the addError call at line 88 "
+		  KNOWN_ISSUE("(bug 52) voltagesense.cpp:24 defines the critical error 'Brake resistor stuck on', but the addError call at line 88 "
 					  "is commented out (ISR context) and nothing reports it later: the shutdown is silent")) {
 	convert(12000, 20000);
 	HostPlatform::advanceMs(5001);
@@ -312,7 +312,7 @@ TEST_CASE_FIXTURE(VoltageFixture, "characterization: a brake resistor shutdown d
 }
 
 TEST_CASE_FIXTURE(VoltageFixture, "braking that starts at tick 0 is also shut down after 5 s" *
-		  KNOWN_ISSUE("voltagesense.cpp:78/83 uses brakeActiveTime == 0 for 'not braking': a brake activated at HAL_GetTick() == 0 "
+		  KNOWN_ISSUE("(bug 49) voltagesense.cpp:78/83 uses brakeActiveTime == 0 for 'not braking': a brake activated at HAL_GetTick() == 0 "
 					  "(also after the 49.7 day tick wrap) is never shut down")) {
 	HostPlatform::setTimeMs(0);
 	convert(12000, 20000);

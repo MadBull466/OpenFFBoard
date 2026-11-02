@@ -197,7 +197,7 @@ TEST_CASE_FIXTURE(TargetFixture, "the buttons of a mock button source selected t
 }
 
 TEST_CASE_FIXTURE(TargetFixture, "a destroyed I2C handler is removed from the I2C handler list" *
-										  KNOWN_ISSUE("I2CHandler.cpp: ~I2CHandler calls addCallbackHandler instead of removeCallbackHandler, so a deleted "
+										  KNOWN_ISSUE("(bug 53) I2CHandler.cpp: ~I2CHandler calls addCallbackHandler instead of removeCallbackHandler, so a deleted "
 													  "handler stays in I2CHandler::getI2CHandlers() and the next I2C callback of global_callbacks.cpp "
 													  "calls a deleted object (latent: the only I2C handlers of the firmware are the global I2C ports). "
 													  "The CHECK on the list fails")) {
