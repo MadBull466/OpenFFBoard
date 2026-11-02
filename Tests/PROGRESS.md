@@ -9,8 +9,8 @@
 - **Current phase:** P9 (vendor tiers B and C, Python helpers), started 2026-11-02 at my request (before the wrap-up summary). P8 approved 2026-10-27.
 - **Phase status:** P9 complete (batch 0, 3 module groups, 3 fresh reviews, fixes, final gate, bug report, project summary). **Waiting for my approval.** All planned phases are done. Wrap-up fixes done (see "Final review (wrap-up)"); the project summary follows at the end of P9.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
-- **Last commit:** `200ac244` (P8 final).
-- **Last updated:** 2026-10-27
+- **Last commit:** `0d56594f` (P9 final).
+- **Last updated:** 2026-11-02
 - **Last session summary:** P9: `ffb_usb_tests` (real TinyUSB on a fake dwc2 device controller, 286 cases), CMSIS-DSP tests (tier C 100 %), Python helper tests (61, stdlib unittest); 3 module agents, 3 fresh reviewers, fixes. New firmware bugs 134, 137, 138 (137: no CDC replies until a power cycle after a host reset during a reply); vendor V21-V36; NEEDS REVIEW 152-165. Wrap-up before P9: final reviews FR1/FR2, bug report corrections, traceability, README. `Tests/PROJECT_SUMMARY.md` written.
 
 ## Next action
@@ -33,7 +33,7 @@
 | P6 Encoders and buses | `ffb_target_tests` | about 640 (measured: total 6,988 lines, 86.2 %) | done | yes, 2026-10-26 | `cd92abd9` batch 0, `3e39a144` A, `7f5b4557` C, `a8317dbb` B, `ac6eadd1` infra + C review fixes, `e69fb8ec` A + B review fixes + results |
 | P7 CAN and serial FFB | `ffb_target_tests` | about 420 (measured: total 7,570 lines, 93.3 %) | done | yes, 2026-10-27 | `b270011b` batch 0, `5bdecdca` A, `50b9dffd` C, `18712821` B, `0d20c8e3` infra + A + C review fixes, `5645da14` B review fixes + results |
 | P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 (measured: total 8,007 lines, 98.9 %) | done | yes, 2026-10-27 | `3975ddd6` batch 0, `45b1aa47` tests, `2324abf9` infra + B review fixes, `200ac244` A review fixes + results |
-| P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder (tier B 85.1 %, tier C 100 %) | done | | `1e2730f0` batch 0, `8bd93ab4` C, `6893dcd3` B, `7c813f56` A, P9 final (review fixes + results) |
+| P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder (tier B 85.1 %, tier C 100 %) | done | | `1e2730f0` batch 0, `8bd93ab4` C, `6893dcd3` B, `7c813f56` A, `0d56594f` review fixes + results + summary |
 
 ## Decisions log
 
