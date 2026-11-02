@@ -123,6 +123,35 @@ Code that can only be checked on the board (register setup, busy waits on periph
 not tested. It is listed with a reason in `tools/coverage_exclusions.txt` and left out of the coverage numbers
 (`--no-exclusions` shows the raw numbers).
 
+### Full report (`test_report`)
+
+`ctest` keeps its exclusions and skips. For a complete picture, `tools/run_all_tests.py` runs **every** test case of
+every test executable in a build directory plus the Python helper tests and writes a plain text log:
+
+```sh
+cmake --build build --target test_report                      # builds the executables, writes build/test_report.log
+python3 -B tools/run_all_tests.py --build-dir build [--out FILE] [--timeout S]   # the same directly
+```
+
+* **Nothing is skipped.** The executables run with the doctest XML reporter without the ctest exclusions. Cases with
+  a skip decorator (skipped crash known issues, `KNOWN_ISSUE_UB` / `DELETES_FFBHIDMAIN` in sanitizer builds) run one
+  by one in their own process with `--no-skip` and a name filter that is checked to select exactly that case. If a run
+  stops in a case (signal, abort, sanitizer exit, or no progress for `--timeout` seconds, default 60), that case is
+  recorded as crashed / timed out and the run continues after it (`--first`).
+* **Passed / Failed / Bugged.** *Bugged*: a known-bug case (`KNOWN_ISSUE`, `KNOWN_ISSUE_UB`, skipped crash case,
+  Python `@expectedFailure`) that fails as expected (assertion, crash or timeout); a `KNOWN_ISSUE_UB_HIDDEN` case
+  ("UB, passes on the host"); a case of the ctest exclusion list that fails; in sanitizer builds a
+  `DELETES_FFBHIDMAIN` case that fails (bug 24). *Failed*: every other failure, and a known bug that passes now
+  ("fixed? remove the marker"). *Passed*: the rest; `characterization:` cases are also listed as open questions.
+* **Log** (`<build-dir>/test_report.log`): date, commit, build configuration, the summary (Passed, Failed, Bugged,
+  per executable), then the failed tests, the bugged tests grouped by the file under test and the open questions.
+  Every entry gives the test location, the file under test, the bug / vendor / NEEDS REVIEW number with its
+  description from `Tests/PROGRESS.md`, and the first failing assertion or the crash.
+* **File under test:** the source files of the numbered row in `Tests/PROGRESS.md`; otherwise a firmware source
+  named like the test suite or the test file (`test_<name>[_gaps].cpp`, also a source name the file name starts
+  with) or an included header matching the file name; else `unknown`.
+* Exit status 0 when Failed is 0. Not part of `ctest`; `python/test_run_all_tests.py` tests the script itself.
+
 ## Directory layout
 
 | Path | Content |
@@ -147,6 +176,7 @@ not tested. It is listed with a reason in `tools/coverage_exclusions.txt` and le
 | `tools/check_baseline.py` | Baseline check (also a `ctest` entry). |
 | `tools/coverage_report.py` | gcov line coverage per file, module and tier. |
 | `tools/coverage_exclusions.txt` | Reviewed list of hardware-only line ranges (file:range + reason) left out of the coverage numbers. |
+| `tools/run_all_tests.py` | Full report: runs every test case (nothing skipped) and writes `test_report.log` (target `test_report`). |
 | `tools/make_bug_report.py` | Generates `Tests/BUG_REPORT.md` (repository root) from the "Suspected firmware bugs" and "NEEDS REVIEW items" tables of `Tests/PROGRESS.md`. |
 
 The Python tools use the standard library only; run them with `python3 -B` (no `__pycache__` under `Firmware/`).
@@ -730,7 +760,8 @@ descriptors and the TinyUSB callbacks of `global_callbacks.cpp`.
 `python/test_*.py`: stdlib `unittest` smoke tests of the Python helper scripts (P9, tier A: tested, never fixed):
 `Firmware/scripts/generate_memory.py` (memory map CSV -> `eeprom_addresses.c` / `.h`) and
 `FFBoard/USB/portable/synopsys/dwc2/dwc2_info.py` (TinyUSB's DWC2 register decoder). `python/helper_paths.py` holds the
-paths and a loader that imports a script without writing `__pycache__`.
+paths and a loader that imports a script without writing `__pycache__`. `python/test_run_all_tests.py` tests the
+report tool `tools/run_all_tests.py` with synthetic doctest XML and tables (no test executable is run).
 
 * `ctest` runs them as `python_helper_tests` when Python 3 is found (like the baseline check):
   `python3 -B -m unittest discover -s python -t python` with `PYTHONDONTWRITEBYTECODE=1`, in the build directory.

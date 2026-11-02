@@ -774,3 +774,29 @@ if(Python3_Interpreter_FOUND)
 else()
 	message(STATUS "OpenFFBoard tests: Python 3 not found, python_helper_tests not added to ctest")
 endif()
+
+# ===========================================================================
+# test_report: full report of every test case (tools/run_all_tests.py). Not part of ctest. Runs every test case of
+# every test executable of this build directory and the Python helper tests, nothing skipped (skip-decorated cases run
+# one by one with --no-skip, crashing cases are isolated), and writes test_report.log (passed / failed / bugged) into
+# the build directory. Only when Python 3 is found (like the baseline check). Builds the executables first; their
+# compile commands are not changed.
+#   cmake --build <build-dir> --target test_report
+# ===========================================================================
+if(Python3_Interpreter_FOUND)
+	add_custom_target(test_report
+		COMMAND ${CMAKE_COMMAND} -E env PYTHONDONTWRITEBYTECODE=1
+			${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/tools/run_all_tests.py
+			--build-dir ${CMAKE_CURRENT_BINARY_DIR} --out ${CMAKE_CURRENT_BINARY_DIR}/test_report.log
+		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+		COMMENT "Running every test case (report: ${CMAKE_CURRENT_BINARY_DIR}/test_report.log)"
+		USES_TERMINAL
+		VERBATIM)
+	foreach(ffb_report_exe ffb_unit_tests ffb_target_tests ffb_flash_tests ffb_rtos_tests ffb_usb_tests)
+		if(TARGET ${ffb_report_exe})
+			add_dependencies(test_report ${ffb_report_exe})
+		endif()
+	endforeach()
+else()
+	message(STATUS "OpenFFBoard tests: Python 3 not found, test_report target not added")
+endif()
