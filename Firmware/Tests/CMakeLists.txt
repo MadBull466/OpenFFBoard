@@ -158,6 +158,9 @@ set(FFB_TESTS_EXCLUDE
 	CACHE STRING "Test cases excluded from ctest (list)")
 #  - CMSIS-DSP arm_spline_f32 reads one element past its input. Only reported by the address sanitizer,
 #    so these are only excluded in sanitizer builds with CMSIS-DSP.
+#    NOTE: "reconstruction of a step ..." currently passes without a sanitizer report (GCC 16 and clang 23,
+#    checked 2026-11-02). It stays excluded on purpose (my decision); tools/run_all_tests.py highlights it under
+#    ATTENTION in the report of sanitizer builds.
 set(FFB_TESTS_EXCLUDE_SANITIZE
 	"reconstruction of a constant signal is constant"
 	"reconstruction of a step never leaves the range of the input values and reaches the target"

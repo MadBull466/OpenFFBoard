@@ -160,6 +160,18 @@ class ClassificationTest(unittest.TestCase):
         self.assertEqual(rat.classify(passing), rat.PASSED)
         self.assertTrue(passing.attention)
 
+    def test_an_excluded_case_that_passes_is_highlighted_in_an_attention_banner(self):
+        passing = make_result("passed")
+        passing.excluded = True
+        rat.classify(passing)
+        banner = rat.attention_banner([passing])
+        self.assertTrue(banner[0].startswith("!!!"))
+        self.assertIn("ATTENTION", banner[1])
+        self.assertTrue(any(passing.name in line and passing.location in line for line in banner))
+
+    def test_no_attention_banner_is_written_when_nothing_needs_attention(self):
+        self.assertEqual(rat.attention_banner([]), [])
+
     def test_a_case_deleting_a_main_class_that_fails_in_a_sanitizer_build_is_bug_24(self):
         r = make_result("crash")
         r.deletes_main = True

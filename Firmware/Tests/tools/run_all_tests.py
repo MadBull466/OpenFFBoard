@@ -1057,6 +1057,20 @@ def entry_lines(r, progress, label=None):
 	return lines
 
 
+def attention_banner(attention):
+	"""Highlighted block for cases that are excluded from ctest in this build but pass here (e.g. the second spline
+	case of bug 2 in sanitizer builds, kept excluded on purpose). Empty when there are none."""
+	if not attention:
+		return []
+	bar = "!" * 110
+	lines = [bar, "!!! ATTENTION: %d test case(s) excluded from ctest in this build pass here (kept excluded on purpose;"
+	         % len(attention), "!!! see \"Passed with a note - ATTENTION\" below):"]
+	for r in attention:
+		lines.append("!!!   %s / %s: \"%s\" (%s)" % (r.exe, r.suite, r.name, r.location))
+	lines.extend([bar, ""])
+	return lines
+
+
 def render_report(results, problems, config, build_dir, exes_run, progress, started, duration):
 	c = counts(results)
 	out = []
@@ -1087,6 +1101,8 @@ def render_report(results, problems, config, build_dir, exes_run, progress, star
 		w("%-18s %7d %7d %7d %7d %10d" % (exe, ce[PASSED], ce[FAILED], ce[BUGGED], ce["total"], ce["open"]))
 	w("%-18s %7d %7d %7d %7d %10d" % ("all", c[PASSED], c[FAILED], c[BUGGED], c["total"], c["open"]))
 	w("")
+	attention = sorted([r for r in results if r.category == PASSED and r.attention], key=Result.sort_key)
+	out.extend(attention_banner(attention))
 	w("Categories: Bugged = a known bug (KNOWN_ISSUE, KNOWN_ISSUE_UB(_HIDDEN), skipped crash case, ctest exclusion,")
 	w("DELETES_FFBHIDMAIN in sanitizer builds, Python @expectedFailure) that fails as expected. Failed = any other")
 	w("failure, or a known bug that passes now. Items: bug N / VN (vendor) / NR N (NEEDS REVIEW) of Tests/PROGRESS.md.")
@@ -1123,14 +1139,13 @@ def render_report(results, problems, config, build_dir, exes_run, progress, star
 		w("none")
 	for r in sorted(openq, key=lambda r: (number_sort_key(r.numbers[0]) if r.numbers else (9,), r.sort_key())):
 		out.extend(entry_lines(r, progress))
-	attention = sorted([r for r in results if r.category == PASSED and r.attention], key=Result.sort_key)
 	if attention:
 		w("")
 		w("")
-		w("Passed with a note (%d)" % len(attention))
+		w("!!! Passed with a note - ATTENTION (%d) !!!" % len(attention))
 		w("-" * 40)
 		for r in attention:
-			out.extend(entry_lines(r, progress))
+			out.extend(">>> " + line if line else line for line in entry_lines(r, progress))
 	if problems:
 		w("")
 		w("")
@@ -1211,6 +1226,8 @@ def main(argv=None):
 	print("Total:  %d (open questions, included in Passed: %d)" % (c["total"], c["open"]))
 	if problems:
 		print("Run problems: %d" % len(problems))
+	for line in attention_banner(sorted([r for r in results if r.category == PASSED and r.attention], key=Result.sort_key)):
+		print(line)
 	print("Report: %s" % out_path)
 	if args.exit_zero:
 		return 0
