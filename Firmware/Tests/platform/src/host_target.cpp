@@ -266,6 +266,8 @@ void ExitDFU(void) {
 }
 
 // ---------------- TinyUSB device (usbd.c, tusb.c) used by the F407 sources ----------------
+// ffb_usb_tests (HOSTTEST_REAL_TINYUSB) compiles the real TinyUSB device stack instead of these three models.
+#ifndef HOSTTEST_REAL_TINYUSB
 
 /** Models tusb_rhport_init (tusb_init): initialises the device stack. Recorded, always succeeds */
 bool tusb_rhport_init(uint8_t, const tusb_rhport_init_t *) {
@@ -286,5 +288,6 @@ void tud_task_ext(uint32_t, bool) {
 
 /** Models tud_speed_get: speed of the current connection (set by the test, default full speed) */
 tusb_speed_t tud_speed_get(void) { return (tusb_speed_t)targetState.usbSpeed; }
+#endif // HOSTTEST_REAL_TINYUSB
 
 } // extern "C"

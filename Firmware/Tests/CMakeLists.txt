@@ -629,3 +629,148 @@ if(FFB_RTOS_TESTS_EXCLUDED_ARG)
 else()
 	add_test(NAME ffb_rtos_tests COMMAND ffb_rtos_tests)
 endif()
+
+# ===========================================================================
+# ffb_usb_tests: the TinyUSB device stack (FFBoard/USB, vendor tier B: tested, never fixed) on a fake USB device
+# controller (F15, P9): usbd.c, usbd_control.c, tusb.c, tusb_fifo.c and the CDC / HID / MIDI class drivers with the
+# F407 tusb_config.h (OPT_MCU_STM32F4, OPT_OS_FREERTOS), and the firmware's USB glue (USBdevice.cpp, CDCcomm.cpp,
+# UsbHidHandler.cpp, the TinyUSB callbacks of global_callbacks.cpp, the descriptors).
+#
+# The executables above are not changed by this section (their compile commands are identical).
+#  - Firmware: the sources of ffb_target_tests (F407 feature set without drivers and MIDI; global_callbacks.cpp needs
+#    them) plus ctickhook.cpp (vApplicationTickHook, called by the SysTick of the fake API F11) and
+#    ccondition_variable.cpp (Thread::Wait with the F407 switches of the fake API).
+#  - Platform: the platform sources of ffb_target_tests without host_usb.cpp (the recording TinyUSB fake), plus
+#    host_dcd.cpp (fake device controller, support/HostDcd.h) and host_usb_osal.cpp.
+#  - platform/usb is the first include directory: its tusb_config.h includes the real F407 tusb_config.h
+#    (FFB_F407_TUSB_CONFIG_H) and points CFG_TUSB_OS_INC_PATH at platform/usb/hosttest_osal/ (what osal_freertos.h
+#    needs on top of the fake FreeRTOS API: static creation, xQueueReset on a semaphore).
+#  - HOSTTEST_RTOS_EXT: the fake FreeRTOS API F11 (queues for TinyUSB's event queue, see ffb_rtos_tests).
+#  - HOSTTEST_REAL_TINYUSB: host_target.cpp leaves out its models of tusb_rhport_init / tud_task_ext / tud_speed_get.
+#  - C sources with -fexceptions: a resumable task parked in TinyUSB (e.g. the USBdevice thread) is unwound through the
+#    C frames of usbd.c when it is deleted.
+# Built on every host (no fixed addresses). MIDI: CFG_TUD_MIDI is 1 in the F407 tusb_config.h, so midi_device.c is
+# compiled (the usbd.c driver table needs it); the firmware's MIDI feature (MidiMain, MidiHandler) stays off.
+# ===========================================================================
+set(USB_DIR ${FFBOARD_DIR}/USB)
+set(USB_TINYUSB_SOURCES
+	${USB_DIR}/tusb.c
+	${USB_DIR}/common/tusb_fifo.c
+	${USB_DIR}/device/usbd.c
+	${USB_DIR}/device/usbd_control.c
+	${USB_DIR}/class/cdc/cdc_device.c
+	${USB_DIR}/class/hid/hid_device.c
+	${USB_DIR}/class/midi/midi_device.c
+)
+
+set(USB_FIRMWARE_SOURCES
+	${TARGET_FIRMWARE_SOURCES}
+	${FFBOARD_DIR}/Src/ctickhook.cpp
+	${FFBOARD_DIR}/Src/ccondition_variable.cpp # Thread::Wait (CPP_FREERTOS_CONDITION_VARIABLES, F407 FreeRTOSConfig.h:187)
+)
+
+set(USB_PLATFORM_SOURCES ${TARGET_PLATFORM_SOURCES})
+list(REMOVE_ITEM USB_PLATFORM_SOURCES platform/src/host_usb.cpp)
+list(APPEND USB_PLATFORM_SOURCES
+	platform/src/host_dcd.cpp
+	platform/src/host_usb_osal.cpp
+)
+
+file(GLOB USB_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cases_usb/test_*.cpp)
+
+add_executable(ffb_usb_tests
+	${USB_TINYUSB_SOURCES}
+	${USB_FIRMWARE_SOURCES}
+	${USB_PLATFORM_SOURCES}
+	${USB_TEST_SOURCES}
+	support/test_main.cpp
+)
+
+target_include_directories(ffb_usb_tests PRIVATE
+	platform/usb
+	platform/target_f407
+	platform/include
+	support
+	mocks
+	third_party
+	${FFBOARD_DIR}/Inc
+	${FFBOARD_DIR}/UserExtensions/Inc
+	${USB_DIR}
+	${USB_DIR}/common
+	${USB_DIR}/device
+	${USB_DIR}/class/hid
+	${USB_DIR}/class/cdc
+	${USB_DIR}/class/midi
+)
+
+target_compile_definitions(ffb_usb_tests PRIVATE HOSTTEST HOSTTEST_REAL_CPPMAIN HOSTTEST_REAL_LED_EFFECTS HOSTTEST_TARGET_OTP
+	HOSTTEST_RTOS_EXT HOSTTEST_REAL_TINYUSB)
+get_filename_component(FFB_F407_TUSB_CONFIG ${FW_DIR}/Targets/F407VG/Core/Inc/tusb_config.h ABSOLUTE)
+target_compile_definitions(ffb_usb_tests PRIVATE FFB_F407_TUSB_CONFIG_H="${FFB_F407_TUSB_CONFIG}")
+
+if(USE_DSP)
+	target_sources(ffb_usb_tests PRIVATE
+		${DSP_DIR}/Source/CommonTables/arm_common_tables.c
+		${DSP_DIR}/Source/FastMathFunctions/arm_sin_f32.c
+		${DSP_DIR}/Source/FastMathFunctions/arm_cos_f32.c
+		${DSP_DIR}/Source/FilteringFunctions/arm_biquad_cascade_df1_f32.c
+		${DSP_DIR}/Source/FilteringFunctions/arm_biquad_cascade_df1_init_f32.c
+		${DSP_DIR}/Source/InterpolationFunctions/arm_spline_interp_f32.c
+		${DSP_DIR}/Source/InterpolationFunctions/arm_spline_interp_init_f32.c
+		${DSP_DIR}/Source/ControllerFunctions/arm_pid_init_f32.c
+		${DSP_DIR}/Source/ControllerFunctions/arm_pid_reset_f32.c
+		${DSP_DIR}/Source/StatisticsFunctions/arm_std_f32.c
+		${DSP_DIR}/Source/StatisticsFunctions/arm_var_f32.c
+	)
+	target_include_directories(ffb_usb_tests PRIVATE ${DSP_DIR}/Include ${DSP_DIR}/PrivateInclude)
+	target_compile_definitions(ffb_usb_tests PRIVATE USE_DSP_FUNCTIONS ARM_MATH_LOOPUNROLL __GNUC_PYTHON__)
+endif()
+
+target_link_libraries(ffb_usb_tests PRIVATE Threads::Threads)
+
+# -funsigned-char: char is unsigned on the ARM target (like ffb_target_tests)
+target_compile_options(ffb_usb_tests PRIVATE -Wall $<$<COMPILE_LANGUAGE:CXX>:-Wno-volatile> $<$<COMPILE_LANGUAGE:C>:-fexceptions> -funsigned-char)
+if(MINGW)
+	target_compile_options(ffb_usb_tests PRIVATE -mno-ms-bitfields)
+	target_link_options(ffb_usb_tests PRIVATE -static)
+	target_include_directories(ffb_usb_tests BEFORE PRIVATE platform/mingw)
+	target_sources(ffb_usb_tests PRIVATE platform/mingw/host_mallinfo.cpp)
+endif()
+
+if(FFB_TESTS_SANITIZE)
+	target_compile_definitions(ffb_usb_tests PRIVATE HOSTTEST_SANITIZERS)
+	target_compile_options(ffb_usb_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined)
+	target_link_options(ffb_usb_tests PRIVATE -fsanitize=address,undefined)
+endif()
+
+# Test cases of ffb_usb_tests excluded from ctest (doctest --test-case-exclude). Same rule as FFB_TESTS_EXCLUDE:
+# only cases that abort the whole run because of a suspected defect belong here.
+set(FFB_USB_TESTS_EXCLUDE "" CACHE STRING "Test cases of ffb_usb_tests excluded from ctest (list)")
+set(FFB_USB_TESTS_EXCLUDE_SANITIZE "" CACHE STRING "Test cases of ffb_usb_tests additionally excluded from ctest in sanitizer builds (list)")
+set(FFB_USB_TESTS_EXCLUDED ${FFB_USB_TESTS_EXCLUDE})
+if(FFB_TESTS_SANITIZE)
+	list(APPEND FFB_USB_TESTS_EXCLUDED ${FFB_USB_TESTS_EXCLUDE_SANITIZE})
+endif()
+list(JOIN FFB_USB_TESTS_EXCLUDED "," FFB_USB_TESTS_EXCLUDED_ARG)
+message(STATUS "OpenFFBoard tests: ffb_usb_tests excluded from ctest: ${FFB_USB_TESTS_EXCLUDED_ARG}")
+if(FFB_USB_TESTS_EXCLUDED_ARG)
+	add_test(NAME ffb_usb_tests COMMAND ffb_usb_tests "--test-case-exclude=${FFB_USB_TESTS_EXCLUDED_ARG}")
+else()
+	add_test(NAME ffb_usb_tests COMMAND ffb_usb_tests)
+endif()
+
+# ===========================================================================
+# python_helper_tests: stdlib unittest smoke tests of the Python helper scripts (P9): Firmware/scripts/generate_memory.py
+# and FFBoard/USB/portable/synopsys/dwc2/dwc2_info.py, in python/test_*.py. Only when Python 3 is found (like the
+# baseline check). -B and PYTHONDONTWRITEBYTECODE: no __pycache__ is written into the repository; the scripts' outputs
+# go to temporary directories created by the tests. Runs in the build directory.
+# ===========================================================================
+if(Python3_Interpreter_FOUND)
+	add_test(NAME python_helper_tests
+		COMMAND ${Python3_EXECUTABLE} -B -m unittest discover -v
+			-s ${CMAKE_CURRENT_SOURCE_DIR}/python -t ${CMAKE_CURRENT_SOURCE_DIR}/python -p "test_*.py"
+		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+	set_tests_properties(python_helper_tests PROPERTIES ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
+else()
+	message(STATUS "OpenFFBoard tests: Python 3 not found, python_helper_tests not added to ctest")
+endif()

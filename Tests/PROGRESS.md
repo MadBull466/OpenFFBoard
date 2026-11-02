@@ -7,7 +7,7 @@
 ## Current state
 
 - **Current phase:** P9 (vendor tiers B and C, Python helpers), started 2026-11-02 at my request (before the wrap-up summary). P8 approved 2026-10-27.
-- **Phase status:** P9 batch 0 running. Wrap-up partly done (see "Final review (wrap-up)"); its remaining items follow after P9 batch 0.
+- **Phase status:** P9 batch 0 done ("P9 batch 0"). Wrap-up partly done (see "Final review (wrap-up)"); its remaining items follow after P9 batch 0.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** `200ac244` (P8 final).
 - **Last updated:** 2026-10-27
@@ -15,7 +15,7 @@
 
 ## Next action
 
-**P9 batch 0 running.** Then: the remaining wrap-up items (README update, unused-helper self-tests; see "Final review (wrap-up)"), P9 module agents, reviews, final gate, `Tests/BUG_REPORT.md`, `Tests/PROJECT_SUMMARY.md`, stop for approval.
+**P9 batch 0 done.** Then: the remaining wrap-up items (README update, unused-helper self-tests; see "Final review (wrap-up)"), P9 module agents, reviews, final gate, `Tests/BUG_REPORT.md`, `Tests/PROJECT_SUMMARY.md`, stop for approval.
 
 ## Phase checklist
 
@@ -33,7 +33,7 @@
 | P6 Encoders and buses | `ffb_target_tests` | about 640 (measured: total 6,988 lines, 86.2 %) | done | yes, 2026-10-26 | `cd92abd9` batch 0, `3e39a144` A, `7f5b4557` C, `a8317dbb` B, `ac6eadd1` infra + C review fixes, `e69fb8ec` A + B review fixes + results |
 | P7 CAN and serial FFB | `ffb_target_tests` | about 420 (measured: total 7,570 lines, 93.3 %) | done | yes, 2026-10-27 | `b270011b` batch 0, `5bdecdca` A, `50b9dffd` C, `18712821` B, `0d20c8e3` infra + A + C review fixes, `5645da14` B review fixes + results |
 | P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 (measured: total 8,007 lines, 98.9 %) | done | yes, 2026-10-27 | `3975ddd6` batch 0, `45b1aa47` tests, `2324abf9` infra + B review fixes, `200ac244` A review fixes + results |
-| P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder | in progress (batch 0) | | |
+| P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder | in progress (modules) | | |
 
 ## Decisions log
 
@@ -319,7 +319,7 @@ Hard gate for every change: `ffb_unit_tests` must report 0 failed; on GCC 16 the
 | F11 | FreeRTOS: `xQueue*`, `xTimer*`, `xEventGroup*`, `xTimerPendFunctionCall`, `tskIDLE_PRIORITY`, recursive mutex, counting semaphores (simple non-preemptive implementations, with create-failure injection) | `platform/` | RTOS wrappers (Tier A) and modules that use cqueue/ctimer | **done** P8 batch 0 (`platform/src/host_freertos_ext.inc`, `support/HostRtosExt.h`, `ffb_rtos_tests` only) |
 | F12 | New mocks: `MockButtonSource`, `MockAnalogSource`, `MockSPIDevice`/`MockI2CDevice` helpers, `AxisFixture` (real Axis + `MockMotorDriver` + `MockEncoder` selected via the public `Axis::driverChooser` / `Axis::encoderChooser`) | `mocks/`, `support/` | Caller-side tests at the interface | **done**: `TargetFixture`/`AxisFixture` (P2), `MockButtonSource`/`MockAnalogSource` (P5), `MockSPIDevice`/`MockI2CDevice` (P6) |
 | F14 | `-include cmath` (per-source compile option) for `Axis.cpp` if it still does not compile (README says `Axis.cpp` lacks `<cmath>`) | `CMakeLists.txt` | No firmware edit allowed | **done** P2 batch 0: needed only with DSP off (bug 25); clang also needs `-Wno-c++11-narrowing` on `Axis.cpp` (bug 26) |
-| F15 | Fake USB device controller (`dcd_*` functions, scripted bus events/setup packets, endpoint buffers) so real TinyUSB device code runs on the host | `platform/` | Tier B (`ffb_usb_tests`) | planned for P9 (on hold) |
+| F15 | Fake USB device controller (`dcd_*` functions, scripted bus events/setup packets, endpoint buffers) so real TinyUSB device code runs on the host | `platform/` | Tier B (`ffb_usb_tests`) | **done** P9 batch 0 (`platform/src/host_dcd.cpp`, `support/HostDcd.h`, `support/UsbHost.h`; modelled on TinyUSB's dwc2 port) |
 | F16 | Stdlib-only Python script that runs `gcov` and aggregates line coverage per module | `tools/` | Coverage report without installing gcovr | **done** P0: `tools/coverage_report.py` |
 | F1b | When `FFB_TESTS_SANITIZE=ON` and DSP is on, `ctest` also excludes the 2 spline cases | `CMakeLists.txt` | Makes the `host-sanitize` preset pass (bug 6) | **done** P0, preset verified out-of-tree |
 | F17 | `baseline/test_cases.txt` (the 318 baseline names) and `tools/check_baseline.py` | `Firmware/Tests/` | Detect any lost or changed baseline test | **done** P0, also run by `ctest` as `ffb_unit_tests_baseline` |
@@ -360,6 +360,15 @@ Executable `ffb_target_tests`, new files in `cases_target/` only. Coverage after
 | A CAN port | `test_canport2b.cpp` | `CANPort2B.cpp` (+ `CAN.cpp` callers) | init/start/stop, speed presets and bit timing, filters (add/remove, standard/extended, FIFO), send with free/full mailboxes and timeout, receive dispatch, error and bus-off callbacks, silent mode, commands, flash config, port users |
 | B CAN main classes | `test_canbridge.cpp`, `test_caninputmain.cpp` | `CanBridge.cpp`, `CanInputMain.cpp` | GVRET/SavvyCAN-style frame protocol to the host over CDC, filters and speed commands, rx/tx forwarding; CAN input main class: button/analog sources to CAN frames, ids, rates, commands, flash |
 | C serial FFB | `test_serial_ffb.cpp` | `SerialFFB.cpp` | effect commands over the string interface (create, set parameters, start/stop, free, gain, reset), validation of ids and parameter ranges, interplay with `EffectsCalculator` |
+
+## P9 batch 0 (2026-11-02)
+
+- **New executable `ffb_usb_tests`** (F2/F15): real TinyUSB device code (`tusb.c`, `tusb_fifo.c`, `usbd.c`, `usbd_control.c`, `cdc_device.c`, `hid_device.c`, `midi_device.c` (the F407 `tusb_config.h` sets `CFG_TUD_MIDI 1`; the firmware MIDI feature stays off)) with the `ffb_target_tests` firmware set and the real `global_callbacks.cpp`, `USBdevice`, `CDCcomm`, `UsbHidHandler`, descriptors. Defines `HOSTTEST_RTOS_EXT`, `HOSTTEST_REAL_TINYUSB`; `-fexceptions` for C (a parked resumable task may unwind through `usbd.c`). Own ctest entry, `FFB_USB_TESTS_EXCLUDE` / `_SANITIZE` (empty). The only shared change: `#ifndef HOSTTEST_REAL_TINYUSB` around the three TinyUSB models in `host_target.cpp` (all 240 existing TUs preprocess byte-identically). Weak-symbol overrides are a MinGW/PE concern (unverified).
+- **F15 fake device controller** (`platform/src/host_dcd.cpp`, `support/HostDcd.h`), modelled on TinyUSB's dwc2 port (the F407's DCD, cited per function) and USB 2.0: init/connect, bus reset, SETUP, OUT/IN transactions with NAK/STALL/ZLP rules, SET_ADDRESS timing, suspend/resume/SOF, remote wakeup, endpoint open/stall/clear, events in ISR context; unmodelled cases recorded as faults. Host side `support/UsbHost.h` (control transfers, enumeration, CDC and HID helpers).
+- **OSAL:** TinyUSB's unchanged `osal_freertos.h` on the F11 fake FreeRTOS, via TinyUSB's `CFG_TUSB_OS_INC_PATH` hook (`platform/usb/tusb_config.h` -> `hosttest_osal/`): static create functions (F407 `configSUPPORT_STATIC_ALLOCATION 1`) and an `xQueueReset` that accepts a semaphore. `tud_task` runs deterministically on the test thread.
+- **Fixture** `support/UsbFixture.h` (F407 FFBWheel USB setup, resumable CDC/command threads, end-of-test checks, `REQUIRE_USB_MODELLED()`). 14 smoke cases (`UsbSetup`): enumeration with the real descriptors, SET_ADDRESS timing, strings, CDC line coding, a command over CDC and its reply, HID IN/OUT/feature reports, stall, resume; KNOWN_ISSUE bug 42 confirmed on the real stack; new vendor **V21**.
+- **Python harness** `Firmware/Tests/python/` (stdlib `unittest`, temp dirs only, no `__pycache__`): `generate_memory.py` reproduces the committed `eeprom_addresses.c/.h` byte for byte; `dwc2_info.py` decodes the F407 FS core (its unused `click` import and `pandas` are stubbed). ctest entry `python_helper_tests` when Python 3 is found: ctest now runs 7 entries.
+- Gate: ctest 7/7 and baseline OK in all 6 dirs + cov; existing executables unchanged (compile commands identical; verified by the main agent); `ffb_usb_tests` 14/0/0 everywhere; python 5/5; no findings, no test-file warnings. Tier B coverage after the smoke tests 755/1,572 (48 %); in-scope firmware unchanged at 98.9 %.
 
 ## Final review (wrap-up, 2026-10-27 / 2026-11-02)
 
@@ -983,6 +992,7 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 | V16 | FreeRTOS wrappers (**vendor, tier A**) | `cmem_pool.cpp:136-143` (also `:106-119`, `AddMemory :172-204`); `mem_pool.hpp:158-159/178-179`, `:171` | `MemoryPool` never aligns the start of its memory: items are aligned to `alignment` only if the memory passed in (or malloc'd: heap_4 aligns to 8 on the F407) already is, although the header promises it; `mem_pool.hpp:171` also says "does not throw" for a constructor that throws Latent: no firmware user of `MemoryPool`. | KNOWN_ISSUE "the items of a pool are aligned to the requested alignment" (detects both an aligning and a rejecting fix) |
 | V17 | FreeRTOS wrappers (**vendor, tier A**) | `cmem_pool.cpp:106, 121` | The constructor allocates the item memory before `new MutexStandard()`; when the mutex creation throws the block is never freed (leak; exception builds only: the F407 stops in configASSERT) Latent: no firmware user of `MemoryPool`. | KNOWN_ISSUE "a pool whose lock mutex can not be created frees its memory" |
 | V18 | FreeRTOS wrappers (**vendor, tier A**) | `cmem_pool.cpp:106`, `AddMemory :172` | The int product `ItemSize * itemCount` overflows (UB): `1431655768 * 3` wraps to `malloc(8)` with 3 items beyond the block, on the host and on the 32-bit target Latent: no firmware user of `MemoryPool`. | KNOWN_ISSUE_UB "a pool whose total size does not fit in an int is rejected with MemoryPoolMallocException", "AddMemory with a total size that does not fit in an int is rejected with MemoryPoolMallocException" |
+| V21 | TinyUSB (**vendor, tier B**) | `device/usbd.c` `usbd_edpt_clear_stall`, `class/cdc/cdc_device.c` (`cdcd_control_xfer_cb`, `_prep_out_transaction`) | After SET_FEATURE(ENDPOINT_HALT) then CLEAR_FEATURE(ENDPOINT_HALT) on the CDC data OUT endpoint the device NAKs every OUT packet: the stall dropped the armed transfer (dwc2 `edpt_disable`), the clear only resets halt/busy, nothing re-arms (the firmware reads only in `tud_cdc_rx_cb`, which never fires again): CDC command input dead until re-enumeration (USB 2.0 9.4.5). Low: hosts rarely halt a bulk endpoint | KNOWN_ISSUE "the CDC data endpoint receives again after the host clears its halt (V21)" (`cases_usb/test_usb_setup.cpp`) |
 | 6 | Test setup (not firmware) | `CMakePresets.json` `host-sanitize`, `CMakeLists.txt` | With the CMSIS-DSP submodule checked out, `ctest` in the sanitizer preset fails on the spline overflow (bug 2). Reproduced with the same flags by script, preset not run | Fixed by F1 (`8861c911`) + F1b (P0). Verified in P0: `cmake --preset host-sanitize -B <out-of-tree>`, `ctest` 2/2 passed |
 
 ## Untestable code and refactor suggestions

@@ -539,6 +539,82 @@ The FreeRTOS kernel itself is not tested; the fake reproduces the documented beh
   and stops in `configASSERT`); `sizeof(void *)` is 8 on the host and 4 on the target (`MemoryPool` raises the
   alignment to the pointer size, so item sizes differ).
 
+## `ffb_usb_tests`: the TinyUSB device stack on a fake USB device controller
+
+A fifth executable built by the same `CMakeLists.txt` and run by `ctest` (P9). It compiles the TinyUSB device stack of
+`FFBoard/USB` (vendor tier B: tested, never fixed) `tusb.c`, `common/tusb_fifo.c`, `device/usbd.c`,
+`device/usbd_control.c`, `class/cdc/cdc_device.c`, `class/hid/hid_device.c` and `class/midi/midi_device.c` with the
+real `tusb_config.h` of the F407 target (`OPT_MCU_STM32F4`, `OPT_OS_FREERTOS`, full speed, EP0 64 bytes;
+`CFG_TUD_MIDI` is 1 there, so the MIDI class driver is compiled, while the firmware's `MIDI` feature stays off), on a
+fake device controller, together with the firmware's USB glue: `USBdevice.cpp`, `CDCcomm.cpp`, `UsbHidHandler.cpp`, the
+descriptors and the TinyUSB callbacks of `global_callbacks.cpp`.
+
+* **Test cases:** `cases_usb/test_*.cpp` (own glob). Run directly: `build/ffb_usb_tests` (`-ts=UsbSetup` for the smoke
+  tests). Exclusion lists `FFB_USB_TESTS_EXCLUDE` / `FFB_USB_TESTS_EXCLUDE_SANITIZE` (default empty), printed at
+  configure time like the others. Built on Linux, macOS and MinGW (no fixed addresses; unverified on macOS / Windows).
+* **Sources:** the firmware and platform sources of `ffb_target_tests` (F407 feature set; `global_callbacks.cpp` needs
+  them) plus `ctickhook.cpp` and `ccondition_variable.cpp`, without `platform/src/host_usb.cpp` (the recording TinyUSB
+  fake of the other executables); `HOSTTEST_REAL_TINYUSB` leaves the three TinyUSB models of `host_target.cpp` out.
+  C sources get `-fexceptions` (a parked resumable task is unwound through the C frames of TinyUSB). CMSIS-DSP as in
+  `ffb_target_tests`.
+* **OSAL:** TinyUSB uses `osal_freertos.h` like on the target, on the fake FreeRTOS API F11 (`HOSTTEST_RTOS_EXT`, see
+  `ffb_rtos_tests`): its event queue is a fake FreeRTOS queue. `platform/usb` is the first include directory: its
+  `tusb_config.h` includes the F407 one (path in `FFB_F407_TUSB_CONFIG_H`) and sets `CFG_TUSB_OS_INC_PATH` (TinyUSB's
+  hook for the location of the FreeRTOS headers) to `platform/usb/hosttest_osal/`. Those headers include the fake
+  FreeRTOS headers and add (`host_osal_freertos.h`, implemented in `platform/src/host_usb_osal.cpp`) the static creation
+  functions (`configSUPPORT_STATIC_ALLOCATION` is 1 on the F407; the fake creates the objects dynamically and ignores the
+  storage) and an `xQueueReset` that also takes a `SemaphoreHandle_t` (`osal_semaphore_reset`; a semaphore is a queue in
+  FreeRTOS but not in the fake). TinyUSB is not changed.
+* **Fake device controller (F15)** (`platform/src/host_dcd.cpp`, control in `support/HostDcd.h`, model details there):
+  the TinyUSB DCD port API (`device/dcd.h`) modelled on TinyUSB's DWC2 port of the F407 OTG_FS core
+  (`portable/synopsys/dwc2/dcd_dwc2.c`, cited per function) and USB 2.0. The test is the cable and the host:
+  `attach` / `detach` (unplugged event), `busReset` (address 0, endpoints closed, bus reset event, full speed),
+  `suspend`, `resume`, `sof`, and single transactions `setup`, `out`, `in` that return the device's handshake
+  (ACK, NAK when no transfer is armed, STALL, no response when the device is not on the bus, not reset yet or at another
+  address). Transfers complete after a short packet or the requested length (IN: ceil(n / wMaxPacketSize) packets, a
+  0-byte transfer is one ZLP), stall drops the armed transfer, a SETUP clears the EP0 stall, the new address of
+  SET_ADDRESS takes effect after its status stage, the SOF interrupt follows `dcd_sof_enable` and remote wakeup, events
+  held while `dcd_int_disable`. Events are raised in the USB interrupt (`in_isr`, IPSR of OTG_FS). Every packet and
+  event is recorded. Not modelled (recorded in `HostDcd::state().faults`, which fails the test): high speed, isochronous
+  endpoints, `dcd_edpt_xfer_fifo`, a transfer on a closed or busy endpoint, packets larger than wMaxPacketSize or than
+  the armed transfer, remote wakeup while the bus is not suspended; not modelled at all: FIFO RAM, DMA, bus timing,
+  bit errors.
+* **Simulated host** (`support/UsbHost.h`): control transfers with data and status stages (NAKs are retried after
+  letting the device work, a STALL ends the transfer), `enumerate()` (bus reset, device descriptor, SET_ADDRESS,
+  configuration descriptor, string 0, SET_CONFIGURATION; parses the interfaces and endpoints), standard requests, bulk /
+  interrupt transfers, CDC ACM requests and data (`cdcSetLineCoding`, `cdcSetControlLineState`, `cdcWrite`, `cdcRead`)
+  and HID (`hidSetReport`, `hidGetReport`, `hidWrite`, `hidRead`). Protocol errors of the device seen by the host are
+  recorded in `errors()`.
+* **Fixture** (`support/UsbFixture.h`): `UsbFixture` resets TinyUSB (`tud_deinit`), the fake controller, the simulated
+  time, the fake FreeRTOS, the F407 platform and the firmware globals the USB callbacks use, before and after every
+  test. `startDevice(conf, hidReportDescriptor)` does what `FFBWheel::usbInit` and `USBdevice::Run` do (defaults: the
+  F407 wheel configuration `usb_cdc_hid_conf_2axis` with `hid_2ffb_desc`): `mainclass` = a `UsbTestMain` (the failsafe
+  `FFBoardMain` counting `usbSuspend` / `usbResume` / `cdcRcvReady`; its threads `CDCCMD` and `CMD_MAIN` are resumable),
+  `usb_device` = a `USBdevice` with the real descriptors (kept for the whole run: never started, so never destroyed,
+  vendor V2), then `tusb_init()`. `createHidFfb()` adds a real `EffectsCalculator` + `HidFFB` as the global HID handler.
+  `process()` runs `tud_task_ext(0, false)` and the firmware threads until nothing is left (host-vs-target: on the target
+  `tud_task()` blocks until the next event; the processing order is the same). `enumerate()` enumerates and requires the
+  configured state. At the end the fixture fails the test on controller faults, host errors, unmodelled HAL calls,
+  kernel faults and leaked kernel objects; `KNOWN_ISSUE` tests use `REQUIRE_USB_MODELLED()` before the defect assertion.
+* **Host-vs-target:** the USB thread is not started (the test thread runs TinyUSB's task); static FreeRTOS objects are
+  created dynamically (create-failure injection would also make them fail); the DWC2 writes the new address at once and
+  the core keeps the old one for the status stage, the fake switches after the status stage (same on the bus).
+
+## Python helper tests
+
+`python/test_*.py`: stdlib `unittest` smoke tests of the Python helper scripts (P9, tier A: tested, never fixed):
+`Firmware/scripts/generate_memory.py` (memory map CSV -> `eeprom_addresses.c` / `.h`) and
+`FFBoard/USB/portable/synopsys/dwc2/dwc2_info.py` (TinyUSB's DWC2 register decoder). `python/helper_paths.py` holds the
+paths and a loader that imports a script without writing `__pycache__`.
+
+* `ctest` runs them as `python_helper_tests` when Python 3 is found (like the baseline check):
+  `python3 -B -m unittest discover -s python -t python` with `PYTHONDONTWRITEBYTECODE=1`, in the build directory.
+  Directly: `python3 -B -m unittest discover -s Firmware/Tests/python -t Firmware/Tests/python -v`.
+* The scripts never write into the repository: their outputs go to temporary directories created by the tests (the
+  repository files are only read). No network, no other packages: `dwc2_info.py` imports `click` and `pandas`, which
+  the tests replace with minimal stand-ins while it is loaded (nothing is installed).
+* Generated files are compared with LF line ends (the scripts write text mode files, CRLF on Windows).
+
 ## Limitations
 
 * The host is a 64 bit little endian machine with a different compiler backend. Stack usage, timing, alignment
