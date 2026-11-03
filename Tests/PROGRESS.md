@@ -341,8 +341,8 @@ Hard gate for every change: `ffb_unit_tests` must report 0 failed; on GCC 16 the
 
 Plan: `Tests/DRIVER_TEST_PLAN.md` (TMC4671, then ODrive, then VESC; stop after every phase D0-D3). Lead: Opus 5.5; workers: `.claude/agents/` (Sonnet 5.5 mapper / writer / reviewer, Haiku 5.5 summariser; prefer `tools/summarise_results.py`).
 
-- **Current phase:** D1 TMC4671 complete and **approved by me 2026-11-03**. D2 (ODrive) not started: waiting for my authorisation and the ODrive CAN spec. D0 approved 2026-11-03 ("start D1 (TMC4671) and pause at ODrive and VESC until I give authorisation").
-- **Next action:** **Stop: end of D1.** Summary for me: `Tests/D1_TMC4671_REPORT.md`. Waiting for my review of D1 and my answers to Q1-Q4 (open questions 9-12). D2 (ODrive) needs my explicit authorisation and the ODrive CAN protocol spec; D3 (VESC) likewise.
+- **Current phase:** D2 ODrive, started 2026-11-03 ("Start D2"; spec: `Tests/CAN Protocol — ODrive Documentation 0.5.6 documentation.pdf` + `Tests/can-protocol.csv`, both git-ignored). D1 approved 2026-11-03.
+- **Next action:** D2: `FakeOdrivePeer` + `OdriveFixture` (worker), then work orders. Open: D2-Q1 (ODrive enum numbers not in the supplied spec; meanwhile `characterization:`), D2-Q2 (0.5.4 vs 0.5.6). D3 (VESC) needs my authorisation.
 - **Baseline gate (2026-11-02, before any driver change):** ctest 7/7 and `check_baseline.py` OK (default, san); `ffb_unit_tests` 646/0/4.
 - **Session model:** Opus 5.5 (`claude-opus-5-5`) confirmed as lead. Agent files in `.claude/agents/` from Appendix A (committed `1e9c8c2c`).
 
@@ -367,6 +367,12 @@ Plan: `Tests/DRIVER_TEST_PLAN.md` (TMC4671, then ODrive, then VESC; stop after e
 - **Mutation spot-check**: 99 mutations on executed lines of `TMC4671.cpp`, 96 killed after the review fixes (97 %); survivors M62 and M75 are equivalent while bugs B-T26 / B-T25 are open, M97 (hardware version mask 0x1F vs 0x0F) is equivalent for every existing config.
 - **Suspected driver bugs** B-T1..B-T30 = bugs 139-168 in "Suspected firmware bugs" (B-Tn = 138 + n); 26 have a `KNOWN_ISSUE`/`KNOWN_ISSUE_UB`/skipped-crash test, 4 are code reading only (B-T2, B-T10, B-T22, B-T28). NEEDS REVIEW 166-175.
 - **Open questions for me**: Q1-Q4 under "Open questions for me" (items 9-12).
+
+### D2 ODrive (in progress)
+
+- Spec: ODrive 0.5.6 CAN protocol page (PDF) + its "CAN Messages" table (`Tests/can-protocol.csv`, ignored by `Tests/.gitignore` since `8e436a89`). The PDF table is cut at the right edge; the CSV has the start byte, type, bits, factor and offset columns. Enum numbers (axis states, modes, error bits) are in neither file (D2-Q1).
+- Inventory (Sonnet): `../ffb-test-build/ws/d2/odrive_inventory.md` (not committed).
+- **Charter** (lead, signed 2026-11-03): `Firmware/Tests/driver/ODRIVE_REQUIREMENTS.md`, requirements O1-O71 in groups G1 construction/port, G2 TX frames, G3 RX frames, G4 connection/state machine, G5 torque/encoder, G6 commands, G7 flash, G8 errors; suspected bugs B-O1..B-O8 (maxtorque truncation, connected before any frame, RTR/short frames parsed as data, node id > 63, extended ids accepted, controller mode not sent on some RUNNING paths, offset > half a turn wraps, float->int32 position UB).
 
 ### Fake fidelity register (driver track)
 
