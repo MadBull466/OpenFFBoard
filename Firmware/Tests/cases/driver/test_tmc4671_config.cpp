@@ -427,11 +427,11 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R46] getPhiEtype reports extEn
 
 TEST_CASE_FIXTURE(TmcFixture, "[R47] torque filter mode none writes the enable word 0 to biquad_t_enable (CONFIG_ADDR 23)") {
 	auto tmc = makeTmc1();
-	chip1.setConfigWord(T_EN, 1);
+	chip1.setConfigWord(T_EN, 0x80000001u); // enable bit 31 (and bit 0) set before
 	TMC4671Biquad_conf c;
 	c.mode = TMCbiquadpreset::none;
 	tmc->setTorqueFilter(c);
-	CHECK(chip1.configWord(T_EN) == 0u); // DS 0x4E p94: 23 = biquad_t_enable (bit 31 of the word is the enable per DS 0x4D list; driver writes 0/1)
+	CHECK(chip1.configWord(T_EN) == 0u); // DS 0x4D p93: biquad_t_enable is bit(31), 0 = off; 0 is correct for off whichever bit the driver uses
 }
 
 TEST_CASE_FIXTURE(TmcFixture, "[R47] the torque biquad is written through CONFIG_ADDR 17, 18, 20, 21, 22, 23 in this order") {
@@ -450,18 +450,19 @@ TEST_CASE_FIXTURE(TmcFixture, "[R47] the torque biquad is written through CONFIG
 	}
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R47] a lowpass torque filter enables the biquad (enable word 1)") {
+TEST_CASE_FIXTURE(TmcFixture, "[R47] a lowpass torque filter sets biquad_t_enable (bit 31 of CONFIG_DATA 23)" *
+		KNOWN_ISSUE("B-T24: biquad enable written to bit 0 instead of bit 31")) {
 	auto tmc = makeTmc1();
 	TMC4671Biquad_conf c;
 	c.mode = TMCbiquadpreset::lowpass;
 	c.params = {500, 70};
 	tmc->setTorqueFilter(c);
-	CHECK(chip1.configWord(T_EN) == 1u);
+	CHECK((chip1.configWord(T_EN) >> 31) == 1u); // DS 0x4D p93: biquad_t_enable is bit(31), 1 = on
 }
 
 TEST_CASE_FIXTURE(TmcFixture, "[R47] a lowpass torque filter with fc = 0 is not enabled") {
 	auto tmc = makeTmc1();
-	chip1.setConfigWord(T_EN, 1);
+	chip1.setConfigWord(T_EN, 0x80000001u); // enable bit 31 (and bit 0) set before
 	TMC4671Biquad_conf c;
 	c.mode = TMCbiquadpreset::lowpass;
 	c.params = {0, 70};
@@ -521,7 +522,16 @@ TEST_CASE_FIXTURE(TmcFixture, "[R47] a notch torque filter writes the numerator 
 	CHECK(std::fabs(real(chip1.configWord(T_B0)) - e.b0) <= kCoefTol);
 	CHECK(std::fabs(real(chip1.configWord(T_B1)) - e.b1) <= kCoefTol);
 	CHECK(std::fabs(real(chip1.configWord(T_B2)) - e.b2) <= kCoefTol);
-	CHECK(chip1.configWord(T_EN) == 1u);
+}
+
+TEST_CASE_FIXTURE(TmcFixture, "[R47] a notch torque filter sets biquad_t_enable (bit 31 of CONFIG_DATA 23)" *
+		KNOWN_ISSUE("B-T24: biquad enable written to bit 0 instead of bit 31")) {
+	auto tmc = makeTmc1();
+	TMC4671Biquad_conf c;
+	c.mode = TMCbiquadpreset::notch;
+	c.params = {500, 20};
+	tmc->setTorqueFilter(c);
+	CHECK((chip1.configWord(T_EN) >> 31) == 1u); // DS 0x4D p93
 }
 
 TEST_CASE_FIXTURE(TmcFixture, "[R47] a notch torque filter writes the feedback coefficients a1, a2 with the datasheet sign") {
@@ -551,14 +561,15 @@ TEST_CASE_FIXTURE(TmcFixture, "[R47] a peak torque filter has unity DC gain") {
 	CHECK(std::fabs(num / den - 1.0) <= kGainTol);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R47] a peak torque filter writes enable word 1") {
+TEST_CASE_FIXTURE(TmcFixture, "[R47] a peak torque filter sets biquad_t_enable (bit 31 of CONFIG_DATA 23)" *
+		KNOWN_ISSUE("B-T24: biquad enable written to bit 0 instead of bit 31")) {
 	auto tmc = makeTmc1();
 	TMC4671Biquad_conf c;
 	c.mode = TMCbiquadpreset::peak;
 	c.params = {500, 20};
 	c.gain = 10.0f;
 	tmc->setTorqueFilter(c);
-	CHECK(chip1.configWord(T_EN) == 1u);
+	CHECK((chip1.configWord(T_EN) >> 31) == 1u); // DS 0x4D p93
 }
 
 // ---------------------------------------------------------------------------------------------------------------

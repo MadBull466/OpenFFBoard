@@ -339,11 +339,13 @@ TEST_CASE_FIXTURE(TmcFixture, "[R25] the flux biquad is written through CONFIG_A
 	CHECK(seq == std::vector<uint32_t>{25, 26, 28, 29, 30, 31});
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R25] the flux biquad is enabled (enable word 1)") {
+TEST_CASE_FIXTURE(TmcFixture, "[R25] the flux biquad is enabled (biquad_f_enable = bit 31 of CONFIG_DATA 31)"
+							  * KNOWN_ISSUE("B-T24: biquad enable written to bit 0 instead of bit 31")) {
+	// DS §7.2 0x4D p93: biquad_f_enable is bit(31) of CONFIG_DATA, "0: off, 1: on". The driver writes bq.enable & 0x1.
 	auto tmc = initialised(*this);
 	auto m = fluxBiquadWrites(chip1);
 	REQUIRE(m.count(31) == 1);
-	CHECK(m[31] == 1);
+	CHECK((m[31] >> 31) == 1u);
 }
 
 // Tolerance (lead decision L19, replaces +-2 LSB of L2): each coefficient within 1e-6 in real units (about 537 LSB of
