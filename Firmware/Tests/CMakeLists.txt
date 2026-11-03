@@ -785,8 +785,15 @@ set(DRIVER_FIRMWARE_SOURCES
 # as Axis.cpp above (F14); the value is in range, the firmware source is not changed.
 set_property(SOURCE ${FFBOARD_DIR}/UserExtensions/Src/TMC4671.cpp APPEND PROPERTY COMPILE_OPTIONS
 	$<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-c++11-narrowing>)
-set(DRIVER_PLATFORM_SOURCES ${TARGET_PLATFORM_SOURCES} platform/src/host_driver_timers.cpp)
-file(GLOB DRIVER_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cases/driver/test_*.cpp)
+set(DRIVER_PLATFORM_SOURCES ${TARGET_PLATFORM_SOURCES} platform/src/host_driver_timers.cpp fakes/FakeTmc4671.cpp)
+# FFB_DRIVER_TEST_FILTER (developer aid for parallel test writing): glob of the driver test files to compile, e.g.
+# "test_tmc4671_init*.cpp". The setup and fake self-tests are always compiled. Default: all driver tests.
+set(FFB_DRIVER_TEST_FILTER "test_*.cpp" CACHE STRING "Glob of the cases/driver test files compiled into ffb_driver_tests")
+file(GLOB DRIVER_TEST_SOURCES CONFIGURE_DEPENDS
+	${CMAKE_CURRENT_SOURCE_DIR}/cases/driver/${FFB_DRIVER_TEST_FILTER}
+	${CMAKE_CURRENT_SOURCE_DIR}/cases/driver/test_driver_setup.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/cases/driver/test_tmc4671_fake.cpp)
+list(REMOVE_DUPLICATES DRIVER_TEST_SOURCES)
 
 add_executable(ffb_driver_tests
 	${DRIVER_FIRMWARE_SOURCES}

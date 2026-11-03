@@ -34,7 +34,7 @@
 | P7 CAN and serial FFB | `ffb_target_tests` | about 420 (measured: total 7,570 lines, 93.3 %) | done | yes, 2026-10-27 | `b270011b` batch 0, `5bdecdca` A, `50b9dffd` C, `18712821` B, `0d20c8e3` infra + A + C review fixes, `5645da14` B review fixes + results |
 | P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 (measured: total 8,007 lines, 98.9 %) | done | yes, 2026-10-27 | `3975ddd6` batch 0, `45b1aa47` tests, `2324abf9` infra + B review fixes, `200ac244` A review fixes + results |
 | P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder (tier B 85.1 %, tier C 100 %) | done | yes, 2026-11-02 | `1e2730f0` batch 0, `8bd93ab4` C, `6893dcd3` B, `7c813f56` A, `0d56594f` review fixes + results + summary |
-| P10 Driver track D0-D3 (TMC4671, ODrive, VESC) | `ffb_driver_tests` (new) | separate driver tier (0/2,596 lines after D0) | D0 done 2026-11-03; D1-D3 open | D0: pending | this commit (D0 skeleton) |
+| P10 Driver track D0-D3 (TMC4671, ODrive, VESC) | `ffb_driver_tests` (new) | separate driver tier (0/2,596 lines after D0) | D0 done; D1 in progress; D2/D3 wait for my authorisation | D0: yes, 2026-11-03 | `1e9c8c2c`, `0340e400` (D0) |
 
 ## Decisions log
 
@@ -341,8 +341,8 @@ Hard gate for every change: `ffb_unit_tests` must report 0 failed; on GCC 16 the
 
 Plan: `Tests/DRIVER_TEST_PLAN.md` (TMC4671, then ODrive, then VESC; stop after every phase D0-D3). Lead: Opus 5.5; workers: `.claude/agents/` (Sonnet 5.5 mapper / writer / reviewer, Haiku 5.5 summariser; prefer `tools/summarise_results.py`).
 
-- **Current phase:** D0 (preparation) **complete** 2026-11-03, waiting for my go-ahead for D1 (TMC4671). No driver behaviour tests written.
-- **Next action:** **Stop: end of D0.** After my go-ahead: D1 TMC4671 (inventory refresh, charter by the lead from the Rev 2.07 datasheet, map, `FakeTmc4671`, work orders, review, QC).
+- **Current phase:** D1 TMC4671, started 2026-11-03 (D0 approved by me the same day: "start D1 (TMC4671) and pause at ODrive and VESC until I give authorisation"; TMC4671 must be completely finished, tested and reviewed before ODrive starts).
+- **Next action:** D1 step 4-5: `FakeTmc4671` + `TmcFixture` (worker), requirement matrix (worker), then work orders per requirement group G1-G9. D2 (ODrive) and D3 (VESC) need my explicit authorisation.
 - **Baseline gate (2026-11-02, before any driver change):** ctest 7/7 and `check_baseline.py` OK (default, san); `ffb_unit_tests` 646/0/4.
 - **Session model:** Opus 5.5 (`claude-opus-5-5`) confirmed as lead. Agent files in `.claude/agents/` from Appendix A (committed `1e9c8c2c`).
 
@@ -353,6 +353,13 @@ Plan: `Tests/DRIVER_TEST_PLAN.md` (TMC4671, then ODrive, then VESC; stop after e
 - Gate (all 6 dirs + cov): ctest 8/8, `check_baseline.py` OK, `ffb_unit_tests` 646/0/4 (643/0/7 DSP san, 645/0/5 nodsp-san), target 1,819/0/18, flash 159/0/0, rtos 271/0/0, usb 286/0/0, `ffb_driver_tests` 1/0/0; compile commands of all existing executables identical to `../ffb-test-build/d0-ref/` (lead re-checked default, san, clang23); no findings, no warnings in `Firmware/Tests` files.
 - Driver tier coverage after the skeleton: `TMC4671.cpp` 0/1,928, `ODriveCAN.cpp` 0/269, `VescCAN.cpp` 0/399, `TMC4671_configs.cpp` data only.
 - Warnings inside the driver sources (clang 23 only, reported, not fixed): 183 `-Winconsistent-missing-override` (`TMC4671.h`, `ODriveCAN.h:42/49/68/73/94`, `VescCAN.h:101/103/108`); `-Wconstant-logical-operand` at `TMC4671.cpp:1855` (2x) and `:2078` (the `&&`-as-mask oddities of the inventory); `-Wdeprecated-volatile` `VescCAN.cpp:489`.
+
+### D1 TMC4671 (in progress)
+
+- Inventory (Sonnet): `../ffb-test-build/ws/d1/tmc_inventory.md` (565 lines, not committed); datasheet text extracted with `pdftotext` to `../ffb-test-build/ws/d1/` (not committed).
+- **Charter** (lead, signed 2026-11-03): `Firmware/Tests/driver/TMC4671_REQUIREMENTS.md`, groups G1 SPI transport, G2 identification, G3 init sequence, G4 configuration setters, G5 control/readouts, G6 state machine/power/errors, G7 encoder alignment and procedures (scripted plant), G8 commands, G9 flash; fake peer spec; coverage target >= 80 % of `TMC4671.cpp`.
+- Suspected driver bugs listed in the charter as B-T1..B-T22 (get global bug numbers when their tests exist). Key ones: B-T1 register reads at 5.25 MHz without the 500 ns pause the datasheet requires above 2 MHz (DS §4.2.1 Table 2); B-T7 index clear bit written to bit 9 instead of `cln` bit 8 of 0x25; B-T8 `setup_AENC` swaps the phi_e/phi_m halves of 0x45; B-T11 `getFlux` `&&`; B-T15 ADC calibration failure never reaches `HardError`; B-T16 division by zero in `calibrateAdcOffset` with a silent chip.
+- Open questions for me: Q1 registers 0x1E, 0x47, 0x5C are not in datasheet Rev 2.07 and 0x41 is read-only there (older register map?); Q2 engineering-sample version value not in the datasheet (characterization only).
 
 ### Fake fidelity register (driver track)
 
