@@ -58,7 +58,7 @@ Priority: **P1** must be tested; **P2** should be tested; **P3** characterizatio
 | O13 | P1 | Set Input Torque 0x0E: DLC 4, float32 LE @0 in Nm. | CSV 0x00E | bytes of the float HD (e.g. 1.0f = `00 00 80 3F`, -0.5f = `00 00 00 BF`) |
 | O14 | P1 | Encoder estimates request 0x09 and bus voltage request 0x17 are RTR frames with DLC 0. | SPEC call & response | rtr flag, dlc 0 |
 | O15 | P2 | Start Anticogging 0x10 carries no signals. | CSV 0x010 | driver sends DLC 1 with 0x00: `characterization:` + NEEDS REVIEW (harmless difference, L3) |
-| O16 | P1 | The node id is limited to the 6 bits the protocol allows: a node id outside 0..63 is rejected, and the TX id and the RX filter always use the same node. | SPEC node id max 0x3F | **suspected bug B-O4** (`canid` int8 unvalidated, TX id `cmd | node<<5` unmasked vs filter `& 0x3F`, ODC:69, 326; ODH:79) `KNOWN_ISSUE` |
+| O16 | P1 | The node id is limited to the 6 bits the protocol allows: a node id outside 0..63 is rejected and the previous node stays. | SPEC node id max 0x3F | **suspected bug B-O4** (`canid` int8 unvalidated, ODC:326): the value is stored and reported as set (64, -1, 200 -> -56) while the bus uses `node & 0x3F` (TX id truncated to 11 bits by the CAN peripheral, filter `& 0x3F`, ODC:69) and the saved value is `& 0x3F`, so a reload changes the node (L16) `KNOWN_ISSUE` |
 
 ### G3 Received frames
 
@@ -164,3 +164,11 @@ Fixture `support/OdriveFixture.h` (driver tests only): target reset, flash clear
 * **L9** Clock handling: the fixture schedules the "ODRIVE" thread itself and undoes the clock jump of `Delay(500)`. Accepted after review: the driver body always resumes at its exact wake time, so the clock the driver observes (thread body at t, received frames between t and t+500, next body at t+500) is monotonic. Restriction (documented): no other timed objects across `runFor()`.
 * **L10** Axis-state model of the peer (calibration 2000 ms, ends in IDLE, refusal mode) is a Low-confidence assumption (not in the supplied spec); tests driven by it are `characterization:`.
 * **L11** A master RTR request with DLC != 0 is recorded as a violation (assumption: CAN Simple requests carry no data; SPEC/CSV do not state the DLC of a remote frame). The driver sends DLC 0, so no test depends on the other case.
+
+## Lead decisions during writing (2026-11-03)
+
+* **L12 / B-O9** `getPos_f` measures its 5 ms re-request window from the last reply (`lastPosTime`, ODC:253) instead of from the last request: without replies every call sends an RTR 0x09, a request flood at the axis loop rate. `KNOWN_ISSUE` (O42).
+* **L13 (O24)** The driver's own node check (ODC:390-393) is unreachable through the public interface (the CAN filter drops frames of other nodes); O24 is verified end to end only.
+* **L14 / B-O10** `restoreFlash` chooses the M1 settings address (0x3D2) only inside the successful read of the node-id word 0x3D0 (ODC:96-102): without 0x3D0, ODriveCAN2 restores motor 0's settings word 0x3D1. `KNOWN_ISSUE` (O60). Rare in practice (`saveFlash` always writes 0x3D0).
+* **L15** Command policies kept as `characterization:` + NEEDS REVIEW, no bug id: `canid` with an invalid command type answers OK (the ERR of `handleGetSet` is dropped), `canspd` narrows to uint8 / ignores presets above 5, both command handlers use class id 0x85.
+* **L16** B-O4 scope: TX id and filter agree only because the CAN peripheral truncates the identifier to 11 bits; the defect is the stored/reported node id differing from the bus node and changing on reload. Tests that expect the truncated outcome without a marker are not allowed (removed in review of OW1).
