@@ -157,3 +157,10 @@ Fixture `support/OdriveFixture.h` (driver tests only): target reset, flash clear
 * **L5** Missing retry after a refused calibration and the automatic calibration on connect are policy questions (NEEDS REVIEW), not asserted defects.
 * **L6** Flash layout of 0x3D0 differs from the `eeprom_addresses.h` comment (code: M0 bits 0-5, M1 bits 6-11; comment: 0-6, 7-12, speed 13-15): the code is characterized; the comment mismatch is a NEEDS REVIEW item.
 * **L7** Suspected driver bugs are numbered B-O1..B-On; global numbers are assigned at the end of D2 (after bug 168).
+
+## Lead decisions on the fake peer (2026-11-03, after the lead review of `FakeOdrivePeer` / `OdriveFixture`)
+
+* **L8** FIFO1 / node 1: the fixture enables the CAN1 RX1 interrupt line by default (modelling deviation, documented in the fixture) so node-1 tests see frames at their time. The real F407 setting (RX1 line disabled in the CubeMX MSP init: a node-1 frame waits in FIFO1 until another CAN interrupt) is kept as one `characterization:` test (O3) with a NEEDS REVIEW entry: on target ODriveCAN2 only processes frames when a CAN TX completion or FIFO0 interrupt happens (in practice its own 500 ms voltage requests).
+* **L9** Clock handling: the fixture schedules the "ODRIVE" thread itself and undoes the clock jump of `Delay(500)`. Accepted after review: the driver body always resumes at its exact wake time, so the clock the driver observes (thread body at t, received frames between t and t+500, next body at t+500) is monotonic. Restriction (documented): no other timed objects across `runFor()`.
+* **L10** Axis-state model of the peer (calibration 2000 ms, ends in IDLE, refusal mode) is a Low-confidence assumption (not in the supplied spec); tests driven by it are `characterization:`.
+* **L11** A master RTR request with DLC != 0 is recorded as a violation (assumption: CAN Simple requests carry no data; SPEC/CSV do not state the DLC of a remote frame). The driver sends DLC 0, so no test depends on the other case.

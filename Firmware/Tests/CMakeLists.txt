@@ -785,7 +785,7 @@ set(DRIVER_FIRMWARE_SOURCES
 # as Axis.cpp above (F14); the value is in range, the firmware source is not changed.
 set_property(SOURCE ${FFBOARD_DIR}/UserExtensions/Src/TMC4671.cpp APPEND PROPERTY COMPILE_OPTIONS
 	$<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-c++11-narrowing>)
-set(DRIVER_PLATFORM_SOURCES ${TARGET_PLATFORM_SOURCES} platform/src/host_driver_timers.cpp fakes/FakeTmc4671.cpp)
+set(DRIVER_PLATFORM_SOURCES ${TARGET_PLATFORM_SOURCES} platform/src/host_driver_timers.cpp fakes/FakeTmc4671.cpp fakes/FakeOdrivePeer.cpp)
 # FFB_DRIVER_TEST_FILTER (developer aid for parallel test writing): glob of the driver test files to compile, e.g.
 # "test_tmc4671_init*.cpp". The setup and fake self-tests are always compiled. Default: all driver tests.
 set(FFB_DRIVER_TEST_FILTER "test_*.cpp" CACHE STRING "Glob of the cases/driver test files compiled into ffb_driver_tests")
