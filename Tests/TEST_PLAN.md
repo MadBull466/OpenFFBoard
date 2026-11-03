@@ -168,6 +168,20 @@ Estimated gain about 365 lines. Needs F11 (queues, timers, event groups, simple 
 - **Python helpers** with stdlib `unittest`: `Firmware/scripts/generate_memory.py` and `dwc2_info.py` (vendor: report bugs, never fix).
 - **Optional:** verify the `HidFFB` `characterization` tests against the USB HID PID 1.01 specification, only if I give you the spec file path.
 
+### P10: Driver track (TMC4671, ODrive, VESC; new `ffb_driver_tests`)
+
+Added 2026-11-03. Driven by `Tests/DRIVER_TEST_PLAN.md` (its phases D0-D3 are the sub-phases of P10; stop after each). Tests the firmware side of the three in-scope drivers against simulated peers (`FakeTmc4671` behind the fake SPI, `FakeOdrivePeer` and `FakeVescPeer` on the CAN fake): frames, scaling, limits, state machines, error handling, timeouts. Requirement charters in `Firmware/Tests/driver/<name>_REQUIREMENTS.md`, tests in `Firmware/Tests/cases/driver/`. Spec files are supplied by me and never committed. Reported as a separate driver tier, not in the in-scope coverage ladder.
+
+## Fake fidelity rules
+
+Every fake (HAL peripheral, kernel, bus, peer device) states in its header:
+- **Models:** the behaviour it reproduces, and the **source** for it (RM0090 chapter, ST HAL source file:line, FreeRTOS / TinyUSB source, datasheet or protocol spec section).
+- **Does not model:** what it leaves out (timing, electrical effects, features the firmware does not use).
+- **Confidence:** High (follows a source line by line), Medium (follows the documented behaviour, simplified), Low (assumed).
+- **Strict:** use that the real hardware or peer would reject (unmodelled call, malformed frame, wrong state) fails the test (`REQUIRE_ALL_HAL_MODELLED()` / a fault list), never silently succeeds.
+- Peers support fault injection (no reply, late reply, corrupted data, bus error) and use simulated time only.
+Fidelity entries for the driver peers are kept in the "Driver track" section of `Tests/PROGRESS.md`.
+
 ## How each phase runs
 
 1. **Plan:** the main agent reads the module sources, lists behaviours to test, and updates the module table in `PROGRESS.md`.
@@ -185,7 +199,7 @@ Estimated gain about 365 lines. Needs F11 (queues, timers, event groups, simple 
 ## Scope and known issues (unchanged)
 
 - In scope: firmware outside `Firmware/Libraries/`, plus the vendor tiers A, B, C above. Not tested: ST HAL, CMSIS core, the FreeRTOS kernel, `Firmware/Targets/**`, CubeMX code.
-- Out of scope: the TMC4671, ODrive, VESC, PWM, MyActuator and SimpleMotion drivers, `TMCDebugBridge`, `MidiMain`, `MidiHandler`. Leave the driver and MIDI feature macros off.
+- Out of scope: the PWM, MyActuator and SimpleMotion drivers, `TMCDebugBridge`, `MidiMain`, `MidiHandler`; their feature macros stay off. The TMC4671, ODrive and VESC drivers are in scope since 2026-11-03 (P10, `ffb_driver_tests` only).
 - **Known issue 1:** `effectsForces` out-of-bounds read aborts on GCC 16. Exclude only the case `requesting the forces of a not existing axis is rejected`.
 - **Known issue 2:** CMSIS-DSP `arm_spline_f32` overflow found by ASan. Skip only the two spline cases in sanitizer runs.
 - **Known issue 3:** the skipped case `command with an unknown id is rejected` (`test_command_execution.cpp:186`) stays skipped. `executeCommands` dereferences the command definition before the null check.

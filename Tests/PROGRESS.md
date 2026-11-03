@@ -230,20 +230,23 @@ Per-file numbers: rerun the coverage command (Environment).
 - Two baseline case names contain a comma (`constant force, spring and damper are summed`, `set periodic stores magnitude, offset, phase and period`). doctest splits filters at commas, so these could only be excluded with a `?` wildcard in place of the comma. No action needed now.
 - On an abort doctest's XML reporter still closes the document; the aborting case carries `<Exception crash="true">` and `test_case_success="true"` (because of `should_fail`). The checker treats this as a crash.
 
-## Out-of-scope driver files (confirmed)
+## Driver files and scope (updated 2026-11-02: driver track)
 
-| Path (under `Firmware/FFBoard/`) | Driver | Driver code or caller code? | Confirmed |
+TMC4671, ODrive and VESC moved IN scope (driver track, `Tests/DRIVER_TEST_PLAN.md`); the others stay out.
+
+
+| Path (under `Firmware/FFBoard/`) | Driver | Driver code or caller code? | Scope |
 |---|---|---|---|
-| `UserExtensions/Inc/TMC4671.h`, `UserExtensions/Src/TMC4671.cpp` (classes `TMC4671`, `TMC_1`, `TMC_2`, `TMC4671Biquad`, `TMC_ExternalEncoderUpdateThread`, enums/structs `TMC4671Limits` etc.) | TMC4671 | Driver | yes |
-| `UserExtensions/Src/TMC4671_configs.cpp` | TMC4671 | Driver (hardware config tables) | yes |
-| `UserExtensions/Inc/TMCDebugBridge.h`, `UserExtensions/Src/TMCDebugBridge.cpp` | TMC4671 | Driver tooling, out of scope | yes |
-| `UserExtensions/Inc/ODriveCAN.h`, `UserExtensions/Src/ODriveCAN.cpp` (`ODriveCAN`, `ODriveCAN1`, `ODriveCAN2`) | ODrive | Driver | yes |
-| `UserExtensions/Inc/VescCAN.h`, `UserExtensions/Src/VescCAN.cpp` (`VescCAN`, `VESC_1`, `VESC_2`) | VESC | Driver | yes |
-| `UserExtensions/Inc/MotorPWM.h`, `UserExtensions/Src/MotorPWM.cpp` (`MotorPWM`, `PWMConfig`) | PWM | Driver | yes |
-| `UserExtensions/Inc/RmdMotorCAN.h`, `UserExtensions/Src/RmdMotorCAN.cpp` (`RmdMotorCAN`, `RmdMotorCAN1`, `RmdMotorCAN2`) | MyActuator (RMD) | Driver | yes |
-| `UserExtensions/Inc/MotorSimplemotion.h`, `UserExtensions/Src/MotorSimplemotion.cpp` (`MotorSimplemotion`, `MotorSimplemotion1/2`) | SimpleMotion | Driver | yes |
-| `Targets/*/Core/Src/cpp_target_config.cpp` (`MotorPWM::timerConfig`, TMC pin config) | PWM, TMC4671 | Target hardware config | yes |
-| `UserExtensions/Src/MidiMain.cpp`, `UserExtensions/Inc/MidiMain.h`, `Src/MidiHandler.cpp` | TMC4671 / MIDI | Out of scope (MIDI removed from the plan, feature macro off) | yes |
+| `UserExtensions/Inc/TMC4671.h`, `UserExtensions/Src/TMC4671.cpp` (classes `TMC4671`, `TMC_1`, `TMC_2`, `TMC4671Biquad`, `TMC_ExternalEncoderUpdateThread`, enums/structs `TMC4671Limits` etc.) | TMC4671 | Driver | **IN scope (driver track D1)** |
+| `UserExtensions/Src/TMC4671_configs.cpp` | TMC4671 | Driver (hardware config tables) | **IN scope (driver track D1)** |
+| `UserExtensions/Inc/TMCDebugBridge.h`, `UserExtensions/Src/TMCDebugBridge.cpp` | TMC4671 | Driver tooling | out of scope (`TMCDEBUG` off) |
+| `UserExtensions/Inc/ODriveCAN.h`, `UserExtensions/Src/ODriveCAN.cpp` (`ODriveCAN`, `ODriveCAN1`, `ODriveCAN2`) | ODrive | Driver | **IN scope (driver track D2)** |
+| `UserExtensions/Inc/VescCAN.h`, `UserExtensions/Src/VescCAN.cpp` (`VescCAN`, `VESC_1`, `VESC_2`) | VESC | Driver | **IN scope (driver track D3)** |
+| `UserExtensions/Inc/MotorPWM.h`, `UserExtensions/Src/MotorPWM.cpp` (`MotorPWM`, `PWMConfig`) | PWM | Driver | out of scope (`PWMDRIVER` off) |
+| `UserExtensions/Inc/RmdMotorCAN.h`, `UserExtensions/Src/RmdMotorCAN.cpp` (`RmdMotorCAN`, `RmdMotorCAN1`, `RmdMotorCAN2`) | MyActuator (RMD) | Driver | out of scope (`RMDCAN` off) |
+| `UserExtensions/Inc/MotorSimplemotion.h`, `UserExtensions/Src/MotorSimplemotion.cpp` (`MotorSimplemotion`, `MotorSimplemotion1/2`) | SimpleMotion | Driver | out of scope (`SIMPLEMOTION` off) |
+| `Targets/*/Core/Src/cpp_target_config.cpp` (`MotorPWM::timerConfig`, TMC pin config) | PWM, TMC4671 | Target hardware config | out of scope (`Targets/**`) |
+| `UserExtensions/Src/MidiMain.cpp`, `UserExtensions/Inc/MidiMain.h`, `Src/MidiHandler.cpp` | TMC4671 / MIDI | MIDI | out of scope (`MIDI` off) |
 | `Inc/MotorDriver.h`, `Src/MotorDriver.cpp` (`MotorDriver` base class + driver `ClassChooser` registry) | shared base/interface | **Caller code, in scope.** Fake drivers at this interface (`MockMotorDriver` exists) | n/a |
 | `Inc/Encoder.h`, `Src/Encoder.cpp` (`Encoder` base; all drivers above except PWM are also encoders) | shared base/interface | **Caller code, in scope.** `MockEncoder` exists | n/a |
 | `Src/Axis.cpp`, `Inc/Axis.h` (driver/encoder choosers with `add_class<TMC_1/ODriveCAN1/VESC_1/...>`) | all | **Caller code, in scope.** Driver classes are compiled out by not defining the driver feature macros; mocks are registered instead | n/a |
@@ -331,6 +334,49 @@ Hard gate for every change: `ffb_unit_tests` must report 0 failed; on GCC 16 the
 | F17 | `baseline/test_cases.txt` (the 318 baseline names) and `tools/check_baseline.py` | `Firmware/Tests/` | Detect any lost or changed baseline test | **done** P0, also run by `ctest` as `ffb_unit_tests_baseline` |
 
 (F13 "build CMSIS-DSP without ASan" was dropped: ASan stays on for the whole build.)
+
+## Driver track
+
+Plan: `Tests/DRIVER_TEST_PLAN.md` (TMC4671, then ODrive, then VESC; stop after every phase D0-D3). Lead: Opus 5.5; workers: `.claude/agents/` (Sonnet 5.5 mapper / writer / reviewer, Haiku 5.5 summariser; prefer `tools/summarise_results.py`).
+
+- **Current phase:** D0 (preparation), started 2026-11-02. No tests written.
+- **Next action:** waiting for me: spec files (all missing), approval of the CMake layout and the `/specs/` ignore entry, answers in "Lead decisions needed". Then D0 steps 6-7 (skeleton `ffb_driver_tests`, `tools/summarise_results.py`, gate, commit), stop.
+- **Baseline gate (2026-11-02, before any driver change):** ctest 7/7 and `check_baseline.py` OK (default, san); `ffb_unit_tests` 646/0/4.
+- **Session model:** Opus 5.5 (`claude-opus-5-5`) confirmed as lead. Agent files created in `.claude/agents/` from Appendix A (not committed yet: question to me).
+
+### Driver inventory (D0, Sonnet worker, spot-checked by the lead; full report outside the repo: `../ffb-test-build/ws/d0/inventory.md`)
+
+| Driver | Files (under `Firmware/FFBoard/UserExtensions/`) | Classes / bases | Feature macro (targets) | Bus / dependencies | Protocol as coded | State / timing | Existing tests |
+|---|---|---|---|---|---|---|---|
+| TMC4671 | `Inc/TMC4671.h` (744), `Src/TMC4671.cpp` (3190), `Src/TMC4671_configs.cpp` (117) | `TMC4671` (`TMC_1`, `TMC_2`): MotorDriver, PersistentStorage, Encoder, CommandHandler, Thread, SPIDevice, ExtiHandler, ErrorHandler, TimerHandler (with `TIM_TMC`) | `TMC4671DRIVER` (F407VG, F411RE; DISCO off); dropped by `constants.h:52-54` without `HSPIDRV` | `motor_spi` (hspi1), CS pins, `htim6` (`TIM_TMC`, not in the test platform), EXTI, flash `ADR_TMC1/2/3_*`, voltagesense, ledEffects, Filters | 5-byte SPI frame: read `0x7F & reg`, write `0x80 | reg`, `__REV` data; registers as bare hex literals, indirect pair 0x4D/0x4E (29 sites each); chip id `0x34363731`; 42 commands | 12-state `Run()`; delays up to 250 ms; calibration/encoder-init/autohome/autotune loops wait on chip conditions | none (only compiled-out ids in `test_axis_config.cpp`, `ADR_TMC*` in flash tests) |
+| ODrive | `Inc/ODriveCAN.h` (160), `Src/ODriveCAN.cpp` (445) | `ODriveCAN` (`ODriveCAN1/2`): MotorDriver, PersistentStorage, Encoder, CommandHandler, Thread, CanHandler | `ODRIVE` (F407VG, F407VG_DISCO); dropped without `CANBUS` | `canport` (standard ids, filter mask 0x07E0), flash `ADR_ODRIVE_*` | id = `cmd | (nodeId << 5)`; command ids as literals (0x07, 0x09, 0x0B, 0x0E, 0x10, 0x17, heartbeat 0x01); float payloads by memcpy | 6 local states; 2000 ms connection timeout; no ErrorHandler use | none |
+| VESC | `Inc/VescCAN.h` (198), `Src/VescCAN.cpp` (749) | `VescCAN` (`VESC_1/2`): same bases as ODrive | `VESC` (F407VG, F407VG_DISCO); dropped without `CANBUS` | `canport` (extended ids), CRC-16 0x1021 (`CRC.cpp`), flash `ADR_VESC*` | id = `VESC_can_Id | (packet << 8)`; named packet/command enums; scaling constants 1e5, 1e6, 100000.0, 1e1; minimum firmware `FW_MIN_RELEASE` 5.3 build 51 | 6 states; 1000 ms response timeout; no ErrorHandler use | none (CRC table tested in `test_crc.cpp`) |
+
+- Enabling only the three macros (with `TMCDEBUG`, `PWMDRIVER`, `SIMPLEMOTION`, `RMDCAN`, `MIDI` off) pulls in no out-of-scope source (from source reading; to be confirmed by the skeleton build). `MotorDriver.cpp`/`Axis.cpp` then register driver ids 1, 2 (TMC), 5, 6 (ODrive), 7, 8 (VESC).
+- Spec references in the code: TMC4671 none (one "recommended by datasheet" comment, `TMC4671.h:209`); ODrive "(0.5.4)" (`ODriveCAN.h:116`); VESC "comm_can.c and command.c in the vesc source" (`VescCAN.cpp:589-591`) and `FW_MIN_RELEASE` (`VescCAN.h:25`).
+
+### Specification files (`Firmware/Tests/specs/`)
+
+- **TMC4671:** present: `Tests/TMC4671-LA_datasheet_Rev2.07.pdf` (datasheet incl. register list, Rev 2.07; supplied 2026-11-03 in `Tests/`, kept out of git by `Tests/.gitignore` `*.pdf`).
+- **ODrive, VESC:** missing (needed before D2 / D3).
+- `Firmware/Tests/.gitignore` ignores `/specs/` (approved 2026-11-03); `Firmware/Tests/specs/` is the place for further spec files.
+
+### Proposed CMake layout (D0 step 5, not applied)
+
+`ffb_driver_tests` = `TARGET_FIRMWARE_SOURCES` + `TMC4671.cpp`, `TMC4671_configs.cpp`, `ODriveCAN.cpp`, `VescCAN.cpp`; `TARGET_PLATFORM_SOURCES` + `platform/src/host_driver_timers.cpp` (`htim6` like `MX_TIM6_Init`); feature header `platform/target_f407_drivers/target_constants.h` (= target header + `TMC4671DRIVER`, `ODRIVE`, `VESC`) before `platform/target_f407`; tests `cases/driver/test_*.cpp` (not picked up by the non-recursive `cases/test_*.cpp` glob); own ctest entry and exclusion lists; added to `tools/run_all_tests.py` and `test_report`; separate driver tier in `coverage_report.py`. Full text: `../ffb-test-build/ws/d0/cmake_proposal.md`. Other executables unchanged (byte-identical compile commands, to be verified).
+
+### Lead decisions needed
+
+- (to me, before D2/D3) ODrive CAN protocol documentation for the targeted firmware version (code hints 0.5.4) and the VESC CAN packet list and scaling (code hints 5.3 build 51): still missing.
+
+### Lead decisions log
+
+| Date | Decision | Reason |
+|---|---|---|
+| 2026-11-02 | `htim6` is defined in a driver-only platform file like `MX_TIM6_Init` (not `TIM_TMC` undefined) | Keeps the TMC4671 code paths of the shipped F407VG (TimerHandler, external-encoder thread) reachable |
+| 2026-11-02 | `ffb_driver_tests` compiles the full `TARGET_FIRMWARE_SOURCES` (real `Axis`, `MotorDriver` registry, main classes) plus the driver sources | The drivers are used through `Axis`/`MotorDriver` on the target; reuses the target fakes (SPI, CAN, flash, RTOS) unchanged |
+| 2026-11-03 | My answers: TMC4671 spec = `Tests/TMC4671-LA_datasheet_Rev2.07.pdf`; CMake layout approved; `/specs/` ignored; `.claude/agents/` committed; charters in `Firmware/Tests/driver/`; the driver track is phase P10 in `TEST_PLAN.md` (with the "Fake fidelity rules" section CLAUDE.md refers to) | My decisions |
+| 2026-11-02 | Charter scope questions (0x4D/0x4E indirect registers, long calibration/autotune procedures, declared-but-unused enums) and the code oddities in the inventory are decided in each driver's charter (D1-D3), against the spec | They need the spec; D0 writes no requirements |
 
 ## Phase plan (details in `Tests/TEST_PLAN.md`)
 
