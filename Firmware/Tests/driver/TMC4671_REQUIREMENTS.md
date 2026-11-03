@@ -203,3 +203,11 @@ Fixture `support/TmcFixture.h` (driver tests only): resets the target (`TargetFi
 * **L16** ENABLE_IN_RAW defaults to high in the fake (board pin assumption; the DS register default 0 is the reset value of the input register). Tests that need it low set it explicitly.
 * **L17** Fake register defaults spot-checked by the lead against DS §7.3 (0x0A, 0x18, 0x19, 0x26, 0x40, 0x5D, 0x5E, 0x60, 0x75): correct. Fake accepted, fidelity: frame/register file High, stacked High, flags Medium, plant hooks Low.
 * **L18** B-T16 (division by zero in `calibrateAdcOffset` with ADC raw words 0, the DS default) is confirmed by the fake builder: SIGFPE on host. Its test must be `KNOWN_ISSUE_UB` and skipped-crash style (the process would terminate): use the existing crash-skip convention (`doctest::skip` + "KNOWN ISSUE (crash)") so the run continues.
+
+## Lead decisions during writing (2026-11-03)
+
+* **L19 (replaces the tolerance of L2)** Biquad coefficients: each within 1e-6 in real units (about 537 LSB of Q3.29) of a double-precision oracle; DC gain `(b0+b1+b2)/(2^29-a1-a2)` within 1e-3. Reason: the firmware computes in single precision (`arm_sin_f32`/`arm_cos_f32` on target), so several float ulps (64-128 LSB for |x| in [1,2)) are normal; a wrong sign, frequency or Q deviates far more.
+* **L20** Feedback sign of the biquad: correct. `Filters.cpp:234-237` negates `b1`/`b2` after computing them, so the TMC `a1`/`a2` are the negated denominator coefficients, as DS eq 43-44 require. A suspected sign defect raised by two writers came from reading `calcBiquad` only up to the switch; no bug.
+* **L21 (R30)** Warm/cold start has no observable (`startupType` is private and never read): untestable, no test.
+* **L22** B-T23 = `rampFlux` stops short of the target when the distance is not a multiple of the step (R66, `KNOWN_ISSUE`).
+* **L23 (B-T6, B-T13)** Out-of-range float-to-integer conversions are `KNOWN_ISSUE_UB`: x86 wraps or gives INT_MIN, ARM `vcvt` saturates, so the visible effect differs on target (B-T6 would not show on target at all, B-T13 would give INT_MAX). Host-vs-target caveat.
