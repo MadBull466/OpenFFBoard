@@ -342,7 +342,7 @@ Hard gate for every change: `ffb_unit_tests` must report 0 failed; on GCC 16 the
 Plan: `Tests/DRIVER_TEST_PLAN.md` (TMC4671, then ODrive, then VESC; stop after every phase D0-D3). Lead: Opus 5.5; workers: `.claude/agents/` (Sonnet 5.5 mapper / writer / reviewer, Haiku 5.5 summariser; prefer `tools/summarise_results.py`).
 
 - **Current phase:** D1 TMC4671 **complete** 2026-11-03 (tested, reviewed, lead QC done), waiting for my review. D0 approved 2026-11-03 ("start D1 (TMC4671) and pause at ODrive and VESC until I give authorisation").
-- **Next action:** **Stop: end of D1.** Waiting for my review of D1 and my answers to Q1-Q4 (open questions 9-12). D2 (ODrive) needs my explicit authorisation and the ODrive CAN protocol spec; D3 (VESC) likewise.
+- **Next action:** **Stop: end of D1.** Summary for me: `Tests/D1_TMC4671_REPORT.md`. Waiting for my review of D1 and my answers to Q1-Q4 (open questions 9-12). D2 (ODrive) needs my explicit authorisation and the ODrive CAN protocol spec; D3 (VESC) likewise.
 - **Baseline gate (2026-11-02, before any driver change):** ctest 7/7 and `check_baseline.py` OK (default, san); `ffb_unit_tests` 646/0/4.
 - **Session model:** Opus 5.5 (`claude-opus-5-5`) confirmed as lead. Agent files in `.claude/agents/` from Appendix A (committed `1e9c8c2c`).
 
