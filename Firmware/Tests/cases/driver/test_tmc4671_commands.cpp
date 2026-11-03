@@ -166,10 +166,11 @@ TEST_CASE_FIXTURE(TmcCmdFixture, "[R102] characterization: mtype set 4 (first va
 	CHECK(get(*tmc, "mtype") == 0);
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R102] characterization: mtype set 259 wraps to 3 (BLDC) because the value is cast to 8 bit") {
+TEST_CASE_FIXTURE(TmcCmdFixture, "[R102] mtype set 259 is treated as an invalid motor type (NONE)" * KNOWN_ISSUE("B-T30: the mtype range check tests the command type instead of the value, so 259 is cast to 8 bit and becomes 3 (BLDC)")) {
 	auto tmc = makeTmc1();
-	setCmd(*tmc, "mtype", 259); // 259 = 256 + 3. Probably unintended, see lead decisions
-	CHECK(get(*tmc, "mtype") == 3);
+	setCmd(*tmc, "mtype", 259); // 259 = 256 + 3, like 4 and 9 it is not a motor type
+	CHECK(get(*tmc, "mtype") == 0);
+	CHECK(((chip1.reg(0x1B) >> 16) & 0xFF) == 0u);
 }
 
 TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] poles set 7 for a BLDC motor writes N_POLE_PAIRS 7 to bits 15:0 of 0x1B and get returns 7") {

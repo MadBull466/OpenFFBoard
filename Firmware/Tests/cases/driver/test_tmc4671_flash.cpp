@@ -325,7 +325,7 @@ TEST_CASE_FIXTURE(TmcFixture, "[R110] the misc word 0x3514 restores the compleme
 	CHECK(CommandHelpers::get(*tmc, "tmcHwType") == 6);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R110] the invert force bit is only restored when the combine encoder bit is set") {
+TEST_CASE_FIXTURE(TmcFixture, "[R110] characterization: the invert force bit is only restored when the combine encoder bit is set") {
 	// HD: 0x80 = b7 invertForce alone (combine b6 clear), hardware version 6 -> 0x3000 | 0x80 = 0x3080.
 	// FW: restoreEncHallMisc ANDs invertForce with combineEncoder. No external spec.
 	HostPlatform::flash()[0x322] = 0x3080;
@@ -425,7 +425,7 @@ TEST_CASE_FIXTURE(TmcFixture, "[R111] restoring a BLDC motor with 1023 pole pair
 	CHECK(chip1.reg(0x1B) == 0x000303FF);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R111] restoring hardware version 1 (v1.0) writes its brake limits to 0x75 and its bridge dead time to 0x19") {
+TEST_CASE_FIXTURE(TmcFixture, "[R111] characterization: restoring hardware version 1 (v1.0) writes its brake limits to 0x75 and its bridge dead time to 0x19") {
 	// Layout DS 0x75: ADC_VM_LIMIT_LOW 15:0, HIGH 31:16. DS 0x19: BBM_L 7:0, BBM_H 15:8.
 	// FW values of the board table (CFG.cpp conf1_0): low 52400 = 0xCCB0, high 52800 = 0xCE40, bbm 20 = 0x14.
 	// HD: 0x75 = (0xCE40 << 16) | 0xCCB0 = 0xCE40CCB0; 0x19 = 0x14 | (0x14 << 8) = 0x1414.
@@ -520,7 +520,7 @@ TEST_CASE_FIXTURE(TmcFixture, "[R113] the position P precision bit follows the s
 // R114 ADC offsets (characterization)
 // ---------------------------------------------------------------------------------------------------------------
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R114] the ADC calibration at power-up does not write the offsets to flash") {
+TEST_CASE_FIXTURE(TmcFixture, "[R114] characterization: the ADC calibration at power-up does not write the offsets to flash") {
 	// FW: only saveAdcParams (full calibration) writes 0x323 / 0x324; calibrateAdcOffset in initializeWithPower does not.
 	auto tmc = makeTmc1();
 	reachShutdown(*tmc);
@@ -531,7 +531,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R114] the ADC calibration at p
 	CHECK((chip1.reg(0x08) & 0xFFFF) == 0x7FFF);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R114] a successful full calibration stores the measured ADC offsets in 0x323 and 0x324") {
+TEST_CASE_FIXTURE(TmcFixture, "[R114] characterization: a successful full calibration stores the measured ADC offsets in 0x323 and 0x324") {
 	// HD: ADC_RAW_DATA 0x02 (DS p77) I1 in 31:16, I0 in 15:0. Constant raw I0 = 0x8123 (33059), I1 = 0x7E00 (32256):
 	// the mean of a constant is the constant; both are within 5000 of 0x7FFF (|0x8123 - 0x7FFF| = 292, |0x7E00 - 0x7FFF| = 511).
 	auto tmc = makeTmc1();
@@ -549,7 +549,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R114] a successful full calibr
 	CHECK(word(0x324) == 0x7E00);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R114] a failed full calibration does not store ADC offsets") {
+TEST_CASE_FIXTURE(TmcFixture, "[R114] characterization: a failed full calibration does not store ADC offsets") {
 	// HD: raw I0 = 0x9757 = 38743: |38743 - 0x7FFF (32767)| = 5976 > TMC_ADCOFFSETFAIL 5000 -> calibration fails.
 	// It is within 10000 of the start offset, so the sample filter of calibrateAdcOffset accepts the samples
 	// (all-zero words would divide by zero: B-T16, not reached here).
@@ -562,7 +562,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R114] a failed full calibratio
 	CHECK_FALSE(hasWord(0x324));
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R114] a stored ADC offset with a neutral current reading skips the calibration at power-up") {
+TEST_CASE_FIXTURE(TmcFixture, "[R114] characterization: a stored ADC offset with a neutral current reading skips the calibration at power-up") {
 	// HD: stored I0 0x8123, I1 0x7E00. The chip's raw ADC words are 0x7FFF (a calibration would write 0x7FFF to
 	// DS 0x09 / 0x08). PID_TORQUE_FLUX_ACTUAL 0x69 stays 0: checkAdc sees a bias of 0 < 100 and accepts the offsets.
 	HostPlatform::flash()[0x323] = 0x8123;
@@ -573,7 +573,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R114] a stored ADC offset with
 	CHECK((chip1.reg(0x08) & 0xFFFF) == 0x7E00);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R114] a stored ADC offset with a biased current reading is replaced by a new calibration") {
+TEST_CASE_FIXTURE(TmcFixture, "[R114] characterization: a stored ADC offset with a biased current reading is replaced by a new calibration") {
 	// HD: 0x69 = 0x03E80000: torque (31:16) = 1000, flux 0 -> mean bias 1000 >= 100, checkAdc rejects the stored offsets
 	// and calibrateAdcOffset measures the raw 0x7FFF again.
 	HostPlatform::flash()[0x323] = 0x8123;

@@ -6,16 +6,16 @@
 
 ## Current state
 
-- **Current phase:** P9 (vendor tiers B and C, Python helpers), started 2026-11-02 at my request (before the wrap-up summary). P8 approved 2026-10-27.
-- **Phase status:** P9 complete and approved 2026-11-02. **All planned phases (P0-P9) are done and approved.** Wrap-up fixes done (see "Final review (wrap-up)"); the project summary follows at the end of P9.
+- **Current phase:** P10 driver track, phase D1 (TMC4671) complete 2026-11-03, waiting for my review (details: "Driver track" section). P0-P9 done and approved (P9 on 2026-11-02).
+- **Phase status:** D0 approved 2026-11-03; D1 complete (charter, fake, 8 work orders, review, mutation check 96/99, lead QC). D2 ODrive and D3 VESC not started: need my authorisation.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
-- **Last commit:** `0d56594f` (P9 final).
-- **Last updated:** 2026-11-02
-- **Last session summary:** P9: `ffb_usb_tests` (real TinyUSB on a fake dwc2 device controller, 286 cases), CMSIS-DSP tests (tier C 100 %), Python helper tests (61, stdlib unittest); 3 module agents, 3 fresh reviewers, fixes. New firmware bugs 134, 137, 138 (137: no CDC replies until a power cycle after a host reset during a reply); vendor V21-V36; NEEDS REVIEW 152-165. Wrap-up before P9: final reviews FR1/FR2, bug report corrections, traceability, README. `Tests/PROJECT_SUMMARY.md` written.
+- **Last commit:** see `git log` (D1 final commit after `c05d0f32`).
+- **Last updated:** 2026-11-03
+- **Last session summary:** D1 TMC4671: `ffb_driver_tests` 436 cases (0 failed, 30 known issues, 3 skipped crashes), `TMC4671.cpp` 89.8 % line coverage, suspected driver bugs 139-168 (B-T1..B-T30), NEEDS REVIEW 166-175, open questions 9-12 (Q1-Q4).
 
 ## Next action
 
-**Project complete.** Waiting for my review of `Tests/BUG_REPORT.md` and `Tests/PROJECT_SUMMARY.md` and my answers to the open questions (CI job, CLAUDE.md/TEST_PLAN.md gate wording, HID PID spec). No further work unless I ask.
+**Stop: end of D1 (TMC4671).** Waiting for my review of D1 and answers to open questions 9-12. Before D2 (ODrive): my explicit authorisation and the ODrive CAN protocol spec in `Firmware/Tests/specs/`. Earlier open items (CI job, gate wording, HID PID spec) unchanged.
 
 ## Phase checklist
 
@@ -34,7 +34,7 @@
 | P7 CAN and serial FFB | `ffb_target_tests` | about 420 (measured: total 7,570 lines, 93.3 %) | done | yes, 2026-10-27 | `b270011b` batch 0, `5bdecdca` A, `50b9dffd` C, `18712821` B, `0d20c8e3` infra + A + C review fixes, `5645da14` B review fixes + results |
 | P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 (measured: total 8,007 lines, 98.9 %) | done | yes, 2026-10-27 | `3975ddd6` batch 0, `45b1aa47` tests, `2324abf9` infra + B review fixes, `200ac244` A review fixes + results |
 | P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder (tier B 85.1 %, tier C 100 %) | done | yes, 2026-11-02 | `1e2730f0` batch 0, `8bd93ab4` C, `6893dcd3` B, `7c813f56` A, `0d56594f` review fixes + results + summary |
-| P10 Driver track D0-D3 (TMC4671, ODrive, VESC) | `ffb_driver_tests` (new) | separate driver tier (0/2,596 lines after D0) | D0 done; D1 in progress; D2/D3 wait for my authorisation | D0: yes, 2026-11-03 | `1e9c8c2c`, `0340e400` (D0) |
+| P10 Driver track D0-D3 (TMC4671, ODrive, VESC) | `ffb_driver_tests` (new) | separate driver tier (0/2,596 lines after D0) | D0, D1 done; D2/D3 wait for my authorisation | D0: yes, 2026-11-03; D1: pending | `1e9c8c2c`, `0340e400` (D0); `043d93f7`, `372d4ea2`, `db8796fb`, `c05d0f32` + final commit (D1) |
 
 ## Decisions log
 
@@ -341,8 +341,8 @@ Hard gate for every change: `ffb_unit_tests` must report 0 failed; on GCC 16 the
 
 Plan: `Tests/DRIVER_TEST_PLAN.md` (TMC4671, then ODrive, then VESC; stop after every phase D0-D3). Lead: Opus 5.5; workers: `.claude/agents/` (Sonnet 5.5 mapper / writer / reviewer, Haiku 5.5 summariser; prefer `tools/summarise_results.py`).
 
-- **Current phase:** D1 TMC4671, started 2026-11-03 (D0 approved by me the same day: "start D1 (TMC4671) and pause at ODrive and VESC until I give authorisation"; TMC4671 must be completely finished, tested and reviewed before ODrive starts).
-- **Next action:** D1 step 4-5: `FakeTmc4671` + `TmcFixture` (worker), requirement matrix (worker), then work orders per requirement group G1-G9. D2 (ODrive) and D3 (VESC) need my explicit authorisation.
+- **Current phase:** D1 TMC4671 **complete** 2026-11-03 (tested, reviewed, lead QC done), waiting for my review. D0 approved 2026-11-03 ("start D1 (TMC4671) and pause at ODrive and VESC until I give authorisation").
+- **Next action:** **Stop: end of D1.** Waiting for my review of D1 and my answers to Q1-Q4 (open questions 9-12). D2 (ODrive) needs my explicit authorisation and the ODrive CAN protocol spec; D3 (VESC) likewise.
 - **Baseline gate (2026-11-02, before any driver change):** ctest 7/7 and `check_baseline.py` OK (default, san); `ffb_unit_tests` 646/0/4.
 - **Session model:** Opus 5.5 (`claude-opus-5-5`) confirmed as lead. Agent files in `.claude/agents/` from Appendix A (committed `1e9c8c2c`).
 
@@ -354,19 +354,27 @@ Plan: `Tests/DRIVER_TEST_PLAN.md` (TMC4671, then ODrive, then VESC; stop after e
 - Driver tier coverage after the skeleton: `TMC4671.cpp` 0/1,928, `ODriveCAN.cpp` 0/269, `VescCAN.cpp` 0/399, `TMC4671_configs.cpp` data only.
 - Warnings inside the driver sources (clang 23 only, reported, not fixed): 183 `-Winconsistent-missing-override` (`TMC4671.h`, `ODriveCAN.h:42/49/68/73/94`, `VescCAN.h:101/103/108`); `-Wconstant-logical-operand` at `TMC4671.cpp:1855` (2x) and `:2078` (the `&&`-as-mask oddities of the inventory); `-Wdeprecated-volatile` `VescCAN.cpp:489`.
 
-### D1 TMC4671 (in progress)
+### D1 TMC4671 (complete 2026-11-03, waiting for my review)
 
-- Inventory (Sonnet): `../ffb-test-build/ws/d1/tmc_inventory.md` (565 lines, not committed); datasheet text extracted with `pdftotext` to `../ffb-test-build/ws/d1/` (not committed).
-- **Charter** (lead, signed 2026-11-03): `Firmware/Tests/driver/TMC4671_REQUIREMENTS.md`, groups G1 SPI transport, G2 identification, G3 init sequence, G4 configuration setters, G5 control/readouts, G6 state machine/power/errors, G7 encoder alignment and procedures (scripted plant), G8 commands, G9 flash; fake peer spec; coverage target >= 80 % of `TMC4671.cpp`.
-- Suspected driver bugs listed in the charter as B-T1..B-T22 (get global bug numbers when their tests exist). Key ones: B-T1 register reads at 5.25 MHz without the 500 ns pause the datasheet requires above 2 MHz (DS §4.2.1 Table 2); B-T7 index clear bit written to bit 9 instead of `cln` bit 8 of 0x25; B-T8 `setup_AENC` swaps the phi_e/phi_m halves of 0x45; B-T11 `getFlux` `&&`; B-T15 ADC calibration failure never reaches `HardError`; B-T16 division by zero in `calibrateAdcOffset` with a silent chip.
-- Open questions for me: Q1 registers 0x1E, 0x47, 0x5C are not in datasheet Rev 2.07 and 0x41 is read-only there (older register map?); Q2 engineering-sample version value not in the datasheet (characterization only).
+- Inventory (Sonnet): `../ffb-test-build/ws/d1/tmc_inventory.md` (not committed); datasheet text extracted with `pdftotext` to `../ffb-test-build/ws/d1/` (not committed).
+- **Charter** (lead): `Firmware/Tests/driver/TMC4671_REQUIREMENTS.md`: requirements R1-R114 in groups G1 SPI transport, G2 identification, G3 init sequence, G4 configuration setters, G5 control/readouts, G6 state machine/power/errors, G7 encoders and procedures (scripted plants), G8 commands, G9 flash; fake peer spec; lead decisions L1-L34 (all disputes and spec readings are recorded there).
+- **Matrix** (Sonnet): before D1 no existing test executed `TMC4671.cpp` (0 covered of 78 requirements). After D1 every P1/P2 requirement has at least one test; not tested by decision: R8 (failed SPI read, nondeterministic), R30 (warm/cold start, no observable), R55 (dead code), R103 (no observable on the sequential host).
+- **Fake** `FakeTmc4671` + fixture `TmcFixture` (Sonnet, reviewed by the lead: defaults spot-checked against DS §7.3).
+- **Tests** (Sonnet writers WO1-WO8, `Firmware/Tests/cases/driver/test_tmc4671_*.cpp`, test-case macros per file): spi 21, identification 18, init 41, config 76, control 53, states 47, encoder 34, commands 81 (some table-driven), flash 29, plus fake self-tests 23 and smoke 4. 30 `KNOWN_ISSUE`/`KNOWN_ISSUE_UB` cases, 3 skipped crashes (B-T16, B-T17, B-T18).
+- **Gate (final, 2026-11-03, all 6 dirs + cov):** ctest 8/8 and `check_baseline.py` OK everywhere; `ffb_driver_tests` 436 cases, 0 failed (default/clang23/nodsp/cov: 402 passed, 4 skipped, 30 known issue; sanitizer dirs: 402 passed, 6 skipped, 28 known issue, the two `KNOWN_ISSUE_UB` skipped); no sanitizer finding; no warning in `Firmware/Tests` files; other executables unchanged (`ffb_unit_tests` 646/0/4 etc.).
+- **Coverage `TMC4671.cpp`: 1,731 / 1,928 lines = 89.8 %** (functions 130/152), target 80 % met. Uncovered 197 lines: (a) dead code in this build, no caller outside the out-of-scope `TMCDebugBridge`/MIDI (about 100 lines: `setGpioMode`/`setGpioPins`/`getGpioPins`, `setBiquadPos`/`setBiquadVel`, `setupFeedForward*`, `setFFMode`, `setFluxTorqueFF`, `setPositionExt`, `encToPos`/`posToEnc`, `getActualTorque`, `setPos`, unused `getPosAbs`/`getCpr`/`getEncoder` branches, `zeroAbnUsingPhiM(true)`); (b) plant-dependent branches not reached by the simple plants (`checkEncoder` backward pass and direction reversal 1262-1288, autotune fine step 715, `encoderInit` power loss 1450-1452, `estimateABNparams` direction counter 2345, DC motor speed in `calibrateAenc` 1089); (c) defensive/unreachable through the public API (ABN cpr 0 at 1553, foreign timer handle 3138, `TMC_2::isCreatable` when the pin is taken, ES branches of `initialize` 267/292 partly); (d) a few command branches (14 lines in `command`, mostly error replies of debug commands). None is hardware-only in the sense of the exclusion list.
+- **Review** (fresh Sonnet reviewer, `../ffb-test-build/ws/d1/review.md`): random order (3 seeds) and every case in its own process green. Findings resolved: hang hidden by `KNOWN_ISSUE` (L31), `mtype 259` lock-in -> B-T30 (L32), four mutation survivors closed (L33). B-T24 kept (L30).
+- **Mutation spot-check**: 99 mutations on executed lines of `TMC4671.cpp`, 96 killed after the review fixes (97 %); survivors M62 and M75 are equivalent while bugs B-T26 / B-T25 are open, M97 (hardware version mask 0x1F vs 0x0F) is equivalent for every existing config.
+- **Suspected driver bugs** B-T1..B-T30 = bugs 139-168 in "Suspected firmware bugs" (B-Tn = 138 + n); 26 have a `KNOWN_ISSUE`/`KNOWN_ISSUE_UB`/skipped-crash test, 4 are code reading only (B-T2, B-T10, B-T22, B-T28). NEEDS REVIEW 166-175.
+- **Open questions for me**: Q1-Q4 under "Open questions for me" (items 9-12).
 
 ### Fake fidelity register (driver track)
 
 | Fake | Models / source | Does not model | Confidence |
 |---|---|---|---|
 | Fake TIM6 (`platform/src/host_driver_timers.cpp`) | `htim6` register block initialised like `MX_TIM6_Init` (`Targets/F407VG/Core/Src/main.c:1054-1058`: PSC 167, up-counting, ARR 65535, no preload); HAL constants cited (`stm32f4xx_hal_tim.h:518, 549`); start/stop/update through the existing F7 TIM fake | counting in real time beyond the existing TIM fake, interrupts priorities | Medium |
-| `FakeTmc4671`, `FakeOdrivePeer`, `FakeVescPeer` | (D1-D3) | | |
+| `FakeTmc4671` (`fakes/FakeTmc4671.h/.cpp`) | TMC4671-LA datasheet Rev 2.07: 40-bit datagram (§4.2.1), 128-register file with §7.3 defaults composed at the §7.2 bit positions, R/RW map (§7.1, writes to read-only ignored and recorded), stacked CHIPINFO / ADC_RAW / CONFIG / PID_ERROR / INTERIM, STATUS_FLAGS clear by write, 0x6B mirrors 0x68, undocumented addresses recorded, two chips on SPI1 by CS, optional time per frame, test hooks | FOC loop, PWM, ADC conversion, encoder decoding, PLL, watchdog, UART/RTMI, step/dir, SPI timing (the 500 ns pause only through the SPI config), CS release inside a frame, register value ranges. Assumptions: answer of a write frame = old value, non-zero STATUS_FLAGS write semantic, ENABLE_IN default high | frame/register file High, stacked registers High, status flags Medium, plant hooks (used by the encoder/procedure tests) Low |
+| `FakeOdrivePeer`, `FakeVescPeer` | (D2-D3, not started: need my authorisation) | | |
 
 ### Driver inventory (D0, Sonnet worker, spot-checked by the lead; full report outside the repo: `../ffb-test-build/ws/d0/inventory.md`)
 
@@ -946,6 +954,16 @@ Functions never run by any test (counts of never-run / total): ErrorHandler 15/2
 | 135 | SerialFFB | `SerialFFB.cpp:114-122` (cf. `HidFFB.cpp:435`) | `setEffectState` does not call `logEffectState`: the per-type "current" force in `effectsDetails` keeps its value after an fxm stop until the next cycle | no |
 | 53 | cppmain | `cppmain.cpp:88-90` with `flash_helpers.cpp:105-120` | `Flash_ReadWriteDefault` returns false after writing a default, so `cppmain` calls `Error_Handler` on every first boot (empty flash); `Error_Handler` only switches the error LED off. Probably unintended | no |
 | 21 | HidFFB / CDC | `FirmwareFixture::resetGlobals` (test infrastructure) | Does not reset `CDCcomm`'s private `usb_busy_retry`; `test_cdc.cpp` works around it with its own fixture. Shared fix in `support/FirmwareFixture.h`? | infra |
+| 166 | TMC4671 identification | `test_tmc4671_identification.cpp` (7 characterization) | Engineering sample (SI_VERSION 0x00010000) lowers SCK to 1.3 MHz and skips CONFIG_ADDR 62; silent chip: only pings, retry every 250 ms (+10 ms loop delay). ES version value not in the datasheet (Q2) | no |
+| 167 | TMC4671 init | `test_tmc4671_init.cpp` (4) | Board choices: ADC_I_SELECT 0x18000100 (UX=I0, V=I2, WY=I1), flux biquad 350 Hz Q 0.7. Intended for every board revision? | no |
+| 168 | TMC4671 configuration | `test_tmc4671_config.cpp` (12) | Undocumented 0x5C used as ddt limit; bangInitPower = 75 % of the torque limit; setPwmFreq(0)/negative ignored; deferred motion mode applied only at startMotor; hardware configs per version (1, 2, 3, 6; 4/5/unknown keep the previous one) | no |
+| 169 | TMC4671 control | `test_tmc4671_control.cpp` (15) | Field weakening flux = -min(\|power\|, fluxoffset); flux dissipation formula vDiff*0.5*limit*0.0002 above 1 V; VM and thermistor scalers. Firmware policy only | no |
+| 170 | TMC4671 state machine | `test_tmc4671_states.cpp` (14) | Start-up sequence/timing (6 powered checks of 110 ms), hasPower thresholds 10 V / 78 V, undervoltage reaction, ADC calibration tolerance 5000 counts, status flag handling; `readFlags(true)` masks with the member, not with 0x7D (`setStatusMask` does not update it). `motorReady()` stays true until the thread runs once after `emergencyStop(false)` (turn() is protected) | no |
+| 171 | TMC4671 encoders and procedures | `test_tmc4671_encoder.cpp` (30, scripted plants, fidelity Low) | Alignment, calibration, index search, PID autotune and ext-encoder results are pinned against simple plants. PHI_E_EXT upper half is the sign extension (0xFFFFxxxx). Ext selected without an encoder keeps type 5 but behaves like NONE. PID autotune with a plant without overshoot needs ~100 s | no |
+| 172 | TMC4671 commands | `test_tmc4671_commands.cpp` (28) | Command policies: cpr 0 -> 1, invalid encsrc/mtype -> NONE, trqbq_f 0 is raised to 1 although the help says "0 to disable", iScale help says "Counts per A" but the value is A per count, `calibrated` stays 0 without stored ADC offsets until a full calibration, trqbq_mode 4 answers a string | no |
+| 173 | TMC4671 flash | `test_tmc4671_flash.cpp` (8) | invertForce restored only when combineEncoder is set; the cpr flash word stores the ABN or the AENC cpr depending on the encoder type; ADC offsets saved only by a full calibration | no |
+| 174 | TMC4671 board init (out of scope) | `Targets/F407VG/Core/Src/main.c:1377` | MX_GPIO_Init drives SPI1_SS2/SS3 LOW and nothing releases them before the first TMC_1 frame: a second device on SS2/SS3 would be selected during TMC_1 traffic (Q3). Fixture drives them high | no |
+| 175 | TMC4671 concurrency (host vs target) | `TMC4671.cpp:2571-2576, 2618-2644, 3172` | ISR `statusCheck` (FLAG EXTI) and the TMCENC thread access SPI while the TMC thread does two-transfer read-modify-writes; `takeSemaphore` from ISR ignores a failed take. Not testable on the sequential host | no |
 
 New tests that describe unclear behaviour use the `characterization:` name prefix and get a row here. Tests that describe intended behaviour but fail use `KNOWN_ISSUE` and get a row under "Suspected firmware bugs".
 
@@ -1122,6 +1140,36 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 | V35 | generate_memory.py (**vendor/tooling**) | `Firmware/scripts/generate_memory.py:137-143` | The duplicate check compares address strings; the map mixes decimal and hex, so 16 and 0x10, 0x101 and 0x0101, 0x1A and 0x1a are missed (two variables would share one EEPROM cell) | `@expectedFailure` `NumericDuplicateTest.test_the_same_address_written_in_decimal_and_in_hex_is_a_duplicate` (check in `setUp`, so a raising fix shows as an error) |
 | V36 | generate_memory.py (**vendor/tooling**) | `generate_memory.py:111-113` vs `:84`, `:118` | `NB_OF_VAR` / `NB_EXPORTABLE_ADR` count enabled rows without a name or address, but no array element is emitted for them: C zero-fills the rest, so virtual address 0 becomes a registered and exported variable | `@expectedFailure` `IncompleteEnabledRowTest.test_the_variable_count_matches_the_array_elements_also_for_an_enabled_row_without_an_address` (generation in `setUp`) |
 | 6 | Test setup (not firmware) | `CMakePresets.json` `host-sanitize`, `CMakeLists.txt` | With the CMSIS-DSP submodule checked out, `ctest` in the sanitizer preset fails on the spline overflow (bug 2). Reproduced with the same flags by script, preset not run | Fixed by F1 (`8861c911`) + F1b (P0). Verified in P0: `cmake --preset host-sanitize -B <out-of-tree>`, `ctest` 2/2 passed |
+| 139 | TMC4671 driver: SPI transport | `TMC4671.cpp:2529-2540`, SPI config `:63` | Register reads run at SCK 5.25 MHz as one 5-byte transfer; the datasheet allows reads above 2 MHz only with a 500 ns pause after the address byte (DS §4.2.1 Table 2 p18-19). The comment "500ns delay" at `:2533` is not implemented | KNOWN_ISSUE "[R5] a register read respects the read timing ..." (B-T1) |
+| 140 | TMC4671 driver: SPI transport | `TMC4671.cpp:2532` + `SPI.cpp:163,172,181` | `readReg` returns the uninitialised `tbuf` when the HAL transfer fails (`SPIPort` ignores the HAL result): stack garbage is used as register data | code reading; nondeterministic, no test (R8) |
+| 141 | TMC4671 driver: Identification | `TMC4671.cpp:1855` | `tmctype` version uses `&&` instead of `&`: any version prints "1.1" (or "0.0") | KNOWN_ISSUE 2 cases [R11] (B-T3) |
+| 142 | TMC4671 driver: State machine | `TMC4671.cpp:266-269, 461` | A chip that never answers is never reported: `tmcCommunicationError` is only raised if the second ping in `initialize()` fails right after a successful one | KNOWN_ISSUE "[R14] a chip that never answers is reported ... after 5 s" (B-T4) |
+| 143 | TMC4671 driver: PI setup | `TMC4671.cpp:2131` | `getPids()` resets `sequentialPI` to true (aggregate init), so a classic PI setup is persisted as sequential | KNOWN_ISSUE [R41] (B-T5) |
+| 144 | TMC4671 driver: PWM | `TMC4671.cpp:2477-2482` | `setPwmFreq` converts `4*clk/f-1` to uint16 before the clip: undefined for f < 1526 Hz (x86 wraps, ARM saturates so the target is unaffected) | KNOWN_ISSUE_UB [R43] (B-T6) |
+| 145 | TMC4671 driver: ABN encoder | `TMC4671.cpp:898` | The index clear flag is written to bit 9 of ABN_DECODER_MODE 0x25; the datasheet `cln` bit is bit 8 (DS 0x25 p86, bit 9 undefined) | KNOWN_ISSUE 2 cases [R50] (B-T7) |
+| 146 | TMC4671 driver: AENC encoder | `TMC4671.cpp:1340` | `setup_AENC` writes phi_e offset to [15:0] and phi_m offset to [31:16] of 0x45; DS 0x45 p91 has phi_m [15:0], phi_e [31:16] (`bangInitEnc` uses the DS layout) | KNOWN_ISSUE [R51] (B-T8) |
+| 147 | TMC4671 driver: Voltage mode | `TMC4671.cpp:1667-1669` | `setUdUq` with negative `ud` sign-extends into the `uq` half of 0x24 | KNOWN_ISSUE [R53] (B-T9) |
+| 148 | TMC4671 driver: GPIO | `TMC4671.cpp:1829-1832` | `setGpioPins` masks the pre-shifted value with 0xff: always writes 0 (no caller) | code reading, dead code, no test (R55) |
+| 149 | TMC4671 driver: Control | `TMC4671.cpp:2077-2079` | `getFlux()` uses `&& 0xffff`: returns 0 or 1 | KNOWN_ISSUE 2 cases [R61] (B-T11) |
+| 150 | TMC4671 driver: Control | `TMC4671.cpp:2102-2113` | `rampFlux` reads the start flux as uint16: from a negative flux (field weakening) it ramps the wrong way | KNOWN_ISSUE [R66] (B-T12) |
+| 151 | TMC4671 driver: Readouts | `TMC4671.cpp:235-241` | `getTmcVM` below the ADC offset wraps (uint32) and converts an out-of-range float to int32 (UB; x86 INT_MIN, ARM INT_MAX) | KNOWN_ISSUE_UB [R67] (B-T13) |
+| 152 | TMC4671 driver: State machine | `TMC4671.cpp:643-650, 484-491, 425-434` | Undervoltage recovery never clears the `undervoltage` warning and does not restore the motion mode (low practical effect: `turn()` re-selects torque) | KNOWN_ISSUE 2 cases [R75] (B-T14) |
+| 153 | TMC4671 driver: State machine | `TMC4671.cpp:313-319, 447, 467-471` | ADC calibration failure in `initialize()` requests HardError non-forced and returns; the loop forces uninitialized again: endless re-init instead of HardError | KNOWN_ISSUE [R77] (B-T15) |
+| 154 | TMC4671 driver: ADC calibration | `TMC4671.cpp:1413-1417` | `calibrateAdcOffset` divides by the sample count before checking it: zero accepted samples (ADC words 0, the DS reset value, or a spike-filtered ADC) divide by zero (host SIGFPE; Cortex-M4 returns 0) | skipped crash [R78] (B-T16), also reachable from `calibrate` |
+| 155 | TMC4671 driver: AENC calibration | `TMC4671.cpp:1105, 1109, 1112, 1146-1152` | `calibrateAenc` divides by `max - min`: a constant (disconnected) channel divides by zero; the loop has no timeout | skipped crash [R93] (B-T17) |
+| 156 | TMC4671 driver: External encoder | `TMC4671.cpp:952-961, 3075-3081` | `extphie` / `getPhiEfromExternalEncoder` divide by the cpr of the dummy encoder (0) when no external encoder is set | skipped crash [R94] and [R100] (B-T18) |
+| 157 | TMC4671 driver: Commands | `TMC4671.cpp:3052-3055` | `reg` getat reads `readReg(cmd.val)` instead of `cmd.adr` (setat uses `adr`) | KNOWN_ISSUE [R101] (B-T19) |
+| 158 | TMC4671 driver: Flash | `TMC4671.cpp:110, 154-155` | ABN cpr is stored in a 16-bit flash word: cpr above 65535 is truncated and written back to 0x26/0x40 | KNOWN_ISSUE [R112] (B-T20) |
+| 159 | TMC4671 driver: Flash | `TMC4671.cpp:2716` | `restoreEncHallMisc` assigns `velocity_P` twice and never restores `position_P` | KNOWN_ISSUE [R113] (B-T21) |
+| 160 | TMC4671 driver: Register map | `TMC4671.cpp:990, 1119` (0x41), `:945` (0x1E), `:991` (0x47), `:2169, 2181` (0x5C) | Writes to AENC_DECODER_COUNT 0x41 (read-only in DS §7.1) and use of 0x1E, 0x47, 0x5C, which datasheet Rev 2.07 does not document (older register map?) | fake records them; no KNOWN_ISSUE (effect undocumented), open question Q1 |
+| 161 | TMC4671 driver: Control | `TMC4671.cpp:2102-2113` | `rampFlux` stops short of the target when the distance is not a multiple of the step (0 -> 105 in 20 ms ends at 100) | KNOWN_ISSUE [R66] (B-T23) |
+| 162 | TMC4671 driver: Biquad filters | `TMC4671.cpp:2207, 2228, 2249, 2270` | The biquad enable is written to bit 0 of CONFIG_DATA; DS §7.2 0x4D p93 defines `biquad_*_enable` as bit 31: by the datasheet the flux filter and torque filter are never enabled | KNOWN_ISSUE 4 cases [R25] [R47] (B-T24), question Q4 |
+| 163 | TMC4671 driver: State machine | `TMC4671.cpp:581-592, 658-660, 1701-1724` | After a hardware estop the recovery in `Shutdown` (clear `emergencyStop`, re-init) is unreachable: the thread suspends itself, `emergencyStop(true)` goes straight to Running and the critical error stays | KNOWN_ISSUE [R74] (B-T25) |
+| 164 | TMC4671 driver: State machine | `TMC4671.cpp:609-612, 1671-1680` | Over-temperature: `OverTemp` calls `stopMotor()`, which acts only in Running/EncoderFinished, so the driver ends in HardError with PWM still in FOC mode and torque mode on | KNOWN_ISSUE [R76] (B-T26) |
+| 165 | TMC4671 driver: External encoder | `TMC4671.cpp:977-1007` | External-encoder alignment does a read-modify-write of read-only register 0x00 (`phiEoffsetReg` stays 0) | KNOWN_ISSUE [R94] (B-T27) |
+| 166 | TMC4671 driver: Flash | `TMC4671.cpp:162-164` | `restoreFlash` uses the uninitialised `uint16_t encofs` when the flash key is missing (index offset = stack garbage) | code reading + observed direction change in WO6; nondeterministic, no test |
+| 167 | TMC4671 driver: Calibration | `TMC4671.cpp:526` vs `:1461` | `calibrated` reads 0 right after a successful full calibration (ABN): the encoder re-init sets `recalibrationRequired` again | KNOWN_ISSUE [R93] (B-T29) |
+| 168 | TMC4671 driver: Commands | `TMC4671.cpp:2853` | `mtype` set: the range check tests `cmd.type` instead of the value; 259 wraps to BLDC through the 8-bit cast | KNOWN_ISSUE [R102] (B-T30) |
 
 ## Untestable code and refactor suggestions
 
@@ -1232,6 +1280,11 @@ Final gate after P9 (2026-11-02), run by the main agent:
 6. **Second checkout:** `Testing2/OpenFFBoard` (branch `feature/host-unit-tests`) holds untracked copies of the v2 files and none of the add-test-suite work. Work continues only in `testing/OpenFFBoard` unless you say otherwise.
 7. ~~macOS / Windows for `ffb_flash_tests`~~: answered 2026-10-24, skip `ffb_flash_tests` on macOS (done in CMake). Windows (`VirtualAlloc` at the fixed address) is still untested. macOS for the other executables: `ffb_target_tests` needs the `mallinfo` shim there too (added in the final wrap-up; unverified, no macOS toolchain here).
 8. **CLAUDE.md and TEST_PLAN.md gate wording** (final review FR1): both still say `ffb_unit_tests` gives "316 passed, 2 skipped". The executable now gives 646/0/4 on GCC 16 (san 643/0/7, nodsp-san 645/0/5); the 316/2 baseline subset is checked by `check_baseline.py`. These are your files: shall I update the wording?
+
+9. **TMC4671 Q1 (driver track D1):** the driver uses registers 0x1E, 0x47 and 0x5C, which datasheet Rev 2.07 does not document, and writes 0x41, which Rev 2.07 lists as read-only (bug 160). Was the driver written against an older register map you can supply?
+10. **TMC4671 Q2:** the engineering-sample version value (SI_VERSION 0x00010000) is not in the datasheet; tested as characterization only.
+11. **TMC4671 Q3:** the board init (`main.c:1377`, CubeMX) drives SPI1_SS2/SS3 low and nothing releases them before the first TMC_1 frame (NEEDS REVIEW 174). Intended?
+12. **TMC4671 Q4:** the biquad enable bit (bug 162 = B-T24). DS §7.2 says bit 31 of CONFIG_DATA, the driver writes bit 0. Is there evidence from real hardware that the flux/torque filters are active (which would mean the datasheet is wrong)?
 
 ## Resume instructions
 

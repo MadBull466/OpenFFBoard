@@ -16,6 +16,7 @@
 #include "TmcFixture.h"
 
 #include <cmath>
+#include <complex>
 #include <vector>
 
 namespace {
@@ -200,7 +201,7 @@ TEST_CASE_FIXTURE(TmcFixture, "[R42] getLimits decodes the registers 0x5D - 0x62
 	CHECK(l.pid_pos_high == 0x7FFFFFF0);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R42] setLimits writes the torque/flux ddt limit to the undocumented register 0x5C and getLimits reads it back") {
+TEST_CASE_FIXTURE(TmcFixture, "[R42] characterization: setLimits writes the torque/flux ddt limit to the undocumented register 0x5C and getLimits reads it back") {
 	// NEEDS REVIEW: register 0x5C is not in DS rev 2.07 (charter Q1); only the driver's own use is documented here.
 	auto tmc = makeTmc1();
 	TMC4671Limits l;
@@ -233,7 +234,7 @@ TEST_CASE_FIXTURE(TmcFixture, "[R42] setPowerLimit writes the torque limit regis
 	CHECK(chip1.reg(0x5E) == 12345u);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R42] setTorqueLimit sets the bang-init current to 75 percent of the limit") {
+TEST_CASE_FIXTURE(TmcFixture, "[R42] characterization: setTorqueLimit sets the bang-init current to 75 percent of the limit") {
 	// NEEDS REVIEW: FW policy (TMC4671.cpp:2150), HD: 20000 * 0.75 = 15000
 	auto tmc = makeTmc1();
 	tmc->setTorqueLimit(20000);
@@ -287,7 +288,7 @@ TEST_CASE_FIXTURE(TmcFixture, "[R43] getPwmFreq of the default PWM_MAXCNT 4095 i
 	CHECK(tmc->getPwmFreq() == doctest::Approx(24414.0625).epsilon(1e-6));
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R43] setPwmFreq(0) and a negative frequency are ignored") {
+TEST_CASE_FIXTURE(TmcFixture, "[R43] characterization: setPwmFreq(0) and a negative frequency are ignored") {
 	// NEEDS REVIEW: FW guard (TMC4671.cpp:2478), no datasheet statement
 	auto tmc = makeTmc1();
 	chip1.setReg(0x18, 1234);
@@ -342,7 +343,7 @@ TEST_CASE_FIXTURE(TmcFixture, "[R45] a forced motion mode is written to MODE_MOT
 	}
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R45] a not forced motion mode is written to the chip only when the motor is started") {
+TEST_CASE_FIXTURE(TmcFixture, "[R45] characterization: a not forced motion mode is written to the chip only when the motor is started") {
 	// NEEDS REVIEW: FW deferral (setMotionMode(mode, false) stores nextMotionMode, startMotor() applies it)
 	auto tmc = makeTmc1();
 	powerOn();
@@ -412,7 +413,7 @@ TEST_CASE_FIXTURE(TmcFixture, "[R46] getPhiEtype decodes the selection code of 0
 	CHECK(tmc->getPhiEtype() == PhiE::openloop);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R46] getPhiEtype reports extEncoder when 0x52 is phi_e_ext and extEncoder was requested") {
+TEST_CASE_FIXTURE(TmcFixture, "[R46] characterization: getPhiEtype reports extEncoder when 0x52 is phi_e_ext and extEncoder was requested") {
 	// NEEDS REVIEW: FW mapping of the driver-only value extEncoder onto the chip value 1
 	auto tmc = makeTmc1();
 	tmc->setPhiEtype(PhiE::extEncoder);
@@ -561,6 +562,25 @@ TEST_CASE_FIXTURE(TmcFixture, "[R47] a peak torque filter has unity DC gain") {
 	CHECK(std::fabs(num / den - 1.0) <= kGainTol);
 }
 
+TEST_CASE_FIXTURE(TmcFixture, "[R47] a peak torque filter of 10 dB has the gain 3.162 at the centre frequency") {
+	auto tmc = makeTmc1();
+	TMC4671Biquad_conf c;
+	c.mode = TMCbiquadpreset::peak;
+	c.params = {500, 20};
+	c.gain = 10.0f;
+	tmc->setTorqueFilter(c);
+	// HD: a peaking EQ with boost G dB has the linear gain V = 10^(G/20) at its centre frequency: V = 10^0.5 = 3.1623.
+	// |H(e^jw)| at w = 2 pi fc / fs from the written coefficients, DS eq. (33) p61 with the DS sign convention:
+	// H = (b0 + b1 z^-1 + b2 z^-2) / (1 - a1 z^-1 - a2 z^-2), z^-1 = e^-jw.
+	const double w = 2.0 * kPi * 500.0 / kFs;
+	const std::complex<double> z1 = std::polar(1.0, -w), z2 = std::polar(1.0, -2.0 * w);
+	const std::complex<double> num = real(chip1.configWord(T_B0)) + real(chip1.configWord(T_B1)) * z1 + real(chip1.configWord(T_B2)) * z2;
+	const std::complex<double> den = 1.0 - real(chip1.configWord(T_A1)) * z1 - real(chip1.configWord(T_A2)) * z2;
+	const double gain = std::abs(num / den);
+	INFO("gain at fc " << gain);
+	CHECK(std::fabs(gain / 3.16228 - 1.0) <= 0.01);
+}
+
 TEST_CASE_FIXTURE(TmcFixture, "[R47] a peak torque filter sets biquad_t_enable (bit 31 of CONFIG_DATA 23)" *
 		KNOWN_ISSUE("B-T24: biquad enable written to bit 0 instead of bit 31")) {
 	auto tmc = makeTmc1();
@@ -581,7 +601,7 @@ namespace {
 uint32_t brakeWord(uint32_t low, uint32_t high) { return low | (high << 16); }
 } // namespace
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R48] hardware version 1 (v1.0 AD8417) sets brake limits 52400/52800 and BBM 20") {
+TEST_CASE_FIXTURE(TmcFixture, "[R48] characterization: hardware version 1 (v1.0 AD8417) sets brake limits 52400/52800 and BBM 20") {
 	// NEEDS REVIEW: board data of TMC4671_configs.cpp (conf1_0), not in the datasheet. BBM 20 -> 0x14 in both bytes of 0x19.
 	auto tmc = makeTmc1();
 	tmc->setHwType(2); // away from the default, so the write of version 1 is visible
@@ -592,7 +612,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R48] hardware version 1 (v1.0 
 	CHECK_FALSE(tmc->conf.hwconf.thermistorSettings.temperatureEnabled);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R48] hardware version 2 (v1.2 AD8417) sets brake limits 50700/50900 and BBM 20") {
+TEST_CASE_FIXTURE(TmcFixture, "[R48] characterization: hardware version 2 (v1.2 AD8417) sets brake limits 50700/50900 and BBM 20") {
 	// NEEDS REVIEW: conf1_2
 	auto tmc = makeTmc1();
 	tmc->setHwType(1);
@@ -604,7 +624,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R48] hardware version 2 (v1.2 
 	CHECK(tmc->conf.hwconf.thermistorSettings.thermistor_R == doctest::Approx(22000.0));
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R48] hardware version 3 (v1.2.2 LEM 10) sets brake limits 50700/50900 and BBM 20") {
+TEST_CASE_FIXTURE(TmcFixture, "[R48] characterization: hardware version 3 (v1.2.2 LEM 10) sets brake limits 50700/50900 and BBM 20") {
 	// NEEDS REVIEW: conf1_2_2
 	auto tmc = makeTmc1();
 	tmc->setHwType(1);
@@ -615,7 +635,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R48] hardware version 3 (v1.2.
 	CHECK(tmc->conf.hwconf.thermistorSettings.thermistor_R == doctest::Approx(10000.0));
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R48] hardware version 6 (v1.3 ACS724) sets brake limits 50700/50900 and the longer BBM 40") {
+TEST_CASE_FIXTURE(TmcFixture, "[R48] characterization: hardware version 6 (v1.3 ACS724) sets brake limits 50700/50900 and the longer BBM 40") {
 	// NEEDS REVIEW: conf1_3. BBM 40 = 0x28 in both bytes of 0x19.
 	auto tmc = makeTmc1();
 	tmc->setHwType(1);
@@ -625,7 +645,21 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R48] hardware version 6 (v1.3 
 	CHECK(tmc->conf.hwconf.hwVersion == 6);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R48] versions without a config (4, 5 and an unknown number) keep the previous hardware config") {
+TEST_CASE_FIXTURE(TmcFixture, "[R48] characterization: the supply voltage readout follows the ADC offset and scaler of the selected hardware version") {
+	// NEEDS REVIEW: board data. getTmcVM = (raw - 0x7FFF - adcOffset) * vmScaler * 1000 mV, vmScaler = 2.5/0x7FFF * (1.5+71.5)/1.5
+	// HD: raw = 0x8FFF = 36863 -> 36863 - 32767 = 4096 counts; vmScaler = 7.6296e-5 * 48.667 = 3.7131e-3 V/count
+	//   version 6 (adcOffset 0):    4096 * 3.7131e-3 = 15.2087 V -> 15208.7 mV
+	//   version 1 (adcOffset 1000): 3096 * 3.7131e-3 = 11.4956 V -> 11495.6 mV
+	auto tmc = makeTmc1();
+	chip1.setAdcRaw(1, 0x00008FFFu); // VM in [15:0] for ADC_RAW_ADDR 1 (DS 0x02 p77)
+	const double scaler = (2.5 / 32767.0) * (73.0 / 1.5);
+	tmc->setHwType(6);
+	CHECK(std::fabs(tmc->getTmcVM() - 4096 * scaler * 1000.0) <= 1.0);
+	tmc->setHwType(1);
+	CHECK(std::fabs(tmc->getTmcVM() - 3096 * scaler * 1000.0) <= 1.0);
+}
+
+TEST_CASE_FIXTURE(TmcFixture, "[R48] characterization: versions without a config (4, 5 and an unknown number) keep the previous hardware config") {
 	// NEEDS REVIEW: FW fallback (no match: conf.hwconf unchanged); versions 4 and 5 exist in TMC_HW_Ver but have no table entry
 	auto tmc = makeTmc1();
 	tmc->setHwType(1);
@@ -638,7 +672,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R48] versions without a config
 	}
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R48] a construction with empty flash applies the first config of the table (version 6)") {
+TEST_CASE_FIXTURE(TmcFixture, "[R48] characterization: a construction with empty flash applies the first config of the table (version 6)") {
 	// NEEDS REVIEW: restoreFlash() selects tmc4671_hw_configs[0] when nothing was stored
 	auto tmc = makeTmc1();
 	CHECK(tmc->conf.hwconf.hwVersion == 6);
@@ -716,6 +750,14 @@ TEST_CASE_FIXTURE(TmcFixture, "[R50] disabling zeroEncoder clears the cln bit (b
 	chip1.setReg(0x25, 0x100);
 	tmc->setEncoderIndexFlagEnabled(true, false);
 	CHECK((chip1.reg(0x25) & 0x100u) == 0u);
+}
+
+TEST_CASE_FIXTURE(TmcFixture, "[R50] enabling the encoder index flag clears the raised status flags (0x7C)") {
+	auto tmc = makeTmc1();
+	chip1.raiseFlags(0x04000000u | 0x10000000u); // adc_i_clipped and enc_n, DS 0x7C p107
+	REQUIRE(chip1.reg(0x7C) != 0u);
+	tmc->setEncoderIndexFlagEnabled(true, false);
+	CHECK(chip1.reg(0x7C) == 0u); // DS 0x7C: the register is also used to reset the flags (write 0)
 }
 
 TEST_CASE_FIXTURE(TmcFixture, "[R50] the encoder index flag setter leaves all ABN_DECODER_MODE bits except 8 and 9 alone") {

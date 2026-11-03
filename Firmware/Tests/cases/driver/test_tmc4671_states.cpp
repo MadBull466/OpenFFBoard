@@ -103,20 +103,23 @@ TEST_SUITE("TMC4671 states") {
 // R70 start-up path
 // ---------------------------------------------------------------------------------------------------------------------
 
-TEST_CASE_FIXTURE(TmcFixture, "[R70] characterization: start-up passes uninitialized, waitPower, Shutdown in this order and needs about one second of power") {
+TEST_CASE_FIXTURE(TmcFixture, "[R70] characterization: start-up passes uninitialized, waitPower, Shutdown in this order") {
 	auto tmc = makeTmc1();
 	chip1.setPresent(true);
 	chip1.setAdcRaw(0, 0x7FFF7FFF);
 	chip1.setMicrosPerTransfer(10); // busy loops on HAL_GetTick (calibration) need time per frame
 	tmc->setupDriver();
-	powerOff(); // after setupDriver: setHwType changes vSenseMult. Power off keeps the static check counter of waitPower at 0
+	powerOff(); // after setupDriver: setHwType changes vSenseMult
 
 	std::vector<TMC_ControlState> seq{tmc->getState()};
-	for (int i = 0; i < 100; i++) { // 1 s without power
-		runThreadFor(*tmc, 10);
+	auto step = [&](uint32_t ms) {
+		runThreadFor(*tmc, ms);
 		if (tmc->getState() != seq.back()) {
 			seq.push_back(tmc->getState());
 		}
+	};
+	for (int i = 0; i < 100; i++) { // 1 s without power
+		step(10);
 	}
 	// uninitialized: ping ok -> initialize() -> waitPower (no power: stays)
 	REQUIRE(seq.size() == 2);
@@ -124,22 +127,47 @@ TEST_CASE_FIXTURE(TmcFixture, "[R70] characterization: start-up passes uninitial
 	CHECK(seq[1] == TMC_ControlState::waitPower);
 
 	powerOn();
-	const uint64_t t0 = HostPlatform::nowUs();
 	for (int i = 0; i < 400 && tmc->getState() != TMC_ControlState::Shutdown; i++) { // L11: bounded, 4 s
-		runThreadFor(*tmc, 10);
-		if (tmc->getState() != seq.back()) {
-			seq.push_back(tmc->getState());
-		}
+		step(10);
 	}
-	const uint64_t elapsedMs = (HostPlatform::nowUs() - t0) / 1000;
 	REQUIRE(tmc->getState() == TMC_ControlState::Shutdown);
 	REQUIRE(seq.size() == 3);
 	CHECK(seq[2] == TMC_ControlState::Shutdown);
-	// Code path: the check counter must exceed 5, so 6 waitPower iterations of 100 + 10 ms (the first iteration can be up
-	// to 260 ms late: a no-power iteration is 250 + 10 ms) = 5 * 110 ms before the 6th; initializeWithPower() then
-	// calibrates (Delay(100) + 300 ms measuring) and the state changes one 110 ms iteration later.
-	CHECK(elapsedMs >= 5 * 110 + 400);
-	CHECK(elapsedMs <= 260 + 5 * 110 + 400 + 110 + 300);
+}
+
+TEST_CASE_FIXTURE(TmcFixture, "[R70] characterization: waitPower needs exactly 6 powered checks before the driver reaches Shutdown") {
+	auto tmc = makeTmc1();
+	chip1.setPresent(true);
+	chip1.setAdcRaw(0, 0x7FFF7FFF);
+	chip1.setMicrosPerTransfer(10);
+	tmc->setupDriver();
+	powerOff(); // after setupDriver: setHwType changes vSenseMult. Also resets the static check counter (see below)
+
+	// Phase. Run() keeps a function-static powerCheckCounter (shared by all instances and tests, firmware hazard) that
+	// every waitPower iteration without power resets (the 1 s run in the test above and the iteration below do that).
+	// The fake kernel advances the clock by the full Delay(d) when the thread calls it and only then parks the thread
+	// (HostRtos vTaskDelay with the fixture's 10 ms budget). So after runUntilState(waitPower) the thread has already
+	// "slept" its current Delay and wakes at the current simulated time: power switched on here is seen by the next
+	// check without waiting for the rest of a 250 ms no-power delay. The result does not depend on the offset (checked
+	// for offsets 10 ... 250 ms behind the state change, +-10 ms from the activation step).
+	REQUIRE(runUntilState(*tmc, TMC_ControlState::waitPower, 2000));
+	runThreadFor(*tmc, 20); // first no-power waitPower iteration done: counter = 0
+	REQUIRE(tmc->getState() == TMC_ControlState::waitPower);
+	powerOn();
+	const uint64_t t0 = HostPlatform::nowUs();
+	REQUIRE(runUntilState(*tmc, TMC_ControlState::Shutdown, 4000));
+	const double elapsedMs = double(HostPlatform::nowUs() - t0) / 1000.0;
+	// Time from power on to the observation of Shutdown, from the code path (characterization, hand derivation):
+	//   10 ms    end-of-loop Delay(10) of the no-power iteration that is parked
+	//   5 x 110  powered iterations 1..5 of waitPower: counter 1..5 is not > 5; each Delay(100) + end-of-loop Delay(10)
+	//   510      iteration 6 (counter 6 > 5): initializeWithPower() -> calibrateAdcOffset(300) = Delay(100) + 300 ms of
+	//            measuring (loop on HAL_GetTick, 10 us per frame), then Delay(100) of waitPower, then Delay(10)
+	//   100      the loop top applies requestedState = Shutdown and the Shutdown case runs Delay(100) before the test
+	//            sees the thread parked
+	//   = 10 + 550 + 510 + 100 = 1170 ms. Window +-25 ms (activation step 10 ms, frame time of the calibration
+	//   loop): narrower than one waitPower iteration (110 ms), so 5 or 7 required checks instead of 6 are detected.
+	CHECK(elapsedMs >= 1145.0);
+	CHECK(elapsedMs <= 1195.0);
 }
 
 TEST_CASE_FIXTURE(TmcFixture, "[R70] characterization: motorReady stays false in Shutdown and becomes true only after startMotor") {

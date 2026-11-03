@@ -60,6 +60,18 @@ uint64_t runUntilPred(TmcFixture &f, TMC4671 &tmc, const std::function<bool()> &
 	return nowMs() - start;
 }
 
+/** Like runUntilPred but never fails the test: @return true if pred() held within maxMs of simulated time (for KNOWN_ISSUE tests, where a hang must not count as the expected failure) */
+bool tryRunUntil(TmcFixture &f, TMC4671 &tmc, const std::function<bool()> &pred, uint32_t maxMs = 60000) {
+	const uint64_t start = nowMs();
+	while (!pred()) {
+		if (nowMs() - start > maxMs) {
+			return false;
+		}
+		f.runThreadFor(tmc, 10);
+	}
+	return true;
+}
+
 bool hasError(ErrorCode code) {
 	for (const Error &e : ErrorHandler::getErrors()) {
 		if (e.code == code && e.isError()) {
@@ -179,7 +191,7 @@ TEST_SUITE("TMC4671 encoder") {
 // R90 encoder type selection
 // ---------------------------------------------------------------------------------------------------------------
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R90] an unsupported encoder type becomes NONE") {
+TEST_CASE_FIXTURE(TmcFixture, "[R90] characterization: an unsupported encoder type becomes NONE") {
 	auto tmc = makeTmc1();
 	reachShutdown(*tmc);
 	CommandHelpers::run(*tmc, "encsrc", CMDtype::set, 9); // 9 is not an EncoderType_TMC (0..5)
@@ -187,7 +199,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R90] an unsupported encoder ty
 	CHECK(tmc->getState() == TMC_ControlState::Shutdown);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R90] an NONE encoder is aligned at once and the state stays Shutdown") {
+TEST_CASE_FIXTURE(TmcFixture, "[R90] characterization: an NONE encoder is aligned at once and the state stays Shutdown") {
 	auto tmc = makeTmc1();
 	reachShutdown(*tmc);
 	CommandHelpers::run(*tmc, "encsrc", CMDtype::set, 0);
@@ -198,7 +210,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R90] an NONE encoder is aligne
 	CHECK(tmc->motorReady()); // encoderAligned is true
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R90] ext before the driver allowed external encoders becomes NONE") {
+TEST_CASE_FIXTURE(TmcFixture, "[R90] characterization: ext before the driver allowed external encoders becomes NONE") {
 	// setupDriver() (which allows the external encoder) was not called: allowExternalEncoder is false
 	auto tmc = makeTmc1();
 	std::shared_ptr<Encoder> enc = std::make_shared<MockEncoder>();
@@ -208,7 +220,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R90] ext before the driver all
 	CHECK_FALSE(HostTarget::timerRunning(&htim6));
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R90] ext without an external encoder keeps the selection but is aligned like NONE and starts no timer") {
+TEST_CASE_FIXTURE(TmcFixture, "[R90] characterization: ext without an external encoder keeps the selection but is aligned like NONE and starts no timer") {
 	// The charter says "ext without an external encoder becomes NONE". The firmware keeps enctype ext (5) and takes the
 	// NONE branch (Shutdown, aligned): see setEncoderType else-branch. Reported as a lead decision.
 	auto tmc = makeTmc1();
@@ -222,7 +234,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R90] ext without an external e
 	CHECK(runUntilState(*tmc, TMC_ControlState::Running, 1000));
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R90] hall is trusted at once: position and velocity from phi_m_hal (12), phi_e from hall (5), Shutdown aligned") {
+TEST_CASE_FIXTURE(TmcFixture, "[R90] characterization: hall is trusted at once: position and velocity from phi_m_hal (12), phi_e from hall (5), Shutdown aligned") {
 	auto tmc = makeTmc1();
 	reachShutdown(*tmc);
 	CommandHelpers::run(*tmc, "encsrc", CMDtype::set, 4);
@@ -242,7 +254,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R90] hall is trusted at once: 
 // R91 / R92 ABN alignment
 // ---------------------------------------------------------------------------------------------------------------
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R91] ABN alignment with a following encoder ends with phi_e source abn (0x52 = 3), position and velocity from phi_m_abn (9) and a motor that can run") {
+TEST_CASE_FIXTURE(TmcFixture, "[R91] characterization: ABN alignment with a following encoder ends with phi_e source abn (0x52 = 3), position and velocity from phi_m_abn (9) and a motor that can run") {
 	AbnPlant plant(chip1);
 	auto tmc = makeTmc1();
 	prepare(*this, *tmc);
@@ -257,7 +269,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R91] ABN alignment with a foll
 	CHECK_FALSE(hasError(ErrorCode::encoderAlignmentFailed));
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R91] ABN alignment writes the phi_e offset that cancels the mechanical encoder offset into 0x29 [31:16]") {
+TEST_CASE_FIXTURE(TmcFixture, "[R91] characterization: ABN alignment writes the phi_e offset that cancels the mechanical encoder offset into 0x29 [31:16]") {
 	// Plant: the encoder reads rotor + 0x1234. bangInitEnc: phiEpos = 0 (0x53 = 0), offset set to 0, rotor driven to
 	// phiEpos, phiE_enc = 0 + 0x1234, phiEoffset = phiEpos - phiE_enc = -0x1234 = 0xEDCC (16 bit), written to 0x29 [31:16].
 	AbnPlant plant(chip1, 0x1234);
@@ -268,7 +280,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R91] ABN alignment writes the 
 	CHECK((chip1.reg(0x29) >> 16) == 0xEDCCu);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R91] a manual encoder alignment (encalign) broadcasts 'Aligned successfully' with value 1") {
+TEST_CASE_FIXTURE(TmcFixture, "[R91] characterization: a manual encoder alignment (encalign) broadcasts 'Aligned successfully' with value 1") {
 	AbnPlant plant(chip1);
 	MockCommandInterface observer;
 	auto tmc = makeTmc1();
@@ -290,7 +302,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R91] a manual encoder alignmen
 	CHECK(found);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R92] ABN alignment with an encoder that does not move ends in HardError with the alignment error after 4 attempts") {
+TEST_CASE_FIXTURE(TmcFixture, "[R92] characterization: ABN alignment with an encoder that does not move ends in HardError with the alignment error after 4 attempts") {
 	AbnPlant plant(chip1, 0, false);
 	auto tmc = makeTmc1();
 	prepare(*this, *tmc);
@@ -322,7 +334,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R92] ABN alignment with an enc
 	CHECK(tmc->getState() == TMC_ControlState::HardError); // does not start
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R92] a manual alignment (encalign) of an encoder that does not move broadcasts 'Error during check' with value 1") {
+TEST_CASE_FIXTURE(TmcFixture, "[R92] characterization: a manual alignment (encalign) of an encoder that does not move broadcasts 'Error during check' with value 1") {
 	AbnPlant plant(chip1, 0, false);
 	MockCommandInterface observer;
 	auto tmc = makeTmc1();
@@ -345,7 +357,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R92] a manual alignment (encal
 	}, "failed manual alignment");
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R91] a DC motor with an ABN encoder is aligned without an alignment movement (no phi_e offset is written)") {
+TEST_CASE_FIXTURE(TmcFixture, "[R91] characterization: a DC motor with an ABN encoder is aligned without an alignment movement (no phi_e offset is written)") {
 	// bangInitEnc and checkEncoder return at once unless the motor is a stepper or BLDC
 	AbnPlant plant(chip1, 0x1234); // an offset that bangInitEnc would have cancelled
 	auto tmc = makeTmc1();
@@ -363,7 +375,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R91] a DC motor with an ABN en
 // R93 procedures
 // ---------------------------------------------------------------------------------------------------------------
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R93] full calibration with an ABN encoder broadcasts the measured polarity, stores the settings and ends aligned in Shutdown") {
+TEST_CASE_FIXTURE(TmcFixture, "[R93] characterization: full calibration with an ABN encoder broadcasts the measured polarity, stores the settings and ends aligned in Shutdown") {
 	AbnPlant plant(chip1);
 	chip1.setNPulse(true); // N high for the whole rotation: highcount = 88 > 44 -> npol = true (HD: p = 0, 47, ... < 0x0fff: 88 steps)
 	chip1.setMicrosPerTransfer(1000);
@@ -392,9 +404,33 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R93] full calibration with an 
 	uint16_t stored = 0;
 	CHECK(Flash_Read(ADR_TMC1_ADC_I0_OFS, &stored)); // saveAdcParams after the ADC calibration
 	CHECK(stored == 0x7FFF);						  // ADC words 0x7FFF -> mean 0x7FFF
+	// EncoderFinished writes the encoder misc word (TMC4671.cpp:629, encodeEncHallMisc layout, hand derivation):
+	// bit 0 npol = 1 (N high plant), bit 1 reversed = 0, bit 2 ab_as_n = 0, bits 3/4 PI precision = 0, bit 5 useIndex = 0,
+	// bit 6 combine = 0, bit 7 invertForce = 0, bit 8 flux dissipation = 0, bit 9 hall interpolation = 1 (default),
+	// bit 10 sequentialPI = 1 (default), bits 11-15 hw version 6 (first entry of tmc4671_hw_configs is conf1_3 = v1_3_66mv = 6, enum TMC_HW_Ver) -> 1 + 0x200 + 0x400 + (6 << 11) = 0x3601
+	uint16_t misc = 0;
+	CHECK(Flash_Read(ADR_TMC1_ENCA, &misc));
+	CHECK(misc == 0x3601);
 }
 
 TEST_CASE_FIXTURE(TmcFixture, "[R93] the calibrated flag stays 1 after a full calibration with an ABN encoder has finished its alignment" * KNOWN_ISSUE("B-T29: FullCalibration clears recalibrationRequired (TMC4671.cpp:526) but the following encoderInit sets it again because encHallRestored is false (:1461), so `calibrated` reads 0 after a successful calibration")) {
+	// Waits do not fail the test (a hang must not count as the expected failure): the plain test
+	// "a full calibration with an ABN encoder completes its alignment within 60 s" covers completion.
+	AbnPlant plant(chip1);
+	auto tmc = makeTmc1();
+	prepare(*this, *tmc);
+	chip1.setMicrosPerTransfer(1000);
+	CommandHelpers::run(*tmc, "encsrc", CMDtype::set, 1);
+	tryRunUntil(*this, *tmc, [&] { return chip1.reg(0x52) == 3 && tmc->getState() == TMC_ControlState::Shutdown; });
+	CommandHelpers::run(*tmc, "calibrate", CMDtype::get);
+	tryRunUntil(*this, *tmc, [&] { return CommandHelpers::get(*tmc, "calibrated") == 1; });
+	tryRunUntil(*this, *tmc, [&] { return CommandHelpers::get(*tmc, "calibrated") == 0; }, 20000); // the re-estimation clears it
+	const bool aligned = tryRunUntil(*this, *tmc, [&] { return chip1.reg(0x52) == 3 && tmc->getState() == TMC_ControlState::Shutdown; });
+	CHECK(CommandHelpers::get(*tmc, "calibrated") == 1); // the defect: first assertion
+	CHECK(aligned);
+}
+
+TEST_CASE_FIXTURE(TmcFixture, "[R93] characterization: a full calibration with an ABN encoder completes its alignment within 60 s") {
 	AbnPlant plant(chip1);
 	auto tmc = makeTmc1();
 	prepare(*this, *tmc);
@@ -403,12 +439,13 @@ TEST_CASE_FIXTURE(TmcFixture, "[R93] the calibrated flag stays 1 after a full ca
 	runUntilAligned(*this, *tmc, chip1, 3);
 	CommandHelpers::run(*tmc, "calibrate", CMDtype::get);
 	runUntilPred(*this, *tmc, [&] { return CommandHelpers::get(*tmc, "calibrated") == 1; }, "full calibration");
-	runUntilPred(*this, *tmc, [&] { return CommandHelpers::get(*tmc, "calibrated") == 0 || (chip1.reg(0x52) == 3 && tmc->getState() == TMC_ControlState::Shutdown); }, "alignment after calibration");
-	runUntilAligned(*this, *tmc, chip1, 3);
-	CHECK(CommandHelpers::get(*tmc, "calibrated") == 1);
+	runUntilAligned(*this, *tmc, chip1, 3); // 0x52 is 3 already: wait until the state is Shutdown again after the re-alignment
+	runThreadFor(*tmc, 15000);
+	CHECK(tmc->getState() == TMC_ControlState::Shutdown);
+	CHECK(chip1.reg(0x52) == 3u);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R93] analog (sin/cos) encoder start-up calibrates the AENC offsets and scales and aligns") {
+TEST_CASE_FIXTURE(TmcFixture, "[R93] characterization: analog (sin/cos) encoder start-up calibrates the AENC offsets and scales and aligns") {
 	// calibrateAenc is entered from encoderInit (analog_enc_skip_cal is 0 for the default hardware config).
 	// Plant: UX alternates 0x7000 / 0x9000 -> offset (0x9000 + 0x7000) / 2 = 0x8000, scale 0xF6FF00 / (0x9000 - 0x7000) =
 	//        16187136 / 8192 = 1975 (integer division, 0x07B7) -> 0x0D = 0x8000 | 0x07B7 << 16
@@ -444,7 +481,7 @@ TEST_CASE_FIXTURE(TmcFixture, "[R93] analog encoder calibration with a constant 
 	CHECK(tmc->getState() != TMC_ControlState::HardError); // reaching this line at all is the intended behaviour
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R93] a failing ADC calibration in the full calibration is retried once and then ends in HardError with the calibration error") {
+TEST_CASE_FIXTURE(TmcFixture, "[R93] characterization: a failing ADC calibration in the full calibration is retried once and then ends in HardError with the calibration error") {
 	// ADC words: I0 = 0x7FFF + 6000 = 32767 + 6000 = 38767 = 0x976F (within the 10000 spike filter of the stored offset 0x7FFF), I1 = 0x7FFF.
 	// Mean offset error 6000 > TMC_ADCOFFSETFAIL 5000 -> adcCalibrationError. calibrationFailCount = 1: one retry (calibFailCb).
 	AbnPlant plant(chip1);
@@ -460,7 +497,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R93] a failing ADC calibration
 	CHECK(CommandHelpers::get(*tmc, "calibrated") == 0);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R93] full calibration with a sin/cos encoder runs the analog calibration and ends aligned") {
+TEST_CASE_FIXTURE(TmcFixture, "[R93] characterization: full calibration with a sin/cos encoder runs the analog calibration and ends aligned") {
 	chip1.expectViolation(VT::WriteToReadOnly, 0x41);
 	AencPlant plant(chip1);
 	auto tmc = makeTmc1();
@@ -473,7 +510,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R93] full calibration with a s
 	CHECK(chip1.reg(0x0D) == (0x8000u | (0x07B7u << 16))); // same plant as the start-up test: HD there
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R93] analog UVW encoder start-up also calibrates the third channel (AENC1 from VN) and selects uvw mode") {
+TEST_CASE_FIXTURE(TmcFixture, "[R93] characterization: analog UVW encoder start-up also calibrates the third channel (AENC1 from VN) and selects uvw mode") {
 	// VN alternates 0x7400 / 0x8C00: offset (0x8C00 + 0x7400) / 2 = 0x8000, span 0x1800 = 6144,
 	// scale 16187136 / 6144 = 2634 (integer, 2634.75) = 0x0A4A -> 0x0E = 0x8000 | 0x0A4A << 16. 0x3B bit 0 = 1 (uvw), DS 0x3B.
 	chip1.expectViolation(VT::WriteToReadOnly, 0x41);
@@ -487,7 +524,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R93] analog UVW encoder start-
 	CHECK((chip1.reg(0x3B) & 1u) == 1u);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R93] ABN start-up with the index enabled searches the index first and then reports an incremental encoder with index") {
+TEST_CASE_FIXTURE(TmcFixture, "[R93] characterization: ABN start-up with the index enabled searches the index first and then reports an incremental encoder with index") {
 	AbnPlant plant(chip1);
 	REQUIRE(Flash_Write(ADR_TMC1_ENC_OFFSET, static_cast<uint16_t>(0))); // B-T28: restoreFlash reads an uninitialised encofs when the key is missing
 	auto tmc = makeTmc1();
@@ -508,7 +545,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R93] ABN start-up with the ind
 	CHECK_FALSE(hasError(ErrorCode::encoderAlignmentFailed));
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R93] index search finds the index, stops the open loop and raises no error") {
+TEST_CASE_FIXTURE(TmcFixture, "[R93] characterization: index search finds the index, stops the open loop and raises no error") {
 	// autohome -> findEncoderIndex(speed = -10 because posOffsetFromIndex = 0 is not < 0, power = 5000 / 2, ...).
 	// The plant raises ENC_N (0x7C bit 28) and calls the flag interrupt once the open loop has been turning for 300 ms.
 	AbnPlant plant(chip1);
@@ -531,7 +568,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R93] index search finds the in
 	CHECK((chip1.reg(0x64) & 0xFFFF) == 0u); // flux ramped down
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R93] index search without an index pulse ends after the 10 s timeout with the index-missed error") {
+TEST_CASE_FIXTURE(TmcFixture, "[R93] characterization: index search without an index pulse ends after the 10 s timeout with the index-missed error") {
 	AbnPlant plant(chip1);
 	REQUIRE(Flash_Write(ADR_TMC1_ENC_OFFSET, static_cast<uint16_t>(0))); // B-T28: restoreFlash reads an uninitialised encofs when the key is missing
 	auto tmc = makeTmc1();
@@ -563,7 +600,7 @@ struct FluxPlant {
 	}
 };
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R93] PID autotune with a plant that overshoots from I = 410 sets flux and torque PI to I = 400, P = 100 and broadcasts success") {
+TEST_CASE_FIXTURE(TmcFixture, "[R93] characterization: PID autotune with a plant that overshoots from I = 410 sets flux and torque PI to I = 400, P = 100 and broadcasts success") {
 	FluxPlant plant(chip1, true);
 	MockCommandInterface observer;
 	auto tmc = makeTmc1();
@@ -591,7 +628,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R93] PID autotune with a plant
 	CHECK(tmc->getState() == TMC_ControlState::Shutdown); // returns to the previous state
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R93] PID autotune with a plant that never produces flux gives up after both loops and broadcasts failure") {
+TEST_CASE_FIXTURE(TmcFixture, "[R93] characterization: PID autotune with a plant that never produces flux gives up after both loops and broadcasts failure") {
 	FluxPlant plant(chip1, false);
 	MockCommandInterface observer;
 	auto tmc = makeTmc1();
@@ -626,7 +663,7 @@ struct ExtSetup {
 };
 } // namespace
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R94] selecting ext with an external encoder starts TIM6 with the update interrupt and ARR 250") {
+TEST_CASE_FIXTURE(TmcFixture, "[R94] characterization: selecting ext with an external encoder starts TIM6 with the update interrupt and ARR 250") {
 	ExtSetup ext;
 	auto tmc = makeTmc1();
 	prepare(*this, *tmc);
@@ -648,7 +685,7 @@ static void deliverTimerUpdate(FakeTmc4671 &chip, TMC4671 &tmc) {
 	(void)tmc;
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R94] a TIM6 update writes PHI_E_EXT = (pos * 65535 / cpr * pole_pairs) & 0xFFFF for a position that gives a positive 16 bit value") {
+TEST_CASE_FIXTURE(TmcFixture, "[R94] characterization: a TIM6 update writes PHI_E_EXT = (pos * 65535 / cpr * pole_pairs) & 0xFFFF for a position that gives a positive 16 bit value") {
 	ExtSetup ext;
 	auto tmc = makeTmc1();
 	prepare(*this, *tmc);
@@ -664,7 +701,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R94] a TIM6 update writes PHI_
 	CHECK(chip1.writesTo(0x1C).front() == 0x6664u);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R94] a TIM6 update writes the low 16 bits 0xFFFC of PHI_E_EXT for position 2500") {
+TEST_CASE_FIXTURE(TmcFixture, "[R94] characterization: a TIM6 update writes the low 16 bits 0xFFFC of PHI_E_EXT for position 2500") {
 	ExtSetup ext;
 	auto tmc = makeTmc1();
 	prepare(*this, *tmc);
@@ -678,7 +715,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R94] a TIM6 update writes the 
 	CHECK((chip1.writesTo(0x1C).front() & 0xFFFFu) == 0xFFFCu);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R94] the upper 16 bits of the PHI_E_EXT word are the sign extension of the int16 angle (0xFFFF for a negative angle)") {
+TEST_CASE_FIXTURE(TmcFixture, "[R94] characterization: the upper 16 bits of the PHI_E_EXT word are the sign extension of the int16 angle (0xFFFF for a negative angle)") {
 	// getPhiEfromExternalEncoder returns int16_t which writeRegAsync takes as uint32_t (inventory 9.17): -4 -> 0xFFFFFFFC.
 	// The DS only defines bits 15:0, so the effect on the chip is undocumented; recorded, not asserted as a requirement.
 	ExtSetup ext;
@@ -693,7 +730,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R94] the upper 16 bits of the 
 	CHECK(chip1.writesTo(0x1C).front() == 0xFFFFFFFCu);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R94] a TIM6 update writes nothing while the phi_e source is not the external encoder") {
+TEST_CASE_FIXTURE(TmcFixture, "[R94] characterization: a TIM6 update writes nothing while the phi_e source is not the external encoder") {
 	ExtSetup ext;
 	auto tmc = makeTmc1();
 	prepare(*this, *tmc);
@@ -705,7 +742,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R94] a TIM6 update writes noth
 	CHECK(chip1.writesTo(0x1C).empty());
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R94] ext alignment with a following external encoder ends aligned with phi_e from the external encoder (0x52 = 1)") {
+TEST_CASE_FIXTURE(TmcFixture, "[R94] characterization: ext alignment with a following external encoder ends aligned with phi_e from the external encoder (0x52 = 1)") {
 	// Plant: ExtPlant (fidelity Low).
 	// bangInitEnc of the ext type reads/writes register 0 (phiEoffsetReg = 0 is never set for ext, TMC4671.cpp:977/1007):
 	// a write to the read-only CHIPINFO_DATA, reported as a new suspected defect.
@@ -730,17 +767,18 @@ TEST_CASE_FIXTURE(TmcFixture, "[R94] external encoder alignment writes no read-o
 	prepare(*this, *tmc);
 	tmc->setEncoder(ext.enc);
 	CommandHelpers::run(*tmc, "encsrc", CMDtype::set, 5);
-	runUntilPred(*this, *tmc, [&] { return chip1.reg(0x52) == 1 && tmc->getState() == TMC_ControlState::Shutdown && tmc->getPhiEtype() == PhiE::extEncoder; }, "ext alignment");
+	const bool done = tryRunUntil(*this, *tmc, [&] { return chip1.reg(0x52) == 1 && tmc->getState() == TMC_ControlState::Shutdown && tmc->getPhiEtype() == PhiE::extEncoder; });
 	size_t writesToReg0 = 0;
 	for (const auto &v : chip1.violations()) {
 		if (v.kind == VT::WriteToReadOnly && v.addr == 0) {
 			writesToReg0++;
 		}
 	}
-	CHECK(writesToReg0 == 0); // first assertion: the defect
+	CHECK(writesToReg0 == 0); // first assertion: the defect (completion is asserted by the plain ext alignment test)
+	CHECK(done);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R94] ext alignment with an encoder that counts the wrong way raises the encoder-reversed warning and still aligns") {
+TEST_CASE_FIXTURE(TmcFixture, "[R94] characterization: ext alignment with an encoder that counts the wrong way raises the encoder-reversed warning and still aligns") {
 	// checkEncoder: phiE_enc = -angle for every angle -> err = 2 * angle > nErr = 0 -> revCount counts every step
 	// (63 forward + more than 50 in total, HD: angles 0x00ff * k < 0x3fff, k = 1..63) -> revCount > 50 -> direction flipped.
 	chip1.expectViolation(VT::WriteToReadOnly, 0); // B-T27
@@ -755,7 +793,7 @@ TEST_CASE_FIXTURE(TmcFixture, "characterization: [R94] ext alignment with an enc
 	CHECK_FALSE(hasError(ErrorCode::encoderAlignmentFailed));
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "characterization: [R93] full calibration with an external encoder that counts the wrong way detects the direction first, so the alignment raises no reversed warning") {
+TEST_CASE_FIXTURE(TmcFixture, "[R93] characterization: full calibration with an external encoder that counts the wrong way detects the direction first, so the alignment raises no reversed warning") {
 	// estimateExtEnc: phiE_enc decreases at (nearly) every one of the 88 steps -> rcount > c / 2 -> encoderReversed toggled
 	// before the alignment; the alignment then sees a consistent encoder.
 	chip1.expectViolation(VT::WriteToReadOnly, 0); // B-T27
