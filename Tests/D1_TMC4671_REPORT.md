@@ -1,6 +1,6 @@
 # Driver track D1: TMC4671 report (2026-11-03)
 
-Status: **D1 complete, waiting for my review.** D2 (ODrive) and D3 (VESC) not started: each needs my explicit authorisation and its spec file in `Firmware/Tests/specs/` (ODrive CAN protocol and VESC CAN protocol are still missing).
+Status: **D1 complete, approved by me 2026-11-03.** D2 (ODrive) and D3 (VESC) not started: each needs my explicit authorisation and its spec file in `Firmware/Tests/specs/` (ODrive CAN protocol and VESC CAN protocol are still missing).
 
 Details and the resume point: `Tests/PROGRESS.md` ("Driver track" section). Requirements, datasheet facts and all lead decisions (L1-L34): `Firmware/Tests/driver/TMC4671_REQUIREMENTS.md`. Bugs: `Tests/BUG_REPORT.md` (bugs 139-168).
 

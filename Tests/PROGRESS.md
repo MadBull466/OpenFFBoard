@@ -6,7 +6,7 @@
 
 ## Current state
 
-- **Current phase:** P10 driver track, phase D1 (TMC4671) complete 2026-11-03, waiting for my review (details: "Driver track" section). P0-P9 done and approved (P9 on 2026-11-02).
+- **Current phase:** P10 driver track, phase D1 (TMC4671) complete and approved 2026-11-03 (details: "Driver track" section). P0-P9 done and approved (P9 on 2026-11-02).
 - **Phase status:** D0 approved 2026-11-03; D1 complete (charter, fake, 8 work orders, review, mutation check 96/99, lead QC). D2 ODrive and D3 VESC not started: need my authorisation.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** see `git log` (D1 final commit after `c05d0f32`).
@@ -34,7 +34,7 @@
 | P7 CAN and serial FFB | `ffb_target_tests` | about 420 (measured: total 7,570 lines, 93.3 %) | done | yes, 2026-10-27 | `b270011b` batch 0, `5bdecdca` A, `50b9dffd` C, `18712821` B, `0d20c8e3` infra + A + C review fixes, `5645da14` B review fixes + results |
 | P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 (measured: total 8,007 lines, 98.9 %) | done | yes, 2026-10-27 | `3975ddd6` batch 0, `45b1aa47` tests, `2324abf9` infra + B review fixes, `200ac244` A review fixes + results |
 | P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder (tier B 85.1 %, tier C 100 %) | done | yes, 2026-11-02 | `1e2730f0` batch 0, `8bd93ab4` C, `6893dcd3` B, `7c813f56` A, `0d56594f` review fixes + results + summary |
-| P10 Driver track D0-D3 (TMC4671, ODrive, VESC) | `ffb_driver_tests` (new) | separate driver tier (0/2,596 lines after D0) | D0, D1 done; D2/D3 wait for my authorisation | D0: yes, 2026-11-03; D1: pending | `1e9c8c2c`, `0340e400` (D0); `043d93f7`, `372d4ea2`, `db8796fb`, `c05d0f32` + final commit (D1) |
+| P10 Driver track D0-D3 (TMC4671, ODrive, VESC) | `ffb_driver_tests` (new) | separate driver tier (0/2,596 lines after D0) | D0, D1 done; D2/D3 wait for my authorisation | D0: yes, 2026-11-03; D1: yes, 2026-11-03 | `1e9c8c2c`, `0340e400` (D0); `043d93f7`, `372d4ea2`, `db8796fb`, `c05d0f32` + final commit (D1) |
 
 ## Decisions log
 
@@ -341,7 +341,7 @@ Hard gate for every change: `ffb_unit_tests` must report 0 failed; on GCC 16 the
 
 Plan: `Tests/DRIVER_TEST_PLAN.md` (TMC4671, then ODrive, then VESC; stop after every phase D0-D3). Lead: Opus 5.5; workers: `.claude/agents/` (Sonnet 5.5 mapper / writer / reviewer, Haiku 5.5 summariser; prefer `tools/summarise_results.py`).
 
-- **Current phase:** D1 TMC4671 **complete** 2026-11-03 (tested, reviewed, lead QC done), waiting for my review. D0 approved 2026-11-03 ("start D1 (TMC4671) and pause at ODrive and VESC until I give authorisation").
+- **Current phase:** D1 TMC4671 complete and **approved by me 2026-11-03**. D2 (ODrive) not started: waiting for my authorisation and the ODrive CAN spec. D0 approved 2026-11-03 ("start D1 (TMC4671) and pause at ODrive and VESC until I give authorisation").
 - **Next action:** **Stop: end of D1.** Summary for me: `Tests/D1_TMC4671_REPORT.md`. Waiting for my review of D1 and my answers to Q1-Q4 (open questions 9-12). D2 (ODrive) needs my explicit authorisation and the ODrive CAN protocol spec; D3 (VESC) likewise.
 - **Baseline gate (2026-11-02, before any driver change):** ctest 7/7 and `check_baseline.py` OK (default, san); `ffb_unit_tests` 646/0/4.
 - **Session model:** Opus 5.5 (`claude-opus-5-5`) confirmed as lead. Agent files in `.claude/agents/` from Appendix A (committed `1e9c8c2c`).
@@ -354,7 +354,7 @@ Plan: `Tests/DRIVER_TEST_PLAN.md` (TMC4671, then ODrive, then VESC; stop after e
 - Driver tier coverage after the skeleton: `TMC4671.cpp` 0/1,928, `ODriveCAN.cpp` 0/269, `VescCAN.cpp` 0/399, `TMC4671_configs.cpp` data only.
 - Warnings inside the driver sources (clang 23 only, reported, not fixed): 183 `-Winconsistent-missing-override` (`TMC4671.h`, `ODriveCAN.h:42/49/68/73/94`, `VescCAN.h:101/103/108`); `-Wconstant-logical-operand` at `TMC4671.cpp:1855` (2x) and `:2078` (the `&&`-as-mask oddities of the inventory); `-Wdeprecated-volatile` `VescCAN.cpp:489`.
 
-### D1 TMC4671 (complete 2026-11-03, waiting for my review)
+### D1 TMC4671 (complete, approved by me 2026-11-03)
 
 - Inventory (Sonnet): `../ffb-test-build/ws/d1/tmc_inventory.md` (not committed); datasheet text extracted with `pdftotext` to `../ffb-test-build/ws/d1/` (not committed).
 - **Charter** (lead): `Firmware/Tests/driver/TMC4671_REQUIREMENTS.md`: requirements R1-R114 in groups G1 SPI transport, G2 identification, G3 init sequence, G4 configuration setters, G5 control/readouts, G6 state machine/power/errors, G7 encoders and procedures (scripted plants), G8 commands, G9 flash; fake peer spec; lead decisions L1-L34 (all disputes and spec readings are recorded there).
