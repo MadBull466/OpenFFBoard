@@ -4,7 +4,7 @@
   run_all_tests.py --build-dir <dir> [--out <file>] [--timeout S] [--progress Tests/PROGRESS.md]
 
 Nothing is skipped: every doctest executable found in the build directory (ffb_unit_tests, ffb_target_tests,
-ffb_flash_tests, ffb_rtos_tests, ffb_usb_tests) and the Python helper tests (Firmware/Tests/python) are run.
+ffb_flash_tests, ffb_rtos_tests, ffb_usb_tests, ffb_driver_tests) and the Python helper tests (Firmware/Tests/python) are run.
 
 * The executables run with the doctest XML reporter and WITHOUT the ctest exclusions. If a run stops in a test case
   (signal, abort, sanitizer exit, or no progress for --timeout seconds), that case is recorded as crashed / timed out
@@ -48,7 +48,7 @@ sys.path.insert(0, TOOLS_DIR)
 import check_baseline  # noqa: E402  (read_cmake_cache, wildcard_to_regex, cmake_bool)
 import make_bug_report  # noqa: E402  (table, sort_key: parsing of the PROGRESS.md tables)
 
-EXECUTABLES = ("ffb_unit_tests", "ffb_target_tests", "ffb_flash_tests", "ffb_rtos_tests", "ffb_usb_tests")
+EXECUTABLES = ("ffb_unit_tests", "ffb_target_tests", "ffb_flash_tests", "ffb_rtos_tests", "ffb_usb_tests", "ffb_driver_tests")
 PYTHON_EXE = "python"
 # CMake cache variables with the ctest exclusions of each executable: (always, additionally in sanitizer builds)
 EXCLUDE_VARS = {
@@ -56,6 +56,7 @@ EXCLUDE_VARS = {
 	"ffb_flash_tests": ("FFB_FLASH_TESTS_EXCLUDE", "FFB_FLASH_TESTS_EXCLUDE_SANITIZE"),
 	"ffb_rtos_tests": ("FFB_RTOS_TESTS_EXCLUDE", "FFB_RTOS_TESTS_EXCLUDE_SANITIZE"),
 	"ffb_usb_tests": ("FFB_USB_TESTS_EXCLUDE", "FFB_USB_TESTS_EXCLUDE_SANITIZE"),
+	"ffb_driver_tests": ("FFB_DRIVER_TESTS_EXCLUDE", "FFB_DRIVER_TESTS_EXCLUDE_SANITIZE"),
 }
 KNOWN_PREFIX = "KNOWN ISSUE"
 UB_HIDDEN_PREFIX = "KNOWN ISSUE (undefined behaviour, intended result on the host)"

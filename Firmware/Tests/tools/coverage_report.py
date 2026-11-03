@@ -13,7 +13,9 @@ The report (Markdown, stdout) separates:
   tier A     eeprom.c and the FreeRTOS C++ wrappers (c*.cpp, Inc/*.hpp)
   tier B     TinyUSB (FFBoard/USB/**)
   tier C     CMSIS-DSP (Libraries/CMSIS-DSP/**)
-Firmware/Tests/, the out-of-scope drivers, MIDI, the rest of Libraries/ and Targets/ are not reported.
+  driver     the driver track (Tests/DRIVER_TEST_PLAN.md): TMC4671.cpp, TMC4671_configs.cpp, ODriveCAN.cpp, VescCAN.cpp.
+             Own section; NOT part of the in-scope coverage ladder (its total is unchanged by the driver track)
+Firmware/Tests/, the remaining out-of-scope drivers, MIDI, the rest of Libraries/ and Targets/ are not reported.
 
 "In-scope sources" is the denominator of the coverage ladder in Tests/TEST_PLAN.md: every .c/.cpp in
 FFBoard/Src and FFBoard/UserExtensions/Src except the out-of-scope drivers and MIDI (tier A included).
@@ -46,10 +48,9 @@ COVERAGE_TARGET = 85.0  # % of in-scope lines without hardware-only code (Tests/
 DEFAULT_FIRMWARE_DIR = os.path.normpath(os.path.join(TOOLS_DIR, "..", ".."))
 
 # Driver and MIDI code that is out of scope (Tests/PROGRESS.md, "Out-of-scope driver files")
-OUT_OF_SCOPE = {
-	"TMC4671", "TMC4671_configs", "TMCDebugBridge", "ODriveCAN", "VescCAN", "MotorPWM",
-	"RmdMotorCAN", "MotorSimplemotion", "MidiMain", "MidiHandler",
-}
+OUT_OF_SCOPE = {"TMCDebugBridge", "MotorPWM", "RmdMotorCAN", "MotorSimplemotion", "MidiMain", "MidiHandler"}
+# The three drivers of the driver track (ffb_driver_tests): reported in their own tier, not in the ladder
+DRIVER_TRACK = {"TMC4671", "TMC4671_configs", "ODriveCAN", "VescCAN"}
 # FreeRTOS C++ wrappers (vendor tier A); their headers are FFBoard/Inc/*.hpp
 RTOS_WRAPPERS = {
 	"cthread", "csemaphore", "cmutex", "cqueue", "ctimer", "ctasklet", "cevent_groups", "cworkqueue",
@@ -101,6 +102,8 @@ def classify(rel):
 	stem = stem_of(rel)
 	if stem in OUT_OF_SCOPE:
 		return None
+	if stem in DRIVER_TRACK:
+		return "driver"
 	if stem == "eeprom" or stem in RTOS_WRAPPERS or (rel.startswith("FFBoard/Inc/") and rel.endswith(".hpp")):
 		return "A"
 	if rel.startswith("FFBoard/"):
@@ -113,6 +116,8 @@ def module_of(rel, tier):
 		return "TinyUSB"
 	if tier == "C":
 		return "CMSIS-DSP"
+	if tier == "driver":
+		return "Driver track"
 	if rel.endswith(".hpp"):
 		return "RTOS wrappers"
 	return MODULE_OF.get(stem_of(rel), "other")
@@ -293,14 +298,14 @@ def main():
 	print("| Tier | Module | File | Lines | Covered | Functions |")
 	print("|---|---|---|---|---|---|")
 	for tier, module, rel, cov, exe, fe, ft in rows:
-		if exe == 0 or (not args.headers and not is_source(rel)):
-			continue
+		if exe == 0 or tier == "driver" or (not args.headers and not is_source(rel)):
+			continue  # the driver track has its own section below
 		print("| %s | %s | `%s` | %d / %d | %s | %d / %d |" % (tier, module, rel, cov, exe, pct(cov, exe), fe, ft))
 
 	print("\n### Per tier (compiled files)\n")
 	print("| Tier | Kind | Files | Lines covered / executable | Covered |")
 	print("|---|---|---|---|---|")
-	for tier in ("firmware", "A", "B", "C"):
+	for tier in ("firmware", "A", "B", "C", "driver"):
 		for kind, pred in (("sources", is_source), ("headers", lambda r: not is_source(r))):
 			sel = [r for r in rows if r[0] == tier and pred(r[2]) and r[4] > 0]
 			if sel:
@@ -363,6 +368,26 @@ def main():
 			reasons = "; ".join("%s: %s" % ("whole file" if last is None else "%d-%d" % (first, last), reason)
 				for first, last, reason in exclusions[rel])
 			print("| `%s` | %d | %d | %s |" % (rel, n, c, reasons))
+
+	# Driver track: own tier, outside the ladder above
+	print("\n### Driver track (ffb_driver_tests; not part of the coverage ladder)\n")
+	print("| File | Lines | Covered | Functions |")
+	print("|---|---|---|---|")
+	driver_cov = driver_exe = 0
+	for name in sorted(DRIVER_TRACK):
+		rel = "FFBoard/UserExtensions/Src/%s.cpp" % name
+		row = measured.get(rel)
+		if row is None and any(p.endswith("/" + rel + ".gcno") for p in gcno_paths):
+			print("| `%s` | 0 / 0 (compiled, no executable lines: data only) | n/a | n/a |" % rel)
+			continue
+		if row is None:
+			print("| `%s` | not compiled | n/a | n/a |" % rel)
+			continue
+		tier, module, rel, cov, exe, fe, ft = row
+		driver_cov += cov
+		driver_exe += exe
+		print("| `%s` | %d / %d | %s | %d / %d |" % (rel, cov, exe, pct(cov, exe), fe, ft))
+	print("| **Total** | %d / %d | %s | |" % (driver_cov, driver_exe, pct(driver_cov, driver_exe)))
 
 	print("\n### Not compiled (0 %, estimated executable lines)\n")
 	print("| Module | File | Code lines | Est. executable lines |")

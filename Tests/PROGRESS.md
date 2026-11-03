@@ -34,6 +34,7 @@
 | P7 CAN and serial FFB | `ffb_target_tests` | about 420 (measured: total 7,570 lines, 93.3 %) | done | yes, 2026-10-27 | `b270011b` batch 0, `5bdecdca` A, `50b9dffd` C, `18712821` B, `0d20c8e3` infra + A + C review fixes, `5645da14` B review fixes + results |
 | P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 (measured: total 8,007 lines, 98.9 %) | done | yes, 2026-10-27 | `3975ddd6` batch 0, `45b1aa47` tests, `2324abf9` infra + B review fixes, `200ac244` A review fixes + results |
 | P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder (tier B 85.1 %, tier C 100 %) | done | yes, 2026-11-02 | `1e2730f0` batch 0, `8bd93ab4` C, `6893dcd3` B, `7c813f56` A, `0d56594f` review fixes + results + summary |
+| P10 Driver track D0-D3 (TMC4671, ODrive, VESC) | `ffb_driver_tests` (new) | separate driver tier (0/2,596 lines after D0) | D0 done 2026-11-03; D1-D3 open | D0: pending | this commit (D0 skeleton) |
 
 ## Decisions log
 
@@ -112,7 +113,7 @@ All commands run from the repo root (`OpenFFBoard/`). They are plain POSIX comma
 - Build: `cmake --build ../ffb-test-build/default -j"$(nproc)"`
 - Run (with exclusion): `../ffb-test-build/default/ffb_unit_tests --test-case-exclude="requesting the forces of a not existing axis is rejected"` (`-tce=` is the short form)
 - Sanitizer run: `../ffb-test-build/san/ffb_unit_tests --test-case-exclude="requesting the forces of a not existing axis is rejected,reconstruction of a constant signal is constant,reconstruction of a step never leaves the range of the input values and reaches the target"`
-- `ctest`: `ctest --test-dir ../ffb-test-build/default --output-on-failure`. Runs 7 tests (`ffb_flash_tests` (P3), `ffb_rtos_tests` (P8, exclusion lists `FFB_RTOS_TESTS_EXCLUDE`, `FFB_RTOS_TESTS_EXCLUDE_SANITIZE`), `ffb_usb_tests` (P9, `FFB_USB_TESTS_EXCLUDE`, `FFB_USB_TESTS_EXCLUDE_SANITIZE`) and `python_helper_tests` (P9, only when Python 3 is found) besides the 3 below): `ffb_unit_tests` with the exclusions (F1/F1b, cache lists `FFB_TESTS_EXCLUDE` and `FFB_TESTS_EXCLUDE_SANITIZE`, printed at configure time: `OpenFFBoard tests: excluded from ctest: ...`), `ffb_unit_tests_baseline` (the baseline check) and `ffb_target_tests` (P2, cases in `cases_target/`, own exclusion lists `FFB_TARGET_TESTS_EXCLUDE` and (sanitizer builds only) `FFB_TARGET_TESTS_EXCLUDE_SANITIZE`, both default empty, printed as `OpenFFBoard tests: ffb_target_tests excluded from ctest: ...`)
+- `ctest`: `ctest --test-dir ../ffb-test-build/default --output-on-failure`. Runs 8 tests (`ffb_driver_tests` (P10 driver track, `FFB_DRIVER_TESTS_EXCLUDE`, `FFB_DRIVER_TESTS_EXCLUDE_SANITIZE`), `ffb_flash_tests` (P3), `ffb_rtos_tests` (P8, exclusion lists `FFB_RTOS_TESTS_EXCLUDE`, `FFB_RTOS_TESTS_EXCLUDE_SANITIZE`), `ffb_usb_tests` (P9, `FFB_USB_TESTS_EXCLUDE`, `FFB_USB_TESTS_EXCLUDE_SANITIZE`) and `python_helper_tests` (P9, only when Python 3 is found) besides the 3 below): `ffb_unit_tests` with the exclusions (F1/F1b, cache lists `FFB_TESTS_EXCLUDE` and `FFB_TESTS_EXCLUDE_SANITIZE`, printed at configure time: `OpenFFBoard tests: excluded from ctest: ...`), `ffb_unit_tests_baseline` (the baseline check) and `ffb_target_tests` (P2, cases in `cases_target/`, own exclusion lists `FFB_TARGET_TESTS_EXCLUDE` and (sanitizer builds only) `FFB_TARGET_TESTS_EXCLUDE_SANITIZE`, both default empty, printed as `OpenFFBoard tests: ffb_target_tests excluded from ctest: ...`)
 - Run `ffb_target_tests` directly: `../ffb-test-build/default/ffb_target_tests` (no exclusion needed; in sanitizer builds the cases marked `DELETES_FFBHIDMAIN` skip themselves)
 - Baseline check (gate step 2): `python3 -B Firmware/Tests/tools/check_baseline.py --build-dir ../ffb-test-build/<variant>` (reads exclusions and sanitizer flag from `CMakeCache.txt`; exit 0 ok, 1 changed/missing, 2 crash). `--print-current` prints the current classification
 - Presets: `CMakePresets.json` puts build dirs inside `Firmware/Tests/`. To use a preset out-of-tree: `cd Firmware/Tests && cmake --preset host-sanitize -B ../../../ffb-test-build/preset-host-sanitize`, then `cmake --build ../../../ffb-test-build/preset-host-sanitize -j"$(nproc)"`, then `ctest --test-dir <that dir>` (not `ctest --preset`, which uses the in-tree dir)
@@ -122,6 +123,7 @@ All commands run from the repo root (`OpenFFBoard/`). They are plain POSIX comma
 - Presets (`Firmware/Tests/CMakePresets.json`): `host`, `host-mingw` (MinGW Makefiles), `host-nodsp`, `host-sanitize`; configure/build/test presets for each. `host-sanitize` verified in P0 (out-of-tree): ctest 2/2 passed at the time; re-verified in the final review FR1 (2026-10-27): `host`, `host-nodsp`, `host-sanitize` out-of-tree, ctest 5/5 each. `host-mingw` not verifiable here (no Windows)
 - Sanity check after any build: `git status --short --ignored Firmware` must show nothing outside `Firmware/Tests/`.
 - Full report (nothing skipped): `python3 -B Firmware/Tests/tools/run_all_tests.py --build-dir ../ffb-test-build/default` or `cmake --build ../ffb-test-build/default --target test_report`. Runs every case of every executable plus the Python tests; crashing and skip-decorated cases each run in their own process. Writes `<build-dir>/test_report.log` with the summary (Passed / Failed / Bugged), then the failed tests, the bugged tests (known bugs) and the open questions, each with the test location, the file under test and the bug / NEEDS REVIEW number. A failed test is reported and the run carries on; the `test_report` target always succeeds (`--exit-zero`), the script alone exits 1 when Failed > 0. Not part of ctest.
+- Summarise a log (driver track, agents read this instead of raw logs): `python3 -B Firmware/Tests/tools/summarise_results.py <log or doctest XML>` (counts, failures with the first failed assertion, skipped, excluded, build errors).
 - Bug report: `python3 -B Firmware/Tests/tools/make_bug_report.py` regenerates `Tests/BUG_REPORT.md` from the "Suspected firmware bugs" and "NEEDS REVIEW items" tables (warns about rows with an unescaped `|`). Run it at the end of every phase, before the approval commit.
 
 ## Baseline (existing suite, before any new work)
@@ -339,10 +341,25 @@ Hard gate for every change: `ffb_unit_tests` must report 0 failed; on GCC 16 the
 
 Plan: `Tests/DRIVER_TEST_PLAN.md` (TMC4671, then ODrive, then VESC; stop after every phase D0-D3). Lead: Opus 5.5; workers: `.claude/agents/` (Sonnet 5.5 mapper / writer / reviewer, Haiku 5.5 summariser; prefer `tools/summarise_results.py`).
 
-- **Current phase:** D0 (preparation), started 2026-11-02. No tests written.
-- **Next action:** waiting for me: spec files (all missing), approval of the CMake layout and the `/specs/` ignore entry, answers in "Lead decisions needed". Then D0 steps 6-7 (skeleton `ffb_driver_tests`, `tools/summarise_results.py`, gate, commit), stop.
+- **Current phase:** D0 (preparation) **complete** 2026-11-03, waiting for my go-ahead for D1 (TMC4671). No driver behaviour tests written.
+- **Next action:** **Stop: end of D0.** After my go-ahead: D1 TMC4671 (inventory refresh, charter by the lead from the Rev 2.07 datasheet, map, `FakeTmc4671`, work orders, review, QC).
 - **Baseline gate (2026-11-02, before any driver change):** ctest 7/7 and `check_baseline.py` OK (default, san); `ffb_unit_tests` 646/0/4.
-- **Session model:** Opus 5.5 (`claude-opus-5-5`) confirmed as lead. Agent files created in `.claude/agents/` from Appendix A (not committed yet: question to me).
+- **Session model:** Opus 5.5 (`claude-opus-5-5`) confirmed as lead. Agent files in `.claude/agents/` from Appendix A (committed `1e9c8c2c`).
+
+### D0 result (2026-11-03)
+
+- **Skeleton `ffb_driver_tests`** (Sonnet worker, checked by the lead): `TARGET_FIRMWARE_SOURCES` + `TMC4671.cpp`, `TMC4671_configs.cpp`, `ODriveCAN.cpp`, `VescCAN.cpp`; feature header `platform/target_f407_drivers/target_constants.h` (target header + `TMC4671DRIVER`, `ODRIVE`, `VESC` + `extern htim6`); `platform/src/host_driver_timers.cpp` (fake TIM6); `HostTarget::addResetHook` (driver-only resets; empty in the other executables); `cases/driver/test_driver_setup.cpp` (1 case: driver macros on, out-of-scope macros off); own ctest entry and `FFB_DRIVER_TESTS_EXCLUDE` / `_SANITIZE`; in `test_report` and `run_all_tests.py`; separate "driver" tier in `coverage_report.py` (ladder unchanged). `tools/summarise_results.py` (+ `python/test_summarise_results.py`). README section.
+- No out-of-scope code pulled in: links with the four driver sources only; `nm` shows no `TMCDebugBridge`, `MotorPWM`, `RmdMotorCAN`, `MotorSimplemotion`, MIDI symbols (lead check).
+- Gate (all 6 dirs + cov): ctest 8/8, `check_baseline.py` OK, `ffb_unit_tests` 646/0/4 (643/0/7 DSP san, 645/0/5 nodsp-san), target 1,819/0/18, flash 159/0/0, rtos 271/0/0, usb 286/0/0, `ffb_driver_tests` 1/0/0; compile commands of all existing executables identical to `../ffb-test-build/d0-ref/` (lead re-checked default, san, clang23); no findings, no warnings in `Firmware/Tests` files.
+- Driver tier coverage after the skeleton: `TMC4671.cpp` 0/1,928, `ODriveCAN.cpp` 0/269, `VescCAN.cpp` 0/399, `TMC4671_configs.cpp` data only.
+- Warnings inside the driver sources (clang 23 only, reported, not fixed): 183 `-Winconsistent-missing-override` (`TMC4671.h`, `ODriveCAN.h:42/49/68/73/94`, `VescCAN.h:101/103/108`); `-Wconstant-logical-operand` at `TMC4671.cpp:1855` (2x) and `:2078` (the `&&`-as-mask oddities of the inventory); `-Wdeprecated-volatile` `VescCAN.cpp:489`.
+
+### Fake fidelity register (driver track)
+
+| Fake | Models / source | Does not model | Confidence |
+|---|---|---|---|
+| Fake TIM6 (`platform/src/host_driver_timers.cpp`) | `htim6` register block initialised like `MX_TIM6_Init` (`Targets/F407VG/Core/Src/main.c:1054-1058`: PSC 167, up-counting, ARR 65535, no preload); HAL constants cited (`stm32f4xx_hal_tim.h:518, 549`); start/stop/update through the existing F7 TIM fake | counting in real time beyond the existing TIM fake, interrupts priorities | Medium |
+| `FakeTmc4671`, `FakeOdrivePeer`, `FakeVescPeer` | (D1-D3) | | |
 
 ### Driver inventory (D0, Sonnet worker, spot-checked by the lead; full report outside the repo: `../ffb-test-build/ws/d0/inventory.md`)
 
@@ -375,6 +392,8 @@ Plan: `Tests/DRIVER_TEST_PLAN.md` (TMC4671, then ODrive, then VESC; stop after e
 |---|---|---|
 | 2026-11-02 | `htim6` is defined in a driver-only platform file like `MX_TIM6_Init` (not `TIM_TMC` undefined) | Keeps the TMC4671 code paths of the shipped F407VG (TimerHandler, external-encoder thread) reachable |
 | 2026-11-02 | `ffb_driver_tests` compiles the full `TARGET_FIRMWARE_SOURCES` (real `Axis`, `MotorDriver` registry, main classes) plus the driver sources | The drivers are used through `Axis`/`MotorDriver` on the target; reuses the target fakes (SPI, CAN, flash, RTOS) unchanged |
+| 2026-11-03 | clang: per-source `-Wno-c++11-narrowing` for `TMC4671.cpp` (`clip(maxcnt,255,4095)` narrowing in `cppmain.h:67`), same workaround as `Axis.cpp` (F14); CMake only, driver executable only | Firmware is read-only; GCC only warns |
+| 2026-11-03 | `HostTarget::addResetHook` for driver-only fakes instead of editing the shared reset | Other executables keep their reset unchanged (hook list empty) |
 | 2026-11-03 | My answers: TMC4671 spec = `Tests/TMC4671-LA_datasheet_Rev2.07.pdf`; CMake layout approved; `/specs/` ignored; `.claude/agents/` committed; charters in `Firmware/Tests/driver/`; the driver track is phase P10 in `TEST_PLAN.md` (with the "Fake fidelity rules" section CLAUDE.md refers to) | My decisions |
 | 2026-11-02 | Charter scope questions (0x4D/0x4E indirect registers, long calibration/autotune procedures, declared-but-unused enums) and the code oddities in the inventory are decided in each driver's charter (D1-D3), against the spec | They need the spec; D0 writes no requirements |
 

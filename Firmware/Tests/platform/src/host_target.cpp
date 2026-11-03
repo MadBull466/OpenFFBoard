@@ -19,6 +19,8 @@
 #include "task.h"
 #include "tusb.h"
 
+#include <vector>
+
 GPIO_TypeDef hosttest_gpioa = {}, hosttest_gpiob = {}, hosttest_gpioc = {}, hosttest_gpiod = {}, hosttest_gpioe = {};
 
 // system_stm32f4xx.c: updated by SystemClock_Config. The F407 runs at 168 MHz
@@ -59,6 +61,15 @@ struct KernelFaultsAsUnmodelled {
 
 namespace HostTarget {
 
+namespace {
+std::vector<void (*)()> &resetHooks() {
+	static std::vector<void (*)()> hooks; // function local: usable from static initialisers of other files
+	return hooks;
+}
+} // namespace
+
+void addResetHook(void (*hook)()) { resetHooks().push_back(hook); }
+
 State &state() { return targetState; }
 
 void reset() {
@@ -88,6 +99,9 @@ void reset() {
 	initTimer(htim13, tim13Regs, 84 - 1, 100); // MX_TIM13_Init: 1 MHz, Period 100
 	resetTargetConfig();
 	resetSystem();
+	for (auto hook : resetHooks()) {
+		hook();
+	}
 }
 
 void queueUsbEvent(TaskHandle_t usbTask) { xTaskNotifyGive(usbTask); }

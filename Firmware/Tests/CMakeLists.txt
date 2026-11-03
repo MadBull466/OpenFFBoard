@@ -763,6 +763,113 @@ else()
 endif()
 
 # ===========================================================================
+# ffb_driver_tests (driver track, Tests/DRIVER_TEST_PLAN.md): the real TMC4671, ODrive and VESC drivers on the
+# fake HAL SPI / CAN of ffb_target_tests. Feature header platform/target_f407_drivers/target_constants.h = the
+# ffb_target_tests header + TMC4671DRIVER, ODRIVE, VESC (MIDI, TMCDEBUG, RMDCAN, PWMDRIVER, SIMPLEMOTION stay off).
+#
+# The executables above are not changed by this section (their compile commands are identical). The firmware and
+# platform sources of ffb_target_tests are compiled again for this executable (they include target_constants.h).
+# platform/target_f407_drivers is the first include directory: it shadows only target_constants.h (main.h,
+# cmsis_os.h etc. still come from platform/target_f407). platform/src/host_driver_timers.cpp: fake TIM6 (htim6).
+# Test cases: cases/driver/test_*.cpp (not picked up by ffb_unit_tests, whose glob is not recursive).
+# ===========================================================================
+set(DRIVER_FIRMWARE_SOURCES
+	${TARGET_FIRMWARE_SOURCES}
+	${FFBOARD_DIR}/UserExtensions/Src/TMC4671.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/TMC4671_configs.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/ODriveCAN.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/VescCAN.cpp
+)
+# TMC4671.cpp:2467 calls clip(maxcnt, 255, 4095) with an uint16_t value: the braced return in clip() (cppmain.h:67) narrows
+# int to unsigned short. GCC only warns, clang rejects it (-Wc++11-narrowing is an error by default). Same workaround
+# as Axis.cpp above (F14); the value is in range, the firmware source is not changed.
+set_property(SOURCE ${FFBOARD_DIR}/UserExtensions/Src/TMC4671.cpp APPEND PROPERTY COMPILE_OPTIONS
+	$<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-c++11-narrowing>)
+set(DRIVER_PLATFORM_SOURCES ${TARGET_PLATFORM_SOURCES} platform/src/host_driver_timers.cpp)
+file(GLOB DRIVER_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cases/driver/test_*.cpp)
+
+add_executable(ffb_driver_tests
+	${DRIVER_FIRMWARE_SOURCES}
+	${DRIVER_PLATFORM_SOURCES}
+	${DRIVER_TEST_SOURCES}
+	support/test_main.cpp
+)
+
+target_include_directories(ffb_driver_tests PRIVATE
+	platform/target_f407_drivers
+	platform/target_f407
+	platform/include
+	support
+	mocks
+	third_party
+	${FFBOARD_DIR}/Inc
+	${FFBOARD_DIR}/UserExtensions/Inc
+	${FFBOARD_DIR}/USB
+	${FFBOARD_DIR}/USB/common
+	${FFBOARD_DIR}/USB/device
+	${FFBOARD_DIR}/USB/class/hid
+	${FFBOARD_DIR}/USB/class/cdc
+	${FFBOARD_DIR}/USB/class/midi
+)
+
+# Same definitions as ffb_target_tests (see there)
+target_compile_definitions(ffb_driver_tests PRIVATE HOSTTEST HOSTTEST_REAL_CPPMAIN HOSTTEST_REAL_LED_EFFECTS HOSTTEST_TARGET_OTP)
+
+if(USE_DSP)
+	target_sources(ffb_driver_tests PRIVATE
+		${DSP_DIR}/Source/CommonTables/arm_common_tables.c
+		${DSP_DIR}/Source/FastMathFunctions/arm_sin_f32.c
+		${DSP_DIR}/Source/FastMathFunctions/arm_cos_f32.c
+		${DSP_DIR}/Source/FilteringFunctions/arm_biquad_cascade_df1_f32.c
+		${DSP_DIR}/Source/FilteringFunctions/arm_biquad_cascade_df1_init_f32.c
+		${DSP_DIR}/Source/InterpolationFunctions/arm_spline_interp_f32.c
+		${DSP_DIR}/Source/InterpolationFunctions/arm_spline_interp_init_f32.c
+		${DSP_DIR}/Source/ControllerFunctions/arm_pid_init_f32.c
+		${DSP_DIR}/Source/ControllerFunctions/arm_pid_reset_f32.c
+		${DSP_DIR}/Source/StatisticsFunctions/arm_std_f32.c
+		${DSP_DIR}/Source/StatisticsFunctions/arm_var_f32.c
+	)
+	target_include_directories(ffb_driver_tests PRIVATE ${DSP_DIR}/Include ${DSP_DIR}/PrivateInclude)
+	target_compile_definitions(ffb_driver_tests PRIVATE USE_DSP_FUNCTIONS ARM_MATH_LOOPUNROLL __GNUC_PYTHON__)
+endif()
+
+target_link_libraries(ffb_driver_tests PRIVATE Threads::Threads)
+
+# -funsigned-char: char is unsigned on the ARM target (like ffb_target_tests)
+target_compile_options(ffb_driver_tests PRIVATE -Wall $<$<COMPILE_LANGUAGE:CXX>:-Wno-volatile> -funsigned-char)
+if(MINGW)
+	target_compile_options(ffb_driver_tests PRIVATE -mno-ms-bitfields)
+	target_link_options(ffb_driver_tests PRIVATE -static)
+endif()
+if(MINGW OR APPLE)
+	# See ffb_target_tests: mallinfo shim. Unverified (no MinGW or macOS toolchain available).
+	target_include_directories(ffb_driver_tests BEFORE PRIVATE platform/mingw)
+	target_sources(ffb_driver_tests PRIVATE platform/mingw/host_mallinfo.cpp)
+endif()
+
+if(FFB_TESTS_SANITIZE)
+	target_compile_definitions(ffb_driver_tests PRIVATE HOSTTEST_SANITIZERS)
+	target_compile_options(ffb_driver_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined)
+	target_link_options(ffb_driver_tests PRIVATE -fsanitize=address,undefined)
+endif()
+
+# Test cases of ffb_driver_tests excluded from ctest (doctest --test-case-exclude). Same rule as FFB_TESTS_EXCLUDE:
+# only cases that abort the whole run because of a suspected defect belong here.
+set(FFB_DRIVER_TESTS_EXCLUDE "" CACHE STRING "Test cases of ffb_driver_tests excluded from ctest (list)")
+set(FFB_DRIVER_TESTS_EXCLUDE_SANITIZE "" CACHE STRING "Test cases of ffb_driver_tests additionally excluded from ctest in sanitizer builds (list)")
+set(FFB_DRIVER_TESTS_EXCLUDED ${FFB_DRIVER_TESTS_EXCLUDE})
+if(FFB_TESTS_SANITIZE)
+	list(APPEND FFB_DRIVER_TESTS_EXCLUDED ${FFB_DRIVER_TESTS_EXCLUDE_SANITIZE})
+endif()
+list(JOIN FFB_DRIVER_TESTS_EXCLUDED "," FFB_DRIVER_TESTS_EXCLUDED_ARG)
+message(STATUS "OpenFFBoard tests: ffb_driver_tests excluded from ctest: ${FFB_DRIVER_TESTS_EXCLUDED_ARG}")
+if(FFB_DRIVER_TESTS_EXCLUDED_ARG)
+	add_test(NAME ffb_driver_tests COMMAND ffb_driver_tests "--test-case-exclude=${FFB_DRIVER_TESTS_EXCLUDED_ARG}")
+else()
+	add_test(NAME ffb_driver_tests COMMAND ffb_driver_tests)
+endif()
+
+# ===========================================================================
 # python_helper_tests: stdlib unittest smoke tests of the Python helper scripts (P9): Firmware/scripts/generate_memory.py
 # and FFBoard/USB/portable/synopsys/dwc2/dwc2_info.py, in python/test_*.py. Only when Python 3 is found (like the
 # baseline check). -B and PYTHONDONTWRITEBYTECODE: no __pycache__ is written into the repository; the scripts' outputs
@@ -796,7 +903,7 @@ if(Python3_Interpreter_FOUND)
 		COMMENT "Running every test case (report: ${CMAKE_CURRENT_BINARY_DIR}/test_report.log)"
 		USES_TERMINAL
 		VERBATIM)
-	foreach(ffb_report_exe ffb_unit_tests ffb_target_tests ffb_flash_tests ffb_rtos_tests ffb_usb_tests)
+	foreach(ffb_report_exe ffb_unit_tests ffb_target_tests ffb_flash_tests ffb_rtos_tests ffb_usb_tests ffb_driver_tests)
 		if(TARGET ${ffb_report_exe})
 			add_dependencies(test_report ${ffb_report_exe})
 		endif()

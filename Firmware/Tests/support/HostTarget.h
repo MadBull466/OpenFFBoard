@@ -92,6 +92,13 @@ State &state();
 void reset();
 
 /**
+ * Registers a function that reset() calls at its end (after resetSystem). For optional fakes that only some
+ * executables link (e.g. the TIM6 of ffb_driver_tests, platform/src/host_driver_timers.cpp), which register
+ * themselves from a static initialiser. Executables without such a fake are not affected.
+ */
+void addResetHook(void (*hook)());
+
+/**
  * Resets the objects of the host target configuration (host_target_config.cpp), called by reset():
  *  - the fake HAL CAN (resetCan: CAN1 and hcan1 as after MX_CAN1_Init, no frames, no records)
  *  - the global `canport` (the real CANPort_2B) to its state after construction: speed preset 4 (500k), no filters, no

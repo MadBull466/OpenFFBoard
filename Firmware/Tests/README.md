@@ -53,8 +53,8 @@ ctest --test-dir build --output-on-failure
 or with presets (CMake >= 3.21): `cmake --preset host && cmake --build --preset host && ctest --preset host`
 (`host-mingw` on Windows).
 
-`ctest` runs 7 entries: the five test executables `ffb_unit_tests`, `ffb_target_tests`, `ffb_flash_tests`,
-`ffb_rtos_tests` and `ffb_usb_tests` (each with its exclusion list), `ffb_unit_tests_baseline` (the baseline check, see
+`ctest` runs 8 entries: the six test executables `ffb_unit_tests`, `ffb_target_tests`, `ffb_flash_tests`,
+`ffb_rtos_tests`, `ffb_usb_tests` and `ffb_driver_tests` (each with its exclusion list), `ffb_unit_tests_baseline` (the baseline check, see
 below) and `python_helper_tests` (the last two only if Python 3 is found; `ffb_flash_tests` is not built on macOS).
 
 | Executable | Test cases | Section |
@@ -64,6 +64,7 @@ below) and `python_helper_tests` (the last two only if Python 3 is found; `ffb_f
 | `ffb_flash_tests` | `cases_flash/` | [`ffb_flash_tests`](#ffb_flash_tests-the-real-flash-layer-on-a-fake-hal-flash) |
 | `ffb_rtos_tests` | `cases_rtos/` | [`ffb_rtos_tests`](#ffb_rtos_tests-the-freertos-c-wrappers-on-a-fake-freertos-api) |
 | `ffb_usb_tests` | `cases_usb/` | [`ffb_usb_tests`](#ffb_usb_tests-the-tinyusb-device-stack-on-a-fake-usb-device-controller) |
+| `ffb_driver_tests` | `cases/driver/` | [`ffb_driver_tests`](#ffb_driver_tests-the-tmc4671-odrive-and-vesc-drivers-driver-track) |
 | `python_helper_tests` | `python/` | [Python helper tests](#python-helper-tests) |
 
 The test executables can be started directly for more control. With GCC 16 (libstdc++ with `_GLIBCXX_ASSERTIONS` at
@@ -161,12 +162,16 @@ python3 -B tools/run_all_tests.py --build-dir build [--out FILE] [--timeout S]  
 | `cases_flash/test_*.cpp` | Test cases of `ffb_flash_tests` (real `flash_helpers.cpp` and `eeprom.c` on the fake HAL FLASH). |
 | `cases_rtos/test_*.cpp` | Test cases of `ffb_rtos_tests` (the `cpp_freertos` wrappers on the fake FreeRTOS API). |
 | `cases_usb/test_*.cpp` | Test cases of `ffb_usb_tests` (TinyUSB device stack on the fake USB device controller). |
+| `cases/driver/test_*.cpp` | Test cases of `ffb_driver_tests` (TMC4671, ODrive, VESC drivers; not picked up by `ffb_unit_tests`, whose glob is not recursive). |
+| `driver/` | Requirement charters of the driver track (`<name>_REQUIREMENTS.md`), planned from phase D1. |
+| `specs/` | Local copies of vendor specifications for the driver track. Ignored by git (`.gitignore`), never committed. |
 | `python/` | `test_*.py`: stdlib `unittest` tests of the Python helper scripts; `helper_paths.py` (paths, loader). |
 | `mocks/` | Implementations of firmware class interfaces for tests (`Mock*.h`, see "Mocks and helpers"). |
 | `fakes/` | Headers replacing firmware headers in `ffb_unit_tests` only (currently only `Axis.h`). |
 | `support/` | Fixtures and test control of the fakes, see the table below. |
 | `platform/include` | Fake `main.h` (HAL), FreeRTOS, CMSIS headers and the `target_constants.h` of the generic test "target" (`ffb_unit_tests`, `ffb_rtos_tests`). |
 | `platform/target_f407/` | F407 feature header (`target_constants.h` without drivers and MIDI), F407 fake `main.h`, `cmsis_os.h` and the fake HAL FLASH declarations `host_flash_hal.h`; first in the include path of `ffb_target_tests`, `ffb_flash_tests` and `ffb_usb_tests`. |
+| `platform/target_f407_drivers/` | `target_constants.h` of `ffb_driver_tests`: the F407 test header plus `TMC4671DRIVER`, `ODRIVE`, `VESC`; first in its include path. |
 | `platform/usb/` | `tusb_config.h` wrapper of the F407 one and the OSAL headers (`hosttest_osal/`) of `ffb_usb_tests`. |
 | `platform/mingw/` | `malloc.h` shim and `host_mallinfo.cpp` (`struct mallinfo` / `mallinfo()` for `SystemCommands.cpp`), used only on MinGW and macOS (`ffb_target_tests`). |
 | `platform/src` | Implementation of the fake platform (`host_platform.cpp`, `host_freertos.cpp` + `host_freertos_ext.inc`, `host_usb.cpp`, `host_stubs.cpp`, `host_target*.cpp`, `host_flash.cpp`, `host_dcd.cpp`, `host_usb_osal.cpp`, and the compile wrappers `host_cppmain.cpp`, `host_cmem_pool.cpp`). |
@@ -174,8 +179,9 @@ python3 -B tools/run_all_tests.py --build-dir build [--out FILE] [--timeout S]  
 | `CMakeLists.txt`, `CMakePresets.json` | Build of all executables (lists of the firmware sources under test), presets. |
 | `baseline/test_cases.txt` | The test cases that existed before the suite was extended, with their expected result. Do not edit. |
 | `tools/check_baseline.py` | Baseline check (also a `ctest` entry). |
-| `tools/coverage_report.py` | gcov line coverage per file, module and tier. |
+| `tools/coverage_report.py` | gcov line coverage per file, module and tier; the driver files (`TMC4671*.cpp`, `ODriveCAN.cpp`, `VescCAN.cpp`) have their own section outside the ladder total. |
 | `tools/coverage_exclusions.txt` | Reviewed list of hardware-only line ranges (file:range + reason) left out of the coverage numbers. |
+| `tools/summarise_results.py` | Condenses a doctest console log, doctest XML report or ctest log (or a build log) into counts, failures with the first failed assertion, skipped and excluded cases and build errors. `python/test_summarise_results.py` tests it. |
 | `tools/run_all_tests.py` | Full report: runs every test case (nothing skipped) and writes `test_report.log` (target `test_report`). |
 | `tools/make_bug_report.py` | Generates `Tests/BUG_REPORT.md` (repository root) from the "Suspected firmware bugs" and "NEEDS REVIEW items" tables of `Tests/PROGRESS.md`. |
 
@@ -253,6 +259,12 @@ Headers in `support/`:
 |---|---|---|
 | `RtosSetup` | `test_rtos_setup.cpp` | Smoke tests of the fake FreeRTOS API: one per wrapper family, create failure, kernel faults, self-tests of its queries |
 | `Queue`, `Timer`, `Tasklet`, `TickHook`, `WorkQueue`, `EventGroup`, `MemoryPool`, `Mutex`, `Semaphore`, `ReadWriteLock`, `ConditionVariable` | `test_cqueue.cpp`, `test_ctimer.cpp`, `test_ctasklet.cpp`, `test_ctickhook.cpp`, `test_cworkqueue.cpp`, `test_cevent_groups.cpp`, `test_cmem_pool.cpp`, `test_csync_gaps.cpp`, `test_cread_write_lock.cpp`, `test_ccondition_variable.cpp` | The `cpp_freertos` wrappers (vendor, tier A) |
+
+`ffb_driver_tests` (`cases/driver/`):
+
+| Suites | Files | Tested firmware |
+|---|---|---|
+| `DriverSetup` | `test_driver_setup.cpp` | Skeleton (phase D0): the feature macros of the executable (TMC4671, ODrive, VESC on; MIDI, TMCDEBUG, RMDCAN, PWMDRIVER, SIMPLEMOTION off) |
 
 `ffb_usb_tests` (`cases_usb/`):
 
@@ -754,6 +766,40 @@ descriptors and the TinyUSB callbacks of `global_callbacks.cpp`.
 * **Host-vs-target:** the USB thread is not started (the test thread runs TinyUSB's task); static FreeRTOS objects are
   created dynamically (create-failure injection would also make them fail); the DWC2 writes the new address at once and
   the core keeps the old one for the status stage, the fake switches after the status stage (same on the bus).
+
+## `ffb_driver_tests`: the TMC4671, ODrive and VESC drivers (driver track)
+
+A sixth executable built by the same `CMakeLists.txt` and run by `ctest` (driver track, `Tests/DRIVER_TEST_PLAN.md`;
+at the end of phase D0 only a skeleton with one smoke case). It tests the real motor drivers, not their hardware:
+
+* **Feature header:** `platform/target_f407_drivers/target_constants.h` is the `ffb_target_tests` header plus
+  `TMC4671DRIVER`, `ODRIVE` and `VESC` (lines 46, 50, 51 of the F407VG header). `MIDI`, `TMCDEBUG`, `RMDCAN`,
+  `PWMDRIVER` and `SIMPLEMOTION` stay off; `HSPIDRV`, `CANBUS` and `TIM_TMC htim6` stay as on the F407VG. The directory
+  is first in the include path, so only this header is shadowed (`main.h` etc. come from `platform/target_f407`).
+* **Driver sources:** `FFBoard/UserExtensions/Src/TMC4671.cpp`, `TMC4671_configs.cpp`, `ODriveCAN.cpp` and `VescCAN.cpp`
+  on top of the firmware and platform sources of `ffb_target_tests` (fake HAL SPI and CAN). `TMCDebugBridge.cpp`,
+  `MotorPWM.cpp`, `RmdMotorCAN.cpp`, `MotorSimplemotion.cpp` and the MIDI sources are not compiled.
+* **Platform:** `platform/src/host_driver_timers.cpp` adds the fake TIM6 (`htim6`, as left by `MX_TIM6_Init`), which the
+  TMC4671 driver uses as its external encoder timer. It is reset by `HostTarget::reset()` through
+  `HostTarget::addResetHook`; the other executables do not link it.
+* **Test cases:** `cases/driver/test_*.cpp` (own glob). Run directly: `build/ffb_driver_tests`. Exclusion lists
+  `FFB_DRIVER_TESTS_EXCLUDE` / `FFB_DRIVER_TESTS_EXCLUDE_SANITIZE` (default empty), printed at configure time like the
+  others. Also covered by `tools/run_all_tests.py` / `test_report`.
+* **Requirements and specifications:** the requirement charters of each driver go to `Firmware/Tests/driver/`
+  (`<name>_REQUIREMENTS.md`). Vendor specifications are kept locally in `Firmware/Tests/specs/` (listed in
+  `Firmware/Tests/.gitignore`, never committed); the TMC4671 datasheet is `Tests/TMC4671-LA_datasheet_Rev2.07.pdf`
+  (repository root `Tests/`, ignored as well).
+* **Reading a result:** `tools/summarise_results.py` condenses a log into counts, the failing cases with file:line and
+  the first failed assertion, skipped and excluded cases and build errors:
+
+```sh
+ctest --test-dir build -V > ctest.log; python3 -B tools/summarise_results.py ctest.log
+build/ffb_driver_tests -r=xml | python3 -B tools/summarise_results.py       # XML shows skipped cases by name
+cmake --build build 2>&1 | python3 -B tools/summarise_results.py --format build
+```
+
+* **Coverage:** `tools/coverage_report.py` lists the four driver files in the section "Driver track". They are not part
+  of the coverage ladder (its total is unchanged).
 
 ## Python helper tests
 
