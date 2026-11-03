@@ -70,9 +70,6 @@ bool pwmNeverEnabled(const FakeTmc4671 &c) {
 	return true;
 }
 
-/** Number of states as an integer for messages */
-uint32_t st(TMC_ControlState s) { return static_cast<uint32_t>(s); }
-
 /**
  * Raw AGPI_B word that getTemp() converts to `celsius` (HD, inverse of TMC4671::getTemp):
  *   getTemp:  adcval = raw - 0x7FFF - adcOffset;  r = R2 * 43252 / adcval;  1/T = 1/298.15 + ln(r / R) / Beta;  T [C] = T - 273.15
@@ -494,9 +491,9 @@ TEST_CASE_FIXTURE(CalibFixture, "[R78] calibrateAdcOffset writes the mean raw va
 TEST_CASE_FIXTURE(CalibFixture, "[R78] calibrateAdcOffset averages alternating samples") {
 	// Samples alternate between mean-50 and mean+50 on I0 and mean+30 / mean-30 on I1. Over an even number of samples the
 	// mean is exactly the mean value; with an odd number it is off by at most 1 (integer division): tolerance 1 (HD).
-	const uint16_t m0 = 0x7FFF + 400, m1 = 0x7FFF - 300;
+	static constexpr uint16_t m0 = 0x7FFF + 400, m1 = 0x7FFF - 300;
 	auto toggle = std::make_shared<bool>(false);
-	chip1.onRead(0x02, [toggle, m0, m1](FakeTmc4671 &c) {
+	chip1.onRead(0x02, [toggle](FakeTmc4671 &c) {
 		*toggle = !*toggle;
 		const int s = *toggle ? 1 : -1;
 		c.setAdcRaw(0, CalibFixture::word(static_cast<uint16_t>(m1 - 30 * s), static_cast<uint16_t>(m0 + 50 * s)));
