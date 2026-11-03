@@ -106,7 +106,7 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O50] canspd set 5 changes the speed preset of
 	CHECK(HostTarget::canPort().getSpeedPreset() == 5);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O50] canspd get returns the speed preset of the port (500 kbit/s preset 4 at power-on is not lowered)") {
+TEST_CASE_FIXTURE(OdriveFixture, "[O50] characterization: canspd get returns the speed preset of the port (the fake port starts at preset 4 and the driver does not lower it)") {
 	auto od = makeOdrive1();
 	CHECK(getCmd(*od, "canspd") == HostTarget::canPort().getSpeedPreset());
 	CHECK(getCmd(*od, "canspd") == 4);
@@ -126,7 +126,7 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O50] errors rejects set (read only)") {
 	CHECK(setCmd(*od, "errors", 0) == CommandStatus::ERR);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O50] state get returns the axis state of the last heartbeat (CSV 0x001: uint8 @4)") {
+TEST_CASE_FIXTURE(OdriveFixture, "[O50] characterization: state get returns the axis state byte of the last heartbeat (CSV 0x001: uint8 @4; the numbers 8 and 1 are the driver's enum, L2)") {
 	auto od = makeOdrive1();
 	heartbeat(peer0, 8);
 	CHECK(getCmd(*od, "state") == 8); // characterization of the number: closed loop = 8 is the driver's enum (L2)
@@ -182,9 +182,11 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O50] connected get is 0 before the driver thr
 	CHECK(getCmd(*od, "connected") == 0);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O50] connected get is 1 while the ODrive sends heartbeats") {
+TEST_CASE_FIXTURE(OdriveFixture, "[O50] connected get is 1 while the ODrive sends heartbeats for longer than the 2 s timeout") {
 	auto od = makeOdrive1();
-	runFor(1200);
+	// 3 s: past the first 2 s in which connected is true without any frame (B-O2, O31), so only the heartbeats can
+	// keep it at 1. The same time base without heartbeats gives 0: see the silent-ODrive test below.
+	runFor(3000);
 	CHECK(getCmd(*od, "connected") == 1);
 }
 
@@ -240,7 +242,7 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O50] maxtorque set 0 is accepted: turn sends 
 	CHECK(peer0.lastTorque() == 0.0f);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O50] maxtorque set above 4095 is clipped to the 12 bit range (turn(32767) sends 40.95 Nm), a negative value to 0") {
+TEST_CASE_FIXTURE(OdriveFixture, "[O50] characterization: maxtorque set above 4095 is clipped to the 12 bit range (turn(32767) sends 40.95 Nm), a negative value to 0") {
 	auto od = makeOdrive1();
 	REQUIRE(setCmd(*od, "maxtorque", 5000) == CommandStatus::OK);
 	od->turn(32767); // HD: clip(5000, 0, 0xfff) = 4095 -> 40.95 Nm
@@ -394,6 +396,40 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O60] characterization: saving node 17 of moto
 	REQUIRE(setCmd(*od, "canid", 17) == CommandStatus::OK);
 	od->saveFlash();
 	CHECK(word(ADR_CANID) == 0x0445);
+}
+
+TEST_CASE_FIXTURE(OdriveFixture, "[O60] characterization: saving node 0x0A of motor 0 over a word with all bits set replaces exactly bits 0-5 and clears bits 12-14") {
+	// HD: stored 0x7FFF: M0 field = 0x3F (restored), M1 field = 0x3F, bits 12-14 set. canid = 0x0A (0b001010, bit 5 clear so the OR cannot hide a mask that misses bit 5):
+	// 0x7FFF & ~0x3F = 0x7FC0, | 0x0A = 0x7FCA, & ~0x7000 = 0x0FCA.
+	setWord(ADR_CANID, 0x7FFF);
+	auto od = makeOdrive1();
+	REQUIRE(getCmd(*od, "canid") == 0x3F);
+	REQUIRE(setCmd(*od, "canid", 0x0A) == CommandStatus::OK);
+	od->saveFlash();
+	CHECK(word(ADR_CANID) == 0x0FCA);
+}
+
+TEST_CASE_FIXTURE(OdriveFixture, "[O60] characterization: saving node 0x14 of motor 1 over a word with all bits set replaces exactly bits 6-11 and clears bits 12-14") {
+	// HD: stored 0x7FFF: M1 field = (0x7FFF >> 6) & 0x3F = 0x3F. canid = 0x14 (0b010100, bit 0 clear so the OR cannot hide a mask that misses bit 6):
+	// 0x7FFF & ~0xFC0 = 0x703F, | (0x14 << 6 = 0x500) = 0x753F, & ~0x7000 = 0x053F.
+	setWord(ADR_CANID, 0x7FFF);
+	auto od = makeOdrive2();
+	REQUIRE(getCmd(*od, "canid") == 0x3F);
+	REQUIRE(setCmd(*od, "canid", 0x14) == CommandStatus::OK);
+	od->saveFlash();
+	CHECK(word(ADR_CANID) == 0x053F);
+}
+
+TEST_CASE_FIXTURE(OdriveFixture, "[O60] characterization: a max torque of 30.00 Nm (3000 hundredths, above 11 bits) is saved as 0x0BB8 in bits 0-11 and restored") {
+	// HD: 3000 = 11 * 256 + 184 = 0xB00 + 0xB8 = 0xBB8 (needs bit 11); 30.0f * 100 = 3000 exactly; storepos off.
+	{
+		auto od = makeOdrive1();
+		REQUIRE(setCmd(*od, "maxtorque", 3000) == CommandStatus::OK);
+		od->saveFlash();
+		CHECK(word(ADR_SET_M0) == 0x0BB8);
+	}
+	auto od = makeOdrive1();
+	CHECK(getCmd(*od, "maxtorque") == 3000);
 }
 
 TEST_CASE_FIXTURE(OdriveFixture, "[O60] characterization: restore reads the node id of motor 0 from bits 0-5 and of motor 1 from bits 6-11 of 0x3D0") {
@@ -599,7 +635,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O62] an offset of 0.75 turn (49151 counts) is
 	}
 	auto od = makeOdrive1();
 	peer0.sendEncoderEstimates();
-	CHECK(od->getPos() == doctest::Approx(0).epsilon(0.0).scale(1.0)); // |position| <= 1 count (truncation of the offset)
+	// HD: intended position = 49151.25 - 49151 = 0.25 count, truncated by getPos to 0
+	CHECK(od->getPos() == 0);
 }
 
 TEST_CASE_FIXTURE(OdriveFixture, "[O62] characterization: an offset of 0.75 turn is saved as the 16 bit word 0xBFFF" ) {

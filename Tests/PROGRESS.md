@@ -6,16 +6,16 @@
 
 ## Current state
 
-- **Current phase:** P10 driver track, phase D1 (TMC4671) complete and approved 2026-11-03 (details: "Driver track" section). P0-P9 done and approved (P9 on 2026-11-02).
-- **Phase status:** D0 approved 2026-11-03; D1 complete (charter, fake, 8 work orders, review, mutation check 96/99, lead QC). D2 ODrive and D3 VESC not started: need my authorisation.
+- **Current phase:** P10 driver track, phase D2 (ODrive) complete 2026-11-03, waiting for my review (details: "Driver track" section). D1 (TMC4671) approved 2026-11-03. P0-P9 done and approved.
+- **Phase status:** D0, D1 approved; D2 complete (charter, peer, 4 work orders, review, mutation check, lead QC). D3 VESC not started: needs my authorisation and its spec.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
-- **Last commit:** see `git log` (D1 final commit after `c05d0f32`).
+- **Last commit:** see `git log` (D2 final commit).
 - **Last updated:** 2026-11-03
-- **Last session summary:** D1 TMC4671: `ffb_driver_tests` 436 cases (0 failed, 30 known issues, 3 skipped crashes), `TMC4671.cpp` 89.8 % line coverage, suspected driver bugs 139-168 (B-T1..B-T30), NEEDS REVIEW 166-175, open questions 9-12 (Q1-Q4).
+- **Last session summary:** D2 ODrive: `ffb_driver_tests` 689 cases (0 failed), `ODriveCAN.cpp` 97.8 % line coverage, suspected driver bugs 169-178 (B-O1..B-O10), NEEDS REVIEW 176-184, open questions 13-14. D1 TMC4671 approved.
 
 ## Next action
 
-**Stop: end of D1 (TMC4671).** Waiting for my review of D1 and answers to open questions 9-12. Before D2 (ODrive): my explicit authorisation and the ODrive CAN protocol spec in `Firmware/Tests/specs/`. Earlier open items (CI job, gate wording, HID PID spec) unchanged.
+**Stop: end of D2 (ODrive).** Summary for me: `Tests/D2_ODRIVE_REPORT.md` (D1: `Tests/D1_TMC4671_REPORT.md`, approved). Waiting for my review of D2 and answers to open questions 9-14. Before D3 (VESC): my explicit authorisation and the VESC CAN protocol spec. Earlier open items (CI job, gate wording, HID PID spec) unchanged.
 
 ## Phase checklist
 
@@ -34,7 +34,7 @@
 | P7 CAN and serial FFB | `ffb_target_tests` | about 420 (measured: total 7,570 lines, 93.3 %) | done | yes, 2026-10-27 | `b270011b` batch 0, `5bdecdca` A, `50b9dffd` C, `18712821` B, `0d20c8e3` infra + A + C review fixes, `5645da14` B review fixes + results |
 | P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 (measured: total 8,007 lines, 98.9 %) | done | yes, 2026-10-27 | `3975ddd6` batch 0, `45b1aa47` tests, `2324abf9` infra + B review fixes, `200ac244` A review fixes + results |
 | P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder (tier B 85.1 %, tier C 100 %) | done | yes, 2026-11-02 | `1e2730f0` batch 0, `8bd93ab4` C, `6893dcd3` B, `7c813f56` A, `0d56594f` review fixes + results + summary |
-| P10 Driver track D0-D3 (TMC4671, ODrive, VESC) | `ffb_driver_tests` (new) | separate driver tier (0/2,596 lines after D0) | D0, D1 done; D2/D3 wait for my authorisation | D0: yes, 2026-11-03; D1: yes, 2026-11-03 | `1e9c8c2c`, `0340e400` (D0); `043d93f7`, `372d4ea2`, `db8796fb`, `c05d0f32` + final commit (D1) |
+| P10 Driver track D0-D3 (TMC4671, ODrive, VESC) | `ffb_driver_tests` (new) | separate driver tier (0/2,596 lines after D0) | D0, D1, D2 done; D3 waits for my authorisation | D0: yes, 2026-11-03; D1: yes, 2026-11-03; D2: pending | `1e9c8c2c`, `0340e400` (D0); `043d93f7`, `372d4ea2`, `db8796fb`, `c05d0f32` + `58da90ec`, `f9636d6b`, `d1f14070` (D1); `8e436a89`, `b27aeeac`, `72c50795`, `bc1c22d0` + final commit (D2) |
 
 ## Decisions log
 
@@ -341,8 +341,8 @@ Hard gate for every change: `ffb_unit_tests` must report 0 failed; on GCC 16 the
 
 Plan: `Tests/DRIVER_TEST_PLAN.md` (TMC4671, then ODrive, then VESC; stop after every phase D0-D3). Lead: Opus 5.5; workers: `.claude/agents/` (Sonnet 5.5 mapper / writer / reviewer, Haiku 5.5 summariser; prefer `tools/summarise_results.py`).
 
-- **Current phase:** D2 ODrive, started 2026-11-03 ("Start D2"; spec: `Tests/CAN Protocol — ODrive Documentation 0.5.6 documentation.pdf` + `Tests/can-protocol.csv`, both git-ignored). D1 approved 2026-11-03.
-- **Next action:** D2: `FakeOdrivePeer` + `OdriveFixture` (worker), then work orders. Open: D2-Q1 (ODrive enum numbers not in the supplied spec; meanwhile `characterization:`), D2-Q2 (0.5.4 vs 0.5.6). D3 (VESC) needs my authorisation.
+- **Current phase:** D2 ODrive **complete** 2026-11-03 (tested, reviewed, lead QC done), waiting for my review. D1 approved 2026-11-03.
+- **Next action:** **Stop: end of D2.** Summary for me: `Tests/D2_ODRIVE_REPORT.md`. Waiting for my review of D2 and answers to open questions 13-14. D3 (VESC) needs my explicit authorisation and the VESC CAN protocol spec.
 - **Baseline gate (2026-11-02, before any driver change):** ctest 7/7 and `check_baseline.py` OK (default, san); `ffb_unit_tests` 646/0/4.
 - **Session model:** Opus 5.5 (`claude-opus-5-5`) confirmed as lead. Agent files in `.claude/agents/` from Appendix A (committed `1e9c8c2c`).
 
@@ -368,11 +368,18 @@ Plan: `Tests/DRIVER_TEST_PLAN.md` (TMC4671, then ODrive, then VESC; stop after e
 - **Suspected driver bugs** B-T1..B-T30 = bugs 139-168 in "Suspected firmware bugs" (B-Tn = 138 + n); 26 have a `KNOWN_ISSUE`/`KNOWN_ISSUE_UB`/skipped-crash test, 4 are code reading only (B-T2, B-T10, B-T22, B-T28). NEEDS REVIEW 166-175.
 - **Open questions for me**: Q1-Q4 under "Open questions for me" (items 9-12).
 
-### D2 ODrive (in progress)
+### D2 ODrive (complete 2026-11-03, waiting for my review)
 
-- Spec: ODrive 0.5.6 CAN protocol page (PDF) + its "CAN Messages" table (`Tests/can-protocol.csv`, ignored by `Tests/.gitignore` since `8e436a89`). The PDF table is cut at the right edge; the CSV has the start byte, type, bits, factor and offset columns. Enum numbers (axis states, modes, error bits) are in neither file (D2-Q1).
+- Spec: ODrive 0.5.6 CAN protocol page (PDF) + its "CAN Messages" table (`Tests/can-protocol.csv`, ignored since `8e436a89`). Enum numbers are in neither file (open question 13).
 - Inventory (Sonnet): `../ffb-test-build/ws/d2/odrive_inventory.md` (not committed).
-- **Charter** (lead, signed 2026-11-03): `Firmware/Tests/driver/ODRIVE_REQUIREMENTS.md`, requirements O1-O71 in groups G1 construction/port, G2 TX frames, G3 RX frames, G4 connection/state machine, G5 torque/encoder, G6 commands, G7 flash, G8 errors; suspected bugs B-O1..B-O8 (maxtorque truncation, connected before any frame, RTR/short frames parsed as data, node id > 63, extended ids accepted, controller mode not sent on some RUNNING paths, offset > half a turn wraps, float->int32 position UB).
+- **Charter** (lead): `Firmware/Tests/driver/ODRIVE_REQUIREMENTS.md`: requirements O1-O71 in groups G1 construction/port, G2 TX frames, G3 RX frames, G4 connection/state machine, G5 torque/encoder, G6 commands, G7 flash, G8 errors; lead decisions L1-L16. Before D2 no test executed `ODriveCAN.cpp`; after D2 every P1/P2 requirement has a test.
+- **Peer** `FakeOdrivePeer` + fixture `OdriveFixture` (Sonnet, reviewed by the lead: clock rewind L9 accepted, RX1 line L8).
+- **Tests** (Sonnet writers OW1-OW4, `Firmware/Tests/cases/driver/test_odrive_*.cpp`): frames 59, rx_control 54, states 42, commands_flash 57, plus peer self-tests 35 and smoke 6. 22 known-issue cases for the ODrive (B-O1..B-O10).
+- **Review** (fresh Sonnet reviewer, `../ffb-test-build/ws/d2/review.md`): random order (3 seeds) and each ODrive case in its own process green; findings fixed (calibration-state gap, unreached closed-loop path, a test passing for the wrong reason, firmware-only numbers renamed `characterization:`, short-heartbeat B-O3 case, `canid` on ODriveCAN2). Two lock-in tests (expecting suspected-buggy results without a marker) were removed during writing (L16, OW3).
+- **Mutation spot-check:** 104 mutations on executed lines; after the fixes 98 killed (94 %); the 6 survivors are equivalent (e.g. `lastSpeed` has no getter, states overwritten by the next heartbeat). The lead re-ran all 9 former real survivors: all killed.
+- **Gate (final, all 6 dirs + cov):** ctest 8/8, `check_baseline.py` OK; `ffb_driver_tests` 689 cases, 0 failed (default/clang23/nodsp/cov: 632 passed, 4 skipped, 53 known issue; sanitizer dirs: 632 passed, 7 skipped, 50 known issue); no sanitizer finding, no warning in test files.
+- **Coverage `ODriveCAN.cpp`: 263 / 269 lines = 97.8 %** (target 85 %). Uncovered: destructor variant lines (gcov artefact), `getEncoder()` / `getEncoderType()` (only called by the Axis, not by these tests), the `NOT_FOUND` default of `command()`.
+- **Suspected driver bugs** B-O1..B-O10 = bugs 169-178 (B-On = 168 + n), all with tests. NEEDS REVIEW 176-184. Open questions 13-14.
 
 ### Fake fidelity register (driver track)
 
@@ -380,7 +387,8 @@ Plan: `Tests/DRIVER_TEST_PLAN.md` (TMC4671, then ODrive, then VESC; stop after e
 |---|---|---|---|
 | Fake TIM6 (`platform/src/host_driver_timers.cpp`) | `htim6` register block initialised like `MX_TIM6_Init` (`Targets/F407VG/Core/Src/main.c:1054-1058`: PSC 167, up-counting, ARR 65535, no preload); HAL constants cited (`stm32f4xx_hal_tim.h:518, 549`); start/stop/update through the existing F7 TIM fake | counting in real time beyond the existing TIM fake, interrupts priorities | Medium |
 | `FakeTmc4671` (`fakes/FakeTmc4671.h/.cpp`) | TMC4671-LA datasheet Rev 2.07: 40-bit datagram (§4.2.1), 128-register file with §7.3 defaults composed at the §7.2 bit positions, R/RW map (§7.1, writes to read-only ignored and recorded), stacked CHIPINFO / ADC_RAW / CONFIG / PID_ERROR / INTERIM, STATUS_FLAGS clear by write, 0x6B mirrors 0x68, undocumented addresses recorded, two chips on SPI1 by CS, optional time per frame, test hooks | FOC loop, PWM, ADC conversion, encoder decoding, PLL, watchdog, UART/RTMI, step/dir, SPI timing (the 500 ns pause only through the SPI config), CS release inside a frame, register value ranges. Assumptions: answer of a write frame = old value, non-zero STATUS_FLAGS write semantic, ENABLE_IN default high | frame/register file High, stacked registers High, status flags Medium, plant hooks (used by the encoder/procedure tests) Low |
-| `FakeOdrivePeer`, `FakeVescPeer` | (D2-D3, not started: need my authorisation) | | |
+| `FakeOdrivePeer` (`fakes/FakeOdrivePeer.h/.cpp`, fixture `support/OdriveFixture.h`) | ODrive 0.5.6 CAN Simple (SPEC + CSV): id `node<<5|cmd` (standard ids), strict DLC/RTR per message, call & response with the same id, heartbeat layout (error @0, state @4, flag bits 5.0/6.0/7.0/7.7), float32/int32 LE, cyclic heartbeat 100 ms / estimates 10 ms (off by default), axis-state model with request delay and refusal, fault injection (silent, late, wrong node, short, extended id, bus errors). Fixture schedules the thread with a clock rewind (L9) and enables the RX1 line (L8) | ODrive control loop and motor, its error generation, CANopen, baud mismatch, bus timing, 0.5.4 vs 0.5.6 differences | encoding / call-response High, cyclic timing Medium, axis-state behaviour and enum numbers Low |
+| `FakeVescPeer` | (D3, not started: needs my authorisation) | | |
 
 ### Driver inventory (D0, Sonnet worker, spot-checked by the lead; full report outside the repo: `../ffb-test-build/ws/d0/inventory.md`)
 
@@ -970,6 +978,15 @@ Functions never run by any test (counts of never-run / total): ErrorHandler 15/2
 | 173 | TMC4671 flash | `test_tmc4671_flash.cpp` (8) | invertForce restored only when combineEncoder is set; the cpr flash word stores the ABN or the AENC cpr depending on the encoder type; ADC offsets saved only by a full calibration | no |
 | 174 | TMC4671 board init (out of scope) | `Targets/F407VG/Core/Src/main.c:1377` | MX_GPIO_Init drives SPI1_SS2/SS3 LOW and nothing releases them before the first TMC_1 frame: a second device on SS2/SS3 would be selected during TMC_1 traffic (Q3). Fixture drives them high | no |
 | 175 | TMC4671 concurrency (host vs target) | `TMC4671.cpp:2571-2576, 2618-2644, 3172` | ISR `statusCheck` (FLAG EXTI) and the TMCENC thread access SPI while the TMC thread does two-transfer read-modify-writes; `takeSemaphore` from ISR ignores a failed take. Not testable on the sequential host | no |
+| 176 | ODrive spec enums | `ODriveCAN.h:22-24`, all ODrive test files | Axis state / control mode / input mode numbers are not in the supplied 0.5.6 spec (D2-Q1): every assertion on them is characterization | no |
+| 177 | ODrive start-up policy | `ODriveCAN.cpp:155-159` | Full calibration is started automatically on connect, also when the motor was never started (the motor moves); no retry if the ODrive refuses the calibration (`WAIT_CALIBRATION` has no case). Intended? | no |
+| 178 | ODrive torque | `ODriveCAN.cpp:272-274`, `:292-295` | `turn` sends torque frames while disconnected or not ready (the `motorReady` check is commented out); power -32768 is not clipped (-1.00003 x maxTorque) | no |
+| 179 | ODrive errors | `ODriveCAN.cpp:385-387, 402-407` | ODrive axis errors are only readable through `errors`; nothing is raised to the ErrorHandler, CAN errors and TX failures are ignored; recovery only through the 2000 ms timeout | no |
+| 180 | ODrive commands | `ODriveCAN.cpp:325-345`, `:40` | `canid` with an invalid type answers OK and rebuilds the filter also on get; `canspd` narrows to uint8 (256 -> 3) and silently ignores presets > 5; both command handlers use class id 0x85 although M1 reports 0x86 | no |
+| 181 | ODrive flash layout | `eeprom_addresses.h:200` vs `ODriveCAN.cpp:96-136` | The comment says ID M0 bits 0-6, M1 7-12, speed 13-15; the code uses bits 0-5 / 6-11 and clears bits 12-14 on save (no speed stored) | no |
+| 182 | ODrive protocol details | `ODriveCAN.cpp:301-303`, `:405-407` | Start Anticogging sent with DLC 1 (spec: no signals); heartbeat flag bytes stored whole instead of the 1-bit flags of 0.5.6 (unused); voltage RTR every 500 ms until a reply | no |
+| 183 | ODrive node 1 on target (FIFO1) | `ODriveCAN.cpp:73`, CubeMX MSP init | ODriveCAN2 receives on FIFO1, whose interrupt is disabled on the F407: its frames are only processed when another CAN interrupt fires (e.g. its own voltage request completing). The fixture enables the RX1 line (L8) | no |
+| 184 | ODrive other | `ODriveCAN.cpp:61-65`, `:397` | The destructor does not request IDLE; any frame of the node (incl. unknown commands) counts as a sign of life; `getPosAbs` includes the offset; `lastSpeed` has no getter | no |
 
 New tests that describe unclear behaviour use the `characterization:` name prefix and get a row here. Tests that describe intended behaviour but fail use `KNOWN_ISSUE` and get a row under "Suspected firmware bugs".
 
@@ -1176,6 +1193,16 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 | 166 | TMC4671 driver: Flash | `TMC4671.cpp:162-164` | `restoreFlash` uses the uninitialised `uint16_t encofs` when the flash key is missing (index offset = stack garbage) | code reading + observed direction change in WO6; nondeterministic, no test |
 | 167 | TMC4671 driver: Calibration | `TMC4671.cpp:526` vs `:1461` | `calibrated` reads 0 right after a successful full calibration (ABN): the encoder re-init sets `recalibrationRequired` again | KNOWN_ISSUE [R93] (B-T29) |
 | 168 | TMC4671 driver: Commands | `TMC4671.cpp:2853` | `mtype` set: the range check tests `cmd.type` instead of the value; 259 wraps to BLDC through the 8-bit cast | KNOWN_ISSUE [R102] (B-T30) |
+| 169 | ODrive driver: Commands / flash | `ODriveCAN.cpp:356, 138` | `maxtorque` get and save truncate `maxTorque*100`: 282 of the values 0..4095 read back one lower (set 53 -> get 52), and a save persists the lower value | KNOWN_ISSUE 2 cases [O51] (B-O1) |
+| 170 | ODrive driver: Connection | `ODriveCAN.cpp:205-212` | `connected` is true during the first 2 s after boot without any frame (`lastCanMessage` starts at 0); encoder estimates are requested from a node never seen | KNOWN_ISSUE 2 cases [O31] (B-O2) |
+| 171 | ODrive driver: RX parsing | `ODriveCAN.cpp:390-435` | No DLC/RTR check: RTR frames and frames shorter than the payload (e.g. another master's RTR 0x09) overwrite position, voltage, error and state with stale/zero data (CSV payload sizes, SPEC call & response) | KNOWN_ISSUE 6 cases [O25] (B-O3) |
+| 172 | ODrive driver: Node id | `ODriveCAN.cpp:326` (`canid`), `:69` | `canid` is an unvalidated int8: 64, -1, 200 are stored and reported, while the bus uses `node & 0x3F` (11-bit truncation in the CAN peripheral) and the saved value is `& 0x3F`, so a reload changes the node (SPEC: node id max 0x3F) | KNOWN_ISSUE 4 cases [O16] (B-O4) |
+| 173 | ODrive driver: RX parsing | `ODriveCAN.cpp:390` | Extended-id frames whose upper bits match are interpreted as CAN Simple standard frames | KNOWN_ISSUE 3 cases [O26] (B-O5) |
+| 174 | ODrive driver: State machine | `ODriveCAN.cpp:174-185, 196-199` | Set Controller Modes (torque, passthrough) is not sent when the ODrive is already in closed loop at connect (T7 path) or when the closed-loop heartbeat arrives after START_RUNNING (`state=RUNNING` before the check): the driver then sends torque without having selected torque control | KNOWN_ISSUE 2 cases [O33] (B-O6) |
+| 175 | ODrive driver: Flash | `ODriveCAN.cpp:145-146, 113-118` | The stored position offset (`storepos`) is a 16-bit word read back as int16: offsets beyond half a turn (32767 counts) wrap | KNOWN_ISSUE [O62] (B-O7) |
+| 176 | ODrive driver: Encoder | `ODriveCAN.cpp:264` | `getPos()` converts `65535.0f * pos` to int32: undefined beyond about 32768 turns (x86 INT_MIN, ARM saturates) | KNOWN_ISSUE_UB [O44] (B-O8) |
+| 177 | ODrive driver: Encoder | `ODriveCAN.cpp:253` | `getPos_f` measures its 5 ms re-request window from the last reply, not from the request: without replies every call sends an RTR 0x09 (request flood at the axis loop rate) | KNOWN_ISSUE [O42] (B-O9) |
+| 178 | ODrive driver: Flash | `ODriveCAN.cpp:96-102` | `restoreFlash` selects the M1 settings word 0x3D2 only inside the successful read of 0x3D0: without 0x3D0, ODriveCAN2 restores motor 0's settings | KNOWN_ISSUE [O60] (B-O10) |
 
 ## Untestable code and refactor suggestions
 
@@ -1291,6 +1318,9 @@ Final gate after P9 (2026-11-02), run by the main agent:
 10. **TMC4671 Q2:** the engineering-sample version value (SI_VERSION 0x00010000) is not in the datasheet; tested as characterization only.
 11. **TMC4671 Q3:** the board init (`main.c:1377`, CubeMX) drives SPI1_SS2/SS3 low and nothing releases them before the first TMC_1 frame (NEEDS REVIEW 174). Intended?
 12. **TMC4671 Q4:** the biquad enable bit (bug 162 = B-T24). DS §7.2 says bit 31 of CONFIG_DATA, the driver writes bit 0. Is there evidence from real hardware that the flux/torque filters are active (which would mean the datasheet is wrong)?
+
+13. **ODrive D2-Q1:** the axis state, control mode, input mode numbers and error bits are not in the supplied 0.5.6 spec (PDF + CSV). Supply the 0.5.6 enums (`enums.py` or the API reference page) to turn those characterization assertions into spec checks.
+14. **ODrive D2-Q2:** the driver comment names firmware 0.5.4, the spec is 0.5.6. Any differences for the messages the driver uses (0x01, 0x07, 0x09, 0x0B, 0x0E, 0x10, 0x17)?
 
 ## Resume instructions
 

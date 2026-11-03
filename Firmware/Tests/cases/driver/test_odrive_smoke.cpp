@@ -16,7 +16,7 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O1] constructing ODriveCAN1 starts the CAN po
 	CHECK_FALSE(HostTarget::canPort().filters[0].extid);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O32] after the first heartbeat reports IDLE the driver's first frame is a well-formed standard-id Set Axis Requested State of node 0") {
+TEST_CASE_FIXTURE(OdriveFixture, "[O32] characterization: after the first heartbeat reports IDLE the first frame of the driver is a well-formed standard-id Set Axis Requested State of node 0 for state number 3") {
 	auto od = makeOdrive1();
 	runFor(499);
 	CHECK(HostTarget::canTxFrames().empty()); // the thread has not run its first body yet (Delay(500) first)

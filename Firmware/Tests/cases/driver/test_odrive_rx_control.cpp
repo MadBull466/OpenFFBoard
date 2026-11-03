@@ -324,6 +324,15 @@ TEST_CASE_FIXTURE(OdrvRxFixture, "[O25] a bus voltage data frame with DLC 2 does
 	CHECK(get(*od, "vbus") == 24500);
 }
 
+TEST_CASE_FIXTURE(OdrvRxFixture, "[O25] a heartbeat shorter than 8 bytes (DLC 4) does not change the reported state" * KNOWN_ISSUE("B-O3: canRxPendCallback has no DLC check (ODriveCAN.cpp:400-413), the missing state byte is read as 0")) {
+	auto od = makeOdrive1();
+	link(*od, peer0);
+	rx(peer0, 0, CMD_HB, hb(0x11, 0x21));
+	REQUIRE(get(*od, "state") == 0x21);
+	rx(peer0, 0, CMD_HB, {0x11, 0x00, 0x00, 0x00}); // CSV 0x001: the state is byte 4, outside DLC 4
+	CHECK(get(*od, "state") == 0x21);
+}
+
 TEST_CASE_FIXTURE(OdrvRxFixture, "[O25] an RTR heartbeat frame does not overwrite the axis error and state" * KNOWN_ISSUE("B-O3: canRxPendCallback has no DLC / RTR check (ODriveCAN.cpp:400-413), the empty payload is read as error 0 / state 0")) {
 	auto od = makeOdrive1();
 	link(*od, peer0);
@@ -553,7 +562,7 @@ TEST_CASE_FIXTURE(OdrvRxFixture, "[O42] a second getPos_f call right after a req
 	CHECK(txFramesCmd(0, CMD_ENC).size() == 1);
 }
 
-TEST_CASE_FIXTURE(OdrvRxFixture, "[O42] a request is repeated when the reply is still missing more than 5 ms after the last reply") {
+TEST_CASE_FIXTURE(OdrvRxFixture, "[O42] characterization: a request is repeated when the reply is still missing more than 5 ms after the last reply") {
 	auto od = makeOdrive1();
 	link(*od, peer0);
 	rx(peer0, 0, CMD_ENC, floats(1.0f, 0));

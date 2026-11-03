@@ -165,6 +165,32 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O32] characterization: while the ODrive is in
 	CHECK(txFramesCmd(0, 0x07).empty());
 	CHECK(txFramesCmd(0, 0x0B).empty());
 	CHECK_FALSE(od->motorReady());
+	// the calibration ends: IDLE heartbeat -> exactly one request for closed loop (0x07 = 8)
+	heartbeat(peer0, FP::STATE_IDLE);
+	runFor(1000);
+	const auto fr = txFramesCmd(0, 0x07);
+	REQUIRE(fr.size() == 1);
+	checkDataFrame(fr[0], 0x07, STATE_CLOSED_LOOP_BYTES);
+}
+
+TEST_CASE_FIXTURE(OdriveFixture, "[O32] characterization: from a calibration state the driver goes to RUNNING with Set Controller Modes when the ODrive reports closed loop directly") {
+	uint32_t st = 0;
+	SUBCASE("full calibration (3)") { st = 3; }
+	SUBCASE("motor calibration (4)") { st = 4; }
+	SUBCASE("encoder index search (6)") { st = 6; }
+	SUBCASE("encoder offset calibration (7)") { st = 7; }
+	SUBCASE("encoder hall phase calibration (13)") { st = 13; }
+	CAPTURE(st);
+	peer0.setState(st);
+	auto od = makeOdrive1();
+	runFor(1000); // WAIT_CALIBRATION_DONE
+	heartbeat(peer0, FP::STATE_CLOSED_LOOP);
+	runFor(1500); // body: START_RUNNING, next body: RUNNING and modes
+	CHECK(peer0.modesSeen());
+	CHECK(od->motorReady());
+	const auto md = txFramesCmd(0, 0x0B);
+	REQUIRE(md.size() == 1);
+	checkDataFrame(md[0], 0x0B, MODES_TORQUE_PASSTHROUGH);
 }
 
 TEST_CASE_FIXTURE(OdriveFixture, "[O32] characterization: when the calibration ends in IDLE the driver requests closed loop (0x07 = 8)") {
@@ -297,7 +323,7 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O36] characterization: startMotor with the OD
 	checkDataFrame(HostTarget::canTxFrames()[0], 0x07, STATE_CLOSED_LOOP_BYTES);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O36] startMotor sends nothing when the ODrive is not in IDLE") {
+TEST_CASE_FIXTURE(OdriveFixture, "[O36] characterization: startMotor sends nothing when the ODrive is not in IDLE") {
 	peer0.setState(FP::STATE_CLOSED_LOOP);
 	auto od = makeOdrive1();
 	runFor(150);
@@ -316,7 +342,7 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O36] characterization: stopMotor in closed lo
 	checkDataFrame(HostTarget::canTxFrames()[1], 0x07, STATE_IDLE_BYTES);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O36] stopMotor with the ODrive in IDLE sends torque 0 only") {
+TEST_CASE_FIXTURE(OdriveFixture, "[O36] characterization: stopMotor with the ODrive in IDLE sends torque 0 only") {
 	auto od = makeOdrive1();
 	runFor(150);
 	clearTxFrames();

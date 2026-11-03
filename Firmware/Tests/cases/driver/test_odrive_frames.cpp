@@ -563,6 +563,26 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O16] after canid set the filter of the old no
 	CHECK_FALSE(HostTarget::canAccepts(0x001));
 }
 
+TEST_CASE_FIXTURE(OdriveFixture, "[O16] canid set on ODriveCAN2 changes only the TX id and the filter of that instance (node 1 -> 9)") {
+	auto od1 = makeOdrive1();
+	auto od2 = makeOdrive2();
+	CHECK(CommandHelpers::run(*od2, "canid", CMDtype::set, 9) == CommandStatus::OK);
+	// filters passed to addCanFilter: od1, od2, od2 rebuilt
+	REQUIRE(HostTarget::canPort().filters.size() == 3);
+	CHECK(HostTarget::canPort().filters[2].filter_id == 0x120); // HD: 9 << 5
+	CHECK(HostTarget::canPort().filters[2].filter_mask == 0x7E0);
+	CHECK(HostTarget::canActiveFilterBanks() == 2);
+	CHECK(HostTarget::canAccepts(0x121));
+	CHECK_FALSE(HostTarget::canAccepts(0x021));
+	CHECK(HostTarget::canAccepts(0x001)); // ODriveCAN1 still on node 0
+	HostTarget::canClearTxFrames();
+	od2->setTorque(0.0f);
+	od1->setTorque(0.0f);
+	REQUIRE(HostTarget::canTxFrames().size() == 2);
+	CHECK(HostTarget::canTxFrames()[0].id == 0x12E); // HD: 9 << 5 | 0x0E
+	CHECK(HostTarget::canTxFrames()[1].id == 0x00E);
+}
+
 // B-O4 scope: the stored and reported node id (int8, unvalidated) differs from the node on the bus. The CAN identifier
 // register keeps 11 bits, so TX id and RX filter (& 0x3F) agree only through that truncation (e.g. 100 -> node 36), and
 // the saved value is & 0x3F, so a reload changes the node. The tests below describe the intended behaviour: rejection.
