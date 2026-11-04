@@ -53,9 +53,10 @@ ctest --test-dir build --output-on-failure
 or with presets (CMake >= 3.21): `cmake --preset host && cmake --build --preset host && ctest --preset host`
 (`host-mingw` on Windows).
 
-`ctest` runs 8 entries: the six test executables `ffb_unit_tests`, `ffb_target_tests`, `ffb_flash_tests`,
-`ffb_rtos_tests`, `ffb_usb_tests` and `ffb_driver_tests` (each with its exclusion list), `ffb_unit_tests_baseline` (the baseline check, see
-below) and `python_helper_tests` (the last two only if Python 3 is found; `ffb_flash_tests` is not built on macOS).
+`ctest` runs 9 entries: the seven test executables `ffb_unit_tests`, `ffb_target_tests`, `ffb_flash_tests`,
+`ffb_rtos_tests`, `ffb_usb_tests`, `ffb_driver_tests` and `ffb_dsp_tests` (each with its exclusion list), `ffb_unit_tests_baseline` (the baseline check, see
+below) and `python_helper_tests` (the last two only if Python 3 is found; `ffb_flash_tests` is not built on macOS;
+`ffb_dsp_tests` only with CMSIS-DSP and its `Testing/Patterns`, so 8 entries without them).
 
 | Executable | Test cases | Section |
 |---|---|---|
@@ -65,6 +66,7 @@ below) and `python_helper_tests` (the last two only if Python 3 is found; `ffb_f
 | `ffb_rtos_tests` | `cases_rtos/` | [`ffb_rtos_tests`](#ffb_rtos_tests-the-freertos-c-wrappers-on-a-fake-freertos-api) |
 | `ffb_usb_tests` | `cases_usb/` | [`ffb_usb_tests`](#ffb_usb_tests-the-tinyusb-device-stack-on-a-fake-usb-device-controller) |
 | `ffb_driver_tests` | `cases/driver/` | [`ffb_driver_tests`](#ffb_driver_tests-the-tmc4671-odrive-and-vesc-drivers-driver-track) |
+| `ffb_dsp_tests` | `cases_dsp/` | [`ffb_dsp_tests`](#ffb_dsp_tests-the-cmsis-dsp-modules-phase-p11) |
 | `python_helper_tests` | `python/` | [Python helper tests](#python-helper-tests) |
 
 The test executables can be started directly for more control. With GCC 16 (libstdc++ with `_GLIBCXX_ASSERTIONS` at
@@ -163,6 +165,8 @@ python3 -B tools/run_all_tests.py --build-dir build [--out FILE] [--timeout S]  
 | `cases_rtos/test_*.cpp` | Test cases of `ffb_rtos_tests` (the `cpp_freertos` wrappers on the fake FreeRTOS API). |
 | `cases_usb/test_*.cpp` | Test cases of `ffb_usb_tests` (TinyUSB device stack on the fake USB device controller). |
 | `cases/driver/test_*.cpp` | Test cases of `ffb_driver_tests` (TMC4671, ODrive, VESC drivers; not picked up by `ffb_unit_tests`, whose glob is not recursive). |
+| `cases_dsp/test_dsp_*.cpp` | Test cases of `ffb_dsp_tests` (CMSIS-DSP modules against ARM's reference patterns). |
+| `dsp/` | Requirement charter of the CMSIS-DSP track (`CMSIS_DSP_REQUIREMENTS.md`). |
 | `driver/` | Requirement charters of the driver track (`<name>_REQUIREMENTS.md`), planned from phase D1. |
 | `specs/` | Local copies of vendor specifications for the driver track. Ignored by git (`.gitignore`), never committed. |
 | `python/` | `test_*.py`: stdlib `unittest` tests of the Python helper scripts; `helper_paths.py` (paths, loader). |
@@ -816,6 +820,43 @@ cmake --build build 2>&1 | python3 -B tools/summarise_results.py --format build
 
 * **Coverage:** `tools/coverage_report.py` lists the four driver files in the section "Driver track". They are not part
   of the coverage ladder (its total is unchanged).
+
+## `ffb_dsp_tests`: the CMSIS-DSP modules (phase P11)
+
+A seventh executable built by the same `CMakeLists.txt` and run by `ctest` (`dsp/CMSIS_DSP_REQUIREMENTS.md`, requirements
+C1-C6). It tests the CMSIS-DSP library (vendor code, never edited) of the modules the firmware uses (FastMath,
+Controller, Interpolation, Statistics, Filtering, CommonTables and the four BasicMath helpers `arm_abs_q15`,
+`arm_abs_q31`, `arm_add_f32`, `arm_add_f16`), for all data types (f64, f32, f16, q31, q15, q7). No firmware or platform
+source is compiled into it.
+
+* **Libraries:** the CMSIS-DSP sources are built as two static libraries with the same flags and definitions as the DSP
+  sources of the other executables (`USE_DSP_FUNCTIONS ARM_MATH_LOOPUNROLL __GNUC_PYTHON__`: the portable C code path,
+  not the Cortex-M intrinsic path): `ffb_cmsis_dsp` (every `arm_*.c` of the modules, without `*_f16.c`) and
+  `ffb_cmsis_dsp_f16`. The other executables are not changed (identical compile commands).
+* **When it is built:** only if the DSP build is on (`FFB_TESTS_USE_DSP`) and the submodule contains
+  `Libraries/CMSIS-DSP/Testing/Patterns` (otherwise the configure output says so and nothing changes).
+* **Patterns:** ARM's reference patterns are read at run time from the submodule (`FFB_CMSIS_PATTERN_DIR`, defined by
+  CMake, absolute with forward slashes); nothing is copied under `Firmware/Tests`. `support/DspPatterns.h` holds the loader
+  (type letter `W`/`H`/`B`/`D`, count, hex lines; `//` comment lines are never parsed; CRLF tolerant; a missing file
+  fails the test) with typed accessors, and the comparison helpers (SNR, abs+rel, LSB bound, exact, guard words).
+  Its self-tests are `cases_dsp/test_dsp_patterns.cpp`.
+* **f16:** CMSIS-DSP only compiles the f16 code if the compiler announces `__ARM_FP16_FORMAT_IEEE`, and defines
+  `float16_t` as `__fp16`, which x86 compilers do not have. CMake checks that the compiler supports `_Float16` and then
+  compiles the f16 sources (`ffb_cmsis_dsp_f16`) and the test files named `cases_dsp/test_dsp_*_f16.cpp` with
+  `-D__ARM_FP16_FORMAT_IEEE=1 -D__fp16=_Float16` (no source edited). Without `_Float16` those are not built and the
+  configure output says so; the tests see `FFB_DSP_HAS_F16` (0 or 1). Put every test that uses `float16_t` or
+  `arm_*_f16` into a file with the `_f16.cpp` suffix; other files stay free of the definitions.
+* **Test cases:** `cases_dsp/test_dsp_*.cpp` (own glob). `FFB_DSP_TEST_FILTER` (CMake cache variable, default
+  `test_dsp_*.cpp`) limits the compiled files, e.g. `cmake -DFFB_DSP_TEST_FILTER="test_dsp_fastmath*.cpp" .`; the
+  loader self-tests are always compiled. Exclusion lists `FFB_DSP_TESTS_EXCLUDE` / `FFB_DSP_TESTS_EXCLUDE_SANITIZE`
+  (default empty). Test names carry the requirement id and the unit, e.g. `[C1 arm_sin_f32] ...`.
+* **Run:** `build/ffb_dsp_tests` (from any directory; the loader tests write short-lived files into the current
+  directory), or `ctest -R ffb_dsp_tests`. Also covered by `tools/run_all_tests.py` / `test_report`; the coverage report
+  has its own "CMSIS-DSP in scope" section (outside tier C and the ladder, so their numbers stay comparable).
+* **Host vs target:** the host runs the portable C path; results of the Cortex-M `ARM_MATH_DSP` path, FMA
+  contraction and out-of-range float to integer conversions can differ on the target (each affected test says so).
+  Known gap: `arm_conv_opt_*` / `arm_correlate_opt_*` need `arm_copy_q15` / `arm_fill_q15` of SupportFunctions, which are
+  not linked.
 
 ## Python helper tests
 

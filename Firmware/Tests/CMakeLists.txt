@@ -877,6 +877,143 @@ else()
 endif()
 
 # ===========================================================================
+# ffb_dsp_tests (phase P11, Tests/TEST_PLAN.md and dsp/CMSIS_DSP_REQUIREMENTS.md): the in-scope CMSIS-DSP modules
+# (FastMath, Controller, Interpolation, Statistics, Filtering, CommonTables and the 4 BasicMath helpers arm_abs_q15,
+# arm_abs_q31, arm_add_f32, arm_add_f16) of ALL data types, tested against ARM's reference patterns
+# (Libraries/CMSIS-DSP/Testing/Patterns, read at run time, nothing copied) and independent definitions.
+#
+# No firmware is compiled in: the CMSIS-DSP sources are built as static libraries with the same flags and definitions
+# as the DSP sources of the other executables (USE_DSP_FUNCTIONS ARM_MATH_LOOPUNROLL __GNUC_PYTHON__ = portable C code
+# path, no ARM_MATH_DSP intrinsics). The other executables are not changed (their compile commands are identical).
+#   ffb_cmsis_dsp       arm_*.c of the modules above, without *_f16.c (Helium/Neon variants do not exist as files of
+#                       these modules; the mve/neon table files of CommonTables are not listed)
+#   ffb_cmsis_dsp_f16   the *_f16.c sources, only if the compiler has _Float16 (see FFB_DSP_HAS_F16)
+# f16 (lead decision L2): CMSIS-DSP defines float16_t as __fp16 and compiles the f16 code only if the compiler announces
+# __ARM_FP16_FORMAT_IEEE. On the host (x86) neither exists, so the f16 sources and the test files named
+# cases_dsp/test_dsp_*_f16.cpp get -D__ARM_FP16_FORMAT_IEEE=1 -D__fp16=_Float16 (no source edited). Without _Float16
+# (e.g. an old MinGW) the f16 library and the f16 test files are not built; FFB_DSP_HAS_F16 is 0 for the tests.
+# Test files: cases_dsp/test_dsp_*.cpp. FFB_DSP_TEST_FILTER (developer aid for parallel test writing): glob of the
+# files to compile, e.g. "test_dsp_fastmath*.cpp". The loader self-tests (test_dsp_patterns.cpp) are always compiled.
+# Only built if USE_DSP is on and the submodule contains Testing/Patterns.
+# ===========================================================================
+set(FFB_DSP_PATTERN_ROOT ${DSP_DIR}/Testing/Patterns/DSP)
+if(USE_DSP AND EXISTS ${FFB_DSP_PATTERN_ROOT}/FastMath AND EXISTS ${DSP_DIR}/Source/FastMathFunctions)
+	include(CheckCSourceCompiles)
+	include(CheckCXXSourceCompiles)
+	set(FFB_DSP_F16_DEFS -D__ARM_FP16_FORMAT_IEEE=1 -D__fp16=_Float16)
+	set(CMAKE_REQUIRED_DEFINITIONS ${FFB_DSP_F16_DEFS})
+	set(FFB_DSP_F16_PROBE "typedef __fp16 float16_t; int main(void) { volatile float f = 1.5f; float16_t h = (float16_t)f; volatile float16_t v = h + h; f = (float)v; return f > 2.9f ? 0 : 1; }")
+	check_c_source_compiles("${FFB_DSP_F16_PROBE}" FFB_DSP_C_HAS_FLOAT16)
+	check_cxx_source_compiles("${FFB_DSP_F16_PROBE}" FFB_DSP_CXX_HAS_FLOAT16)
+	unset(CMAKE_REQUIRED_DEFINITIONS)
+	if(FFB_DSP_C_HAS_FLOAT16 AND FFB_DSP_CXX_HAS_FLOAT16)
+		set(FFB_DSP_HAS_F16 1)
+		message(STATUS "OpenFFBoard tests: ffb_dsp_tests: _Float16 supported, f16 sources and tests are built")
+	else()
+		set(FFB_DSP_HAS_F16 0)
+		message(STATUS "OpenFFBoard tests: ffb_dsp_tests: _Float16 NOT supported by this compiler, f16 sources and tests are NOT built")
+	endif()
+
+	set(FFB_DSP_MODULES FastMathFunctions ControllerFunctions InterpolationFunctions StatisticsFunctions FilteringFunctions)
+	set(FFB_DSP_SOURCES ${DSP_DIR}/Source/CommonTables/arm_common_tables.c)
+	set(FFB_DSP_F16_SOURCES ${DSP_DIR}/Source/CommonTables/arm_common_tables_f16.c)
+	foreach(ffb_dsp_module ${FFB_DSP_MODULES})
+		file(GLOB ffb_dsp_all CONFIGURE_DEPENDS ${DSP_DIR}/Source/${ffb_dsp_module}/arm_*.c)
+		set(ffb_dsp_f16 ${ffb_dsp_all})
+		list(FILTER ffb_dsp_all EXCLUDE REGEX "_f16\\.c$")
+		list(FILTER ffb_dsp_f16 INCLUDE REGEX "_f16\\.c$")
+		list(APPEND FFB_DSP_SOURCES ${ffb_dsp_all})
+		list(APPEND FFB_DSP_F16_SOURCES ${ffb_dsp_f16})
+	endforeach()
+	# BasicMath helpers used by the modules above (arm_divide_* -> arm_abs_*, arm_logsumexp_dot_prod_* -> arm_add_*)
+	list(APPEND FFB_DSP_SOURCES
+		${DSP_DIR}/Source/BasicMathFunctions/arm_abs_q15.c
+		${DSP_DIR}/Source/BasicMathFunctions/arm_abs_q31.c
+		${DSP_DIR}/Source/BasicMathFunctions/arm_add_f32.c
+		# SupportFunctions helpers of the *_opt_q15 / *_opt_q7 convolution and correlation variants (lead decision L6)
+		${DSP_DIR}/Source/SupportFunctions/arm_copy_q15.c
+		${DSP_DIR}/Source/SupportFunctions/arm_fill_q15.c)
+	list(APPEND FFB_DSP_F16_SOURCES ${DSP_DIR}/Source/BasicMathFunctions/arm_add_f16.c)
+
+	# Same flags as the DSP sources in the other executables (-g -std=gnu11 -Wall -funsigned-char, sanitizers)
+	function(ffb_dsp_library name)
+		add_library(${name} STATIC ${ARGN})
+		target_include_directories(${name} PRIVATE ${DSP_DIR}/Include ${DSP_DIR}/PrivateInclude)
+		target_compile_definitions(${name} PRIVATE USE_DSP_FUNCTIONS ARM_MATH_LOOPUNROLL __GNUC_PYTHON__)
+		target_compile_options(${name} PRIVATE -Wall -funsigned-char)
+		if(FFB_TESTS_SANITIZE)
+			target_compile_options(${name} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined)
+		endif()
+	endfunction()
+	ffb_dsp_library(ffb_cmsis_dsp ${FFB_DSP_SOURCES})
+	if(FFB_DSP_HAS_F16)
+		ffb_dsp_library(ffb_cmsis_dsp_f16 ${FFB_DSP_F16_SOURCES})
+		target_compile_definitions(ffb_cmsis_dsp_f16 PRIVATE ${FFB_DSP_F16_DEFS})
+	endif()
+
+	set(FFB_DSP_TEST_FILTER "test_dsp_*.cpp" CACHE STRING "Glob of the cases_dsp test files compiled into ffb_dsp_tests")
+	file(GLOB DSP_TEST_SOURCES CONFIGURE_DEPENDS
+		${CMAKE_CURRENT_SOURCE_DIR}/cases_dsp/${FFB_DSP_TEST_FILTER}
+		${CMAKE_CURRENT_SOURCE_DIR}/cases_dsp/test_dsp_patterns.cpp)
+	list(REMOVE_DUPLICATES DSP_TEST_SOURCES)
+	# f16 test files: test_dsp_*_f16.cpp (compiled with the f16 definitions, dropped without _Float16)
+	set(DSP_TEST_F16_SOURCES ${DSP_TEST_SOURCES})
+	list(FILTER DSP_TEST_F16_SOURCES INCLUDE REGEX "_f16\\.cpp$")
+	if(NOT FFB_DSP_HAS_F16)
+		list(REMOVE_ITEM DSP_TEST_SOURCES ${DSP_TEST_F16_SOURCES})
+	endif()
+
+	add_executable(ffb_dsp_tests ${DSP_TEST_SOURCES} support/DspPatterns.cpp support/test_main.cpp)
+	target_include_directories(ffb_dsp_tests PRIVATE support third_party ${DSP_DIR}/Include ${DSP_DIR}/PrivateInclude)
+	get_filename_component(FFB_CMSIS_PATTERN_DIR "${FFB_DSP_PATTERN_ROOT}" ABSOLUTE)
+	file(TO_CMAKE_PATH "${FFB_CMSIS_PATTERN_DIR}" FFB_CMSIS_PATTERN_DIR)
+	target_compile_definitions(ffb_dsp_tests PRIVATE
+		USE_DSP_FUNCTIONS ARM_MATH_LOOPUNROLL __GNUC_PYTHON__
+		FFB_CMSIS_PATTERN_DIR="${FFB_CMSIS_PATTERN_DIR}"
+		FFB_DSP_HAS_F16=${FFB_DSP_HAS_F16})
+	if(FFB_DSP_HAS_F16 AND DSP_TEST_F16_SOURCES)
+		set_property(SOURCE ${DSP_TEST_F16_SOURCES} APPEND PROPERTY COMPILE_DEFINITIONS
+			__ARM_FP16_FORMAT_IEEE=1 __fp16=_Float16)
+	endif()
+	if(FFB_DSP_HAS_F16)
+		target_link_libraries(ffb_dsp_tests PRIVATE ffb_cmsis_dsp_f16 ffb_cmsis_dsp)
+	else()
+		target_link_libraries(ffb_dsp_tests PRIVATE ffb_cmsis_dsp)
+	endif()
+	if(NOT WIN32)
+		target_link_libraries(ffb_dsp_tests PRIVATE m)
+	endif()
+	target_compile_options(ffb_dsp_tests PRIVATE -Wall $<$<COMPILE_LANGUAGE:CXX>:-Wno-volatile> -funsigned-char)
+	if(MINGW)
+		target_compile_options(ffb_dsp_tests PRIVATE -mno-ms-bitfields)
+		target_link_options(ffb_dsp_tests PRIVATE -static)
+	endif()
+	if(FFB_TESTS_SANITIZE)
+		target_compile_definitions(ffb_dsp_tests PRIVATE HOSTTEST_SANITIZERS)
+		target_compile_options(ffb_dsp_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined)
+		target_link_options(ffb_dsp_tests PRIVATE -fsanitize=address,undefined)
+	endif()
+
+	# Test cases of ffb_dsp_tests excluded from ctest (doctest --test-case-exclude). Same rule as FFB_TESTS_EXCLUDE:
+	# only cases that abort the whole run because of a suspected defect belong here.
+	set(FFB_DSP_TESTS_EXCLUDE "" CACHE STRING "Test cases of ffb_dsp_tests excluded from ctest (list)")
+	set(FFB_DSP_TESTS_EXCLUDE_SANITIZE "" CACHE STRING "Test cases of ffb_dsp_tests additionally excluded from ctest in sanitizer builds (list)")
+	set(FFB_DSP_TESTS_EXCLUDED ${FFB_DSP_TESTS_EXCLUDE})
+	if(FFB_TESTS_SANITIZE)
+		list(APPEND FFB_DSP_TESTS_EXCLUDED ${FFB_DSP_TESTS_EXCLUDE_SANITIZE})
+	endif()
+	list(JOIN FFB_DSP_TESTS_EXCLUDED "," FFB_DSP_TESTS_EXCLUDED_ARG)
+	message(STATUS "OpenFFBoard tests: ffb_dsp_tests excluded from ctest: ${FFB_DSP_TESTS_EXCLUDED_ARG}")
+	if(FFB_DSP_TESTS_EXCLUDED_ARG)
+		add_test(NAME ffb_dsp_tests COMMAND ffb_dsp_tests "--test-case-exclude=${FFB_DSP_TESTS_EXCLUDED_ARG}")
+	else()
+		add_test(NAME ffb_dsp_tests COMMAND ffb_dsp_tests)
+	endif()
+elseif(USE_DSP)
+	message(STATUS "OpenFFBoard tests: ffb_dsp_tests not built: CMSIS-DSP Testing/Patterns not found (git submodule update --init Firmware/Libraries/CMSIS-DSP)")
+endif()
+
+# ===========================================================================
 # python_helper_tests: stdlib unittest smoke tests of the Python helper scripts (P9): Firmware/scripts/generate_memory.py
 # and FFBoard/USB/portable/synopsys/dwc2/dwc2_info.py, in python/test_*.py. Only when Python 3 is found (like the
 # baseline check). -B and PYTHONDONTWRITEBYTECODE: no __pycache__ is written into the repository; the scripts' outputs
@@ -910,7 +1047,7 @@ if(Python3_Interpreter_FOUND)
 		COMMENT "Running every test case (report: ${CMAKE_CURRENT_BINARY_DIR}/test_report.log)"
 		USES_TERMINAL
 		VERBATIM)
-	foreach(ffb_report_exe ffb_unit_tests ffb_target_tests ffb_flash_tests ffb_rtos_tests ffb_usb_tests ffb_driver_tests)
+	foreach(ffb_report_exe ffb_unit_tests ffb_target_tests ffb_flash_tests ffb_rtos_tests ffb_usb_tests ffb_driver_tests ffb_dsp_tests)
 		if(TARGET ${ffb_report_exe})
 			add_dependencies(test_report ${ffb_report_exe})
 		endif()

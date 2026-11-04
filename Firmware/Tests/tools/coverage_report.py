@@ -13,6 +13,9 @@ The report (Markdown, stdout) separates:
   tier A     eeprom.c and the FreeRTOS C++ wrappers (c*.cpp, Inc/*.hpp)
   tier B     TinyUSB (FFBoard/USB/**)
   tier C     CMSIS-DSP (Libraries/CMSIS-DSP/**)
+  dsp        the in-scope CMSIS-DSP modules of ffb_dsp_tests (phase P11, Tests/dsp/CMSIS_DSP_REQUIREMENTS.md). Own section,
+             built from the .gcda files of the CMake targets ffb_cmsis_dsp, ffb_cmsis_dsp_f16 and ffb_dsp_tests ONLY, so the
+             numbers of tier C (the other executables) stay comparable. NOT part of the in-scope coverage ladder.
   driver     the driver track (Tests/DRIVER_TEST_PLAN.md): TMC4671.cpp, TMC4671_configs.cpp, ODriveCAN.cpp, VescCAN.cpp.
              Own section; NOT part of the in-scope coverage ladder (its total is unchanged by the driver track)
 Firmware/Tests/, the remaining out-of-scope drivers, MIDI, the rest of Libraries/ and Targets/ are not reported.
@@ -51,6 +54,13 @@ DEFAULT_FIRMWARE_DIR = os.path.normpath(os.path.join(TOOLS_DIR, "..", ".."))
 OUT_OF_SCOPE = {"TMCDebugBridge", "MotorPWM", "RmdMotorCAN", "MotorSimplemotion", "MidiMain", "MidiHandler"}
 # The three drivers of the driver track (ffb_driver_tests): reported in their own tier, not in the ladder
 DRIVER_TRACK = {"TMC4671", "TMC4671_configs", "ODriveCAN", "VescCAN"}
+# ffb_dsp_tests: the CMSIS-DSP sources are built by these CMake targets (object directories CMakeFiles/<target>.dir)
+DSP_TARGET_DIRS = ("/ffb_cmsis_dsp.dir/", "/ffb_cmsis_dsp_f16.dir/", "/ffb_dsp_tests.dir/")
+# In-scope CMSIS-DSP modules (CMakeLists.txt, ffb_dsp_tests): every arm_*.c of these directories, plus CommonTables
+# (arm_common_tables.c, arm_common_tables_f16.c) and the four BasicMath helpers
+DSP_MODULE_DIRS = ["FastMathFunctions", "ControllerFunctions", "InterpolationFunctions", "StatisticsFunctions", "FilteringFunctions"]
+DSP_COMMON_TABLES = ["arm_common_tables.c", "arm_common_tables_f16.c"]
+DSP_BASICMATH_HELPERS = ["arm_abs_q15.c", "arm_abs_q31.c", "arm_add_f32.c", "arm_add_f16.c"]
 # FreeRTOS C++ wrappers (vendor tier A); their headers are FFBoard/Inc/*.hpp
 RTOS_WRAPPERS = {
 	"cthread", "csemaphore", "cmutex", "cqueue", "ctimer", "ctasklet", "cevent_groups", "cworkqueue",
@@ -121,6 +131,25 @@ def module_of(rel, tier):
 	if rel.endswith(".hpp"):
 		return "RTOS wrappers"
 	return MODULE_OF.get(stem_of(rel), "other")
+
+
+def is_dsp_gcda(path):
+	"""True for a .gcda file of the ffb_dsp_tests targets (they are reported in the dsp tier, not in tier C)."""
+	path = path.replace("\\", "/")
+	return any(d in path for d in DSP_TARGET_DIRS)
+
+
+def dsp_in_scope_sources(fw):
+	"""Repo relative (to Firmware/) paths of the in-scope CMSIS-DSP sources, same rule as CMakeLists.txt."""
+	base = "Libraries/CMSIS-DSP/Source/"
+	result = []
+	for d in DSP_MODULE_DIRS:
+		path = os.path.join(fw, base, d)
+		if os.path.isdir(path):
+			result += [base + d + "/" + n for n in sorted(os.listdir(path)) if n.startswith("arm_") and n.endswith(".c")]
+	result += [base + "CommonTables/" + n for n in DSP_COMMON_TABLES if os.path.isfile(os.path.join(fw, base, "CommonTables", n))]
+	result += [base + "BasicMathFunctions/" + n for n in DSP_BASICMATH_HELPERS if os.path.isfile(os.path.join(fw, base, "BasicMathFunctions", n))]
+	return result
 
 
 def is_source(rel):
@@ -272,7 +301,11 @@ def main():
 	if not gcda_files:
 		sys.stderr.write("No .gcda files in %s. Build with --coverage and run the tests first.\n" % args.build_dir)
 		return 2
-	data = run_gcov(shlex.split(args.gcov), sorted(gcda_files))
+	# ffb_dsp_tests data is kept apart: tier C keeps its meaning (the CMSIS-DSP functions the firmware tests reach)
+	dsp_gcda = [g for g in gcda_files if is_dsp_gcda(g)]
+	gcda_files = [g for g in gcda_files if not is_dsp_gcda(g)]
+	data = run_gcov(shlex.split(args.gcov), sorted(gcda_files)) if gcda_files else {}
+	dsp_data = run_gcov(shlex.split(args.gcov), sorted(dsp_gcda)) if dsp_gcda else {}
 
 	rows = []  # (tier, module, rel, covered, executable, fn_exec, fn_total)
 	for path, entry in data.items():
@@ -388,6 +421,41 @@ def main():
 		driver_exe += exe
 		print("| `%s` | %d / %d | %s | %d / %d |" % (rel, cov, exe, pct(cov, exe), fe, ft))
 	print("| **Total** | %d / %d | %s | |" % (driver_cov, driver_exe, pct(driver_cov, driver_exe)))
+
+	# dsp tier: ffb_dsp_tests (own data, see the module docstring)
+	print("\n### CMSIS-DSP in scope (ffb_dsp_tests; not part of the coverage ladder, not part of tier C)\n")
+	dsp_rows = {}
+	for path, entry in dsp_data.items():
+		rel = os.path.relpath(path, fw).replace("\\", "/")
+		if rel.startswith("Libraries/CMSIS-DSP/Source/"):
+			lines = entry["lines"]
+			fns = entry["functions"]
+			dsp_rows[rel] = (sum(1 for c in lines.values() if c > 0), len(lines),
+				sum(1 for c in fns.values() if c > 0), len(fns))
+	dsp_sources = dsp_in_scope_sources(fw)
+	if not dsp_data:
+		print("No ffb_dsp_tests coverage data (ffb_dsp_tests not built or not run).")
+	else:
+		print("| Module | Files with data | Lines covered / executable | Covered | Functions | In-scope files without data |")
+		print("|---|---|---|---|---|---|")
+		total = [0, 0, 0, 0, 0, 0]
+		missing = []
+		for d in DSP_MODULE_DIRS + ["CommonTables", "BasicMathFunctions"]:
+			mod = [r for r in dsp_sources if r.split("/")[3] == d]
+			have = [r for r in mod if r in dsp_rows and dsp_rows[r][1] > 0]
+			none = [r for r in mod if r not in dsp_rows]
+			missing += none
+			cov = sum(dsp_rows[r][0] for r in have)
+			exe = sum(dsp_rows[r][1] for r in have)
+			fe = sum(dsp_rows[r][2] for r in have)
+			ft = sum(dsp_rows[r][3] for r in have)
+			for i, v in enumerate((len(have), cov, exe, fe, ft, len(none))):
+				total[i] += v
+			print("| %s | %d | %d / %d | %s | %d / %d | %d |" % (d, len(have), cov, exe, pct(cov, exe), fe, ft, len(none)))
+		print("| **Total** | %d | %d / %d | %s | %d / %d | %d |" % (total[0], total[1], total[2], pct(total[1], total[2]), total[3], total[4], total[5]))
+		print("\nFiles with data are the sources linked into ffb_dsp_tests (a static library object that no test references is not "
+			"linked and has no data, so its lines are NOT in the executable line count above: the percentage is over linked files only). "
+			"In-scope files without data: %d of %d." % (len(missing), len(dsp_sources)))
 
 	print("\n### Not compiled (0 %, estimated executable lines)\n")
 	print("| Module | File | Code lines | Est. executable lines |")

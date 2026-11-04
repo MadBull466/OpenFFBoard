@@ -18,6 +18,7 @@ All public functions and all data types (f64, f32, f16, q31, q15, q7 where they 
 | StatisticsFunctions | `arm_std_f32` | 93 |
 | FilteringFunctions | `arm_biquad_cascade_df1_init_f32`, `arm_biquad_cascade_df1_f32` | 116 |
 | BasicMath helpers used by the above | `arm_abs_q15/q31`, `arm_add_f32/f16` | 4 |
+| SupportFunctions helpers (L6) | `arm_copy_q15`, `arm_fill_q15` (linked for the `*_opt_*` conv/correlate variants; tested only through them) | 0 |
 | CommonTables | data used by the above | via the functions |
 
 Not in scope (unchanged): the other CMSIS-DSP modules (Matrix, Transform, Complex, Distance, Quaternion, SVM, Bayes, Window, Support beyond the helpers), the Helium/MVE and Neon variants, `ComputeLibrary`, `dsppp`, the Python wrapper, CMSIS core.
@@ -69,3 +70,4 @@ A finding where the library contradicts its pattern, its DOC or DEF is a **suspe
 * **L3** The host runs the portable C code path (`__GNUC_PYTHON__`, no `ARM_MATH_DSP`); the Cortex-M intrinsic path is not tested (host-vs-target caveat in every report).
 * **L4** ARM's tolerances are taken as they are; a tolerance that looks too loose (e.g. FastMath q31 sin/cos 2200 LSB, biquad f64 rel 1.2e-3) gets an additional DEF-based tighter check only if a hand derivation justifies the bound; otherwise NEEDS REVIEW.
 * **L5** Suspected vendor bugs: ids B-D1.., become global vendor numbers (V37 onwards) at the end of each group.
+* **L6** (G1 review) `SupportFunctions/arm_copy_q15.c` and `arm_fill_q15.c` are linked into `ffb_cmsis_dsp`: the `*_opt_q15` / `*_opt_q7` convolution and correlation variants call them. They get no tests of their own. Smoke test tags: a hand-derived value is C3, saturation is C4. f16 test files must be named `test_dsp_*_f16.cpp`, because CMake gives only those files the f16 definitions.
