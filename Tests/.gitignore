@@ -1,3 +1,4 @@
 # Specification files (datasheets etc.) supplied by the owner are never committed (CLAUDE.md)
 *.pdf
 can-protocol.csv
+bldc-master/
