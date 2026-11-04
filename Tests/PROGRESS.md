@@ -381,6 +381,12 @@ Plan: `Tests/DRIVER_TEST_PLAN.md` (TMC4671, then ODrive, then VESC; stop after e
 - **Coverage `ODriveCAN.cpp`: 263 / 269 lines = 97.8 %** (target 85 %). Uncovered: destructor variant lines (gcov artefact), `getEncoder()` / `getEncoderType()` (only called by the Axis, not by these tests), the `NOT_FOUND` default of `command()`.
 - **Suspected driver bugs** B-O1..B-O10 = bugs 169-178 (B-On = 168 + n), all with tests. NEEDS REVIEW 176-184. Open questions 13-14.
 
+### D3 VESC (in progress)
+
+- Spec: `Tests/VESC6_CAN_CommandsTelemetry.pdf` (third-party slides, id layout, packet numbers 0-27, STATUS) + the VESC firmware source `Tests/bldc-master` (7.01, ignored since `3fb50da0`) for byte order, buffer protocol, CRC, COMM layouts, POLL_ROTOR_POS, PING/PONG, timeout.
+- Inventory and protocol facts (Sonnet): `../ffb-test-build/ws/d3/vesc_inventory.md`, `vesc_protocol_facts.md` (not committed).
+- **Charter** (lead, 2026-11-04): `Firmware/Tests/driver/VESC_REQUIREMENTS.md`, requirements V1-V81 in groups G1-G9; suspected bugs B-V1..B-V13, among them: FW version check reads the pairing flag as the test version (a paired 5.3 release is rejected), filter leak on id change, receive buffer without bound check (long FW replies), an unsolicited PONG freezes the driver, old torque re-sent after stop/start, spurious turn on the first position sample, null dereference in `getEncoderType`.
+
 ### Fake fidelity register (driver track)
 
 | Fake | Models / source | Does not model | Confidence |
@@ -1323,6 +1329,8 @@ All open ones are also collected in `Tests/OPEN_QUESTIONS.md` (keep both in sync
 
 13. **ODrive D2-Q1:** the axis state, control mode, input mode numbers and error bits are not in the supplied 0.5.6 spec (PDF + CSV). Supply the 0.5.6 enums (`enums.py` or the API reference page) to turn those characterization assertions into spec checks.
 14. **ODrive D2-Q2:** the driver comment names firmware 0.5.4, the spec is 0.5.6. Any differences for the messages the driver uses (0x01, 0x07, 0x09, 0x0B, 0x0E, 0x10, 0x17)?
+15. **VESC D3-Q1:** spec gaps of the VESC slides: answered 2026-11-04 by the VESC firmware source `Tests/bldc-master` (7.01).
+16. **D3-Q2 VESC (remaining after the source).** The supplied VESC source is 7.01. (a) In firmware 5.3 (the oldest version the driver accepts), did the FW_VERSION reply already have the `pairing_done` byte before the test-version byte? If not, bug B-V6 only affects newer VESC firmware. (b) Should unsolicited VESC STATUS frames count as a sign of life (the driver counts any received frame)?
 
 ## Resume instructions
 

@@ -44,3 +44,5 @@ All questions still waiting for my answer, in one place. The numbers match "Open
     17. Position unit and multi-turn rule (driver: wrap at 180 degrees).
     18. Rounding of ratio * 100000 (driver truncates).
     A matching source would be the VESC firmware files `comm_can.c`, `datatypes.h`, `buffer.c`, `crc.c` and `commands.c` (GET_VALUES_SELECTIVE) of the version the driver targets (5.3 or later).
+    **Answered 2026-11-04:** the user supplied the VESC firmware source `Tests/bldc-master` (7.01, git-ignored); all 18 items are taken from it (`Firmware/Tests/driver/VESC_REQUIREMENTS.md`), except question 16.
+16. **D3-Q2 VESC (remaining after the source).** The supplied VESC source is 7.01. (a) In firmware 5.3 (the oldest version the driver accepts), did the FW_VERSION reply already have the `pairing_done` byte before the test-version byte? If not, bug B-V6 only affects newer VESC firmware. (b) Should unsolicited VESC STATUS frames count as a sign of life (the driver counts any received frame)?
