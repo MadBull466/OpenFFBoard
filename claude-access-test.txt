@@ -1,0 +1,2 @@
+Write-access test created by Claude Code on 2026-11-04.
+Safe to delete.
