@@ -1,6 +1,6 @@
 # Driver track (P10) final report: TMC4671, ODrive, VESC (2026-11-04)
 
-Status: **D3 (VESC) complete, waiting for my review.** D1 TMC4671 approved 2026-11-03, D2 ODrive approved 2026-11-04. Per-driver details: `Tests/D1_TMC4671_REPORT.md`, `Tests/D2_ODRIVE_REPORT.md`, this file for D3 and the whole track. Open questions: `Tests/OPEN_QUESTIONS.md`. Bugs: `Tests/BUG_REPORT.md`. Resume point: `Tests/PROGRESS.md`.
+Status: **Driver track complete and approved: D3 (VESC) approved by me 2026-11-04.** D1 TMC4671 approved 2026-11-03, D2 ODrive approved 2026-11-04. Per-driver details: `Tests/D1_TMC4671_REPORT.md`, `Tests/D2_ODRIVE_REPORT.md`, this file for D3 and the whole track. Open questions: `Tests/OPEN_QUESTIONS.md`. Bugs: `Tests/BUG_REPORT.md`. Resume point: `Tests/PROGRESS.md`.
 
 Nothing was pushed; all commits are local on `add-test-suite`. No spec file is committed (PDFs, the ODrive CSV and the VESC source are git-ignored). `Firmware/` outside `Firmware/Tests/` is unchanged.
 
