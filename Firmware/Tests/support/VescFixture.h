@@ -13,7 +13,7 @@
  *  - TX completion: another node (the peer) acknowledges every frame. process() completes all pending mailboxes
  *    (canTxCompleteAll) before the peers decode the frames, and the fake HAL's own auto-complete is on as well, so the
  *    three mailboxes never fill up. setTxAutoComplete(false) leaves them pending: the peers then see no frame (a bus
- *    without acknowledge) and the driver's port reports isWaiting() once all mailboxes are used.
+ *    without acknowledge) (note: CANPort_2B::isWaiting() is only true while ANOTHER task is blocked in the send semaphore, CANPort2B.cpp:206-212; with one driver task the send aborts after 20 ms and sends anyway, so the driver's `!isWaiting()` branches are not reachable here, charter L8).
  *  - FIFO: both VESC filters are extended-id filters on FIFO 0 (VescCAN.cpp:94-121), so there is no FIFO 1 caveat.
  *  - the thread "VESC": both instances use this name, so the fixture finds the handle of an instance through its Thread
  *    base (a C-style cast to the private base cpp_freertos::Thread: VescCAN inherits it privately; the firmware is not
