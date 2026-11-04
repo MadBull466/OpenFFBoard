@@ -172,6 +172,10 @@ Estimated gain about 365 lines. Needs F11 (queues, timers, event groups, simple 
 
 Added 2026-11-03. Driven by `Tests/DRIVER_TEST_PLAN.md` (its phases D0-D3 are the sub-phases of P10; stop after each). Tests the firmware side of the three in-scope drivers against simulated peers (`FakeTmc4671` behind the fake SPI, `FakeOdrivePeer` and `FakeVescPeer` on the CAN fake): frames, scaling, limits, state machines, error handling, timeouts. Requirement charters in `Firmware/Tests/driver/<name>_REQUIREMENTS.md`, tests in `Firmware/Tests/cases/driver/`. Spec files are supplied by me and never committed. Reported as a separate driver tier, not in the in-scope coverage ladder.
 
+### P11: CMSIS-DSP modules in scope (extends tier C)
+
+Added 2026-11-04 at my request. Scope: all functions and all data types (f64, f32, f16, q31, q15, q7 where they exist) of the CMSIS-DSP modules the firmware uses (fast math, filtering, interpolation, controller, and the basic/support/common-table helpers they depend on), not only the functions the firmware calls. Oracle: ARM's reference patterns in `Firmware/Libraries/CMSIS-DSP/Testing/Patterns` (vendor-generated expected results) plus the mathematical definition / hand derivation for edge cases; never the library's own output. Same method as the driver track (Sonnet inventory, lead charter, Sonnet writers in parallel, fresh reviewer with mutation spot-check in a scratch copy, lead QC). Stop for my approval after each module group. Vendor bugs are reported, never fixed.
+
 ## Fake fidelity rules
 
 Every fake (HAL peripheral, kernel, bus, peer device) states in its header:
@@ -198,7 +202,7 @@ Fidelity entries for the driver peers are kept in the "Driver track" section of 
 
 ## Scope and known issues (unchanged)
 
-- In scope: firmware outside `Firmware/Libraries/`, plus the vendor tiers A, B, C above. Not tested: ST HAL, CMSIS core, the FreeRTOS kernel, `Firmware/Targets/**`, CubeMX code.
+- In scope: firmware outside `Firmware/Libraries/`, plus the vendor tiers A, B, C above. Since 2026-11-04 (P11) tier C covers every function and data type of the CMSIS-DSP modules the firmware uses. Not tested: ST HAL, CMSIS core, the FreeRTOS kernel, `Firmware/Targets/**`, CubeMX code.
 - Out of scope: the PWM, MyActuator and SimpleMotion drivers, `TMCDebugBridge`, `MidiMain`, `MidiHandler`; their feature macros stay off. The TMC4671, ODrive and VESC drivers are in scope since 2026-11-03 (P10, `ffb_driver_tests` only).
 - **Known issue 1:** `effectsForces` out-of-bounds read aborts on GCC 16. Exclude only the case `requesting the forces of a not existing axis is rejected`.
 - **Known issue 2:** CMSIS-DSP `arm_spline_f32` overflow found by ASan. Skip only the two spline cases in sanitizer runs.

@@ -6,8 +6,8 @@
 
 ## Current state
 
-- **Current phase:** P10 driver track complete and approved (D1 2026-11-03, D2 and D3 2026-11-04). P0-P10 done and approved. Final report `Tests/DRIVER_TRACK_REPORT.md`.
-- **Phase status:** All phases P0-P10 (incl. driver track D0-D3) done and approved.
+- **Current phase:** P11 CMSIS-DSP (in-scope modules), started 2026-11-04 at my request. P0-P10 (incl. driver track) done and approved.
+- **Phase status:** P0-P10 approved; P11 in progress (inventory).
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** see `git log` (D2 final commit).
 - **Last updated:** 2026-11-04
@@ -15,7 +15,7 @@
 
 ## Next action
 
-**Project and driver track complete and approved (D3 on 2026-11-04).** Final reports: `Tests/PROJECT_SUMMARY.md`, `Tests/DRIVER_TRACK_REPORT.md`. Waiting for my answers in `Tests/OPEN_QUESTIONS.md`. No further work unless I ask.
+P11 CMSIS-DSP in progress: inventory, then charter and module groups (stop after each group). Open questions in `Tests/OPEN_QUESTIONS.md` unchanged.
 
 ## Phase checklist
 
@@ -35,11 +35,13 @@
 | P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 (measured: total 8,007 lines, 98.9 %) | done | yes, 2026-10-27 | `3975ddd6` batch 0, `45b1aa47` tests, `2324abf9` infra + B review fixes, `200ac244` A review fixes + results |
 | P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder (tier B 85.1 %, tier C 100 %) | done | yes, 2026-11-02 | `1e2730f0` batch 0, `8bd93ab4` C, `6893dcd3` B, `7c813f56` A, `0d56594f` review fixes + results + summary |
 | P10 Driver track D0-D3 (TMC4671, ODrive, VESC) | `ffb_driver_tests` (new) | separate driver tier (0/2,596 lines after D0) | D0-D3 done and approved | D0: yes, 2026-11-03; D1: yes, 2026-11-03; D2: yes, 2026-11-04; D3: yes, 2026-11-04 | `1e9c8c2c`, `0340e400` (D0); `043d93f7`, `372d4ea2`, `db8796fb`, `c05d0f32` + `58da90ec`, `f9636d6b`, `d1f14070` (D1); `8e436a89`, `b27aeeac`, `72c50795`, `bc1c22d0` + `7893e6ac` (D2); `3fb50da0`, `0476d1b6`, `117ba70c`, `89d4e649`, `ff5c0f95` + final commit (D3) |
+| P11 CMSIS-DSP in-scope modules (all functions and data types of the modules the firmware uses) | `ffb_target_tests` / own executable (decided in the charter) | vendor tier C, not in the ladder | in progress | pending | |
 
 ## Decisions log
 
 | Date | Decision | Reason |
 |---|---|---|
+| 2026-11-04 | **P11: CMSIS-DSP in scope.** My choices: scope = all functions and data types of the modules the firmware uses (plus their helpers); oracle = ARM reference patterns (`Testing/Patterns`) + math definition; phase P11 with a stop after each module group | My request |
 | 2026-10-20 | Extend the existing doctest suite in `Firmware/Tests/` instead of creating a new `Tests/` suite | It already exists with its CMake setup. A second suite would duplicate it and drift |
 | 2026-10-20 | Rule is "`Firmware/` read-only except `Firmware/Tests/`" | Existing suite lives inside `Firmware/` |
 | 2026-10-20 | Build out-of-tree | Nothing should be written under `Firmware/`, not even gitignored build files |
