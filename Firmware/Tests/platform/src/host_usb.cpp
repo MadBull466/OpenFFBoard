@@ -16,6 +16,7 @@ HostUsb::State usbState;
 namespace HostUsb {
 State &state() { return usbState; }
 void reset() { usbState = State(); }
+void cdcReceive(const std::string &data) { usbState.cdcRx += data; }
 } // namespace HostUsb
 
 extern "C" {
@@ -26,8 +27,14 @@ bool tud_connected(void) { return usbState.mounted; }
 
 // ---------------- CDC ----------------
 bool tud_cdc_n_connected(uint8_t) { return usbState.cdcConnected; }
-uint32_t tud_cdc_n_available(uint8_t) { return 0; }
-uint32_t tud_cdc_n_read(uint8_t, void *, uint32_t) { return 0; }
+uint32_t tud_cdc_n_available(uint8_t) { return (uint32_t)usbState.cdcRx.size(); }
+// Reads up to bufsize queued bytes (HostUsb::cdcReceive) and removes them from the queue
+uint32_t tud_cdc_n_read(uint8_t, void *buffer, uint32_t bufsize) {
+	uint32_t len = std::min<uint32_t>(bufsize, (uint32_t)usbState.cdcRx.size());
+	usbState.cdcRx.copy(static_cast<char *>(buffer), len);
+	usbState.cdcRx.erase(0, len);
+	return len;
+}
 uint32_t tud_cdc_n_write_available(uint8_t) { return usbState.cdcWriteAvailable; }
 
 uint32_t tud_cdc_n_write(uint8_t, void const *buffer, uint32_t bufsize) {

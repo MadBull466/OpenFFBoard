@@ -101,6 +101,27 @@ public:
 		return count;
 	}
 
+	/**
+	 * Restores the state after construction, including the CANPort base (port users, waiting flag, semaphores
+	 * available) and the PersistentStorage delayed-restore flag. For port objects that outlive a test case,
+	 * e.g. the global `canport` of ffb_target_tests (HostTarget::reset).
+	 */
+	void resetForTest() {
+		sent.clear();
+		filters.clear();
+		started = false;
+		silent = false;
+		sendResult = true;
+		speed = 500000;
+		startCalls = 0;
+		stopCalls = 0;
+		portUsers = 0;
+		isWaitingFlag = false;
+		restoreDelayedFlag = false;
+		semaphore.Give(); // Binary semaphores: available again (no effect if they already are)
+		configSem.Give();
+	}
+
 	// --- State ---
 	std::vector<CAN_tx_msg> sent;
 	std::vector<CAN_filter> filters;

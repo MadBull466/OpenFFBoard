@@ -51,14 +51,37 @@ struct UartState {
 	uint32_t rxArmedCount = 0; //!< Amount of HAL_UART_Receive_IT calls
 	uint32_t initCount = 0;	   //!< Amount of HAL_UART_Init calls
 	uint32_t rxLost = 0;	   //!< Bytes received while no receive transfer was armed
+
+	// --- Per function details (added for the UART port tests) ---
+	uint32_t txBlockingCount = 0; //!< Amount of HAL_UART_Transmit calls
+	uint32_t txItCount = 0;		  //!< Amount of HAL_UART_Transmit_IT calls
+	uint32_t txDmaCount = 0;	  //!< Amount of HAL_UART_Transmit_DMA calls
+	uint32_t rxBlockingCount = 0; //!< Amount of HAL_UART_Receive calls
+	uint32_t rxDmaArmedCount = 0; //!< Amount of HAL_UART_Receive_DMA calls
+	uint32_t abortRxCount = 0;	  //!< Amount of HAL_UART_AbortReceive calls
+	uint32_t abortTxCount = 0;	  //!< Amount of HAL_UART_AbortTransmit calls
+	uint32_t lastTimeout = 0;	  //!< Timeout of the last blocking transmit or receive
+	uint16_t lastRxSize = 0;	  //!< Requested size of the last receive call (any mode)
+	std::string rxData;			  //!< Bytes returned by the blocking HAL_UART_Receive (consumed). Not enough data: HAL_TIMEOUT
+
+	// --- Injected return values (HAL_StatusTypeDef values, 0 = HAL_OK). Defaults keep the original behaviour ---
+	uint32_t initResult = 0;	//!< HAL_UART_Init
+	uint32_t txResult = 0;		//!< HAL_UART_Transmit, _IT and _DMA. Data is only recorded if HAL_OK
+	uint32_t rxArmResult = 0;	//!< HAL_UART_Receive_IT and _DMA. The buffer is only armed if HAL_OK
+	uint32_t abortResult = 0;	//!< HAL_UART_AbortReceive and HAL_UART_AbortTransmit
 };
 UartState &uart();
 
 /**
- * Simulates bytes received on the external uart.
- * Every byte is stored in the buffer armed by HAL_UART_Receive_IT and the receive
- * complete callback of all UartHandlers is called in interrupt context like on the target.
+ * Simulates bytes received on the uart whose receive transfer is armed.
+ * The bytes are stored in sequence in the buffer armed by HAL_UART_Receive_IT (or _DMA). When the armed
+ * size is reached the receive complete callback of all UartHandlers is called in interrupt context like
+ * on the target and the transfer is disarmed (single shot).
  * Bytes are lost if the firmware did not rearm the receive interrupt.
+ *
+ * Remaining limits of the fake: HAL_UART_AbortReceive ignores its huart argument (disarms whatever is
+ * armed); there is one global armed receive slot for all uarts; arming again while a receive is armed
+ * returns HAL_OK and replaces the armed buffer (the real HAL returns HAL_BUSY).
  */
 void uartReceive(const std::string &data);
 
