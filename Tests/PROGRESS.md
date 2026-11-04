@@ -6,16 +6,16 @@
 
 ## Current state
 
-- **Current phase:** P10 driver track, phase D2 (ODrive) complete 2026-11-03, waiting for my review (details: "Driver track" section). D1 (TMC4671) approved 2026-11-03. P0-P9 done and approved.
-- **Phase status:** D0, D1 approved; D2 complete (charter, peer, 4 work orders, review, mutation check, lead QC). D3 VESC not started: needs my authorisation and its spec.
+- **Current phase:** P10 driver track, phase D3 (VESC) started 2026-11-04 (details: "Driver track" section). D1 approved 2026-11-03, D2 approved 2026-11-04. P0-P9 done and approved.
+- **Phase status:** D0, D1, D2 approved; D3 VESC in progress.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** see `git log` (D2 final commit).
-- **Last updated:** 2026-11-03
+- **Last updated:** 2026-11-04
 - **Last session summary:** D2 ODrive: `ffb_driver_tests` 689 cases (0 failed), `ODriveCAN.cpp` 97.8 % line coverage, suspected driver bugs 169-178 (B-O1..B-O10), NEEDS REVIEW 176-184, open questions 13-14. D1 TMC4671 approved.
 
 ## Next action
 
-**Stop: end of D2 (ODrive).** Summary for me: `Tests/D2_ODRIVE_REPORT.md` (D1: `Tests/D1_TMC4671_REPORT.md`, approved). Waiting for my review of D2 and answers to open questions 9-14. Before D3 (VESC): my explicit authorisation and the VESC CAN protocol spec. Earlier open items (CI job, gate wording, HID PID spec) unchanged.
+D3 VESC in progress ("Start D3", 2026-11-04). All open questions for me are collected in `Tests/OPEN_QUESTIONS.md`.
 
 ## Phase checklist
 
@@ -34,7 +34,7 @@
 | P7 CAN and serial FFB | `ffb_target_tests` | about 420 (measured: total 7,570 lines, 93.3 %) | done | yes, 2026-10-27 | `b270011b` batch 0, `5bdecdca` A, `50b9dffd` C, `18712821` B, `0d20c8e3` infra + A + C review fixes, `5645da14` B review fixes + results |
 | P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 (measured: total 8,007 lines, 98.9 %) | done | yes, 2026-10-27 | `3975ddd6` batch 0, `45b1aa47` tests, `2324abf9` infra + B review fixes, `200ac244` A review fixes + results |
 | P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder (tier B 85.1 %, tier C 100 %) | done | yes, 2026-11-02 | `1e2730f0` batch 0, `8bd93ab4` C, `6893dcd3` B, `7c813f56` A, `0d56594f` review fixes + results + summary |
-| P10 Driver track D0-D3 (TMC4671, ODrive, VESC) | `ffb_driver_tests` (new) | separate driver tier (0/2,596 lines after D0) | D0, D1, D2 done; D3 waits for my authorisation | D0: yes, 2026-11-03; D1: yes, 2026-11-03; D2: pending | `1e9c8c2c`, `0340e400` (D0); `043d93f7`, `372d4ea2`, `db8796fb`, `c05d0f32` + `58da90ec`, `f9636d6b`, `d1f14070` (D1); `8e436a89`, `b27aeeac`, `72c50795`, `bc1c22d0` + final commit (D2) |
+| P10 Driver track D0-D3 (TMC4671, ODrive, VESC) | `ffb_driver_tests` (new) | separate driver tier (0/2,596 lines after D0) | D0, D1, D2 done; D3 in progress | D0: yes, 2026-11-03; D1: yes, 2026-11-03; D2: yes, 2026-11-04 | `1e9c8c2c`, `0340e400` (D0); `043d93f7`, `372d4ea2`, `db8796fb`, `c05d0f32` + `58da90ec`, `f9636d6b`, `d1f14070` (D1); `8e436a89`, `b27aeeac`, `72c50795`, `bc1c22d0` + final commit (D2) |
 
 ## Decisions log
 
@@ -341,8 +341,8 @@ Hard gate for every change: `ffb_unit_tests` must report 0 failed; on GCC 16 the
 
 Plan: `Tests/DRIVER_TEST_PLAN.md` (TMC4671, then ODrive, then VESC; stop after every phase D0-D3). Lead: Opus 5.5; workers: `.claude/agents/` (Sonnet 5.5 mapper / writer / reviewer, Haiku 5.5 summariser; prefer `tools/summarise_results.py`).
 
-- **Current phase:** D2 ODrive **complete** 2026-11-03 (tested, reviewed, lead QC done), waiting for my review. D1 approved 2026-11-03.
-- **Next action:** **Stop: end of D2.** Summary for me: `Tests/D2_ODRIVE_REPORT.md`. Waiting for my review of D2 and answers to open questions 13-14. D3 (VESC) needs my explicit authorisation and the VESC CAN protocol spec.
+- **Current phase:** D3 VESC, started 2026-11-04 ("Start D3"; spec `Tests/VESC6_CAN_CommandsTelemetry.pdf`, git-ignored). D2 approved 2026-11-04, D1 approved 2026-11-03.
+- **Next action:** D3: inventory, charter, `FakeVescPeer`, work orders, review, QC; stop at the end of D3 with the final driver-track report.
 - **Baseline gate (2026-11-02, before any driver change):** ctest 7/7 and `check_baseline.py` OK (default, san); `ffb_unit_tests` 646/0/4.
 - **Session model:** Opus 5.5 (`claude-opus-5-5`) confirmed as lead. Agent files in `.claude/agents/` from Appendix A (committed `1e9c8c2c`).
 
@@ -368,7 +368,7 @@ Plan: `Tests/DRIVER_TEST_PLAN.md` (TMC4671, then ODrive, then VESC; stop after e
 - **Suspected driver bugs** B-T1..B-T30 = bugs 139-168 in "Suspected firmware bugs" (B-Tn = 138 + n); 26 have a `KNOWN_ISSUE`/`KNOWN_ISSUE_UB`/skipped-crash test, 4 are code reading only (B-T2, B-T10, B-T22, B-T28). NEEDS REVIEW 166-175.
 - **Open questions for me**: Q1-Q4 under "Open questions for me" (items 9-12).
 
-### D2 ODrive (complete 2026-11-03, waiting for my review)
+### D2 ODrive (complete, approved by me 2026-11-04)
 
 - Spec: ODrive 0.5.6 CAN protocol page (PDF) + its "CAN Messages" table (`Tests/can-protocol.csv`, ignored since `8e436a89`). Enum numbers are in neither file (open question 13).
 - Inventory (Sonnet): `../ffb-test-build/ws/d2/odrive_inventory.md` (not committed).
@@ -1299,6 +1299,8 @@ Final gate after P9 (2026-11-02), run by the main agent:
 - README instructions verified: yes (FR1; README rewritten in the wrap-up and its commands re-run).
 
 ## Open questions for me
+
+All open ones are also collected in `Tests/OPEN_QUESTIONS.md` (keep both in sync).
 
 1. ~~Coverage goal~~: answered 2026-10-23, 85 % or more, hardware-only code ignored (see decisions log). Original question: Is about 70% of in-scope firmware lines the right target? Going higher means testing interrupt and hardware-only code through fakes, which costs more per line.
 2. ~~Pace~~: answered 2026-10-23, stop at the end of every phase. Original question: Stop at the end of every phase (default), or run several phases in a row with a report at each? Say "continue through P<n>" to allow it.
