@@ -24,4 +24,23 @@ All questions still waiting for my answer, in one place. The numbers match "Open
 
 ## VESC (D3)
 
-(Questions from D3 are added here as they come up.)
+15. **D3-Q1 VESC spec gaps.** The supplied `Tests/VESC6_CAN_CommandsTelemetry.pdf` (third-party slides "VESC 6 CAN Formats v0.1") covers the extended-id layout (command in id bits 8-15, unit id in bits 0-7), packet numbers 0-27, SET_* scalings and STATUS 1-5. The driver also relies on these facts, which it does not give:
+    1. Byte order of all multi-byte fields (the driver uses big endian).
+    2. FILL_RX_BUFFER (5) payload: offset width, data bytes per frame, maximum offset.
+    3. FILL_RX_BUFFER_LONG (6) payload: 2-byte offset and data bytes per frame.
+    4. PROCESS_RX_BUFFER (7) payload: sender id, send flag, length (bytes 2-3), CRC (bytes 4-5).
+    5. PROCESS_SHORT_BUFFER (8) payload: sender id, flag, then COMM id and data.
+    6. CRC algorithm and coverage (the driver uses CRC-16/XMODEM, poly 0x1021, init 0, high byte first, over the reassembled payload).
+    7. PING (17) / PONG (18) payloads and whether a master should ping.
+    8. COMM numbers: FW_VERSION 0, GET_VALUES_SELECTIVE 50, ROTOR_POSITION 22.
+    9. FW_VERSION reply layout (major, minor, name, 12-byte UUID, paired flag, test version).
+    10. Target VESC firmware version and the compatibility rule (driver: release >= 5.3, test build >= 5.3.51).
+    11. GET_VALUES_SELECTIVE request: mask width, bit numbers (driver: bit 8 input voltage, 15 fault code, 16 PID position), frame length.
+    12. GET_VALUES_SELECTIVE reply: field order, widths, scales (v_in int16/10, fault uint8, pid_pos int32/1e6), meaning of fault codes, handling of unrequested bits.
+    13. POLL_ROTOR_POS: packet number 56, request/reply ids, payload (int32 / 100000 = degrees 0..360), broadcast id 0xFF.
+    14. Meaning of id 0xFF (driver default VESC id) and 0x40 (driver's own id), reply addressing.
+    15. VESC timeout without commands (driver comment: cuts the motor after 1 s) and the intended refresh period.
+    16. Whether unsolicited STATUS frames count as liveness.
+    17. Position unit and multi-turn rule (driver: wrap at 180 degrees).
+    18. Rounding of ratio * 100000 (driver truncates).
+    A matching source would be the VESC firmware files `comm_can.c`, `datatypes.h`, `buffer.c`, `crc.c` and `commands.c` (GET_VALUES_SELECTIVE) of the version the driver targets (5.3 or later).
