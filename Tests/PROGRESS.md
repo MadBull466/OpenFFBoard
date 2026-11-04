@@ -6,16 +6,16 @@
 
 ## Current state
 
-- **Current phase:** P10 driver track, phase D3 (VESC) started 2026-11-04 (details: "Driver track" section). D1 approved 2026-11-03, D2 approved 2026-11-04. P0-P9 done and approved.
-- **Phase status:** D0, D1, D2 approved; D3 VESC in progress.
+- **Current phase:** P10 driver track complete: D3 (VESC) done 2026-11-04, waiting for my review (details: "Driver track" section, final report `Tests/DRIVER_TRACK_REPORT.md`). D1 approved 2026-11-03, D2 approved 2026-11-04. P0-P9 done and approved.
+- **Phase status:** D0, D1, D2 approved; D3 complete (charter, peer, 4 work orders, review, mutation check, lead QC).
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** see `git log` (D2 final commit).
 - **Last updated:** 2026-11-04
-- **Last session summary:** D2 ODrive: `ffb_driver_tests` 689 cases (0 failed), `ODriveCAN.cpp` 97.8 % line coverage, suspected driver bugs 169-178 (B-O1..B-O10), NEEDS REVIEW 176-184, open questions 13-14. D1 TMC4671 approved.
+- **Last session summary:** D3 VESC: `ffb_driver_tests` 938 cases (0 failed), `VescCAN.cpp` 95.7 %, driver tier 91.5 %; suspected bugs 179-193 (B-V1..B-V15), NEEDS REVIEW 185-191, open question 16; README and final driver-track report written. D1 and D2 approved.
 
 ## Next action
 
-D3 VESC in progress ("Start D3", 2026-11-04). All open questions for me are collected in `Tests/OPEN_QUESTIONS.md`.
+**Stop: end of D3 (VESC) and of the driver track.** Final report: `Tests/DRIVER_TRACK_REPORT.md` (D1/D2 reports approved). Waiting for my review of D3 and answers in `Tests/OPEN_QUESTIONS.md`. No further work unless I ask.
 
 ## Phase checklist
 
@@ -34,7 +34,7 @@ D3 VESC in progress ("Start D3", 2026-11-04). All open questions for me are coll
 | P7 CAN and serial FFB | `ffb_target_tests` | about 420 (measured: total 7,570 lines, 93.3 %) | done | yes, 2026-10-27 | `b270011b` batch 0, `5bdecdca` A, `50b9dffd` C, `18712821` B, `0d20c8e3` infra + A + C review fixes, `5645da14` B review fixes + results |
 | P8 RTOS wrappers | `ffb_rtos_tests` (new) | about 365 (measured: total 8,007 lines, 98.9 %) | done | yes, 2026-10-27 | `3975ddd6` batch 0, `45b1aa47` tests, `2324abf9` infra + B review fixes, `200ac244` A review fixes + results |
 | P9 TinyUSB, CMSIS-DSP, Python helpers | `ffb_usb_tests` (new) | vendor, not in ladder (tier B 85.1 %, tier C 100 %) | done | yes, 2026-11-02 | `1e2730f0` batch 0, `8bd93ab4` C, `6893dcd3` B, `7c813f56` A, `0d56594f` review fixes + results + summary |
-| P10 Driver track D0-D3 (TMC4671, ODrive, VESC) | `ffb_driver_tests` (new) | separate driver tier (0/2,596 lines after D0) | D0, D1, D2 done; D3 in progress | D0: yes, 2026-11-03; D1: yes, 2026-11-03; D2: yes, 2026-11-04 | `1e9c8c2c`, `0340e400` (D0); `043d93f7`, `372d4ea2`, `db8796fb`, `c05d0f32` + `58da90ec`, `f9636d6b`, `d1f14070` (D1); `8e436a89`, `b27aeeac`, `72c50795`, `bc1c22d0` + final commit (D2) |
+| P10 Driver track D0-D3 (TMC4671, ODrive, VESC) | `ffb_driver_tests` (new) | separate driver tier (0/2,596 lines after D0) | D0-D3 done | D0: yes, 2026-11-03; D1: yes, 2026-11-03; D2: yes, 2026-11-04; D3: pending | `1e9c8c2c`, `0340e400` (D0); `043d93f7`, `372d4ea2`, `db8796fb`, `c05d0f32` + `58da90ec`, `f9636d6b`, `d1f14070` (D1); `8e436a89`, `b27aeeac`, `72c50795`, `bc1c22d0` + `7893e6ac` (D2); `3fb50da0`, `0476d1b6`, `117ba70c`, `89d4e649`, `ff5c0f95` + final commit (D3) |
 
 ## Decisions log
 
@@ -341,8 +341,8 @@ Hard gate for every change: `ffb_unit_tests` must report 0 failed; on GCC 16 the
 
 Plan: `Tests/DRIVER_TEST_PLAN.md` (TMC4671, then ODrive, then VESC; stop after every phase D0-D3). Lead: Opus 5.5; workers: `.claude/agents/` (Sonnet 5.5 mapper / writer / reviewer, Haiku 5.5 summariser; prefer `tools/summarise_results.py`).
 
-- **Current phase:** D3 VESC, started 2026-11-04 ("Start D3"; spec `Tests/VESC6_CAN_CommandsTelemetry.pdf`, git-ignored). D2 approved 2026-11-04, D1 approved 2026-11-03.
-- **Next action:** D3: inventory, charter, `FakeVescPeer`, work orders, review, QC; stop at the end of D3 with the final driver-track report.
+- **Current phase:** D3 VESC **complete** 2026-11-04 (tested, reviewed, lead QC done), waiting for my review. D2 approved 2026-11-04, D1 approved 2026-11-03. Driver track complete pending my approval of D3.
+- **Next action:** **Stop: end of D3 and of the driver track.** Final report for me: `Tests/DRIVER_TRACK_REPORT.md`. Waiting for my review of D3 and answers to the open questions (`Tests/OPEN_QUESTIONS.md`).
 - **Baseline gate (2026-11-02, before any driver change):** ctest 7/7 and `check_baseline.py` OK (default, san); `ffb_unit_tests` 646/0/4.
 - **Session model:** Opus 5.5 (`claude-opus-5-5`) confirmed as lead. Agent files in `.claude/agents/` from Appendix A (committed `1e9c8c2c`).
 
@@ -381,11 +381,19 @@ Plan: `Tests/DRIVER_TEST_PLAN.md` (TMC4671, then ODrive, then VESC; stop after e
 - **Coverage `ODriveCAN.cpp`: 263 / 269 lines = 97.8 %** (target 85 %). Uncovered: destructor variant lines (gcov artefact), `getEncoder()` / `getEncoderType()` (only called by the Axis, not by these tests), the `NOT_FOUND` default of `command()`.
 - **Suspected driver bugs** B-O1..B-O10 = bugs 169-178 (B-On = 168 + n), all with tests. NEEDS REVIEW 176-184. Open questions 13-14.
 
-### D3 VESC (in progress)
+### D3 VESC (complete 2026-11-04, waiting for my review)
 
-- Spec: `Tests/VESC6_CAN_CommandsTelemetry.pdf` (third-party slides, id layout, packet numbers 0-27, STATUS) + the VESC firmware source `Tests/bldc-master` (7.01, ignored since `3fb50da0`) for byte order, buffer protocol, CRC, COMM layouts, POLL_ROTOR_POS, PING/PONG, timeout.
-- Inventory and protocol facts (Sonnet): `../ffb-test-build/ws/d3/vesc_inventory.md`, `vesc_protocol_facts.md` (not committed).
-- **Charter** (lead, 2026-11-04): `Firmware/Tests/driver/VESC_REQUIREMENTS.md`, requirements V1-V81 in groups G1-G9; suspected bugs B-V1..B-V13, among them: FW version check reads the pairing flag as the test version (a paired 5.3 release is rejected), filter leak on id change, receive buffer without bound check (long FW replies), an unsolicited PONG freezes the driver, old torque re-sent after stop/start, spurious turn on the first position sample, null dereference in `getEncoderType`.
+- Spec: `Tests/VESC6_CAN_CommandsTelemetry.pdf` (third-party slides: id layout, packet numbers 0-27, STATUS) + the VESC firmware source `Tests/bldc-master` (7.01, ignored since `3fb50da0`) for byte order, buffer protocol, CRC, COMM layouts, POLL_ROTOR_POS, PING/PONG, timeout.
+- Inventory and protocol facts (Sonnet, lead spot-checked): `../ffb-test-build/ws/d3/vesc_inventory.md`, `vesc_protocol_facts.md` (not committed).
+- **Charter** (lead): `Firmware/Tests/driver/VESC_REQUIREMENTS.md`, requirements V1-V81 in groups G1-G9, lead decisions L1-L16.
+- **Peer** `FakeVescPeer` + fixture `VescFixture` (Sonnet, reviewed by the lead).
+- **Tests** (Sonnet writers VW1-VW4, `test_vesc_*.cpp`): 201 VESC driver cases + 48 peer self-tests.
+- **Review** (fresh Sonnet reviewer, `../ffb-test-build/ws/d3/review.md`): no high finding, no false positive; gaps closed; heap-corrupting tests skipped by default (L14); lead `--no-skip` check of the skipped tests (L16).
+- **Mutation spot-check:** 133 mutations, 124 caught (93 %) after the fixes; survivors: 6 equivalent, M40 (B-V6 branch), M71 (no requirement), M132 (intra-object overflow, undetectable on the host).
+- **Gate (final, all 6 dirs + cov):** ctest 8/8, `check_baseline.py` OK; `ffb_driver_tests` 938 cases, 0 failed (default/clang23/nodsp/cov: 860 passed, 9 skipped, 69 known issue; sanitizer dirs: 855 passed, 19 skipped, 64 known issue); no sanitizer finding, no warning in test files.
+- **Coverage `VescCAN.cpp`: 382 / 399 = 95.7 %** (target 85 %); driver tier 2,376 / 2,596 = 91.5 %.
+- **Suspected driver bugs** B-V1..B-V15 = bugs 179-193 (B-Vn = 178 + n). NEEDS REVIEW 185-191. Open question 16.
+- **Final driver-track report:** `Tests/DRIVER_TRACK_REPORT.md`.
 
 ### Fake fidelity register (driver track)
 
@@ -394,7 +402,7 @@ Plan: `Tests/DRIVER_TEST_PLAN.md` (TMC4671, then ODrive, then VESC; stop after e
 | Fake TIM6 (`platform/src/host_driver_timers.cpp`) | `htim6` register block initialised like `MX_TIM6_Init` (`Targets/F407VG/Core/Src/main.c:1054-1058`: PSC 167, up-counting, ARR 65535, no preload); HAL constants cited (`stm32f4xx_hal_tim.h:518, 549`); start/stop/update through the existing F7 TIM fake | counting in real time beyond the existing TIM fake, interrupts priorities | Medium |
 | `FakeTmc4671` (`fakes/FakeTmc4671.h/.cpp`) | TMC4671-LA datasheet Rev 2.07: 40-bit datagram (§4.2.1), 128-register file with §7.3 defaults composed at the §7.2 bit positions, R/RW map (§7.1, writes to read-only ignored and recorded), stacked CHIPINFO / ADC_RAW / CONFIG / PID_ERROR / INTERIM, STATUS_FLAGS clear by write, 0x6B mirrors 0x68, undocumented addresses recorded, two chips on SPI1 by CS, optional time per frame, test hooks | FOC loop, PWM, ADC conversion, encoder decoding, PLL, watchdog, UART/RTMI, step/dir, SPI timing (the 500 ns pause only through the SPI config), CS release inside a frame, register value ranges. Assumptions: answer of a write frame = old value, non-zero STATUS_FLAGS write semantic, ENABLE_IN default high | frame/register file High, stacked registers High, status flags Medium, plant hooks (used by the encoder/procedure tests) Low |
 | `FakeOdrivePeer` (`fakes/FakeOdrivePeer.h/.cpp`, fixture `support/OdriveFixture.h`) | ODrive 0.5.6 CAN Simple (SPEC + CSV): id `node<<5|cmd` (standard ids), strict DLC/RTR per message, call & response with the same id, heartbeat layout (error @0, state @4, flag bits 5.0/6.0/7.0/7.7), float32/int32 LE, cyclic heartbeat 100 ms / estimates 10 ms (off by default), axis-state model with request delay and refusal, fault injection (silent, late, wrong node, short, extended id, bus errors). Fixture schedules the thread with a clock rewind (L9) and enables the RX1 line (L8) | ODrive control loop and motor, its error generation, CANopen, baud mismatch, bus timing, 0.5.4 vs 0.5.6 differences | encoding / call-response High, cyclic timing Medium, axis-state behaviour and enum numbers Low |
-| `FakeVescPeer` | (D3, not started: needs my authorisation) | | |
+| `FakeVescPeer` (`fakes/FakeVescPeer.h/.cpp`, fixture `support/VescFixture.h`) | VESC firmware 7.01 source (`Tests/bldc-master`) + slides: extended ids, strict decoding of the driver's frames, replies framed like `comm_can_send_buffer` (short <= 6 bytes, else FILL + PROCESS with its own CRC-16/XMODEM, check value 0x31C3), FW_VERSION 7.01 layout (pairing before test version, configurable), GET_VALUES_SELECTIVE bits 8/15/16, POLL_ROTOR_POS (own id, deg x1e5), PING/PONG, 1000 ms timeout model, optional STATUS, fault injection | motor control, current limits, SET_CURRENT_REL off-delay, other value bits, the VESC's own 512-byte receive side, bus timing, 5.x layouts | framing / buffer protocol / CRC / COMM layouts High (7.01), timing Medium, 5.x Low |
 
 ### Driver inventory (D0, Sonnet worker, spot-checked by the lead; full report outside the repo: `../ffb-test-build/ws/d0/inventory.md`)
 
@@ -993,6 +1001,13 @@ Functions never run by any test (counts of never-run / total): ErrorHandler 15/2
 | 182 | ODrive protocol details | `ODriveCAN.cpp:301-303`, `:405-407` | Start Anticogging sent with DLC 1 (spec: no signals); heartbeat flag bytes stored whole instead of the 1-bit flags of 0.5.6 (unused); voltage RTR every 500 ms until a reply | no |
 | 183 | ODrive node 1 on target (FIFO1) | `ODriveCAN.cpp:73`, CubeMX MSP init | ODriveCAN2 receives on FIFO1, whose interrupt is disabled on the F407: its frames are only processed when another CAN interrupt fires (e.g. its own voltage request completing). The fixture enables the RX1 line (L8) | no |
 | 184 | ODrive other | `ODriveCAN.cpp:61-65`, `:397` | The destructor does not request IDLE; any frame of the node (incl. unknown commands) counts as a sign of life; `getPosAbs` includes the offset; `lastSpeed` has no getter | no |
+| 185 | VESC spec sources | `Tests/VESC6_CAN_CommandsTelemetry.pdf`, `Tests/bldc-master` (7.01) | The slides are a third-party extract; everything else comes from the VESC 7.01 source. 5.x layouts (FW_VERSION) not determinable (open question 16) | no |
+| 186 | VESC compatibility rule | `VescCAN.h:25`, `VescCAN.cpp:537-548` | Release >= 5.3, test builds >= 5.3.51 (`FW_MIN_RELEASE`) is the driver's own rule; INCOMPATIBLE and COMPATIBLE never time out | no |
+| 187 | VESC liveness | `VescCAN.cpp:605` | Any frame accepted by the filters refreshes the timeout (also unrelated packets); STATUS frames carry the VESC's own id and normally do not pass the filters (open question 16b) | no |
+| 188 | VESC malformed traffic | `VescCAN.cpp:629-674` | Out-of-order FILL frames are accepted (SRC drops them); short PROCESS/FILL frames with DLC >= 2 decode nothing; no validation of DLC beyond B-V14/B-V15 | no |
+| 189 | VESC torque | `VescCAN.cpp:123-139, 378-384` | power -32768 gives ratio -1.00003 (no clamp); the 500 ms refresh of the last torque keeps the VESC's 1000 ms timeout from firing; refresh skipped while the port waits (not reachable with one task, L8) | no |
+| 190 | VESC encoder and flash | `VescCAN.cpp:179-220, 477-490` | Multi-turn by the 180 deg rule (polls must be faster than half a turn); only the fractional offset is stored in flash (multi-turn part lost on restart) | no |
+| 191 | VESC commands | `VescCAN.cpp:263-340` | `canspd` narrows to uint8 (260 -> 4), presets > 5 ignored; firmware-only scalings of `pos` (x1e9), `torque` (x1e4), `offset` (x1e4); both instances use class id 0x87; `encrate` depends on the loop timing | no |
 
 New tests that describe unclear behaviour use the `characterization:` name prefix and get a row here. Tests that describe intended behaviour but fail use `KNOWN_ISSUE` and get a row under "Suspected firmware bugs".
 
@@ -1209,6 +1224,21 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 | 176 | ODrive driver: Encoder | `ODriveCAN.cpp:264` | `getPos()` converts `65535.0f * pos` to int32: undefined beyond about 32768 turns (x86 INT_MIN, ARM saturates) | KNOWN_ISSUE_UB [O44] (B-O8) |
 | 177 | ODrive driver: Encoder | `ODriveCAN.cpp:253` | `getPos_f` measures its 5 ms re-request window from the last reply, not from the request: without replies every call sends an RTR 0x09 (request flood at the axis loop rate) | KNOWN_ISSUE [O42] (B-O9) |
 | 178 | ODrive driver: Flash | `ODriveCAN.cpp:96-102` | `restoreFlash` selects the M1 settings word 0x3D2 only inside the successful read of 0x3D0: without 0x3D0, ODriveCAN2 restores motor 0's settings | KNOWN_ISSUE [O60] (B-O10) |
+| 179 | VESC driver: Filters | `VescCAN.cpp:107-110` | Changing `offbcanid`/`vesccanid` leaks the old VESC filter (`filterIdVesc = -1` before `removeCanFilter`): old ids stay accepted, one bank lost per change | KNOWN_ISSUE 5 cases [V2] (B-V1) |
+| 180 | VESC driver: TX frames | `VescCAN.cpp:449-459` | The values request is sent with DLC 8 and an uninitialised 8th byte (SRC sender: DLC = payload 5 + 2 = 7) | KNOWN_ISSUE [V13] (B-V2) |
+| 181 | VESC driver: TX frames | `VescCAN.cpp:497` | `memcpy(&msg.data, nullptr, 0)` for every POLL_ROTOR_POS request: UBSan "null pointer passed as argument 2" aborts sanitizer runs | KNOWN_ISSUE_UB_HIDDEN 5 cases (B-V3) |
+| 182 | VESC driver: Buffer protocol | `VescCAN.cpp:643-667` | PROCESS_RX_BUFFER does not check that the buffered byte count equals the announced length: a partial or stale buffer with a matching CRC is decoded (SRC drops it) | KNOWN_ISSUE 2 cases [V23] (B-V4) |
+| 183 | VESC driver: Buffer protocol | `VescCAN.cpp:630, 638` | No bound check on FILL_RX_BUFFER (offset up to 255 into a 64-byte buffer), LONG checks `ind` not `ind+len`: FW_VERSION replies longer than 64 bytes (name lengths > 35) are lost and overflow the buffer | skipped (memory corruption) [V24] (B-V5) |
+| 184 | VESC driver: FW version check | `VescCAN.cpp:529-530` | The byte after the UUID is read as the test version, but SRC 7.01 sends `pairing_done` there and the test version next: a paired 5.3 release is rejected, a 5.3.50 test build is accepted (open question 16a) | KNOWN_ISSUE 2 cases [V30] [V31] (B-V6) |
+| 185 | VESC driver: FW version check | `VescCAN.cpp:526` | `memcpy(buffer + ind, uuid, 12)` has source and destination swapped (writes zeros into the receive buffer); not observable | code reading, no test |
+| 186 | VESC driver: State machine | `VescCAN.cpp:676-678, 358-369` | An unsolicited PONG sets state PONG, which has no exit: no more requests, the driver never becomes ready again | KNOWN_ISSUE 2 cases [V42] (B-V8) |
+| 187 | VESC driver: Torque | `VescCAN.cpp:132-139, 380-383` | `stopMotor` does not reset `lastTorque`: after stop and start the 500 ms refresh sends the old torque without any `turn()` | KNOWN_ISSUE [V52] (B-V9) |
+| 188 | VESC driver: Encoder | `VescCAN.cpp:478-483` | `prevPos360` starts at 0: a first position sample above 180 deg counts a spurious turn (-1) | KNOWN_ISSUE [V62] (B-V10) |
+| 189 | VESC driver: Encoder | `VescCAN.cpp:152-157` | `getEncoderType()` with `useencoder` off and no external encoder dereferences a null encoder | skipped crash [V63] (B-V11) |
+| 190 | VESC driver: Commands | `VescCAN.cpp:303` | `pos` command converts turns * 1e9 to int32: undefined beyond 2.147 turns (x86 INT_MIN, ARM saturates) | KNOWN_ISSUE_UB [V71] (B-V12) |
+| 191 | VESC driver: Members | `VescCAN.cpp`, `VescCAN.h:117-143` | `lastTorque`, `voltage`, `vescErrorFlag`, `buffer_rx` are never initialised (read by `turn`, `Run`, the commands, the CRC over stale bytes; heap reuse made a partial reply decode during writing) | code reading, nondeterministic, no test |
+| 192 | VESC driver: Buffer protocol | `VescCAN.cpp:668-674` | PROCESS_SHORT_BUFFER with DLC 0 or 1: `length - 2` underflows, up to 255 bytes past the 8-byte frame are decoded (out-of-bounds read) | KNOWN_ISSUE_UB [V26] (B-V14) |
+| 193 | VESC driver: Buffer protocol | `VescCAN.cpp:630, 638` | FILL_RX_BUFFER with DLC 0 (LONG with DLC < 2): `length - 1` underflows to a ~4 GB `memcpy` | skipped crash [V26] (B-V15) |
 
 ## Untestable code and refactor suggestions
 

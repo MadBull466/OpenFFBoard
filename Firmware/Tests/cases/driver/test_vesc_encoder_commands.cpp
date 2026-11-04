@@ -239,7 +239,7 @@ TEST_CASE_FIXTURE(EncFixture, "[V64] setPos(32767) at 0.25 turns sets a negative
 	CHECK_NEAR(v->getPos_f(), 32767.0 / 65535.0, 1e-6);
 }
 
-TEST_CASE_FIXTURE(EncFixture, "[V64] the offset command sets the offset in turns * 10000, shifts the position and stores 0x09C4") {
+TEST_CASE_FIXTURE(EncFixture, "[V64] characterization: the offset command sets the offset in turns * 10000, shifts the position and stores 0x09C4") {
 	auto v = makeVesc1();
 	rotor(90.0);
 	CHECK(setCmd(*v, "offset", 2500) == CommandStatus::OK);
@@ -249,7 +249,7 @@ TEST_CASE_FIXTURE(EncFixture, "[V64] the offset command sets the offset in turns
 	CHECK(word(ADR_V1_OFFSET) == 0x09C4);
 }
 
-TEST_CASE_FIXTURE(EncFixture, "[V64] a negative offset command stores the two's complement word 0xF63C and moves the position up") {
+TEST_CASE_FIXTURE(EncFixture, "[V64] characterization: a negative offset command stores the two's complement word 0xF63C and moves the position up") {
 	auto v = makeVesc1();
 	rotor(90.0);
 	setCmd(*v, "offset", -2500);
@@ -361,13 +361,13 @@ TEST_CASE_FIXTURE(VescFixture, "[V70] errorflags answers the fault code of the V
 	CHECK(getCmd(*v, "vescstate") == STATE_READY);
 }
 
-TEST_CASE_FIXTURE(EncFixture, "[V70] pos answers turns * 1e9: 90 degrees -> 250000000") {
+TEST_CASE_FIXTURE(EncFixture, "[V70] characterization: pos answers turns * 1e9: 90 degrees -> 250000000") {
 	auto v = makeVesc1();
 	rotor(90.0); // HD: 0.25 * 1e9 = 250000000 (= 5^9 * 2^7, exact in float)
 	CHECK(getCmd(*v, "pos") == 250000000);
 }
 
-TEST_CASE_FIXTURE(EncFixture, "[V70] pos subtracts the offset: offset 2500 at 90 degrees -> 0, offset -2500 -> 500000000") {
+TEST_CASE_FIXTURE(EncFixture, "[V70] characterization: pos subtracts the offset: offset 2500 at 90 degrees -> 0, offset -2500 -> 500000000") {
 	auto v = makeVesc1();
 	rotor(90.0);
 	setCmd(*v, "offset", 2500);
@@ -376,7 +376,7 @@ TEST_CASE_FIXTURE(EncFixture, "[V70] pos subtracts the offset: offset 2500 at 90
 	CHECK(getCmd(*v, "pos") == 500000000);
 }
 
-TEST_CASE_FIXTURE(VescFixture, "[V70] torque answers the last torque ratio * 10000 truncated: turn(16384) -> 5000, turn(-32767) -> -10000, turn(0) -> 0") {
+TEST_CASE_FIXTURE(VescFixture, "[V70] characterization: torque answers the last torque ratio * 10000 truncated: turn(16384) -> 5000, turn(-32767) -> -10000, turn(0) -> 0") {
 	auto v = makeVesc1();
 	v->turn(16384); // HD: 16384 / 32767 = 0.5000153 * 10000 = 5000.15 -> 5000
 	CHECK(getCmd(*v, "torque") == 5000);
@@ -418,12 +418,12 @@ TEST_CASE_FIXTURE(VescFixture, "[V70] useencoder set to any non-zero value (7) e
 	CHECK(getCmd(*v, "useencoder") == 1);
 }
 
-TEST_CASE_FIXTURE(VescFixture, "[V70] encrate answers 0 before any position sample") {
+TEST_CASE_FIXTURE(VescFixture, "[V70] characterization: encrate answers 0 before any position sample") {
 	auto v = makeVesc1();
 	CHECK(getCmd(*v, "encrate") == 0);
 }
 
-TEST_CASE_FIXTURE(EncFixture, "[V70] encrate answers the position samples per second of the last full period: 3 samples in 1.5 s -> 2") {
+TEST_CASE_FIXTURE(EncFixture, "[V70] characterization: encrate answers the position samples per second of the last full period: 3 samples in 1.5 s -> 2") {
 	auto v = makeVesc1();
 	REQUIRE(HAL_GetTick() == 0); // encStartPeriod starts at 0 (VescCAN.h:130)
 	rotor(10.0);
@@ -669,6 +669,97 @@ TEST_CASE_FIXTURE(VescFixture, "[V81] characterization: only the fractional offs
 	CHECK(word(ADR_V1_OFFSET) == 0x09C4);
 	v->saveFlash();
 	CHECK(word(ADR_V1_OFFSET) == 0x09C4);
+}
+
+// ---------------------------------------------------------------- review additions
+
+TEST_CASE_FIXTURE(EncFixture, "[V60] after vesccanid 255 -> 5 the driver ignores a rotor position of unit 1 (its own address check), pos stays unchanged") {
+	// Through the command the old broadcast filter bank stays registered (B-V1), so the hardware filter still lets unit
+	// 1 through; the driver's own check (VC:614-620) must reject it. Valid after B-V1 is fixed as well (the filter then rejects).
+	auto v = makeVesc1();
+	rotor(90.0);
+	CHECK(getCmd(*v, "pos") == 250000000); // 0.25 turns * 1e9
+	setCmd(*v, "vesccanid", 5);
+	rotor(180.0); // unit 0x01
+	CHECK(getCmd(*v, "pos") == 250000000);
+	peer0.setFaultSenderId(5);
+	CHECK(rotor(180.0) != 0); // unit 5 is accepted: 0.5 turns
+	CHECK(getCmd(*v, "pos") == 500000000);
+}
+
+TEST_CASE_FIXTURE(VescFixture, "[V80] an OFFB id of 0x81 (above 0x7F) restored from flash 0xFF81 accepts replies to 0x81 and rejects replies to 0x40") {
+	setWord(ADR_V1_CANID, 0xFF81); // HD: VESC id 0xFF << 8 | OFFB id 0x81
+	auto v = makeVesc1();
+	CHECK(getCmd(*v, "offbcanid") == 0x81);
+	CHECK(peer0.sendFwVersion(0x40) == 0);
+	CHECK(peer0.sendFwVersion(0x81) != 0);
+	CHECK(getCmd(*v, "vescstate") == STATE_COMPATIBLE);
+}
+
+TEST_CASE_FIXTURE(VescFixture, "[V80] a VESC id of 0xC0 restored from flash word 0xC040 is read back and filters rotor positions: unit 0xC0 accepted, unit 1 rejected") {
+	setWord(ADR_V1_CANID, 0xC040); // HD: 0xC0 << 8 | 0x40 = 0xC000 + 0x40
+	auto v = makeVesc1();
+	CHECK(getCmd(*v, "vesccanid") == 0xC0);
+	CHECK(getCmd(*v, "offbcanid") == 0x40);
+	peer0.setRotorDeg(90.0);
+	CHECK(peer0.sendRotorPosition() == 0); // unit 1
+	peer0.setFaultSenderId(0xC0);
+	CHECK(peer0.sendRotorPosition() != 0);
+	CHECK(v->getPos_f() == 0.25f);
+}
+
+TEST_CASE_FIXTURE(EncFixture, "[V70] characterization: encrate restarts its counter every period: 3 samples in the first period give 2, 6 in the second give 4") {
+	auto v = makeVesc1();
+	REQUIRE(HAL_GetTick() == 0);
+	for (double d : {10.0, 20.0, 30.0}) rotor(d);
+	runFor(1500); // period 1500 ms: 3 / 1.5 = 2
+	CHECK(getCmd(*v, "encrate") == 2);
+	for (double d : {40.0, 50.0, 60.0, 70.0, 80.0, 90.0}) rotor(d);
+	runFor(1500); // bodies at 2000 and 2500 have period <= 1000; at 3000 the period is 1500: 6 / 1.5 = 4 (not 9 / 3)
+	CHECK(getCmd(*v, "encrate") == 4);
+}
+
+TEST_CASE_FIXTURE(EncFixture, "[V60] getPos_f in COMPATIBLE sends no POLL_ROTOR_POS request") {
+	auto v = makeVesc1();
+	runFor(500);
+	REQUIRE(getCmd(*v, "vescstate") == STATE_COMPATIBLE);
+	clearTxFrames();
+	(void)v->getPos_f();
+	CHECK(HostTarget::canTxFrames().empty());
+}
+
+TEST_CASE_FIXTURE(EncFixture, "[V60] getPos_f in ERROR sends no POLL_ROTOR_POS request") {
+	auto v = makeVesc1();
+	reachReady(*v);
+	peer0.setFaultCode(3);
+	runFor(500);
+	REQUIRE(getCmd(*v, "vescstate") == STATE_ERROR);
+	clearTxFrames();
+	(void)v->getPos_f();
+	CHECK(HostTarget::canTxFrames().empty());
+}
+
+TEST_CASE_FIXTURE(VescFixture, "[V80] restore of a whole-turn offset word gives 0: 0x2710 (+10000) and 0xD8F0 (-10000)") {
+	setWord(ADR_V1_OFFSET, 0x2710); // HD: 10000 = 0x2710 -> 1.0 turn -> 1.0 - (int)1.0 = 0
+	{
+		auto v = makeVesc1();
+		CHECK(getCmd(*v, "offset") == 0);
+	}
+	setWord(ADR_V1_OFFSET, 0xD8F0); // HD: 65536 - 10000 = 55536 = 0xD8F0 -> -1.0 -> 0
+	auto v = makeVesc1();
+	CHECK(getCmd(*v, "offset") == 0);
+}
+
+TEST_CASE_FIXTURE(VescFixture, "[V80] restore of an offset word beyond one turn keeps the fraction: 0x30D4 (1.25) -> 2500, 0xCF2C (-1.25) -> -2500, 0x445C (1.75) -> -2500") {
+	struct Case { uint16_t w; int64_t exp; };
+	// HD: 12500 = 0x30D4 -> 1.25 -> 0.25 -> 2500; 65536-12500 = 53036 = 0xCF2C -> -1.25 -> -0.25;
+	// 17500 = 0x445C -> 1.75 -> 0.75 > 0.5 -> -0.25 -> -2500
+	for (Case c : {Case{0x30D4, 2500}, Case{0xCF2C, -2500}, Case{0x445C, -2500}}) {
+		INFO("word 0x" << std::hex << c.w);
+		setWord(ADR_V1_OFFSET, c.w);
+		auto v = makeVesc1();
+		CHECK(getCmd(*v, "offset") == c.exp);
+	}
 }
 
 } // TEST_SUITE

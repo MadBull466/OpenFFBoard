@@ -176,7 +176,7 @@ TEST_CASE_FIXTURE(VescStates, "[V42] an unsolicited PONG addressed to the driver
 TEST_CASE_FIXTURE(VescStates, "[V42] after an unsolicited PONG the driver keeps sending requests" * KNOWN_ISSUE("B-V8: state PONG has no exit (VescCAN.cpp:358-369, 676-678): Run sends nothing in PONG")) {
 	auto v = makeVesc1();
 	(void)toReady(*v);
-	(void)peer0.sendPong();
+	CHECK(peer0.sendPong() > 0); // the PONG reached the driver (passes the filters)
 	clearTxFrames();
 	runFor(2000);
 	CHECK(shortFrames().size() >= 1); // the defect: none
@@ -185,7 +185,7 @@ TEST_CASE_FIXTURE(VescStates, "[V42] after an unsolicited PONG the driver keeps 
 TEST_CASE_FIXTURE(VescStates, "[V42] the driver is READY again within 5 s after an unsolicited PONG" * KNOWN_ISSUE("B-V8: state PONG has no exit (VescCAN.cpp:358-369, 676-678)")) {
 	auto v = makeVesc1();
 	(void)toReady(*v);
-	(void)peer0.sendPong();
+	CHECK(peer0.sendPong() > 0); // the PONG reached the driver (passes the filters)
 	runFor(5000);
 	CHECK(v->motorReady()); // the defect
 }
@@ -228,7 +228,12 @@ TEST_CASE_FIXTURE(VescStates, "[V43] characterization: a frame the filters rejec
 	auto v = makeVesc1();
 	reachReady(*v);
 	peer0.setFaultDest(0x41); // replies go to another id: rejected by the filters
+	const size_t sentBefore = peer0.sent().size();
 	runFor(3000);
+	REQUIRE(peer0.sent().size() > sentBefore); // the peer did send replies ...
+	for (size_t i = sentBefore; i < peer0.sent().size(); i++) {
+		CHECK(peer0.sent()[i].accepted == 0); // ... and the filters rejected every one
+	}
 	CHECK(stateOf(*v) == ST_UNKNOWN);
 }
 

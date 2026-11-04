@@ -769,8 +769,9 @@ descriptors and the TinyUSB callbacks of `global_callbacks.cpp`.
 
 ## `ffb_driver_tests`: the TMC4671, ODrive and VESC drivers (driver track)
 
-A sixth executable built by the same `CMakeLists.txt` and run by `ctest` (driver track, `Tests/DRIVER_TEST_PLAN.md`;
-at the end of phase D0 only a skeleton with one smoke case). It tests the real motor drivers, not their hardware:
+A sixth executable built by the same `CMakeLists.txt` and run by `ctest` (driver track, `Tests/DRIVER_TEST_PLAN.md`,
+phases D0-D3). It tests the real motor drivers against simulated peers, not their hardware (938 cases; final report
+`Tests/DRIVER_TRACK_REPORT.md`):
 
 * **Feature header:** `platform/target_f407_drivers/target_constants.h` is the `ffb_target_tests` header plus
   `TMC4671DRIVER`, `ODRIVE` and `VESC` (lines 46, 50, 51 of the F407VG header). `MIDI`, `TMCDEBUG`, `RMDCAN`,
@@ -785,10 +786,25 @@ at the end of phase D0 only a skeleton with one smoke case). It tests the real m
 * **Test cases:** `cases/driver/test_*.cpp` (own glob). Run directly: `build/ffb_driver_tests`. Exclusion lists
   `FFB_DRIVER_TESTS_EXCLUDE` / `FFB_DRIVER_TESTS_EXCLUDE_SANITIZE` (default empty), printed at configure time like the
   others. Also covered by `tools/run_all_tests.py` / `test_report`.
-* **Requirements and specifications:** the requirement charters of each driver go to `Firmware/Tests/driver/`
-  (`<name>_REQUIREMENTS.md`). Vendor specifications are kept locally in `Firmware/Tests/specs/` (listed in
-  `Firmware/Tests/.gitignore`, never committed); the TMC4671 datasheet is `Tests/TMC4671-LA_datasheet_Rev2.07.pdf`
-  (repository root `Tests/`, ignored as well).
+* **Requirements and specifications:** the requirement charters (requirements, spec facts, lead decisions) are
+  `driver/TMC4671_REQUIREMENTS.md`, `driver/ODRIVE_REQUIREMENTS.md` and `driver/VESC_REQUIREMENTS.md`. Vendor
+  specifications are kept locally and never committed: `Firmware/Tests/specs/` (ignored by `Firmware/Tests/.gitignore`)
+  or the repository root `Tests/` (ignored by `Tests/.gitignore`): the TMC4671 datasheet
+  `Tests/TMC4671-LA_datasheet_Rev2.07.pdf`, the ODrive 0.5.6 CAN page `Tests/CAN Protocol — ODrive Documentation 0.5.6
+  documentation.pdf` with `Tests/can-protocol.csv`, the VESC slides `Tests/VESC6_CAN_CommandsTelemetry.pdf` and the VESC
+  firmware source `Tests/bldc-master` (7.01). Tests cite them; without them the tests still build and run.
+* **Simulated peers and fixtures** (each with a fidelity header: what it models, source, what it does not model,
+  confidence): `fakes/FakeTmc4671` (register file behind the fake SPI, fixture `support/TmcFixture.h`),
+  `fakes/FakeOdrivePeer` (ODrive CAN Simple node, `support/OdriveFixture.h`), `fakes/FakeVescPeer` (VESC CAN node with the
+  buffer protocol and CRC, `support/VescFixture.h`). The peers are strict: a frame the real device would reject is
+  recorded as a violation and the fixture fails the test at teardown unless the test declared it. The CAN fixtures
+  schedule the driver thread themselves (500 ms loop, clock rewind after each `Delay`, see the fixture headers).
+* **Test files:** `test_tmc4671_*.cpp`, `test_odrive_*.cpp`, `test_vesc_*.cpp`; each test name starts with its
+  requirement id (`[R12]`, `[O33]`, `[V30]`). `FFB_DRIVER_TEST_FILTER` (cache variable, default `test_*.cpp`) compiles
+  only matching files plus the setup and TMC fake self-tests (a developer aid for writing tests in parallel).
+* **Markers:** suspected driver bugs are `KNOWN_ISSUE` / `KNOWN_ISSUE_UB` / `KNOWN_ISSUE_UB_HIDDEN` tests or skipped
+  cases ("KNOWN ISSUE (crash)", "KNOWN ISSUE (memory corruption)", run them with `--no-skip`); firmware-only behaviour
+  is `characterization:`. Bugs 139-193 in `Tests/BUG_REPORT.md`.
 * **Reading a result:** `tools/summarise_results.py` condenses a log into counts, the failing cases with file:line and
   the first failed assertion, skipped and excluded cases and build errors:
 

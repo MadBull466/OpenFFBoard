@@ -168,7 +168,7 @@ TEST_CASE_FIXTURE(ProtoFixture, "[V23] a FW version reply with a dropped FILL fr
 	peer0.fw().hwName = "XQ7";
 	peer0.fw().uuid = {{0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8, 0xA9, 0xAA, 0xAB, 0xAC}};
 	peer0.setDropFillFrame(2); // offset 14 left out
-	peer0.sendFwVersion();
+	CHECK(peer0.sendFwVersion() > 0); // the frames reached the driver
 	CHECK(state() == UNKNOWN);
 }
 
@@ -213,14 +213,47 @@ TEST_CASE_FIXTURE(ProtoFixture, "[V24] a FW version reply of exactly 64 bytes (t
 	CHECK(state() == COMPATIBLE);
 }
 
-TEST_CASE_FIXTURE(ProtoFixture, "[V24] a FW version reply of 70 bytes is decoded" * KNOWN_ISSUE_UB("B-V5: PROCESS_RX_BUFFER with length > 64 is dropped (VescCAN.cpp:651), the FILL frames at offsets 63..69 write beyond buffer_rx (VescCAN.cpp:630)")) {
+TEST_CASE_FIXTURE(ProtoFixture, "[V24] a FW version reply of 70 bytes is decoded" * doctest::skip() * doctest::description("KNOWN ISSUE (memory corruption): B-V5: PROCESS_RX_BUFFER with length > 64 is dropped (VescCAN.cpp:651), the FILL frames at offsets 63..69 write beyond buffer_rx (VescCAN.cpp:630); the writes corrupt the heap. Skipped; run manually with --no-skip")) {
 	// HD: 29 + n + m = 70 -> n + m = 41: hw name 21, fw name 20 chars. SRC rx buffer is 512 bytes, a real VESC
-	// with long names sends exactly this. Defect assertion first: the state stays UNKNOWN.
+	// with long names sends exactly this. Writes: FILL at offset 63 (7 bytes) writes buffer_rx[63..69], 6 bytes past.
 	peer0.fw().hwName = std::string(21, 'H');
 	peer0.fw().fwName = std::string(20, 'F');
-	CHECK(peer0.fwVersionPayload().size() == 70);
+	const size_t len = peer0.fwVersionPayload().size();
 	peer0.sendFwVersion();
-	CHECK(state() == COMPATIBLE);
+	CHECK(state() == COMPATIBLE); // defect assertion first: the state stays UNKNOWN
+	CHECK(len == 70);
+}
+
+TEST_CASE_FIXTURE(ProtoFixture, "[V24] a FILL_RX_BUFFER frame at offset 200 changes nothing outside the receive buffer" * doctest::skip() * doctest::description("KNOWN ISSUE (memory corruption): B-V5: no bound check on FILL_RX_BUFFER (VescCAN.cpp:630), the frame writes buffer_rx[200..206], 143 bytes past the 64 byte buffer. Skipped; run manually with --no-skip")) {
+	// frame [offset 200, 7 data bytes]: memcpy(buffer_rx + 200, ..., 7)
+	CHECK(inj(Peer::PKT_FILL_RX_BUFFER, {200, 1, 2, 3, 4, 5, 6, 7}) > 0);
+	CHECK(state() == UNKNOWN);
+	CHECK(CommandHelpers::get(*v, "offbcanid") == 0x40);
+	CHECK(CommandHelpers::get(*v, "vesccanid") == 255);
+}
+
+TEST_CASE_FIXTURE(ProtoFixture, "[V24] a FILL_RX_BUFFER_LONG frame at offset 64 is ignored") {
+	// the driver's check `ind < 64` (VescCAN.cpp:637) rejects it: nothing is written (would be buffer_rx[64..69])
+	CHECK(inj(Peer::PKT_FILL_RX_BUFFER_LONG, {0x00, 64, 1, 2, 3, 4, 5, 6}) > 0);
+	CHECK(state() == UNKNOWN);
+	CHECK(CommandHelpers::get(*v, "offbcanid") == 0x40);
+	CHECK(CommandHelpers::get(*v, "vesccanid") == 255);
+}
+
+TEST_CASE_FIXTURE(ProtoFixture, "[V24] a FILL_RX_BUFFER_LONG frame at offset 100 is ignored") {
+	// rejected by `ind < 64` (VescCAN.cpp:637): would be buffer_rx[100..105]
+	CHECK(inj(Peer::PKT_FILL_RX_BUFFER_LONG, {0x00, 100, 1, 2, 3, 4, 5, 6}) > 0);
+	CHECK(state() == UNKNOWN);
+	CHECK(CommandHelpers::get(*v, "offbcanid") == 0x40);
+	CHECK(CommandHelpers::get(*v, "vesccanid") == 255);
+}
+
+TEST_CASE_FIXTURE(ProtoFixture, "[V24] a FILL_RX_BUFFER_LONG frame at offset 60 with 6 data bytes does not write beyond the receive buffer" * doctest::skip() * doctest::description("KNOWN ISSUE (memory corruption): B-V5: the LONG check tests `ind` not `ind + len` (VescCAN.cpp:637-638), the frame writes buffer_rx[60..65], 2 bytes past the buffer. Skipped; run manually with --no-skip")) {
+	// a LONG frame carries at most 6 data bytes (DLC 8 - 2 offset bytes)
+	CHECK(inj(Peer::PKT_FILL_RX_BUFFER_LONG, {0x00, 60, 1, 2, 3, 4, 5, 6}) > 0);
+	CHECK(state() == UNKNOWN);
+	CHECK(CommandHelpers::get(*v, "offbcanid") == 0x40);
+	CHECK(CommandHelpers::get(*v, "vesccanid") == 255);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -241,27 +274,28 @@ TEST_CASE_FIXTURE(ProtoFixture, "[V26] characterization: a PROCESS_RX_BUFFER wit
 	sendA();
 	sendShortFault(3);
 	CHECK(state() == ERROR_ST);
-	inj(Peer::PKT_PROCESS_RX_BUFFER, {0x01, 0x01, 0x00, 0x08});
+	CHECK(inj(Peer::PKT_PROCESS_RX_BUFFER, {0x01, 0x01, 0x00, 0x08}) > 0);
 	CHECK(state() == ERROR_ST);
 }
 
 TEST_CASE_FIXTURE(ProtoFixture, "[V26] characterization: a PROCESS_SHORT_BUFFER with DLC 2 (no payload) decodes nothing") {
 	// NEEDS REVIEW (L4). length - 2 = 0 -> decode_buffer returns at once
-	inj(Peer::PKT_PROCESS_SHORT_BUFFER, {0x01, 0x01});
+	CHECK(inj(Peer::PKT_PROCESS_SHORT_BUFFER, {0x01, 0x01}) > 0);
 	CHECK(state() == UNKNOWN);
 }
 
 TEST_CASE_FIXTURE(ProtoFixture, "[V26] characterization: a FILL_RX_BUFFER frame with DLC 1 (offset only, no data) copies nothing and decodes nothing") {
 	// NEEDS REVIEW (L4). memcpy of 0 bytes
-	inj(Peer::PKT_FILL_RX_BUFFER, {0x00});
+	CHECK(inj(Peer::PKT_FILL_RX_BUFFER, {0x00}) > 0);
 	CHECK(state() == UNKNOWN);
 }
 
 TEST_CASE_FIXTURE(ProtoFixture, "[V26] a PROCESS_SHORT_BUFFER with DLC 1 does not decode anything" * KNOWN_ISSUE_UB("B-V14: header.length - 2 underflows to 0xFFFFFFFF, decode_buffer gets len 255 and reads the bytes beyond the frame as a FW_VERSION message (VescCAN.cpp:671)")) {
 	// Intended: a frame without payload is ignored (L4 says characterization, but the observed result is a state
 	// change from reading unrelated bytes, so the intended result is asserted under a marker).
-	inj(Peer::PKT_PROCESS_SHORT_BUFFER, {0x01});
-	CHECK(state() == UNKNOWN);
+	const uint32_t delivered = inj(Peer::PKT_PROCESS_SHORT_BUFFER, {0x01});
+	CHECK(state() == UNKNOWN); // defect assertion first: INCOMPATIBLE
+	CHECK(delivered > 0);
 }
 
 TEST_CASE_FIXTURE(ProtoFixture, "[V26] a FILL_RX_BUFFER frame with DLC 0 does not crash" * doctest::skip() * doctest::description("KNOWN ISSUE (crash): B-V15: header.length - 1 underflows to 0xFFFFFFFF, memcpy of 4 GB (VescCAN.cpp:630). Skipped because it terminates the test run")) {
