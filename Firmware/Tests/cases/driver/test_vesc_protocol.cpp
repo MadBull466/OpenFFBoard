@@ -257,14 +257,14 @@ TEST_CASE_FIXTURE(ProtoFixture, "[V26] characterization: a FILL_RX_BUFFER frame 
 	CHECK(state() == UNKNOWN);
 }
 
-TEST_CASE_FIXTURE(ProtoFixture, "[V26] a PROCESS_SHORT_BUFFER with DLC 1 does not decode anything" * KNOWN_ISSUE_UB("candidate defect (no B-V id yet): header.length - 2 underflows to 0xFFFFFFFF, decode_buffer gets len 255 and reads the bytes beyond the frame as a FW_VERSION message (VescCAN.cpp:671)")) {
+TEST_CASE_FIXTURE(ProtoFixture, "[V26] a PROCESS_SHORT_BUFFER with DLC 1 does not decode anything" * KNOWN_ISSUE_UB("B-V14: header.length - 2 underflows to 0xFFFFFFFF, decode_buffer gets len 255 and reads the bytes beyond the frame as a FW_VERSION message (VescCAN.cpp:671)")) {
 	// Intended: a frame without payload is ignored (L4 says characterization, but the observed result is a state
 	// change from reading unrelated bytes, so the intended result is asserted under a marker).
 	inj(Peer::PKT_PROCESS_SHORT_BUFFER, {0x01});
 	CHECK(state() == UNKNOWN);
 }
 
-TEST_CASE_FIXTURE(ProtoFixture, "[V26] a FILL_RX_BUFFER frame with DLC 0 does not crash" * doctest::skip() * doctest::description("KNOWN ISSUE (crash): candidate defect (no B-V id yet): header.length - 1 underflows to 0xFFFFFFFF, memcpy of 4 GB (VescCAN.cpp:630). Skipped because it terminates the test run")) {
+TEST_CASE_FIXTURE(ProtoFixture, "[V26] a FILL_RX_BUFFER frame with DLC 0 does not crash" * doctest::skip() * doctest::description("KNOWN ISSUE (crash): B-V15: header.length - 1 underflows to 0xFFFFFFFF, memcpy of 4 GB (VescCAN.cpp:630). Skipped because it terminates the test run")) {
 	inj(Peer::PKT_FILL_RX_BUFFER, {});
 	CHECK(state() == UNKNOWN);
 }
