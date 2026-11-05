@@ -194,7 +194,7 @@ Fidelity entries for the driver peers are kept in the "Driver track" section of 
 2. **Build:** subagents in parallel, one per module group, each owning its own new files. They follow `Firmware/Tests/README.md` and `CLAUDE.md`. They must not edit each other's files, shared fakes or CMake without telling me the change needed.
 3. **Review:** fresh reviewer subagents check assertions are meaningful, edge cases and error paths are covered, no out-of-scope driver code is tested, fakes are realistic, tests are deterministic with no sleeps, `KNOWN_ISSUE` rules are followed, and nothing breaks MinGW or CI.
 4. **Verify:** run the gate, measure coverage of the phase's files with the script, and run a mutation spot-check in a scratch copy outside the repo (about 8 mutants per file on lines the tests execute). List survivors in `PROGRESS.md`.
-5. **Commit and record:** local commit on `add-test-suite` (never push), update `PROGRESS.md` with measured coverage, `characterization:` and `NEEDS REVIEW` items, suspected bugs and host-vs-target caveats.
+5. **Commit and record:** local commit on `add-test-suite` (push only to the user's fork, when asked), update `PROGRESS.md` with measured coverage, `characterization:` and `NEEDS REVIEW` items, suspected bugs and host-vs-target caveats.
 
 ## Stop and approval rules
 

@@ -55,7 +55,8 @@ P11 G1: run the fresh review and mutation check of the six `cases_dsp/test_dsp_f
 | 2026-10-21 | Q4/Q5: do F1. `ffb_unit_tests` stays exactly as is (same sources, same feature set, same fake `Axis.h`). New executables get their own feature header (real F407 `target_constants.h` minus driver macros, MIDI off; show me the diff before use). Firmware sources compiled per executable, only platform fakes shared. After every CMake change `ffb_unit_tests` must still give 316 passed, 0 failed, 2 skipped | Keeps the existing suite green and CI-safe |
 | 2026-10-21 | Q6: plain `gcov` plus a small stdlib-only Python script in `Firmware/Tests/` for per-module coverage. Nothing installed | No downloads |
 | 2026-10-21 | Q7: keep `../ffb-test-build/` | |
-| 2026-10-21 | Q8: local commits allowed on `add-test-suite`. Never push, never touch remotes or git config. Identity via one-off `git -c` (name superseded 2026-10-22: `MadBull.Ben`) | No GitHub connection wanted |
+| 2026-11-05 | Push rule changed by the user: push allowed, only to the fork `https://github.com/MadBull466/OpenFFBoard` (branch `add-test-suite`), when asked; never to `origin`. See `CLAUDE.md` | User request |
+| 2026-10-21 | Q8: local commits allowed on `add-test-suite`. (Superseded 2026-11-05 for pushing.) never touch remotes or git config. Identity via one-off `git -c` (name superseded 2026-10-22: `MadBull.Ben`) | No GitHub connection wanted |
 | 2026-10-21 | Follow the conventions of `Firmware/Tests/README.md` (fixtures, public interfaces, one behaviour per test, statement names, no sleeps, `characterization:`, `KNOWN_ISSUE`, `KNOWN_ISSUE_UB`, no firmware `#ifdef`) | Existing suite style |
 | 2026-10-21 | Keep Windows/MinGW, `CMakePresets.json` and GitHub Actions working. Do not edit `.github/` | README says tests run in CI |
 | 2026-10-21 | Python helper tests use stdlib `unittest` | Do not install pytest |

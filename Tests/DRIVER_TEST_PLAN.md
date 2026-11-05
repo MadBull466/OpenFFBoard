@@ -1,6 +1,6 @@
 # Driver Test Plan: TMC4671, ODrive, VESC
 
-Extension of `Tests/TEST_PLAN.md`. Permanent rules are in the root `CLAUDE.md` and apply throughout, in particular: `Firmware/` is read-only except `Firmware/Tests/`, never push, never write the user's email address anywhere, commit as `MadBull.Ben` with an empty email.
+Extension of `Tests/TEST_PLAN.md`. Permanent rules are in the root `CLAUDE.md` and apply throughout, in particular: `Firmware/` is read-only except `Firmware/Tests/`, push only to the user's fork when asked (see `CLAUDE.md`), never write the user's email address anywhere, commit as `MadBull.Ben` with an empty email.
 
 ## Scope
 
