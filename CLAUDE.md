@@ -53,6 +53,7 @@
 ## Test suite work
 - The test-suite project is driven by `Tests/TEST_PLAN.md` (plan v2: keep the suite, cover more code, phases P0 to P10). Progress is tracked in `Tests/PROGRESS.md`.
 - At the start of any test-suite session, read `Firmware/Tests/README.md`, both plan files, and resume from `PROGRESS.md`. Do not restart from scratch.
+- `Tests/COVERAGE_AND_SCOPE.md` (covered / out of scope / not covered) must be kept current: update it whenever coverage numbers, scope decisions or test groups change (end of every phase or group), in the same commit as the `PROGRESS.md` update.
 - Driver track: also read `Tests/DRIVER_TEST_PLAN.md` and the "Driver track" section of `PROGRESS.md`. Order is fixed: TMC4671, then ODrive, then VESC. Stop at the end of every phase.
 
 ## Model roles (driver track)
