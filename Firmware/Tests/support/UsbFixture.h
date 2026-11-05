@@ -129,7 +129,7 @@ struct UsbFixture {
 		CHECK_MESSAGE(fault.empty(), "the fake USB controller, the host or the fake platform recorded a fault (see UsbFixture.h)");
 		// CDCcomm keeps a private retry flag (usb_busy_retry) while a reply is only partly sent; clearRemainingBuffer does
 		// not clear it and a set flag suppresses the flush of the next send. A test must not end with unsent CDC data;
-		// a complete 1-byte send clears the flag (as cases/test_cdc.cpp CdcFixture), then the port is released.
+		// a complete 1-byte send clears the flag (as claude/cases/test_cdc.cpp CdcFixture), then the port is released.
 		CHECK_MESSAGE(CDCcomm::remainingData(0) == 0, "the test left CDC data unsent: CDCcomm's retry flag is left set (see UsbFixture.h)");
 		if (tud_ready()) {
 			CDCcomm::clearRemainingBuffer(0);

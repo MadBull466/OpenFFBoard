@@ -5,7 +5,7 @@
  *      Author: Yannick
  *
  * Host test copy of Targets/F407VG/Core/Inc/target_constants.h for ffb_driver_tests (driver track,
- * Tests/DRIVER_TEST_PLAN.md). It is platform/target_f407/target_constants.h (the F407VG header without
+ * Tests/claude/plans/DRIVER_TEST_PLAN.md). It is platform/target_f407/target_constants.h (the F407VG header without
  * the drivers and MIDI) with exactly three feature macros added back:
  *   TMC4671DRIVER  (F407VG target_constants.h:46)
  *   ODRIVE         (F407VG target_constants.h:50)

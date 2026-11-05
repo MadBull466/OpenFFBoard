@@ -2,7 +2,7 @@
  * FakeTmc4671.h
  *
  * Fake TMC4671-LA servo controller chip on the fake SPI1 bus (ffb_driver_tests only). Peer of the TMC4671 driver
- * (Firmware/FFBoard/UserExtensions/Src/TMC4671.cpp). Requirements: Firmware/Tests/driver/TMC4671_REQUIREMENTS.md,
+ * (Firmware/FFBoard/UserExtensions/Src/TMC4671.cpp). Requirements: Tests/claude/charters/driver/TMC4671_REQUIREMENTS.md,
  * section "Fake peer".
  *
  * Source: TMC4671-LA datasheet, IC version V1.3, document revision 2.07 (2022-01-12), cited "DS §x pNN".

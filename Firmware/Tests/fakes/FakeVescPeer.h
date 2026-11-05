@@ -2,11 +2,11 @@
  * FakeVescPeer.h
  *
  * Fake VESC on the fake CAN bus (ffb_driver_tests only). Peer of the VESC CAN driver
- * (Firmware/FFBoard/UserExtensions/Src/VescCAN.cpp). Requirements: Firmware/Tests/driver/VESC_REQUIREMENTS.md,
+ * (Firmware/FFBoard/UserExtensions/Src/VescCAN.cpp). Requirements: Tests/claude/charters/driver/VESC_REQUIREMENTS.md,
  * section "Fake peer: FakeVescPeer" and "Facts".
  *
  * Sources:
- *  - SRC <path>:<line>  = the VESC firmware source supplied by the user, Tests/bldc-master (git-ignored, never
+ *  - SRC <path>:<line>  = the VESC firmware source supplied by the user, Tests/shared/specs/bldc-master (git-ignored, never
  *    committed): VESC firmware 7.01, test build 1 (SRC conf_general.h:24-27). Lead decision L1: SRC 7.01 is the oracle
  *    for everything SPEC does not give.
  *  - SPEC <slide>       = "VESC 6 CAN Formats v0.1" slides (extended id layout, packet numbers 0-27, STATUS 1-5).

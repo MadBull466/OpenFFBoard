@@ -2,7 +2,7 @@
  * OdriveFixture.h
  *
  * Fixture of the ODrive CAN driver tests (ffb_driver_tests only, driver track D2, charter
- * Firmware/Tests/driver/ODRIVE_REQUIREMENTS.md "Fixture").
+ * Tests/claude/charters/driver/ODRIVE_REQUIREMENTS.md "Fixture").
  *
  * OdriveFixture is a TargetFixture (target state reset before and after the test, unmodelled HAL calls fail the test) and
  *  - clears the fake flash (HostPlatform::flash()),

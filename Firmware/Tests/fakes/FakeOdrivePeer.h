@@ -2,7 +2,7 @@
  * FakeOdrivePeer.h
  *
  * Fake ODrive axis on the fake CAN bus (ffb_driver_tests only). Peer of the ODrive CAN driver
- * (Firmware/FFBoard/UserExtensions/Src/ODriveCAN.cpp). Requirements: Firmware/Tests/driver/ODRIVE_REQUIREMENTS.md,
+ * (Firmware/FFBoard/UserExtensions/Src/ODriveCAN.cpp). Requirements: Tests/claude/charters/driver/ODRIVE_REQUIREMENTS.md,
  * section "Fake peer: FakeOdrivePeer".
  *
  * Sources: "CAN Protocol - ODrive Documentation 0.5.6" (cited "SPEC <section>") and its message table "CAN Messages"

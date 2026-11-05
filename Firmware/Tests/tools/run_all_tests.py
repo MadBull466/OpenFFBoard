@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Runs every test case of the host test suite and writes a report (passed / failed / bugged).
 
-  run_all_tests.py --build-dir <dir> [--out <file>] [--timeout S] [--progress Tests/PROGRESS.md]
+  run_all_tests.py --build-dir <dir> [--out <file>] [--timeout S] [--progress Tests/claude/plans/PROGRESS.md]
 
 Nothing is skipped: every doctest executable found in the build directory (ffb_unit_tests, ffb_target_tests,
-ffb_flash_tests, ffb_rtos_tests, ffb_usb_tests, ffb_driver_tests, ffb_dsp_tests) and the Python helper tests (Firmware/Tests/python) are run.
+ffb_flash_tests, ffb_rtos_tests, ffb_usb_tests, ffb_driver_tests, ffb_dsp_tests) and the Python helper tests (Firmware/Tests/claude/python) are run.
 
 * The executables run with the doctest XML reporter and WITHOUT the ctest exclusions. If a run stops in a test case
   (signal, abort, sanitizer exit, or no progress for --timeout seconds), that case is recorded as crashed / timed out
@@ -411,7 +411,7 @@ def number_sort_key(num):
 
 
 class Progress:
-	"""The "Suspected firmware bugs" and "NEEDS REVIEW items" tables of Tests/PROGRESS.md."""
+	"""The "Suspected firmware bugs" and "NEEDS REVIEW items" tables of Tests/claude/plans/PROGRESS.md."""
 
 	def __init__(self, text=""):
 		self.rows = {}  # ('bug', '16') / ('nr', '39') -> [num, module, location, description, evidence]
@@ -599,7 +599,7 @@ def files_from_test(test_path, suite, index):
 	"""Heuristic for cases without a numbered row (documented in the README):
 	1. the suite name equals a firmware source name (CmdParser -> FFBoard/Src/CmdParser.cpp);
 	2. the test file name without test_ / _gaps / _cases equals a source name (test_hid_ffb.cpp -> HidFFB.cpp,
-	   python/test_generate_memory_cases.py -> generate_memory.py);
+	   claude/python/test_generate_memory_cases.py -> generate_memory.py);
 	3. the longest source name (4+ characters) the stem starts with (test_axis_config.cpp -> Axis.cpp,
 	   test_usbd_core.cpp -> usbd.c); not for *_setup.cpp files (they test the test setup);
 	4. a firmware header the test file includes whose name contains that stem or is contained in it;
@@ -1107,7 +1107,7 @@ def render_report(results, problems, config, build_dir, exes_run, progress, star
 	out.extend(attention_banner(attention))
 	w("Categories: Bugged = a known bug (KNOWN_ISSUE, KNOWN_ISSUE_UB(_HIDDEN), skipped crash case, ctest exclusion,")
 	w("DELETES_FFBHIDMAIN in sanitizer builds, Python @expectedFailure) that fails as expected. Failed = any other")
-	w("failure, or a known bug that passes now. Items: bug N / VN (vendor) / NR N (NEEDS REVIEW) of Tests/PROGRESS.md.")
+	w("failure, or a known bug that passes now. Items: bug N / VN (vendor) / NR N (NEEDS REVIEW) of Tests/claude/plans/PROGRESS.md.")
 	w("")
 	w("")
 	failed = sorted([r for r in results if r.category == FAILED], key=Result.sort_key)
@@ -1165,8 +1165,8 @@ def main(argv=None):
 	parser.add_argument("--out", help="report file (default: <build-dir>/test_report.log)")
 	parser.add_argument("--timeout", type=float, default=60.0,
 		help="seconds a single test case may run without progress before it is stopped (default 60)")
-	parser.add_argument("--progress", default=os.path.join(REPO_DIR, "Tests", "PROGRESS.md"),
-		help="PROGRESS.md with the bug and NEEDS REVIEW tables (default: Tests/PROGRESS.md)")
+	parser.add_argument("--progress", default=os.path.join(REPO_DIR, "Tests", "claude", "plans", "PROGRESS.md"),
+		help="PROGRESS.md with the bug and NEEDS REVIEW tables (default: Tests/claude/plans/PROGRESS.md)")
 	parser.add_argument("--python", default=sys.executable, help="Python interpreter for the Python helper tests")
 	parser.add_argument("--no-python", action="store_true", help="do not run the Python helper tests")
 	parser.add_argument("--exit-zero", action="store_true",

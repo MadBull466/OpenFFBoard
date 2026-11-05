@@ -2,7 +2,7 @@
  * VescFixture.h
  *
  * Fixture of the VESC CAN driver tests (ffb_driver_tests only, driver track D3, charter
- * Firmware/Tests/driver/VESC_REQUIREMENTS.md "Fake peer"). Same design as OdriveFixture.h.
+ * Tests/claude/charters/driver/VESC_REQUIREMENTS.md "Fake peer"). Same design as OdriveFixture.h.
  *
  * VescFixture is a TargetFixture (target state reset before and after the test, unmodelled HAL calls fail the test) and
  *  - clears the fake flash (HostPlatform::flash()),

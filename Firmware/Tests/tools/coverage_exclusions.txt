@@ -5,5 +5,5 @@
 # Code that calls the HAL with logic around it (decisions, arguments, ordering, error handling) is NOT
 # hardware-only: it is tested against the fakes. Unreachable or defensive code is NOT listed here either.
 #
-# Every entry is reviewed in the phase that adds it and recorded in Tests/PROGRESS.md.
+# Every entry is reviewed in the phase that adds it and recorded in Tests/claude/plans/PROGRESS.md.
 # Format: <path relative to Firmware/>:<first>-<last> <reason>    or    <path>:* <reason>

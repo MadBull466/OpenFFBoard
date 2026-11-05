@@ -73,8 +73,9 @@ set(PLATFORM_SOURCES
 	platform/src/host_stubs.cpp
 )
 
-# Every test_*.cpp in cases/ is picked up automatically
-file(GLOB TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cases/test_*.cpp)
+# Every test_*.cpp in cases/ (the original suite) and claude/cases/ (Claude's gap tests; not recursive, so
+# claude/cases/driver is not included) is picked up automatically
+file(GLOB TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cases/test_*.cpp ${CMAKE_CURRENT_SOURCE_DIR}/claude/cases/test_*.cpp)
 
 add_executable(ffb_unit_tests
 	${FIRMWARE_SOURCES}
@@ -151,7 +152,7 @@ if(FFB_TESTS_SANITIZE)
 endif()
 
 # Test cases excluded from ctest runs (doctest --test-case-exclude). Each entry is a suspected defect
-# that aborts the run instead of failing a single test. Keep this list in sync with Tests/PROGRESS.md.
+# that aborts the run instead of failing a single test. Keep this list in sync with Tests/claude/plans/PROGRESS.md.
 #  - effectsForces reads current[MAX_AXIS] out of bounds. libstdc++ assertions (GCC 16, -O0) abort the run.
 set(FFB_TESTS_EXCLUDE
 	"requesting the forces of a not existing axis is rejected"
@@ -311,7 +312,7 @@ set_property(SOURCE ${FFBOARD_DIR}/Src/ledEffects.cpp APPEND PROPERTY COMPILE_DE
 	pulseSysLed=hosttest_real_pulseSysLed pulseErrLed=hosttest_real_pulseErrLed pulseClipLed=hosttest_real_pulseClipLed
 	setSysLed=hosttest_real_setSysLed setErrLed=hosttest_real_setErrLed setClipLed=hosttest_real_setClipLed)
 
-# Axis.cpp: target include order and compile workarounds (no firmware change allowed, see Tests/PROGRESS.md F14):
+# Axis.cpp: target include order and compile workarounds (no firmware change allowed, see Tests/claude/plans/PROGRESS.md F14):
 #  - -include math.h (both DSP variants): on the shipped targets (arm-none-eabi-g++, TMC4671DRIVER on) Axis.cpp gets
 #    <math.h> transitively via TMC4671.h -> SPI.h:17. The libstdc++ math.h wrapper does `using std::abs;`, so
 #    abs(float) in Axis.cpp (setExpo, updateHandsOffState) calls the float overload. ffb_target_tests has the
@@ -323,7 +324,7 @@ set_property(SOURCE ${FFBOARD_DIR}/Src/ledEffects.cpp APPEND PROPERTY COMPILE_DE
 set_property(SOURCE ${FFBOARD_DIR}/Src/Axis.cpp APPEND PROPERTY COMPILE_OPTIONS -include math.h)
 set_property(SOURCE ${FFBOARD_DIR}/Src/Axis.cpp APPEND PROPERTY COMPILE_OPTIONS $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-c++11-narrowing>)
 
-file(GLOB TARGET_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cases_target/test_*.cpp)
+file(GLOB TARGET_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_target/test_*.cpp)
 
 add_executable(ffb_target_tests
 	${TARGET_FIRMWARE_SOURCES}
@@ -453,7 +454,7 @@ set(FLASH_PLATFORM_SOURCES
 	platform/src/host_flash.cpp
 )
 
-file(GLOB FLASH_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cases_flash/test_*.cpp)
+file(GLOB FLASH_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_flash/test_*.cpp)
 
 add_executable(ffb_flash_tests
 	${FLASH_FIRMWARE_SOURCES}
@@ -479,7 +480,7 @@ target_include_directories(ffb_flash_tests PRIVATE
 )
 
 target_compile_definitions(ffb_flash_tests PRIVATE HOSTTEST HOSTTEST_FLASH_HAL HOSTTEST_REAL_FLASH_HELPERS)
-# Header parsed at run time by cases_flash/test_eeprom_addresses.cpp (consistency of VirtAddVarTab with the ADR_ constants)
+# Header parsed at run time by claude/cases_flash/test_eeprom_addresses.cpp (consistency of VirtAddVarTab with the ADR_ constants)
 get_filename_component(FFB_EEPROM_ADDRESSES_HEADER ${FFBOARD_DIR}/UserExtensions/Inc/eeprom_addresses.h ABSOLUTE)
 target_compile_definitions(ffb_flash_tests PRIVATE FFB_EEPROM_ADDRESSES_H="${FFB_EEPROM_ADDRESSES_HEADER}")
 
@@ -575,7 +576,7 @@ foreach(inc IN LISTS FFB_CMEM_POOL_INCLUDES)
 	endif()
 endforeach()
 
-file(GLOB RTOS_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cases_rtos/test_*.cpp)
+file(GLOB RTOS_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_rtos/test_*.cpp)
 
 add_executable(ffb_rtos_tests
 	${RTOS_FIRMWARE_SOURCES}
@@ -679,7 +680,7 @@ list(APPEND USB_PLATFORM_SOURCES
 	platform/src/host_usb_osal.cpp
 )
 
-file(GLOB USB_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cases_usb/test_*.cpp)
+file(GLOB USB_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_usb/test_*.cpp)
 
 add_executable(ffb_usb_tests
 	${USB_TINYUSB_SOURCES}
@@ -763,7 +764,7 @@ else()
 endif()
 
 # ===========================================================================
-# ffb_driver_tests (driver track, Tests/DRIVER_TEST_PLAN.md): the real TMC4671, ODrive and VESC drivers on the
+# ffb_driver_tests (driver track, Tests/claude/plans/DRIVER_TEST_PLAN.md): the real TMC4671, ODrive and VESC drivers on the
 # fake HAL SPI / CAN of ffb_target_tests. Feature header platform/target_f407_drivers/target_constants.h = the
 # ffb_target_tests header + TMC4671DRIVER, ODRIVE, VESC (MIDI, TMCDEBUG, RMDCAN, PWMDRIVER, SIMPLEMOTION stay off).
 #
@@ -771,7 +772,7 @@ endif()
 # platform sources of ffb_target_tests are compiled again for this executable (they include target_constants.h).
 # platform/target_f407_drivers is the first include directory: it shadows only target_constants.h (main.h,
 # cmsis_os.h etc. still come from platform/target_f407). platform/src/host_driver_timers.cpp: fake TIM6 (htim6).
-# Test cases: cases/driver/test_*.cpp (not picked up by ffb_unit_tests, whose glob is not recursive).
+# Test cases: claude/cases/driver/test_*.cpp (not picked up by ffb_unit_tests, whose glob is not recursive).
 # ===========================================================================
 set(DRIVER_FIRMWARE_SOURCES
 	${TARGET_FIRMWARE_SOURCES}
@@ -788,11 +789,11 @@ set_property(SOURCE ${FFBOARD_DIR}/UserExtensions/Src/TMC4671.cpp APPEND PROPERT
 set(DRIVER_PLATFORM_SOURCES ${TARGET_PLATFORM_SOURCES} platform/src/host_driver_timers.cpp fakes/FakeTmc4671.cpp fakes/FakeOdrivePeer.cpp fakes/FakeVescPeer.cpp)
 # FFB_DRIVER_TEST_FILTER (developer aid for parallel test writing): glob of the driver test files to compile, e.g.
 # "test_tmc4671_init*.cpp". The setup and fake self-tests are always compiled. Default: all driver tests.
-set(FFB_DRIVER_TEST_FILTER "test_*.cpp" CACHE STRING "Glob of the cases/driver test files compiled into ffb_driver_tests")
+set(FFB_DRIVER_TEST_FILTER "test_*.cpp" CACHE STRING "Glob of the claude/cases/driver test files compiled into ffb_driver_tests")
 file(GLOB DRIVER_TEST_SOURCES CONFIGURE_DEPENDS
-	${CMAKE_CURRENT_SOURCE_DIR}/cases/driver/${FFB_DRIVER_TEST_FILTER}
-	${CMAKE_CURRENT_SOURCE_DIR}/cases/driver/test_driver_setup.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/cases/driver/test_tmc4671_fake.cpp)
+	${CMAKE_CURRENT_SOURCE_DIR}/claude/cases/driver/${FFB_DRIVER_TEST_FILTER}
+	${CMAKE_CURRENT_SOURCE_DIR}/claude/cases/driver/test_driver_setup.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/claude/cases/driver/test_tmc4671_fake.cpp)
 list(REMOVE_DUPLICATES DRIVER_TEST_SOURCES)
 
 add_executable(ffb_driver_tests
@@ -877,7 +878,7 @@ else()
 endif()
 
 # ===========================================================================
-# ffb_dsp_tests (phase P11, Tests/TEST_PLAN.md and dsp/CMSIS_DSP_REQUIREMENTS.md): the in-scope CMSIS-DSP modules
+# ffb_dsp_tests (phase P11, Tests/claude/plans/TEST_PLAN.md and Tests/claude/charters/dsp/CMSIS_DSP_REQUIREMENTS.md): the in-scope CMSIS-DSP modules
 # (FastMath, Controller, Interpolation, Statistics, Filtering, CommonTables and the 4 BasicMath helpers arm_abs_q15,
 # arm_abs_q31, arm_add_f32, arm_add_f16) of ALL data types, tested against ARM's reference patterns
 # (Libraries/CMSIS-DSP/Testing/Patterns, read at run time, nothing copied) and independent definitions.
@@ -890,9 +891,9 @@ endif()
 #   ffb_cmsis_dsp_f16   the *_f16.c sources, only if the compiler has _Float16 (see FFB_DSP_HAS_F16)
 # f16 (lead decision L2): CMSIS-DSP defines float16_t as __fp16 and compiles the f16 code only if the compiler announces
 # __ARM_FP16_FORMAT_IEEE. On the host (x86) neither exists, so the f16 sources and the test files named
-# cases_dsp/test_dsp_*_f16.cpp get -D__ARM_FP16_FORMAT_IEEE=1 -D__fp16=_Float16 (no source edited). Without _Float16
+# claude/cases_dsp/test_dsp_*_f16.cpp get -D__ARM_FP16_FORMAT_IEEE=1 -D__fp16=_Float16 (no source edited). Without _Float16
 # (e.g. an old MinGW) the f16 library and the f16 test files are not built; FFB_DSP_HAS_F16 is 0 for the tests.
-# Test files: cases_dsp/test_dsp_*.cpp. FFB_DSP_TEST_FILTER (developer aid for parallel test writing): glob of the
+# Test files: claude/cases_dsp/test_dsp_*.cpp. FFB_DSP_TEST_FILTER (developer aid for parallel test writing): glob of the
 # files to compile, e.g. "test_dsp_fastmath*.cpp". The loader self-tests (test_dsp_patterns.cpp) are always compiled.
 # Only built if USE_DSP is on and the submodule contains Testing/Patterns.
 # ===========================================================================
@@ -951,10 +952,10 @@ if(USE_DSP AND EXISTS ${FFB_DSP_PATTERN_ROOT}/FastMath AND EXISTS ${DSP_DIR}/Sou
 		target_compile_definitions(ffb_cmsis_dsp_f16 PRIVATE ${FFB_DSP_F16_DEFS})
 	endif()
 
-	set(FFB_DSP_TEST_FILTER "test_dsp_*.cpp" CACHE STRING "Glob of the cases_dsp test files compiled into ffb_dsp_tests")
+	set(FFB_DSP_TEST_FILTER "test_dsp_*.cpp" CACHE STRING "Glob of the claude/cases_dsp test files compiled into ffb_dsp_tests")
 	file(GLOB DSP_TEST_SOURCES CONFIGURE_DEPENDS
-		${CMAKE_CURRENT_SOURCE_DIR}/cases_dsp/${FFB_DSP_TEST_FILTER}
-		${CMAKE_CURRENT_SOURCE_DIR}/cases_dsp/test_dsp_patterns.cpp)
+		${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_dsp/${FFB_DSP_TEST_FILTER}
+		${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_dsp/test_dsp_patterns.cpp)
 	list(REMOVE_DUPLICATES DSP_TEST_SOURCES)
 	# f16 test files: test_dsp_*_f16.cpp (compiled with the f16 definitions, dropped without _Float16)
 	set(DSP_TEST_F16_SOURCES ${DSP_TEST_SOURCES})
@@ -1015,7 +1016,7 @@ endif()
 
 # ===========================================================================
 # python_helper_tests: stdlib unittest smoke tests of the Python helper scripts (P9): Firmware/scripts/generate_memory.py
-# and FFBoard/USB/portable/synopsys/dwc2/dwc2_info.py, in python/test_*.py. Only when Python 3 is found (like the
+# and FFBoard/USB/portable/synopsys/dwc2/dwc2_info.py, in claude/python/test_*.py. Only when Python 3 is found (like the
 # baseline check). -B and PYTHONDONTWRITEBYTECODE: no __pycache__ is written into the repository; the scripts' outputs
 # go to temporary directories created by the tests. Runs in the build directory.
 # ===========================================================================

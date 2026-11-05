@@ -1,6 +1,6 @@
 /*
  * DspPatterns: loader for ARM's CMSIS-DSP reference patterns and the comparison helpers of ffb_dsp_tests
- * (phase P11, Tests/dsp/CMSIS_DSP_REQUIREMENTS.md, section "Infrastructure").
+ * (phase P11, Tests/claude/charters/dsp/CMSIS_DSP_REQUIREMENTS.md, section "Infrastructure").
  *
  * Pattern files: Libraries/CMSIS-DSP/Testing/Patterns/DSP/<Module>/<Suite>/<name>.txt, read at RUN TIME from
  * FFB_CMSIS_PATTERN_DIR (CMake define: absolute path, forward slashes). Nothing is copied under Firmware/Tests.

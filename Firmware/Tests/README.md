@@ -2,7 +2,7 @@
 
 Functional unit tests for the hardware independent parts of the firmware.
 The tests run on the development PC. No board, debugger or ARM toolchain is required. They are meant to run in GitHub
-Actions as well, but no workflow builds or runs them yet: the CI job is a proposal in `Tests/PROGRESS.md` (open
+Actions as well, but no workflow builds or runs them yet: the CI job is a proposal in `Tests/claude/plans/PROGRESS.md` (open
 question 5).
 
 ## Concept
@@ -61,12 +61,12 @@ below) and `python_helper_tests` (the last two only if Python 3 is found; `ffb_f
 | Executable | Test cases | Section |
 |---|---|---|
 | `ffb_unit_tests` | `cases/` | this section (the original suite) |
-| `ffb_target_tests` | `cases_target/` | [`ffb_target_tests`](#ffb_target_tests-f407-feature-set-with-the-real-axis) |
-| `ffb_flash_tests` | `cases_flash/` | [`ffb_flash_tests`](#ffb_flash_tests-the-real-flash-layer-on-a-fake-hal-flash) |
-| `ffb_rtos_tests` | `cases_rtos/` | [`ffb_rtos_tests`](#ffb_rtos_tests-the-freertos-c-wrappers-on-a-fake-freertos-api) |
-| `ffb_usb_tests` | `cases_usb/` | [`ffb_usb_tests`](#ffb_usb_tests-the-tinyusb-device-stack-on-a-fake-usb-device-controller) |
-| `ffb_driver_tests` | `cases/driver/` | [`ffb_driver_tests`](#ffb_driver_tests-the-tmc4671-odrive-and-vesc-drivers-driver-track) |
-| `ffb_dsp_tests` | `cases_dsp/` | [`ffb_dsp_tests`](#ffb_dsp_tests-the-cmsis-dsp-modules-phase-p11) |
+| `ffb_target_tests` | `claude/cases_target/` | [`ffb_target_tests`](#ffb_target_tests-f407-feature-set-with-the-real-axis) |
+| `ffb_flash_tests` | `claude/cases_flash/` | [`ffb_flash_tests`](#ffb_flash_tests-the-real-flash-layer-on-a-fake-hal-flash) |
+| `ffb_rtos_tests` | `claude/cases_rtos/` | [`ffb_rtos_tests`](#ffb_rtos_tests-the-freertos-c-wrappers-on-a-fake-freertos-api) |
+| `ffb_usb_tests` | `claude/cases_usb/` | [`ffb_usb_tests`](#ffb_usb_tests-the-tinyusb-device-stack-on-a-fake-usb-device-controller) |
+| `ffb_driver_tests` | `claude/cases/driver/` | [`ffb_driver_tests`](#ffb_driver_tests-the-tmc4671-odrive-and-vesc-drivers-driver-track) |
+| `ffb_dsp_tests` | `claude/cases_dsp/` | [`ffb_dsp_tests`](#ffb_dsp_tests-the-cmsis-dsp-modules-phase-p11) |
 | `python_helper_tests` | `python/` | [Python helper tests](#python-helper-tests) |
 
 The test executables can be started directly for more control. With GCC 16 (libstdc++ with `_GLIBCXX_ASSERTIONS` at
@@ -149,25 +149,28 @@ python3 -B tools/run_all_tests.py --build-dir build [--out FILE] [--timeout S]  
 * **Log** (`<build-dir>/test_report.log`): date, commit, build configuration, the summary (Passed, Failed, Bugged,
   per executable), then the failed tests, the bugged tests grouped by the file under test and the open questions.
   Every entry gives the test location, the file under test, the bug / vendor / NEEDS REVIEW number with its
-  description from `Tests/PROGRESS.md`, and the first failing assertion or the crash.
-* **File under test:** the source files of the numbered row in `Tests/PROGRESS.md`; otherwise a firmware source
+  description from `Tests/claude/plans/PROGRESS.md`, and the first failing assertion or the crash.
+* **File under test:** the source files of the numbered row in `Tests/claude/plans/PROGRESS.md`; otherwise a firmware source
   named like the test suite or the test file (`test_<name>[_gaps].cpp`, also a source name the file name starts
   with) or an included header matching the file name; else `unknown`.
-* A failed test is reported as failed and the run carries on with the next test case. The `test_report` target always succeeds (`--exit-zero`); run directly, the script exits with 0 when Failed is 0 and 1 otherwise (for CI), unless `--exit-zero` is given. Not part of `ctest`; `python/test_run_all_tests.py` tests the script itself.
+* A failed test is reported as failed and the run carries on with the next test case. The `test_report` target always succeeds (`--exit-zero`); run directly, the script exits with 0 when Failed is 0 and 1 otherwise (for CI), unless `--exit-zero` is given. Not part of `ctest`; `claude/python/test_run_all_tests.py` tests the script itself.
 
 ## Directory layout
 
 | Path | Content |
 |---|---|
-| `cases/test_*.cpp` | Test cases of `ffb_unit_tests`. Every file is picked up automatically. |
-| `cases_target/test_*.cpp` | Test cases of `ffb_target_tests` (F407 feature set, real `Axis`). |
-| `cases_flash/test_*.cpp` | Test cases of `ffb_flash_tests` (real `flash_helpers.cpp` and `eeprom.c` on the fake HAL FLASH). |
-| `cases_rtos/test_*.cpp` | Test cases of `ffb_rtos_tests` (the `cpp_freertos` wrappers on the fake FreeRTOS API). |
-| `cases_usb/test_*.cpp` | Test cases of `ffb_usb_tests` (TinyUSB device stack on the fake USB device controller). |
-| `cases/driver/test_*.cpp` | Test cases of `ffb_driver_tests` (TMC4671, ODrive, VESC drivers; not picked up by `ffb_unit_tests`, whose glob is not recursive). |
-| `cases_dsp/test_dsp_*.cpp` | Test cases of `ffb_dsp_tests` (CMSIS-DSP modules against ARM's reference patterns). |
-| `dsp/` | Requirement charter of the CMSIS-DSP track (`CMSIS_DSP_REQUIREMENTS.md`). |
-| `driver/` | Requirement charters of the driver track (`<name>_REQUIREMENTS.md`), planned from phase D1. |
+| `cases/test_*.cpp` | The original 318 baseline cases of `ffb_unit_tests`. Every file is picked up automatically (together with `claude/cases/test_*.cpp`). |
+| `claude/cases/test_*.cpp` | Claude's gap tests of `ffb_unit_tests`. |
+| `claude/python/` | Python helper tests (`python_helper_tests`). |
+| `codex/` | Codex's test cases and fakes (own folder; see `AGENTS.md`). |
+| `claude/cases_target/test_*.cpp` | Test cases of `ffb_target_tests` (F407 feature set, real `Axis`). |
+| `claude/cases_flash/test_*.cpp` | Test cases of `ffb_flash_tests` (real `flash_helpers.cpp` and `eeprom.c` on the fake HAL FLASH). |
+| `claude/cases_rtos/test_*.cpp` | Test cases of `ffb_rtos_tests` (the `cpp_freertos` wrappers on the fake FreeRTOS API). |
+| `claude/cases_usb/test_*.cpp` | Test cases of `ffb_usb_tests` (TinyUSB device stack on the fake USB device controller). |
+| `claude/cases/driver/test_*.cpp` | Test cases of `ffb_driver_tests` (TMC4671, ODrive, VESC drivers; not picked up by `ffb_unit_tests`, whose glob is not recursive). |
+| `claude/cases_dsp/test_dsp_*.cpp` | Test cases of `ffb_dsp_tests` (CMSIS-DSP modules against ARM's reference patterns). |
+| (`Tests/claude/charters/dsp/`) | Requirement charter of the CMSIS-DSP track (`CMSIS_DSP_REQUIREMENTS.md`); documents live under `Tests/`, not here. |
+| (`Tests/claude/charters/driver/`) | Requirement charters of the driver track (`<name>_REQUIREMENTS.md`). |
 | `specs/` | Local copies of vendor specifications for the driver track. Ignored by git (`.gitignore`), never committed. |
 | `python/` | `test_*.py`: stdlib `unittest` tests of the Python helper scripts; `helper_paths.py` (paths, loader). |
 | `mocks/` | Implementations of firmware class interfaces for tests (`Mock*.h`, see "Mocks and helpers"). |
@@ -185,9 +188,9 @@ python3 -B tools/run_all_tests.py --build-dir build [--out FILE] [--timeout S]  
 | `tools/check_baseline.py` | Baseline check (also a `ctest` entry). |
 | `tools/coverage_report.py` | gcov line coverage per file, module and tier; the driver files (`TMC4671*.cpp`, `ODriveCAN.cpp`, `VescCAN.cpp`) have their own section outside the ladder total. |
 | `tools/coverage_exclusions.txt` | Reviewed list of hardware-only line ranges (file:range + reason) left out of the coverage numbers. |
-| `tools/summarise_results.py` | Condenses a doctest console log, doctest XML report or ctest log (or a build log) into counts, failures with the first failed assertion, skipped and excluded cases and build errors. `python/test_summarise_results.py` tests it. |
+| `tools/summarise_results.py` | Condenses a doctest console log, doctest XML report or ctest log (or a build log) into counts, failures with the first failed assertion, skipped and excluded cases and build errors. `claude/python/test_summarise_results.py` tests it. |
 | `tools/run_all_tests.py` | Full report: runs every test case (nothing skipped) and writes `test_report.log` (target `test_report`). |
-| `tools/make_bug_report.py` | Generates `Tests/BUG_REPORT.md` (repository root) from the "Suspected firmware bugs" and "NEEDS REVIEW items" tables of `Tests/PROGRESS.md`. |
+| `tools/make_bug_report.py` | Generates `Tests/claude/reports/BUG_REPORT.md` (repository root) from the "Suspected firmware bugs" and "NEEDS REVIEW items" tables of `Tests/claude/plans/PROGRESS.md`. |
 
 The Python tools use the standard library only; run them with `python3 -B` (no `__pycache__` under `Firmware/`).
 
@@ -237,7 +240,7 @@ Headers in `support/`:
 | `CANPort`, `CanHandler` | `test_can_handler.cpp` | Port and handler registry, `handleToPort` (dispatch through the real `global_callbacks.cpp` is in `ffb_target_tests`) |
 | `UsbHidHandler`, `CDCcomm` | `test_usb_hid_handler.cpp`, `test_cdc.cpp` | HID handler registration and descriptor, CDC send, retry and blocking |
 
-`ffb_target_tests` (`cases_target/`, one row per file group):
+`ffb_target_tests` (`claude/cases_target/`, one row per file group):
 
 | Suites | Files | Tested firmware |
 |---|---|---|
@@ -250,27 +253,27 @@ Headers in `support/`:
 | `SPIPort`, `SPIDevice`, `SpiHandler`, `I2CPort`, `I2CDevice`, `I2CHandler` | `test_spi_port.cpp`, `test_i2c_port.cpp` | SPI and I2C ports, devices and handler lists |
 | `CANPort_2B`, `CanBridge`, `CANInputMain`, `SerialFFB` | `test_canport2b.cpp`, `test_canbridge.cpp`, `test_caninputmain.cpp`, `test_serial_ffb.cpp` | CAN port on the fake HAL CAN, CAN main classes, FFB effects over the `fxm` commands |
 
-`ffb_flash_tests` (`cases_flash/`):
+`ffb_flash_tests` (`claude/cases_flash/`):
 
 | Suites | Files | Tested firmware |
 |---|---|---|
 | `FlashSetup` | `test_flash_setup.cpp` | Smoke tests of the fake HAL FLASH and its helpers |
 | `EEPROM`, `FlashHelpers`, `EepromAddresses`, `PersistentStorageFlash` | `test_eeprom.cpp`, `test_flash_helpers.cpp`, `test_eeprom_addresses.cpp`, `test_persistent_storage_flash.cpp` | `eeprom.c` (vendor) with power loss, `flash_helpers.cpp`, the address table, save / restore through the real flash layer |
 
-`ffb_rtos_tests` (`cases_rtos/`):
+`ffb_rtos_tests` (`claude/cases_rtos/`):
 
 | Suites | Files | Tested firmware |
 |---|---|---|
 | `RtosSetup` | `test_rtos_setup.cpp` | Smoke tests of the fake FreeRTOS API: one per wrapper family, create failure, kernel faults, self-tests of its queries |
 | `Queue`, `Timer`, `Tasklet`, `TickHook`, `WorkQueue`, `EventGroup`, `MemoryPool`, `Mutex`, `Semaphore`, `ReadWriteLock`, `ConditionVariable` | `test_cqueue.cpp`, `test_ctimer.cpp`, `test_ctasklet.cpp`, `test_ctickhook.cpp`, `test_cworkqueue.cpp`, `test_cevent_groups.cpp`, `test_cmem_pool.cpp`, `test_csync_gaps.cpp`, `test_cread_write_lock.cpp`, `test_ccondition_variable.cpp` | The `cpp_freertos` wrappers (vendor, tier A) |
 
-`ffb_driver_tests` (`cases/driver/`):
+`ffb_driver_tests` (`claude/cases/driver/`):
 
 | Suites | Files | Tested firmware |
 |---|---|---|
 | `DriverSetup` | `test_driver_setup.cpp` | Skeleton (phase D0): the feature macros of the executable (TMC4671, ODrive, VESC on; MIDI, TMCDEBUG, RMDCAN, PWMDRIVER, SIMPLEMOTION off) |
 
-`ffb_usb_tests` (`cases_usb/`):
+`ffb_usb_tests` (`claude/cases_usb/`):
 
 | Suites | Files | Tested firmware |
 |---|---|---|
@@ -279,7 +282,7 @@ Headers in `support/`:
 Python (`python/`, ctest entry `python_helper_tests`): `test_generate_memory.py` (`Firmware/scripts/generate_memory.py`),
 `test_dwc2_info.py` (`dwc2_info.py`).
 
-Test cases marked `KNOWN_ISSUE` and the suspected defects behind them are listed in `Tests/PROGRESS.md` (repository root).
+Test cases marked `KNOWN_ISSUE` and the suspected defects behind them are listed in `Tests/claude/plans/PROGRESS.md` (repository root).
 
 ## Mocks and helpers
 
@@ -343,8 +346,8 @@ Rules:
 * **`characterization: ...`** documents what the firmware does today where the correct behaviour still has to be
   verified (for example the axis magnitudes against the PID specification). These tests protect against
   unintended changes during refactoring but do not claim the behaviour is correct. Every such open question is a
-  **NEEDS REVIEW** item: a numbered row of the "NEEDS REVIEW items" table in `Tests/PROGRESS.md` (repository root),
-  collected with the suspected bugs in `Tests/BUG_REPORT.md`. The test names its item in a comment next to the case
+  **NEEDS REVIEW** item: a numbered row of the "NEEDS REVIEW items" table in `Tests/claude/plans/PROGRESS.md` (repository root),
+  collected with the suspected bugs in `Tests/claude/reports/BUG_REPORT.md`. The test names its item in a comment next to the case
   (`// NEEDS REVIEW 29: ...`, above the case or at the start of its body) or in its name; the table row names the test.
   When the item is answered the test is renamed (correct behaviour) or turned into a `KNOWN_ISSUE` test (defect).
 * **`KNOWN_ISSUE("...")`** marks a test that describes the intended behaviour but fails because of a suspected
@@ -361,7 +364,7 @@ Rules:
   it on purpose with `-tc="<name>" --no-skip`.
 * **Traceability:** every `KNOWN_ISSUE`, `KNOWN_ISSUE_UB`, `KNOWN_ISSUE_UB_HIDDEN` and skipped crash case names its
   suspected bug in the marker text (`KNOWN_ISSUE("(bug 16) ...")`, vendor bugs `V<n>`), every `characterization:` case
-  its NEEDS REVIEW number (see above). The tables in `Tests/PROGRESS.md` list the test names as evidence. The 318
+  its NEEDS REVIEW number (see above). The tables in `Tests/claude/plans/PROGRESS.md` list the test names as evidence. The 318
   baseline cases of `ffb_unit_tests` are left unchanged (NEEDS REVIEW 3 lists their 17 `KNOWN_ISSUE` cases).
 
   In `ffb_target_tests` the fixture checks for HAL functions without a fake with a `CHECK` in its destructor. In a
@@ -372,7 +375,7 @@ Rules:
 List all known issues:
 
 ```sh
-grep -rn "KNOWN_ISSUE\|KNOWN ISSUE" cases/ cases_target/ cases_flash/ cases_rtos/
+grep -rn "KNOWN_ISSUE\|KNOWN ISSUE" cases/ claude/cases_target/ claude/cases_flash/ claude/cases_rtos/
 ```
 
 ### Adding firmware sources to the tests
@@ -391,7 +394,7 @@ feature set of the F407 target without the motor drivers and MIDI, so `Axis.cpp`
 system sources `cppmain.cpp`, `global_callbacks.cpp`, `voltagesense.cpp` and `ledEffects.cpp` are real code.
 Later phases add encoders, buses and CAN; since P5 the SPI and I2C HAL are faked (inputs).
 
-* **Test cases:** `cases_target/test_*.cpp` (own glob; `cases/` belongs to `ffb_unit_tests`).
+* **Test cases:** `claude/cases_target/test_*.cpp` (own glob; `cases/` belongs to `ffb_unit_tests`).
 * **Feature header:** `platform/target_f407/target_constants.h` (copy of the F407 header without `TMC4671DRIVER`,
   `PWMDRIVER`, `ODRIVE`, `VESC`, `SIMPLEMOTION`, `RMDCAN`, `TMCDEBUG`, `MIDI`). `platform/target_f407` comes before
   `platform/include`; it also has its own fake `main.h` (HAL types with the fields the F407 sources use, the F407 pin
@@ -596,7 +599,7 @@ A third executable built by the same `CMakeLists.txt` and run by `ctest`. It com
 fake HAL FLASH with NOR semantics. The map-backed `Flash_*` replacement of `host_platform.cpp` is left out
 (`HOSTTEST_REAL_FLASH_HELPERS`).
 
-* **Test cases:** `cases_flash/test_*.cpp` (own glob).
+* **Test cases:** `claude/cases_flash/test_*.cpp` (own glob).
 * **Fake HAL FLASH:** declarations in `platform/target_f407/host_flash_hal.h` (included by the target `main.h` only when
   `HOSTTEST_FLASH_HAL` is defined, i.e. only in `ffb_flash_tests`; it defines `FLASH_OTP_BASE`, so `OTPMEMORY` is on
   like on the F407), implementation in `platform/src/host_flash.cpp` (each function cites the ST HAL function it
@@ -647,7 +650,7 @@ and `cmem_pool.cpp` (plus `UART.cpp` / `UartHandler.cpp`, only to link `host_pla
 The FreeRTOS kernel itself is not tested; the fake reproduces the documented behaviour of the target's FreeRTOS V10.3.1
 (`Targets/F407VG/Middlewares/Third_Party/FreeRTOS/Source`, each function cites the file:line it models).
 
-* **Test cases:** `cases_rtos/test_*.cpp` (own glob). Feature header: the generic one of `platform/include` (the
+* **Test cases:** `claude/cases_rtos/test_*.cpp` (own glob). Feature header: the generic one of `platform/include` (the
   wrappers use no feature macro). No CMSIS-DSP. `-funsigned-char` like the other new executables. Built on Linux,
   macOS and MinGW (no fixed addresses); unverified on macOS and Windows.
 * **`HOSTTEST_RTOS_EXT`** (defined only for this executable) switches on the fake API:
@@ -720,7 +723,7 @@ real `tusb_config.h` of the F407 target (`OPT_MCU_STM32F4`, `OPT_OS_FREERTOS`, f
 fake device controller, together with the firmware's USB glue: `USBdevice.cpp`, `CDCcomm.cpp`, `UsbHidHandler.cpp`, the
 descriptors and the TinyUSB callbacks of `global_callbacks.cpp`.
 
-* **Test cases:** `cases_usb/test_*.cpp` (own glob). Run directly: `build/ffb_usb_tests` (`-ts=UsbSetup` for the smoke
+* **Test cases:** `claude/cases_usb/test_*.cpp` (own glob). Run directly: `build/ffb_usb_tests` (`-ts=UsbSetup` for the smoke
   tests). Exclusion lists `FFB_USB_TESTS_EXCLUDE` / `FFB_USB_TESTS_EXCLUDE_SANITIZE` (default empty), printed at
   configure time like the others. Built on Linux, macOS and MinGW (no fixed addresses; unverified on macOS / Windows).
 * **Sources:** the firmware and platform sources of `ffb_target_tests` (F407 feature set; `global_callbacks.cpp` needs
@@ -773,9 +776,9 @@ descriptors and the TinyUSB callbacks of `global_callbacks.cpp`.
 
 ## `ffb_driver_tests`: the TMC4671, ODrive and VESC drivers (driver track)
 
-A sixth executable built by the same `CMakeLists.txt` and run by `ctest` (driver track, `Tests/DRIVER_TEST_PLAN.md`,
+A sixth executable built by the same `CMakeLists.txt` and run by `ctest` (driver track, `Tests/claude/plans/DRIVER_TEST_PLAN.md`,
 phases D0-D3). It tests the real motor drivers against simulated peers, not their hardware (938 cases; final report
-`Tests/DRIVER_TRACK_REPORT.md`):
+`Tests/claude/reports/DRIVER_TRACK_REPORT.md`):
 
 * **Feature header:** `platform/target_f407_drivers/target_constants.h` is the `ffb_target_tests` header plus
   `TMC4671DRIVER`, `ODRIVE` and `VESC` (lines 46, 50, 51 of the F407VG header). `MIDI`, `TMCDEBUG`, `RMDCAN`,
@@ -787,16 +790,16 @@ phases D0-D3). It tests the real motor drivers against simulated peers, not thei
 * **Platform:** `platform/src/host_driver_timers.cpp` adds the fake TIM6 (`htim6`, as left by `MX_TIM6_Init`), which the
   TMC4671 driver uses as its external encoder timer. It is reset by `HostTarget::reset()` through
   `HostTarget::addResetHook`; the other executables do not link it.
-* **Test cases:** `cases/driver/test_*.cpp` (own glob). Run directly: `build/ffb_driver_tests`. Exclusion lists
+* **Test cases:** `claude/cases/driver/test_*.cpp` (own glob). Run directly: `build/ffb_driver_tests`. Exclusion lists
   `FFB_DRIVER_TESTS_EXCLUDE` / `FFB_DRIVER_TESTS_EXCLUDE_SANITIZE` (default empty), printed at configure time like the
   others. Also covered by `tools/run_all_tests.py` / `test_report`.
 * **Requirements and specifications:** the requirement charters (requirements, spec facts, lead decisions) are
-  `driver/TMC4671_REQUIREMENTS.md`, `driver/ODRIVE_REQUIREMENTS.md` and `driver/VESC_REQUIREMENTS.md`. Vendor
-  specifications are kept locally and never committed: `Firmware/Tests/specs/` (ignored by `Firmware/Tests/.gitignore`)
+  `Tests/claude/charters/driver/TMC4671_REQUIREMENTS.md`, `Tests/claude/charters/driver/ODRIVE_REQUIREMENTS.md` and `Tests/claude/charters/driver/VESC_REQUIREMENTS.md`. Vendor
+  specifications are kept locally and never committed: `Tests/shared/specs/` (ignored by `Firmware/Tests/.gitignore`)
   or the repository root `Tests/` (ignored by `Tests/.gitignore`): the TMC4671 datasheet
-  `Tests/TMC4671-LA_datasheet_Rev2.07.pdf`, the ODrive 0.5.6 CAN page `Tests/CAN Protocol — ODrive Documentation 0.5.6
-  documentation.pdf` with `Tests/can-protocol.csv`, the VESC slides `Tests/VESC6_CAN_CommandsTelemetry.pdf` and the VESC
-  firmware source `Tests/bldc-master` (7.01). Tests cite them; without them the tests still build and run.
+  `Tests/shared/specs/TMC4671-LA_datasheet_Rev2.07.pdf`, the ODrive 0.5.6 CAN page `Tests/shared/specs/CAN Protocol — ODrive Documentation 0.5.6
+  documentation.pdf` with `Tests/shared/specs/can-protocol.csv`, the VESC slides `Tests/shared/specs/VESC6_CAN_CommandsTelemetry.pdf` and the VESC
+  firmware source `Tests/shared/specs/bldc-master` (7.01). Tests cite them; without them the tests still build and run.
 * **Simulated peers and fixtures** (each with a fidelity header: what it models, source, what it does not model,
   confidence): `fakes/FakeTmc4671` (register file behind the fake SPI, fixture `support/TmcFixture.h`),
   `fakes/FakeOdrivePeer` (ODrive CAN Simple node, `support/OdriveFixture.h`), `fakes/FakeVescPeer` (VESC CAN node with the
@@ -808,7 +811,7 @@ phases D0-D3). It tests the real motor drivers against simulated peers, not thei
   only matching files plus the setup and TMC fake self-tests (a developer aid for writing tests in parallel).
 * **Markers:** suspected driver bugs are `KNOWN_ISSUE` / `KNOWN_ISSUE_UB` / `KNOWN_ISSUE_UB_HIDDEN` tests or skipped
   cases ("KNOWN ISSUE (crash)", "KNOWN ISSUE (memory corruption)", run them with `--no-skip`); firmware-only behaviour
-  is `characterization:`. Bugs 139-193 in `Tests/BUG_REPORT.md`.
+  is `characterization:`. Bugs 139-193 in `Tests/claude/reports/BUG_REPORT.md`.
 * **Reading a result:** `tools/summarise_results.py` condenses a log into counts, the failing cases with file:line and
   the first failed assertion, skipped and excluded cases and build errors:
 
@@ -823,7 +826,7 @@ cmake --build build 2>&1 | python3 -B tools/summarise_results.py --format build
 
 ## `ffb_dsp_tests`: the CMSIS-DSP modules (phase P11)
 
-A seventh executable built by the same `CMakeLists.txt` and run by `ctest` (`dsp/CMSIS_DSP_REQUIREMENTS.md`, requirements
+A seventh executable built by the same `CMakeLists.txt` and run by `ctest` (`Tests/claude/charters/dsp/CMSIS_DSP_REQUIREMENTS.md`, requirements
 C1-C6). It tests the CMSIS-DSP library (vendor code, never edited) of the modules the firmware uses (FastMath,
 Controller, Interpolation, Statistics, Filtering, CommonTables and the four BasicMath helpers `arm_abs_q15`,
 `arm_abs_q31`, `arm_add_f32`, `arm_add_f16`), for all data types (f64, f32, f16, q31, q15, q7). No firmware or platform
@@ -839,14 +842,14 @@ source is compiled into it.
   CMake, absolute with forward slashes); nothing is copied under `Firmware/Tests`. `support/DspPatterns.h` holds the loader
   (type letter `W`/`H`/`B`/`D`, count, hex lines; `//` comment lines are never parsed; CRLF tolerant; a missing file
   fails the test) with typed accessors, and the comparison helpers (SNR, abs+rel, LSB bound, exact, guard words).
-  Its self-tests are `cases_dsp/test_dsp_patterns.cpp`.
+  Its self-tests are `claude/cases_dsp/test_dsp_patterns.cpp`.
 * **f16:** CMSIS-DSP only compiles the f16 code if the compiler announces `__ARM_FP16_FORMAT_IEEE`, and defines
   `float16_t` as `__fp16`, which x86 compilers do not have. CMake checks that the compiler supports `_Float16` and then
-  compiles the f16 sources (`ffb_cmsis_dsp_f16`) and the test files named `cases_dsp/test_dsp_*_f16.cpp` with
+  compiles the f16 sources (`ffb_cmsis_dsp_f16`) and the test files named `claude/cases_dsp/test_dsp_*_f16.cpp` with
   `-D__ARM_FP16_FORMAT_IEEE=1 -D__fp16=_Float16` (no source edited). Without `_Float16` those are not built and the
   configure output says so; the tests see `FFB_DSP_HAS_F16` (0 or 1). Put every test that uses `float16_t` or
   `arm_*_f16` into a file with the `_f16.cpp` suffix; other files stay free of the definitions.
-* **Test cases:** `cases_dsp/test_dsp_*.cpp` (own glob). `FFB_DSP_TEST_FILTER` (CMake cache variable, default
+* **Test cases:** `claude/cases_dsp/test_dsp_*.cpp` (own glob). `FFB_DSP_TEST_FILTER` (CMake cache variable, default
   `test_dsp_*.cpp`) limits the compiled files, e.g. `cmake -DFFB_DSP_TEST_FILTER="test_dsp_fastmath*.cpp" .`; the
   loader self-tests are always compiled. Exclusion lists `FFB_DSP_TESTS_EXCLUDE` / `FFB_DSP_TESTS_EXCLUDE_SANITIZE`
   (default empty). Test names carry the requirement id and the unit, e.g. `[C1 arm_sin_f32] ...`.
@@ -858,22 +861,22 @@ source is compiled into it.
   `arm_copy_q15` / `arm_fill_q15` of SupportFunctions are linked for the `arm_conv_opt_*` / `arm_correlate_opt_*`
   variants (charter L6) and have no tests of their own.
 * **Test files so far (G1, FastMath and helpers):** `test_dsp_fastmath_{f32,f64,f16,q31,q15}.cpp` and
-  `test_dsp_basicmath_helpers.cpp` (`arm_abs_q15/q31`). Suspected vendor bugs found there (Tests/PROGRESS.md V37-V41):
+  `test_dsp_basicmath_helpers.cpp` (`arm_abs_q15/q31`). Suspected vendor bugs found there (Tests/claude/plans/PROGRESS.md V37-V41):
   `KNOWN_ISSUE_UB_HIDDEN` cases are skipped in sanitizer builds (UBSan stops at the first finding), so a sanitizer run
   of `ffb_dsp_tests` reports skipped cases on purpose. Files for Statistics, Interpolation, Controller and Filtering follow
   in G2-G5.
 
 ## Python helper tests
 
-`python/test_*.py`: stdlib `unittest` smoke tests of the Python helper scripts (P9, tier A: tested, never fixed):
+`claude/python/test_*.py`: stdlib `unittest` smoke tests of the Python helper scripts (P9, tier A: tested, never fixed):
 `Firmware/scripts/generate_memory.py` (memory map CSV -> `eeprom_addresses.c` / `.h`) and
-`FFBoard/USB/portable/synopsys/dwc2/dwc2_info.py` (TinyUSB's DWC2 register decoder). `python/helper_paths.py` holds the
-paths and a loader that imports a script without writing `__pycache__`. `python/test_run_all_tests.py` tests the
+`FFBoard/USB/portable/synopsys/dwc2/dwc2_info.py` (TinyUSB's DWC2 register decoder). `claude/python/helper_paths.py` holds the
+paths and a loader that imports a script without writing `__pycache__`. `claude/python/test_run_all_tests.py` tests the
 report tool `tools/run_all_tests.py` with synthetic doctest XML and tables (no test executable is run).
 
 * `ctest` runs them as `python_helper_tests` when Python 3 is found (like the baseline check):
   `python3 -B -m unittest discover -s python -t python` with `PYTHONDONTWRITEBYTECODE=1`, in the build directory.
-  Directly: `python3 -B -m unittest discover -s Firmware/Tests/python -t Firmware/Tests/python -v`.
+  Directly: `python3 -B -m unittest discover -s Firmware/Tests/claude/python -t Firmware/Tests/claude/python -v`.
 * The scripts never write into the repository: their outputs go to temporary directories created by the tests (the
   repository files are only read). No network, no other packages: `dwc2_info.py` imports `click` and `pandas`, which
   the tests replace with minimal stand-ins while it is loaded (nothing is installed).
@@ -895,7 +898,7 @@ report tool `tools/run_all_tests.py` with synthetic doctest XML and tables (no t
 
 * **P9:** TinyUSB (tier B), the CMSIS-DSP functions the firmware calls (tier C) and the Python helpers. It was on hold
   for the wrap-up review and has since been started: batch 0 (`ffb_usb_tests`, the Python helper tests) is in place,
-  the module tests follow (plan in `Tests/TEST_PLAN.md`, status in `Tests/PROGRESS.md`).
+  the module tests follow (plan in `Tests/claude/plans/TEST_PLAN.md`, status in `Tests/claude/plans/PROGRESS.md`).
 * Open questions (USB HID PID 1.01 specification for the `HidFFB` characterization tests, the CI job, Windows / macOS
-  verification) are listed under "Open questions for me" in `Tests/PROGRESS.md`; suspected bugs and NEEDS REVIEW items
-  in `Tests/BUG_REPORT.md`.
+  verification) are listed under "Open questions for me" in `Tests/claude/plans/PROGRESS.md`; suspected bugs and NEEDS REVIEW items
+  in `Tests/claude/reports/BUG_REPORT.md`.

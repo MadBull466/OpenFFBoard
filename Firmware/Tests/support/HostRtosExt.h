@@ -35,7 +35,7 @@
  *  - Software timers follow timers.c: xTimerStart & co. only queue a command; the timer service task executes it when
  *    it runs (runUntilIdle, RtosFixture::advance). Expired timers are processed before the queued commands; an
  *    auto-reload timer whose service task ran late catches up (one callback per missed period, then armed in phase;
- *    self-tests in cases_rtos/test_rtos_setup.cpp). timerIdsInService() lists the timers whose callback the service
+ *    self-tests in claude/cases_rtos/test_rtos_setup.cpp). timerIdsInService() lists the timers whose callback the service
  *    may still call. Timer callbacks and
  *    pended functions must not block: a blocking call inside one is recorded as a kernel fault.
  *  - Everything FreeRTOS would stop in configASSERT, and every call the fake does not model, is recorded in

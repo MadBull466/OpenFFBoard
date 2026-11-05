@@ -13,14 +13,14 @@ The report (Markdown, stdout) separates:
   tier A     eeprom.c and the FreeRTOS C++ wrappers (c*.cpp, Inc/*.hpp)
   tier B     TinyUSB (FFBoard/USB/**)
   tier C     CMSIS-DSP (Libraries/CMSIS-DSP/**)
-  dsp        the in-scope CMSIS-DSP modules of ffb_dsp_tests (phase P11, Tests/dsp/CMSIS_DSP_REQUIREMENTS.md). Own section,
+  dsp        the in-scope CMSIS-DSP modules of ffb_dsp_tests (phase P11, Tests/claude/charters/dsp/CMSIS_DSP_REQUIREMENTS.md). Own section,
              built from the .gcda files of the CMake targets ffb_cmsis_dsp, ffb_cmsis_dsp_f16 and ffb_dsp_tests ONLY, so the
              numbers of tier C (the other executables) stay comparable. NOT part of the in-scope coverage ladder.
-  driver     the driver track (Tests/DRIVER_TEST_PLAN.md): TMC4671.cpp, TMC4671_configs.cpp, ODriveCAN.cpp, VescCAN.cpp.
+  driver     the driver track (Tests/claude/plans/DRIVER_TEST_PLAN.md): TMC4671.cpp, TMC4671_configs.cpp, ODriveCAN.cpp, VescCAN.cpp.
              Own section; NOT part of the in-scope coverage ladder (its total is unchanged by the driver track)
 Firmware/Tests/, the remaining out-of-scope drivers, MIDI, the rest of Libraries/ and Targets/ are not reported.
 
-"In-scope sources" is the denominator of the coverage ladder in Tests/TEST_PLAN.md: every .c/.cpp in
+"In-scope sources" is the denominator of the coverage ladder in Tests/claude/plans/TEST_PLAN.md: every .c/.cpp in
 FFBoard/Src and FFBoard/UserExtensions/Src except the out-of-scope drivers and MIDI (tier A included).
 gcov only knows the files that are compiled into a test executable. For the other files the number of
 executable lines is ESTIMATED from their code lines, scaled by the ratio gcov lines / code lines of the
@@ -47,10 +47,10 @@ import tempfile
 
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_EXCLUSIONS = os.path.join(TOOLS_DIR, "coverage_exclusions.txt")
-COVERAGE_TARGET = 85.0  # % of in-scope lines without hardware-only code (Tests/TEST_PLAN.md)
+COVERAGE_TARGET = 85.0  # % of in-scope lines without hardware-only code (Tests/claude/plans/TEST_PLAN.md)
 DEFAULT_FIRMWARE_DIR = os.path.normpath(os.path.join(TOOLS_DIR, "..", ".."))
 
-# Driver and MIDI code that is out of scope (Tests/PROGRESS.md, "Out-of-scope driver files")
+# Driver and MIDI code that is out of scope (Tests/claude/plans/PROGRESS.md, "Out-of-scope driver files")
 OUT_OF_SCOPE = {"TMCDebugBridge", "MotorPWM", "RmdMotorCAN", "MotorSimplemotion", "MidiMain", "MidiHandler"}
 # The three drivers of the driver track (ffb_driver_tests): reported in their own tier, not in the ladder
 DRIVER_TRACK = {"TMC4671", "TMC4671_configs", "ODriveCAN", "VescCAN"}

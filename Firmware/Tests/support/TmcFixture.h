@@ -2,7 +2,7 @@
  * TmcFixture.h
  *
  * Fixture of the TMC4671 driver tests (ffb_driver_tests only, driver track D1, charter
- * Firmware/Tests/driver/TMC4671_REQUIREMENTS.md "Fixture").
+ * Tests/claude/charters/driver/TMC4671_REQUIREMENTS.md "Fixture").
  *
  * TmcFixture is a TargetFixture (target state reset before and after the test, unmodelled HAL calls fail the test) and
  *  - clears the fake flash (HostPlatform::flash()) and sets all three SPI1 CS lines to their idle level (high),
@@ -13,7 +13,7 @@
  *  - at teardown fails the test on any FakeTmc4671 violation the test did not declare with expectViolation().
  *
  * Supply voltage: hasPower() needs getIntV() and getExtV() > 10000 mV and getIntV() < 78000 mV. The values go through the
- * fake ADC2 (pattern cases_target/test_voltagesense.cpp): analog reference 4095 mV (VREFINT_CAL 1365, reading 1100),
+ * fake ADC2 (pattern claude/cases_target/test_voltagesense.cpp): analog reference 4095 mV (VREFINT_CAL 1365, reading 1100),
  * so one count = 1 mV at the pin and getIntV = counts * vSenseMult. The counts are computed with the CURRENT
  * vSenseMult (the driver changes it in setHwType), so call powerOn() / setSupply() again after a test changes the
  * hardware version if the same voltage is wanted.

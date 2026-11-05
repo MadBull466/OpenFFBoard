@@ -1,7 +1,7 @@
 /*
  * host_driver_timers.cpp
  *
- * Fake TIM6 of the F407 target for ffb_driver_tests only (driver track, Tests/DRIVER_TEST_PLAN.md). The TMC4671
+ * Fake TIM6 of the F407 target for ffb_driver_tests only (driver track, Tests/claude/plans/DRIVER_TEST_PLAN.md). The TMC4671
  * driver (TIM_TMC = htim6, platform/target_f407_drivers/target_constants.h) uses it as its external encoder timer.
  * The other executables have TIM_TMC defined too but never reference htim6.
  *
