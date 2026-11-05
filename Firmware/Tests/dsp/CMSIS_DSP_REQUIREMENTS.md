@@ -71,3 +71,15 @@ A finding where the library contradicts its pattern, its DOC or DEF is a **suspe
 * **L4** ARM's tolerances are taken as they are; a tolerance that looks too loose (e.g. FastMath q31 sin/cos 2200 LSB, biquad f64 rel 1.2e-3) gets an additional DEF-based tighter check only if a hand derivation justifies the bound; otherwise NEEDS REVIEW.
 * **L5** Suspected vendor bugs: ids B-D1.., become global vendor numbers (V37 onwards) at the end of each group.
 * **L6** (G1 review) `SupportFunctions/arm_copy_q15.c` and `arm_fill_q15.c` are linked into `ffb_cmsis_dsp`: the `*_opt_q15` / `*_opt_q7` convolution and correlation variants call them. They get no tests of their own. Smoke test tags: a hand-derived value is C3, saturation is C4. f16 test files must be named `test_dsp_*_f16.cpp`, because CMake gives only those files the f16 definitions.
+
+## G1 results (2026-11-05)
+
+Writers FF32 / FF64 / FF16 / FQ31 / FQ15 produced `cases_dsp/test_dsp_fastmath_{f32,f64,f16,q31,q15}.cpp` and `test_dsp_basicmath_helpers.cpp`. Gate so far: `ffb_dsp_tests` 218 cases, 0 failed (default and clang 23); sanitizer build 191 cases, 0 failed, 27 skipped (the UB-hidden cases); ctest 9/9 incl. the baseline check. Fresh review and mutation check: not done yet.
+
+## Lead decisions (G1, 2026-11-05)
+
+* **L7** Inline helpers of `dsp/utils.h` are tested with the group of their caller: `arm_recip_q15` in the q15 FastMath file (as written), `arm_recip_q31` in G5 (`arm_lms_norm_q31`), `arm_norm_64_to_32u` and `arm_div_int64_to_int32` (FastMathQ63 ids) in G3 (`arm_mean_q31`, `arm_var_q15`).
+* **L8** Out-of-domain inputs where DOC gives no range (vlog of 0 / negative, q15 0/0) are not tested and are listed as NEEDS REVIEW (192-199 in `Tests/PROGRESS.md`). A wrong result for an in-domain input (positive f16 subnormals, V40) is a suspected bug.
+* **L9** ARM's loose tolerances stay (L4); derived tighter DEF checks stay where the derivation is in a comment. `atan2(0,0)` returning `ARM_MATH_NANINF` is a `characterization:` item.
+* **L10** Left shifts of negative values in vendor code are `KNOWN_ISSUE_UB_HIDDEN` (V37-V39); UBSan stops at the first hit, so more UB may be hidden behind them.
+* **L11** `arm_sqrt_q15` 7 LSB (V41): kept as KNOWN_ISSUE pending the owner's answer to open question 17.

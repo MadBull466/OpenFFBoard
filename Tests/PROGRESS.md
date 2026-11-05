@@ -7,7 +7,7 @@
 ## Current state
 
 - **Current phase:** P11 CMSIS-DSP (in-scope modules), started 2026-11-04 at my request. P0-P10 (incl. driver track) done and approved.
-- **Phase status:** P0-P10 approved; P11 in progress (inventory).
+- **Phase status:** P0-P10 approved; P11 in progress. G1: infrastructure committed; FastMath and helper tests written (6 files, 2026-11-05) and green in the gate; fresh review and mutation check NOT done yet; not approved.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** see `git log` (D2 final commit).
 - **Last updated:** 2026-11-04
@@ -15,7 +15,7 @@
 
 ## Next action
 
-P11 CMSIS-DSP in progress: inventory, then charter and module groups (stop after each group). Open questions in `Tests/OPEN_QUESTIONS.md` unchanged.
+P11 G1: run the fresh review and mutation check of the six `cases_dsp/test_dsp_fastmath_*` / `test_dsp_basicmath_helpers.cpp` files, apply fixes, then stop for my approval of G1. Then G2-G5 (stop after each group). Pending decision: open question 17 (V41). Open questions in `Tests/OPEN_QUESTIONS.md` unchanged.
 
 ## Phase checklist
 
@@ -1010,6 +1010,14 @@ Functions never run by any test (counts of never-run / total): ErrorHandler 15/2
 | 189 | VESC torque | `VescCAN.cpp:123-139, 378-384` | power -32768 gives ratio -1.00003 (no clamp); the 500 ms refresh of the last torque keeps the VESC's 1000 ms timeout from firing; refresh skipped while the port waits (not reachable with one task, L8) | no |
 | 190 | VESC encoder and flash | `VescCAN.cpp:179-220, 477-490` | Multi-turn by the 180 deg rule (polls must be faster than half a turn); only the fractional offset is stored in flash (multi-turn part lost on restart) | no |
 | 191 | VESC commands | `VescCAN.cpp:263-340` | `canspd` narrows to uint8 (260 -> 4), presets > 5 ignored; firmware-only scalings of `pos` (x1e9), `torque` (x1e4), `offset` (x1e4); both instances use class id 0x87; `encrate` depends on the loop timing | no |
+| 192 | CMSIS-DSP sin/cos f32 tolerance | `test_dsp_fastmath_f32.cpp` | Linear interpolation over 512 table intervals allows up to (2pi/512)^2/8 = 1.88e-5 absolute error; ARM's bound is 1e-5 and passes only because its 23 angles miss the worst point. The DEF checks use 2.5e-5 (derived in the file) | no |
+| 193 | CMSIS-DSP sqrt f32 | `test_dsp_fastmath_f32.cpp` | `characterization:` -0.0f returns success and 0; NaN returns `ARM_MATH_ARGUMENT_ERROR` with output 0. DOC only says "negative" | no |
+| 194 | CMSIS-DSP atan2 (0,0) | f32, q31, q15, f16 tests | `characterization:` the library returns `ARM_MATH_NANINF` and leaves the result unwritten; DOC says only "error status" (f16 asserts only a non-success status) | no |
+| 195 | CMSIS-DSP sin/cos q31 bound | `test_dsp_fastmath_q31.cpp` | ARM's 2200 LSB bound is not meaningful: its 23 angles sit on table nodes, between nodes the method's error is about 40448 LSB. ARM's bound is kept (L4); two derived DEF checks added (3 LSB on all 1024 nodes, interpolation error + 8 LSB off-node) | no |
+| 196 | CMSIS-DSP vexp/vlog f64 edge cases | `test_dsp_fastmath_f64.cpp` | Edge expectations (log(+-0), negative, inf, NaN, exp overflow/underflow) follow C99 Annex F of the host libm because DOC is silent; the bounds are ulp based. The target (newlib soft double) may differ in the last bit | no |
+| 197 | CMSIS-DSP vlog out of domain | f16, q31, q15 | Untested on purpose (DOC silent): f16 log(0) = -10.4 and log(-1) = -22.2; q31 log(0) is finite and a negative input is read as unsigned; q15 log(0) is about -22713 instead of saturating, 0x8000..0xFFFF are read as uint16 | no |
+| 198 | CMSIS-DSP divide q15 0/0 | `test_dsp_fastmath_q15.cpp` | Untested: DOC says "saturated negative or positive value", the code gives +32767 because the sign comes from the numerator only | no |
+| 199 | CMSIS-DSP recip q15 | `test_dsp_fastmath_q15.cpp` | `arm_recip_q15` (inline, `dsp/utils.h:119`, called by `arm_lms_norm_q15`) is tested with ARM's id in the q15 FastMath file; `arm_recip_q31` goes to G5, `arm_norm_64_to_32u` / `arm_div_int64_to_int32` to G3 | no |
 
 New tests that describe unclear behaviour use the `characterization:` name prefix and get a row here. Tests that describe intended behaviour but fail use `KNOWN_ISSUE` and get a row under "Suspected firmware bugs".
 
@@ -1185,6 +1193,11 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 | V33 | CMSIS-DSP (**vendor, tier C**) | `arm_biquad_cascade_df1_f32.c:534-687` (portable do/while) | numStages 0 runs about 2^32 stages through memory: host SIGSEGV, target fault or watchdog. Reached through firmware bug 124 (null Biquad) | skipped crash "a biquad cascade with zero stages leaves the output and the coefficient and state memory untouched" (intended: write nothing, like the NEON version) |
 | V35 | generate_memory.py (**vendor/tooling**) | `Firmware/scripts/generate_memory.py:137-143` | The duplicate check compares address strings; the map mixes decimal and hex, so 16 and 0x10, 0x101 and 0x0101, 0x1A and 0x1a are missed (two variables would share one EEPROM cell) | `@expectedFailure` `NumericDuplicateTest.test_the_same_address_written_in_decimal_and_in_hex_is_a_duplicate` (check in `setUp`, so a raising fix shows as an error) |
 | V36 | generate_memory.py (**vendor/tooling**) | `generate_memory.py:111-113` vs `:84`, `:118` | `NB_OF_VAR` / `NB_EXPORTABLE_ADR` count enabled rows without a name or address, but no array element is emitted for them: C zero-fills the rest, so virtual address 0 becomes a registered and exported variable | `@expectedFailure` `IncompleteEnabledRowTest.test_the_variable_count_matches_the_array_elements_also_for_an_enabled_row_without_an_address` (generation in `setUp`) |
+| V37 | CMSIS-DSP (**vendor, tier C**) | `arm_sin_q31.c:77`, `arm_cos_q31.c:79` | `sinVal << 1` / `cosVal << 1` on a negative value: undefined behaviour (UBSan: left shift of negative value). The host result is the intended one. Any negative sin/cos result reaches it | KNOWN_ISSUE_UB_HIDDEN "B-DFQ31-1" in 11 cases of `cases_dsp/test_dsp_fastmath_q31.cpp` (skipped in sanitizer builds) |
+| V38 | CMSIS-DSP (**vendor, tier C**) | `arm_sin_q15.c:78,81`, `arm_cos_q15.c:79,82` | `(q31_t) sinVal << 16` and `sinVal << 1` on a negative value: undefined behaviour, same pattern as V37 (UBSan aborts at the first hit, so further UB inside sin/cos may stay hidden) | KNOWN_ISSUE_UB_HIDDEN "B-DFQ15-2" in 9 cases of `cases_dsp/test_dsp_fastmath_q15.cpp` |
+| V39 | CMSIS-DSP (**vendor, tier C**) | `arm_vlog_f16.c:83` (`logf16_scalar`) | `vecExpUnBiased << 10` is a left shift of a negative value for every input below 1: undefined behaviour | KNOWN_ISSUE_UB_HIDDEN "B-DFF16-2" in 6 cases of `cases_dsp/test_dsp_fastmath_f16.cpp` |
+| V40 | CMSIS-DSP (**vendor, tier C**) | `arm_vlog_f16.c` (`logf16_scalar`) | Positive f16 subnormals are not normalised: log(2^-24) should be -16.6 and is -10.4; log(1.0014e-5) should be -11.5 and is -10.24 (measured while probing). DOC gives no input range, but the input is positive and in the domain | KNOWN_ISSUE_UB "log of a positive subnormal input ..." (B-DFF16-1; UB because the call also hits V39) |
+| V41 | CMSIS-DSP (**vendor, tier C**, low, open question 17) | `arm_sqrt_q15.c` | 6 of the 32767 positive inputs exceed ARM's own bound of 6 LSB against the rounded double sqrt (x=30840 gives 31796, reference 31789, error 7; also 31373, 31782, 31796, 31797, 31812). ARM's 1024-point pattern does not contain them. Unrounded worst error 7.15 at x=31797. Possibly a tolerance question, not a defect | KNOWN_ISSUE "B-DFQ15-1" (`[C3 arm_sqrt_q15] ... within ARM's 6 LSB of the rounded sqrt(x)`) |
 | 6 | Test setup (not firmware) | `CMakePresets.json` `host-sanitize`, `CMakeLists.txt` | With the CMSIS-DSP submodule checked out, `ctest` in the sanitizer preset fails on the spline overflow (bug 2). Reproduced with the same flags by script, preset not run | Fixed by F1 (`8861c911`) + F1b (P0). Verified in P0: `cmake --preset host-sanitize -B <out-of-tree>`, `ctest` 2/2 passed |
 | 139 | TMC4671 driver: SPI transport | `TMC4671.cpp:2529-2540`, SPI config `:63` | Register reads run at SCK 5.25 MHz as one 5-byte transfer; the datasheet allows reads above 2 MHz only with a 500 ns pause after the address byte (DS §4.2.1 Table 2 p18-19). The comment "500ns delay" at `:2533` is not implemented | KNOWN_ISSUE "[R5] a register read respects the read timing ..." (B-T1) |
 | 140 | TMC4671 driver: SPI transport | `TMC4671.cpp:2532` + `SPI.cpp:163,172,181` | `readReg` returns the uninitialised `tbuf` when the HAL transfer fails (`SPIPort` ignores the HAL result): stack garbage is used as register data | code reading; nondeterministic, no test (R8) |
@@ -1363,6 +1376,7 @@ All open ones are also collected in `Tests/OPEN_QUESTIONS.md` (keep both in sync
 14. **ODrive D2-Q2:** the driver comment names firmware 0.5.4, the spec is 0.5.6. Any differences for the messages the driver uses (0x01, 0x07, 0x09, 0x0B, 0x0E, 0x10, 0x17)?
 15. **VESC D3-Q1:** spec gaps of the VESC slides: answered 2026-11-04 by the VESC firmware source `Tests/bldc-master` (7.01).
 16. **D3-Q2 VESC (remaining after the source).** The supplied VESC source is 7.01. (a) In firmware 5.3 (the oldest version the driver accepts), did the FW_VERSION reply already have the `pairing_done` byte before the test-version byte? If not, bug B-V6 only affects newer VESC firmware. (b) Should unsolicited VESC STATUS frames count as a sign of life (the driver counts any received frame)?
+17. **P11 G1-Q1 sqrt q15 accuracy (V41).** `arm_sqrt_q15` is up to 7 LSB from the rounded double sqrt at 6 of 32767 inputs (e.g. x=30840 gives 31796, reference 31789); ARM's own bound is 6 LSB and its pattern does not contain these inputs. Is ARM's 6 LSB the contract (then V41 becomes a NEEDS REVIEW tolerance item and the test bound is widened to a derived 7.2), or is the full-range accuracy a defect (the KNOWN_ISSUE test stays)? Until you decide, the KNOWN_ISSUE test stays.
 
 ## Resume instructions
 

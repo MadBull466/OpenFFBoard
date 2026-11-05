@@ -855,8 +855,13 @@ source is compiled into it.
   has its own "CMSIS-DSP in scope" section (outside tier C and the ladder, so their numbers stay comparable).
 * **Host vs target:** the host runs the portable C path; results of the Cortex-M `ARM_MATH_DSP` path, FMA
   contraction and out-of-range float to integer conversions can differ on the target (each affected test says so).
-  Known gap: `arm_conv_opt_*` / `arm_correlate_opt_*` need `arm_copy_q15` / `arm_fill_q15` of SupportFunctions, which are
-  not linked.
+  `arm_copy_q15` / `arm_fill_q15` of SupportFunctions are linked for the `arm_conv_opt_*` / `arm_correlate_opt_*`
+  variants (charter L6) and have no tests of their own.
+* **Test files so far (G1, FastMath and helpers):** `test_dsp_fastmath_{f32,f64,f16,q31,q15}.cpp` and
+  `test_dsp_basicmath_helpers.cpp` (`arm_abs_q15/q31`). Suspected vendor bugs found there (Tests/PROGRESS.md V37-V41):
+  `KNOWN_ISSUE_UB_HIDDEN` cases are skipped in sanitizer builds (UBSan stops at the first finding), so a sanitizer run
+  of `ffb_dsp_tests` reports skipped cases on purpose. Files for Statistics, Interpolation, Controller and Filtering follow
+  in G2-G5.
 
 ## Python helper tests
 
