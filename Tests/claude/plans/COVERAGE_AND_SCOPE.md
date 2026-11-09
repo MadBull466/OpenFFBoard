@@ -50,7 +50,7 @@ Headers of these modules: 392 / 413 lines (94.9 %).
 
 ### 1.5 CMSIS-DSP (tier C and P11)
 - Tier C, the 10 functions the firmware calls (100 %, 198 / 198 lines): `arm_sin_f32`, `arm_cos_f32`, `arm_biquad_cascade_df1_f32` and `_init_f32`, `arm_spline_interp_f32` and `_init_f32`, `arm_std_f32`, `arm_var_f32`, `arm_pid_init_f32`, `arm_pid_reset_f32`.
-- P11 `ffb_dsp_tests` (232 cases, 0 failed; fresh gcov: FastMath 443 / 451 lines, BasicMath helpers 62 / 62, 27 of 258 in-scope source files linked and measured, 231 without data): G1 done and reviewed (2 reviewers, 96 mutants, 91 killed); approval pending. Covers FastMath f32 / f64 / f16 / q31 / q15 (sin, cos, sqrt, divide, atan2, vlog, vexp, vinverse, recip_q15) and the helpers `arm_abs_q15/q31`, `arm_add_f32/f16`, plus the pattern-loader self-tests.
+- P11 `ffb_dsp_tests` (448 cases, 0 failed; fresh gcov: FastMath 443 / 451 lines, Controller 97 / 97, Interpolation 233 / 233, BasicMath helpers 62 / 62, 47 of 258 in-scope source files linked and measured, 231 without data): G1 approved; G2 (Interpolation 12 units, Controller 19 units incl. sin_cos and Clarke / Park, f32 / f16 / q types, spline) done and reviewed (2 reviewers, 211 mutants, 187 killed, survivors equivalent, within bounds, or closed), approval pending. Covers FastMath f32 / f64 / f16 / q31 / q15 (sin, cos, sqrt, divide, atan2, vlog, vexp, vinverse, recip_q15) and the helpers `arm_abs_q15/q31`, `arm_add_f32/f16`, plus the pattern-loader self-tests.
 
 ## 2. Out of scope (decided by you)
 
@@ -69,8 +69,7 @@ Headers of these modules: 392 / 413 lines (94.9 %).
 
 ## 3. In scope but NOT (fully) covered
 
-### 3.1 Not yet tested (planned P11 groups)
-- G2: CMSIS-DSP Interpolation (12 units) and Controller (19 units, including `sin_cos`, Clarke / Park).
+### 3.1 Not yet tested (planned P11 groups G3-G5)
 - G3: Statistics (93 units, about 289 ARM test ids), plus the int64 helpers of `dsp/utils.h`.
 - G4: Filtering part 1 (biquad variants, FIR, decimation / interpolation).
 - G5: Filtering part 2 (convolution, correlation, LMS, lattice, sparse FIR, Levinson-Durbin), plus `arm_recip_q31`.
