@@ -156,7 +156,7 @@ def is_source(rel):
 	return rel.endswith(".c") or rel.endswith(".cpp")
 
 
-def run_gcov(gcov_cmd, gcda_files):
+def run_gcov(gcov_cmd, gcda_files, notes_sources=None):
 	"""Merged line and function data: {abs path: {"lines": {n: count}, "functions": {name: count}}}."""
 	data = {}
 	with tempfile.TemporaryDirectory() as tmp:
@@ -164,12 +164,15 @@ def run_gcov(gcov_cmd, gcda_files):
 			proc = subprocess.run(gcov_cmd + ["--json-format", "--stdout", gcda], cwd=tmp,
 				stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 			if proc.returncode != 0:
-				sys.stderr.write("gcov failed for %s:\n%s\n" % (gcda, proc.stderr.decode(errors="replace")))
-				continue
+				raise RuntimeError("gcov failed for %s:\n%s" % (gcda, proc.stderr.decode(errors="replace")))
+			valid_documents = 0
 			for line in proc.stdout.decode("utf-8", errors="replace").splitlines():
 				if not line.strip():
 					continue
 				doc = json.loads(line)
+				if not isinstance(doc, dict) or not isinstance(doc.get("files"), list):
+					raise ValueError("invalid gcov document for %s: expected files list" % gcda)
+				valid_documents += 1
 				base = doc.get("current_working_directory", "")
 				for f in doc.get("files", []):
 					path = os.path.normpath(os.path.join(base, f["file"]))
@@ -180,6 +183,11 @@ def run_gcov(gcov_cmd, gcda_files):
 					for fn in f.get("functions", []):
 						name = fn["name"]
 						entry["functions"][name] = entry["functions"].get(name, 0) + fn["execution_count"]
+			if not valid_documents:
+				raise ValueError("invalid gcov output for %s: no JSON documents" % gcda)
+			# Successful gcov on notes establishes zero source lines even when files=[] (data-only objects).
+			if notes_sources and gcda in notes_sources:
+				data.setdefault(notes_sources[gcda], {"lines": {}, "functions": {}})
 	return data
 
 
@@ -304,8 +312,30 @@ def main():
 	# ffb_dsp_tests data is kept apart: tier C keeps its meaning (the CMSIS-DSP functions the firmware tests reach)
 	dsp_gcda = [g for g in gcda_files if is_dsp_gcda(g)]
 	gcda_files = [g for g in gcda_files if not is_dsp_gcda(g)]
-	data = run_gcov(shlex.split(args.gcov), sorted(gcda_files)) if gcda_files else {}
-	dsp_data = run_gcov(shlex.split(args.gcov), sorted(dsp_gcda)) if dsp_gcda else {}
+	# Notes-only objects may contain executable code that has never run. Ask gcov for their
+	# executable lines instead of inferring data-only status from the existence of .gcno.
+	# Standalone DSP static-library objects retain their documented linked-data-only scope.
+	notes_sources = {}
+	for root, _, files in os.walk(args.build_dir):
+		for name in files:
+			if not name.endswith(".gcno"):
+				continue
+			note = os.path.abspath(os.path.join(root, name))
+			if is_dsp_gcda(note) or os.path.isfile(note[:-5] + ".gcda"):
+				continue
+			for directory in SOURCE_DIRS:
+				marker = "/" + directory + "/"
+				if marker not in note.replace("\\", "/"):
+					continue
+				rel = directory + "/" + note.replace("\\", "/").rsplit(marker, 1)[1][:-5]
+				if is_source(rel) and classify(rel) in ("firmware", "A", "driver"):
+					notes_sources[note] = os.path.normpath(os.path.join(fw, rel))
+	try:
+		data = run_gcov(shlex.split(args.gcov), sorted(gcda_files) + sorted(notes_sources), notes_sources)
+		dsp_data = run_gcov(shlex.split(args.gcov), sorted(dsp_gcda)) if dsp_gcda else {}
+	except (OSError, ValueError, RuntimeError) as exc:
+		sys.stderr.write("Coverage report incomplete: %s\n" % exc)
+		return 1
 
 	rows = []  # (tier, module, rel, covered, executable, fn_exec, fn_total)
 	for path, entry in data.items():
@@ -353,13 +383,6 @@ def main():
 			rel = d + "/" + name
 			if is_source(rel) and classify(rel) in ("firmware", "A"):
 				in_scope.append(rel)
-	# A compiled file without executable lines (data only, e.g. eeprom_addresses.c) has a .gcno but no gcov data
-	gcno_paths = []
-	for root, _, files in os.walk(args.build_dir):
-		gcno_paths += [os.path.join(root, f).replace("\\", "/") for f in files if f.endswith(".gcno")]
-	for rel in in_scope:
-		if rel not in measured and any(p.endswith("/" + rel + ".gcno") for p in gcno_paths):
-			measured[rel] = (classify(rel), module_of(rel, classify(rel)), rel, 0, 0, 0, 0)
 	compiled = [rel for rel in in_scope if rel in measured]
 	not_compiled = [rel for rel in in_scope if rel not in measured]
 	code = {}
@@ -410,9 +433,6 @@ def main():
 	for name in sorted(DRIVER_TRACK):
 		rel = "FFBoard/UserExtensions/Src/%s.cpp" % name
 		row = measured.get(rel)
-		if row is None and any(p.endswith("/" + rel + ".gcno") for p in gcno_paths):
-			print("| `%s` | 0 / 0 (compiled, no executable lines: data only) | n/a | n/a |" % rel)
-			continue
 		if row is None:
 			print("| `%s` | not compiled | n/a | n/a |" % rel)
 			continue

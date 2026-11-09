@@ -1,0 +1,12 @@
+diff --git a/Firmware/Tests/CMakeLists.txt b/Firmware/Tests/CMakeLists.txt
+--- a/Firmware/Tests/CMakeLists.txt
++++ b/Firmware/Tests/CMakeLists.txt
+@@ -76,6 +76,6 @@
+-# Every test_*.cpp in cases/ (the original suite) and claude/cases/ (Claude's gap tests; not recursive, so
++# Every test_*.cpp in cases/, claude/cases/ and codex/cases/ (not recursive, so
+ # claude/cases/driver is not included) is picked up automatically
+-file(GLOB TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cases/test_*.cpp ${CMAKE_CURRENT_SOURCE_DIR}/claude/cases/test_*.cpp)
++file(GLOB TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cases/test_*.cpp ${CMAKE_CURRENT_SOURCE_DIR}/claude/cases/test_*.cpp ${CMAKE_CURRENT_SOURCE_DIR}/codex/cases/test_*.cpp)
+ 
+ add_executable(ffb_unit_tests
+ 	${FIRMWARE_SOURCES}

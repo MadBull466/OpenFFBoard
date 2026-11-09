@@ -224,6 +224,10 @@ struct UsbFixture {
 	void enumerate() {
 		REQUIRE(host.enumerate());
 		REQUIRE(tud_mounted());
+		// Successful setup is a fault boundary: derived fixtures may subsequently
+		// clear expected-fault records. Do not let initialization faults vanish.
+		INFO("first setup fault: " << firstFault(host));
+		REQUIRE(firstFault(host).empty());
 	}
 
 	/** Deletes the firmware objects of the test and shuts TinyUSB down (also done by the destructor) */

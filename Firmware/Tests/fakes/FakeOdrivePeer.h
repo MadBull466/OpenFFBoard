@@ -14,20 +14,21 @@
  *    `id & 0x1F`. Frames of other nodes are counted (foreignFrames) and ignored. Only frames the bus acknowledged
  *    (CanTxResult::Sent) are seen: a frame that is still pending (TX mailboxes not completed), failed or aborted never
  *    reached the ODrive. All multibyte values are little endian (SPEC).
- *  - Strict decoding of the master frames per CSV (violations(), expectViolation(), unexpectedViolations()):
+ *  - Strict decoding of the master frames per CSV and local O14/L11 policy (violations(), expectViolation(), unexpectedViolations()):
  *      0x07 Set Axis Requested State  data frame, DLC 4, uint32 @0            (CSV 0x007)
  *      0x0B Set Controller Modes      data frame, DLC 8, int32 @0, int32 @4   (CSV 0x00B)
  *      0x0E Set Input Torque          data frame, DLC 4, float32 @0           (CSV 0x00E)
- *      0x09 Get Encoder Estimates     remote frame (RTR), DLC 0               (CSV 0x009, SPEC call and response)
- *      0x17 Get Bus Voltage / Current remote frame (RTR), DLC 0               (CSV 0x017)
+ *      0x09 Get Encoder Estimates     remote frame (RTR), DLC 0               (RTR: SPEC call and response; DLC: local O14/L11)
+ *      0x17 Get Bus Voltage / Current remote frame (RTR), DLC 0               (RTR/DLC: local O14/L11 policy)
  *      0x10 Start Anticogging         data frame, no signals (CSV 0x010)
  *    A violation is: extended id addressed to this node (the driver uses standard ids only), RTR on a set message, a
- *    data frame on a call-and-response message, wrong DLC, any other command id (the driver never sends them).
+ *    data frame on 0x09 / 0x17 under the adopted local policy, wrong DLC, any other command id (the driver never sends them).
  *    Frames with a violation are logged but not applied and not answered. 0x10 with DLC != 0 is NOT a violation
  *    (lead decision L3): it is recorded in undocumented().
- *    ASSUMPTION: the DLC of a master RTR request is 0 (the charter requires it; neither SPEC nor CSV states a DLC
- *    for a remote frame).
- *  - Responses (SPEC "call and response"): RTR 0x09 -> data frame with the same id, DLC 8, float32 position estimate
+ *    LOCAL POLICY O14/L11: request DLC is 0 for both commands; neither SPEC nor CSV states it.
+ *    RTR for 0x09 is source-supported. RTR for 0x17 is local policy, not established by the supplied table.
+ *    A local-policy rejection is not independently proof that real hardware rejects that frame.
+ *  - Responses (0x09 SPEC "call and response"; 0x17 request/response trigger is local policy): RTR 0x09 -> data frame with the same id, DLC 8, float32 position estimate
  *    @0 and float32 velocity estimate @4 (CSV 0x009); RTR 0x17 -> same id, DLC 8, float32 bus voltage @0, float32 bus
  *    current @4 (CSV 0x017). Units are not stated by CSV (SPEC lists turns and turns/s for the estimates, V and A).
  *  - Cyclic messages (SPEC "Cyclic Messages", defaults): heartbeat 0x01 every 100 ms (on by default), encoder estimates
@@ -60,10 +61,12 @@
  *  this by stepping the time itself.
  *
  * CONFIDENCE
- *  id and payload encoding: High (CSV). Call and response: High (SPEC). Cyclic timing (period): Medium (SPEC default,
+ *  id and response payload encoding: High (CSV). 0x09 RTR/response: High (SPEC).
+ *  0x17 RTR/response trigger and request DLC 0 for both commands: local O14/L11 policy, vendor fidelity unverified.
+ *  Cyclic timing (period): Medium (SPEC default,
  *  phase assumed). Axis state behaviour and the state numbers: Low (L2).
  *
- * ASSUMPTIONS (summary): DLC 0 of RTR requests, first cyclic frame one period after start, calibration duration 2000 ms,
+ * ASSUMPTIONS / LOCAL POLICY (summary): RTR request/response trigger for 0x17, DLC 0 of both RTR requests, first cyclic frame one period after start, calibration duration 2000 ms,
  * a calibration state ends in IDLE, units of the estimates, requests while calibrating are applied at once.
  */
 #ifndef HOSTTEST_FAKEODRIVEPEER_H_
@@ -120,8 +123,8 @@ public:
 
 	enum class ViolationKind : uint8_t {
 		ExtendedId,		//!< Extended id frame for this node (driver uses standard ids)
-		RtrMismatch,	//!< RTR on a set message (0x07, 0x0B, 0x0E, 0x10) or a data frame on 0x09 / 0x17 (SPEC call and response)
-		WrongDlc,		//!< DLC differs from CSV (0x07: 4, 0x0B: 8, 0x0E: 4, RTR 0x09 / 0x17: 0)
+		RtrMismatch,	//!< RTR on a set message (0x07, 0x0B, 0x0E, 0x10) or a data frame on 0x09 / 0x17 (0x09 SPEC; 0x17 local policy)
+		WrongDlc,		//!< DLC differs from CSV (set messages) or local O14/L11 policy (RTR 0x09 / 0x17: 0)
 		UnknownCommand, //!< Command id not in the set the driver uses
 	};
 	struct Violation {

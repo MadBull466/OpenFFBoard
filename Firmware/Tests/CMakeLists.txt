@@ -73,9 +73,9 @@ set(PLATFORM_SOURCES
 	platform/src/host_stubs.cpp
 )
 
-# Every test_*.cpp in cases/ (the original suite) and claude/cases/ (Claude's gap tests; not recursive, so
+# Every test_*.cpp in cases/, claude/cases/ and codex/cases/ (not recursive, so
 # claude/cases/driver is not included) is picked up automatically
-file(GLOB TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cases/test_*.cpp ${CMAKE_CURRENT_SOURCE_DIR}/claude/cases/test_*.cpp)
+file(GLOB TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cases/test_*.cpp ${CMAKE_CURRENT_SOURCE_DIR}/claude/cases/test_*.cpp ${CMAKE_CURRENT_SOURCE_DIR}/codex/cases/test_*.cpp)
 
 add_executable(ffb_unit_tests
 	${FIRMWARE_SOURCES}
@@ -324,7 +324,9 @@ set_property(SOURCE ${FFBOARD_DIR}/Src/ledEffects.cpp APPEND PROPERTY COMPILE_DE
 set_property(SOURCE ${FFBOARD_DIR}/Src/Axis.cpp APPEND PROPERTY COMPILE_OPTIONS -include math.h)
 set_property(SOURCE ${FFBOARD_DIR}/Src/Axis.cpp APPEND PROPERTY COMPILE_OPTIONS $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-c++11-narrowing>)
 
-file(GLOB TARGET_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_target/test_*.cpp)
+file(GLOB TARGET_TEST_SOURCES CONFIGURE_DEPENDS
+	${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_target/test_*.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/codex/cases_target/test_*.cpp)
 
 add_executable(ffb_target_tests
 	${TARGET_FIRMWARE_SOURCES}
@@ -576,7 +578,9 @@ foreach(inc IN LISTS FFB_CMEM_POOL_INCLUDES)
 	endif()
 endforeach()
 
-file(GLOB RTOS_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_rtos/test_*.cpp)
+file(GLOB RTOS_TEST_SOURCES CONFIGURE_DEPENDS
+	${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_rtos/test_*.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/codex/cases_rtos/test_*.cpp)
 
 add_executable(ffb_rtos_tests
 	${RTOS_FIRMWARE_SOURCES}
@@ -680,7 +684,9 @@ list(APPEND USB_PLATFORM_SOURCES
 	platform/src/host_usb_osal.cpp
 )
 
-file(GLOB USB_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_usb/test_*.cpp)
+file(GLOB USB_TEST_SOURCES CONFIGURE_DEPENDS
+	${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_usb/test_*.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/codex/cases_usb/test_*.cpp)
 
 add_executable(ffb_usb_tests
 	${USB_TINYUSB_SOURCES}
@@ -794,6 +800,8 @@ file(GLOB DRIVER_TEST_SOURCES CONFIGURE_DEPENDS
 	${CMAKE_CURRENT_SOURCE_DIR}/claude/cases/driver/${FFB_DRIVER_TEST_FILTER}
 	${CMAKE_CURRENT_SOURCE_DIR}/claude/cases/driver/test_driver_setup.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/claude/cases/driver/test_tmc4671_fake.cpp)
+file(GLOB CODEX_DRIVER_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/codex/cases/driver/test_*.cpp)
+list(APPEND DRIVER_TEST_SOURCES ${CODEX_DRIVER_TEST_SOURCES})
 list(REMOVE_DUPLICATES DRIVER_TEST_SOURCES)
 
 add_executable(ffb_driver_tests
@@ -1023,9 +1031,20 @@ endif()
 if(Python3_Interpreter_FOUND)
 	add_test(NAME python_helper_tests
 		COMMAND ${Python3_EXECUTABLE} -B -m unittest discover -v
-			-s ${CMAKE_CURRENT_SOURCE_DIR}/python -t ${CMAKE_CURRENT_SOURCE_DIR}/python -p "test_*.py"
+			-s ${CMAKE_CURRENT_SOURCE_DIR}/claude/python -t ${CMAKE_CURRENT_SOURCE_DIR}/claude/python -p "test_*.py"
 		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 	set_tests_properties(python_helper_tests PROPERTIES ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
+	add_test(NAME codex_python_tests
+		COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/codex/python/run_suite.py
+			--start ${CMAKE_CURRENT_SOURCE_DIR}/codex/python
+		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+	set_tests_properties(codex_python_tests PROPERTIES ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
+	# Run only the safe negative probe; verify its exact first assertion rather than invert any failure.
+	add_test(NAME codex_usb_setup_guard
+		COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/codex/python/check_usb_guard.py
+			--exe $<TARGET_FILE:ffb_usb_tests>
+			--output ${CMAKE_CURRENT_BINARY_DIR}/codex-usb-guard)
+	set_tests_properties(codex_usb_setup_guard PROPERTIES ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
 else()
 	message(STATUS "OpenFFBoard tests: Python 3 not found, python_helper_tests not added to ctest")
 endif()
@@ -1055,4 +1074,16 @@ if(Python3_Interpreter_FOUND)
 	endforeach()
 else()
 	message(STATUS "OpenFFBoard tests: Python 3 not found, test_report target not added")
+endif()
+
+# P12 uses a separate 32-bit real-HAL project with its own compiler and models.
+# Explicitly enabled: Linux, installed Clang multilib and llvm-cov are required.
+option(FFB_TESTS_ST_HAL "Run the standalone Codex real ST HAL gate" OFF)
+if(FFB_TESTS_ST_HAL)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    add_test(NAME codex_st_hal
+        COMMAND "${Python3_EXECUTABLE}" -B
+            "${CMAKE_CURRENT_SOURCE_DIR}/codex/hal/native32/verify_native.py"
+            --build "${CMAKE_CURRENT_BINARY_DIR}/p12-hal-native32")
+    set_tests_properties(codex_st_hal PROPERTIES TIMEOUT 300)
 endif()

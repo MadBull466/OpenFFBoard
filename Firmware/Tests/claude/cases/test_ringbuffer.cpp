@@ -331,9 +331,6 @@ TEST_CASE("typed access reads single bytes and counts elements") {
 	// Note: peek_as/get_as only compile for byte types: they use static_cast<uint8_t*>(&data)
 	RingBufferWrapper w(8);
 	bool ok = true;
-	uint8_t v = w.get_as<uint8_t>(&ok);
-	CHECK_FALSE(ok); // Empty
-	(void)v;
 
 	append(w, "\x11\x22\x33\x44\x55");
 	CHECK(w.numElements<uint8_t>() == 5);
@@ -347,6 +344,20 @@ TEST_CASE("typed access reads single bytes and counts elements") {
 	CHECK(ok);
 	CHECK(w.get_as<uint8_t>(&ok) == 0x22);
 	CHECK(w.length() == 3);
+}
+
+TEST_CASE("typed access to an empty buffer reports failure") {
+	// peek_as/get_as return an uninitialised byte on failure (NEEDS REVIEW 24, ringbufferwrapper.h:57-68). Copying an
+	// indeterminate unsigned char is defined in C++ (basic.indet), so ASan/UBSan stay quiet; MemorySanitizer's
+	// return-value check would still flag it (Codex review CDX-008). Only the failure flag is asserted, never the value.
+	RingBufferWrapper w(8);
+	bool ok = true;
+	[[maybe_unused]] const uint8_t v = w.get_as<uint8_t>(&ok);
+	CHECK_FALSE(ok);
+	ok = true;
+	[[maybe_unused]] const uint8_t p = w.peek_as<uint8_t>(&ok);
+	CHECK_FALSE(ok);
+	CHECK(w.empty());
 }
 
 } // TEST_SUITE

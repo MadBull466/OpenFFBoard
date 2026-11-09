@@ -1397,6 +1397,11 @@ EventBits_t xEventGroupSync(EventGroupHandle_t group, const EventBits_t bitsToSe
 		assertFault("xEventGroupSync: no bits or control bits (bits 24..31) to wait for (event_groups.c:198-199)");
 		return 0;
 	}
+	// Sync calls SetBits in the supplied kernel (event_groups.c:210), including its argument assertion (:531).
+	if ((bitsToSet & eventEVENT_BITS_CONTROL_BYTES) != 0) {
+		assertFault("xEventGroupSetBits of control bits (event_groups.c:531)");
+		return 0;
+	}
 	const EventBits_t original = group->bits;
 	(void)setGroupBits(group, bitsToSet);
 	if (((original | bitsToSet) & waitFor) == waitFor) {

@@ -1,6 +1,6 @@
 # Coverage and scope: what is covered, what is out of scope, what is not covered
 
-Date: 2026-11-05, branch `add-test-suite`. Sources of the numbers (none re-measured today):
+Date: 2026-11-09 (numbers re-measured with gcov on 2026-11-09 for the firmware, tier A/B/C, drivers and the G1 DSP files), branch `add-test-suite`. Earlier sources:
 - Firmware, tier A/B/C: the gcov report of the P9 final build (2026-11-02), `Tests/claude/reports/PROJECT_SUMMARY.md`, `Tests/claude/plans/PROGRESS.md`.
 - Drivers: `Tests/claude/reports/DRIVER_TRACK_REPORT.md` (2026-11-04).
 - CMSIS-DSP P11: no coverage measured yet for the G1 files (the `dsp-cov` build has no data). Pass counts are from the G1 gate of 2026-11-05.
@@ -33,24 +33,24 @@ Headers of these modules: 392 / 413 lines (94.9 %).
 - FreeRTOS C++ wrappers `c*.cpp`: ccondition_variable, cevent_groups, cmem_pool, cmutex, cqueue, cread_write_lock, csemaphore, ctasklet, cthread, ctickhook, ctimer, cworkqueue: all 100 %.
 - Python helpers: `Firmware/scripts/generate_memory.py` and `.../dwc2/dwc2_info.py` (61 `unittest` tests, line coverage not measured).
 
-### 1.3 Vendor tier B: TinyUSB device code against a fake dwc2 controller (48.0 %, 755 / 1,572 lines)
+### 1.3 Vendor tier B: TinyUSB device code against a fake dwc2 controller (85.1 %, 1,337 / 1,572 lines; fresh gcov run 2026-11-09)
 
 | File | Covered |
 |---|---|
-| `USB/device/usbd_control.c` | 95.4 % |
-| `USB/class/cdc/cdc_device.c` | 77.6 % |
-| `USB/device/usbd.c` | 59.7 % |
-| `USB/class/hid/hid_device.c` | 55.4 % |
-| `USB/common/tusb_fifo.c` | 35.4 % |
-| `USB/tusb.c` | 19.9 % |
-| `USB/class/midi/midi_device.c` (MIDI is out of scope) | 13.7 % |
+| `USB/device/usbd_control.c` | 100 % (65 / 65) |
+| `USB/class/cdc/cdc_device.c` | 97.8 % (179 / 183) |
+| `USB/device/usbd.c` | 91.4 % (449 / 491) |
+| `USB/class/hid/hid_device.c` | 95.8 % (159 / 166) |
+| `USB/common/tusb_fifo.c` | 99.3 % (295 / 297) |
+| `USB/tusb.c` | 96.4 % (160 / 166) |
+| `USB/class/midi/midi_device.c` (MIDI is out of scope, compiled only because `usbd.c` needs it) | 14.7 % (30 / 204) |
 
 ### 1.4 Driver track (`ffb_driver_tests`, 938 cases, outside the ladder)
 `TMC4671.cpp` 89.8 % (1,731 / 1,928), `ODriveCAN.cpp` 97.8 % (263 / 269), `VescCAN.cpp` 95.7 % (382 / 399); driver tier 91.5 %. `TMC4671_configs.cpp` is part of the TMC4671 suite; no separate figure was recorded.
 
 ### 1.5 CMSIS-DSP (tier C and P11)
 - Tier C, the 10 functions the firmware calls (100 %, 198 / 198 lines): `arm_sin_f32`, `arm_cos_f32`, `arm_biquad_cascade_df1_f32` and `_init_f32`, `arm_spline_interp_f32` and `_init_f32`, `arm_std_f32`, `arm_var_f32`, `arm_pid_init_f32`, `arm_pid_reset_f32`.
-- P11 `ffb_dsp_tests` (218 cases, 0 failed): G1 done as tests, review pending. Covers FastMath f32 / f64 / f16 / q31 / q15 (sin, cos, sqrt, divide, atan2, vlog, vexp, vinverse, recip_q15) and the helpers `arm_abs_q15/q31`, `arm_add_f32/f16`, plus the pattern-loader self-tests.
+- P11 `ffb_dsp_tests` (218 cases, 0 failed; fresh gcov: FastMath 443 / 451 lines, BasicMath helpers 62 / 62, 27 of 258 in-scope source files linked and measured, 231 without data): G1 done as tests, review pending. Covers FastMath f32 / f64 / f16 / q31 / q15 (sin, cos, sqrt, divide, atan2, vlog, vexp, vinverse, recip_q15) and the helpers `arm_abs_q15/q31`, `arm_add_f32/f16`, plus the pattern-loader self-tests.
 
 ## 2. Out of scope (decided by you)
 
@@ -80,8 +80,8 @@ Headers of these modules: 392 / 413 lines (94.9 %).
 ### 3.2 Partly covered, lines left (firmware ladder, 88 lines of about 8,095)
 `CanCommandInterface.cpp` (18), `global_callbacks.cpp` (12), `eeprom.c` (15, unreachable or unmodelled flash states), `FFBHIDMain.cpp` (6), `ShifterAnalog.cpp` (7), `CDCcomm.cpp` (4), `Axis.cpp` (4), `ringbufferwrapper.cpp` (3), and one to two lines each in about 20 other files. Line lists: run `tools/coverage_report.py`.
 
-### 3.3 TinyUSB: large parts uncovered
-The device stack is tested only for what the firmware uses: HID and CDC through the fake controller. Not covered: `tusb.c` (80 % of it), `tusb_fifo.c` (65 %), `hid_device.c` (45 %), `usbd.c` (40 %), parts of `cdc_device.c`. The TinyUSB directories `host/`, `typec/`, `osal/`, `portable/` (other ports) and the other classes are not compiled at all.
+### 3.3 TinyUSB: lines left
+235 of 1,572 lines are not covered, 174 of them in the MIDI class driver (out of scope). In scope: `usbd.c` 42 lines, `hid_device.c` 7, `tusb.c` 6, `cdc_device.c` 4, `tusb_fifo.c` 2. The TinyUSB directories `host/`, `typec/`, `osal/`, `portable/` (other ports) and the other classes are not compiled at all. (Until 2026-11-09 this document carried the stale 48.0 % figure from the P9 smoke stage; the Codex review found it and a fresh gcov run confirmed 85.1 %.)
 
 ### 3.4 Drivers: lines left
 - TMC4671: 197 lines (10.2 %); the per-line list is in `Tests/claude/reports/D1_TMC4671_REPORT.md` and the gcov data (I did not re-derive the reasons here).

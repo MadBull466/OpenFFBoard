@@ -1,0 +1,13 @@
+diff --git a/Firmware/Tests/CMakeLists.txt b/Firmware/Tests/CMakeLists.txt
+--- a/Firmware/Tests/CMakeLists.txt
++++ b/Firmware/Tests/CMakeLists.txt
+@@ -326,6 +326,8 @@
+ 
+-file(GLOB TARGET_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_target/test_*.cpp)
++file(GLOB TARGET_TEST_SOURCES CONFIGURE_DEPENDS
++	${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_target/test_*.cpp
++	${CMAKE_CURRENT_SOURCE_DIR}/codex/cases_target/test_*.cpp)
+ 
+ add_executable(ffb_target_tests
+ 	${TARGET_FIRMWARE_SOURCES}
+ 	${TARGET_PLATFORM_SOURCES}

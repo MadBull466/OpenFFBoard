@@ -64,6 +64,7 @@ def cmake_bool(value):
 
 def read_baseline(path):
 	entries = []
+	seen = set()
 	with open(path, encoding="utf-8") as f:
 		for number, line in enumerate(f, 1):
 			line = line.rstrip("\r\n")
@@ -72,6 +73,10 @@ def read_baseline(path):
 			parts = line.split("\t")
 			if len(parts) != 3 or parts[0] not in EXPECTED_VALUES:
 				raise ValueError("%s:%d: expected '<result>\\t<suite>\\t<name>', got %r" % (path, number, line))
+			key = (parts[1], parts[2])
+			if key in seen:
+				raise ValueError("%s:%d: duplicate baseline identity %r" % (path, number, key))
+			seen.add(key)
 			entries.append((parts[0], parts[1], parts[2]))
 	return entries
 
@@ -119,7 +124,10 @@ def classify(xml_text, excluded_patterns):
 					actual = "failed_as_expected" if success else "did_not_fail"
 				else:
 					actual = "passed" if success else "failed"
-			cases[(suite_name, name)] = (meta, actual)
+			key = (suite_name, name)
+			if key in cases:
+				raise ValueError("duplicate report identity %r" % (key,))
+			cases[key] = (meta, actual)
 	totals = root.find("OverallResultsTestCases")
 	return cases, (totals.attrib if totals is not None else {})
 
@@ -169,6 +177,9 @@ def main():
 	code, out, err = run_tests(exe, excluded)
 	try:
 		cases, totals = classify(out, patterns)
+	except ValueError as exc:
+		print("ERROR: %s" % exc)
+		return 2
 	except ET.ParseError:
 		print("ERROR: %s did not finish (exit code %d). Last test case started: %s" % (exe, code, last_started_case(out)))
 		print(err[-2000:])
@@ -179,7 +190,12 @@ def main():
 			print("%s\t%s\t%s" % (meta, suite, name))
 		return 0
 
-	baseline = read_baseline(args.baseline)
+	try:
+		baseline = read_baseline(args.baseline)
+	except (OSError, ValueError) as exc:
+		print("ERROR: %s" % exc)
+		return 2
+
 	problems = []
 	not_checked = []
 	for expected, suite, name in baseline:
@@ -191,6 +207,8 @@ def main():
 		if actual == "excluded":
 			not_checked.append("%s / %s (expected: %s)" % (suite, name, expected))
 			continue
+		if meta != expected:
+			problems.append("METADATA  %s / %s: expected %s, got %s" % (suite, name, expected, meta))
 		want = expected_actual(expected, sanitize)
 		if actual != want:
 			problems.append("CHANGED   %s / %s: expected %s, got %s" % (suite, name, want, actual))

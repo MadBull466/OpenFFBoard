@@ -1,0 +1,5295 @@
+{
+  "schema": 1,
+  "kind": "source inventory, not coverage",
+  "targets": {
+    "F407VG": {
+      "version_components": [
+        1,
+        8,
+        3,
+        0
+      ],
+      "config_path": "Firmware/Targets/F407VG/Core/Inc/stm32f4xx_hal_conf.h",
+      "config_sha256": "1bb8d2c6de486aecb5bc50aa9bb2abafc26cd487d6461d4d1d127c91993f9c6c",
+      "enabled_modules": [
+        "HAL_ADC_MODULE_ENABLED",
+        "HAL_CAN_MODULE_ENABLED",
+        "HAL_I2C_MODULE_ENABLED",
+        "HAL_IWDG_MODULE_ENABLED",
+        "HAL_SPI_MODULE_ENABLED",
+        "HAL_TIM_MODULE_ENABLED",
+        "HAL_UART_MODULE_ENABLED",
+        "HAL_PCD_MODULE_ENABLED",
+        "HAL_GPIO_MODULE_ENABLED",
+        "HAL_EXTI_MODULE_ENABLED",
+        "HAL_DMA_MODULE_ENABLED",
+        "HAL_RCC_MODULE_ENABLED",
+        "HAL_FLASH_MODULE_ENABLED",
+        "HAL_PWR_MODULE_ENABLED",
+        "HAL_CORTEX_MODULE_ENABLED"
+      ],
+      "files": [
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy/stm32_hal_legacy.h",
+          "sha256": "ea1d8cb835b5898c17b227f0e1d72aa6a9d0d81cdc0baaa8da988be57fd63eb7",
+          "lines": 4359
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h",
+          "sha256": "6942f40453fee331e026179cfac4c0f24ffe6313fedcb68af9c3382f702dbaf5",
+          "lines": 297
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_adc.h",
+          "sha256": "d1be882b4bef7d53646e85e3d1783b47e7880647ee8a1436da58d652c803b12f",
+          "lines": 898
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_adc_ex.h",
+          "sha256": "c7da815c495df4b6d5e0764af990c1ae8df871fdd9e7f6e49416e931d40b3a0f",
+          "lines": 407
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_can.h",
+          "sha256": "b9d9e38908bbc1546e241eeacabeb3a72ade26f99ef3d448334c06ec89bae122",
+          "lines": 857
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_cortex.h",
+          "sha256": "d96dba22903abda49d66cad29ac0c49357e6a27cf9cb03dfd8c6db71b61a7fca",
+          "lines": 410
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_def.h",
+          "sha256": "c8eb3f7b393f8c5a0c32e16ccfa101c83ddb59e96bd42239b8a5c5d4da83e97f",
+          "lines": 212
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma.h",
+          "sha256": "71c38dfd65c5415b388375147e5317c7ac018b39893d6fd0ac1c897f4313329c",
+          "lines": 802
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma_ex.h",
+          "sha256": "3ee15423d73ac394de39e7b65821775966389b13749ff0849894548ab6968676",
+          "lines": 102
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_exti.h",
+          "sha256": "61e8f76bdb45dedf38fef592504e10418ca410952c7a209cd271b45ac835833a",
+          "lines": 366
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash.h",
+          "sha256": "10be06c6e06fcf4eb11e236641948aed861898fea235c606ae221fa72bc46638",
+          "lines": 425
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ex.h",
+          "sha256": "7c206f5dbed3c147a6f090ab808933132a1b06b8339623ad7174fd0a222e981c",
+          "lines": 1063
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ramfunc.h",
+          "sha256": "f18a6eabc99f56483566f9231ca33c780afa98bc93929e60bb419b5e544eee2a",
+          "lines": 76
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_gpio.h",
+          "sha256": "0b40fc83363b64d3c7396a202be7a914ceaa7735ab0fa81d566ed320102b23fb",
+          "lines": 325
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_gpio_ex.h",
+          "sha256": "4091beefc5bf8b250f376d400f43ca028ef7378e1c7ba5c9eb5de64ec74231c0",
+          "lines": 1590
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_i2c.h",
+          "sha256": "4f14fcdc4967efd8ed64d95ef0269ff6acdc0db0864df1bde3e95c427d8f9fbf",
+          "lines": 741
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_i2c_ex.h",
+          "sha256": "0f7dcff0dbfd058691564f75803353ad0c4b5ef756b0f9915f4d2f9f78e1716c",
+          "lines": 115
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_iwdg.h",
+          "sha256": "5a0259ec13549adf9a21224c7698b14479b777ec95a3996b4527f2abb295d484",
+          "lines": 220
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pcd.h",
+          "sha256": "6694ecb5f99106582053b1080ea192b9685131a789c37e14cd75e0952c6d6026",
+          "lines": 461
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pcd_ex.h",
+          "sha256": "3dcb909d0aafba72741ab372c038ee0086e4b21dec0d876da48fc2646e17d209",
+          "lines": 93
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr.h",
+          "sha256": "d6f6abc4af3d5a1ca59d886f5a9154e44f257a43af77c7f18173f160825ed6b5",
+          "lines": 436
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr_ex.h",
+          "sha256": "1794b88c5e080858c0205a2e94340c0250ac9171b3a3f01cad6d050005a1b09d",
+          "lines": 340
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc.h",
+          "sha256": "43104017711b2522c72f5c167aa155bc584b6216f9de57b8a2864ee14701bd58",
+          "lines": 1458
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc_ex.h",
+          "sha256": "49f0c8068524e1de248738530cff3bbe630dc4784b6e8b5568fbc7e1a154f772",
+          "lines": 7190
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_spi.h",
+          "sha256": "099246e9928bc3e6df6e40efa938b207c777e73b56343d461a508da9027e06e4",
+          "lines": 729
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h",
+          "sha256": "4298bbab7d1b0aed5b5fbb836721513616b201ec058ec4cc251af5fc80433109",
+          "lines": 2155
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h",
+          "sha256": "518fd2bec898bbfcca5141c1ee4675a51f08308e66d17e581038b9d7af41d2f7",
+          "lines": 355
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h",
+          "sha256": "42528bc9caa6e2fe96b7e6d7b3fcdf35d8d85ae38d33195a233e18a072f157a1",
+          "lines": 909
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_adc.h",
+          "sha256": "fabfc9706709a9997e96d87aee25356b3ca84021668a915ad816ba42e1babadc",
+          "lines": 4782
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_bus.h",
+          "sha256": "95a518139f74d14a4477519b5172675347990e9fa637bd3948c69bd475bd7c88",
+          "lines": 2105
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_cortex.h",
+          "sha256": "d8b268ca207e51864d1a71ce14fff316c57d09e62a04d0c28310b4a1008e6f17",
+          "lines": 647
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_dma.h",
+          "sha256": "7c59bfc0c1be96371df1fc7de4372caf7c43c6c9fd715f82eea87cafd5259ba3",
+          "lines": 2868
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_exti.h",
+          "sha256": "6da580d41ebdcfd7349e29666a2e561c8e2c2e01f6e7ef29dfec6ebf6ae237df",
+          "lines": 954
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_gpio.h",
+          "sha256": "e46857f5f9a5f5a2d13ca2d6925dc9e66dfa7fc56a2cc72e54b891bdb88e2f16",
+          "lines": 981
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_i2c.h",
+          "sha256": "d675d5e20effac4790a2664eed686ed1caa9af86e5f542bda7f6c05927d00d1d",
+          "lines": 1890
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_iwdg.h",
+          "sha256": "4707b446ede3cf402feb4274b30d5b1678c7468b699831fb14e37383d8d2eb44",
+          "lines": 302
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_pwr.h",
+          "sha256": "229af558bfeef8bb88d2224277b083c3b927c5c2612991fdeba00dad56255abc",
+          "lines": 985
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_rcc.h",
+          "sha256": "31c94bc2bf40630fd893232c373334d26a6e1c0fb2a008ca5136d2b01155f969",
+          "lines": 7101
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_spi.h",
+          "sha256": "d01f7f73eb62be6662861b58cfc92e09c05aae72088d237c82a3ea8e5fd92ae2",
+          "lines": 2027
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_system.h",
+          "sha256": "d634a419a55e99b4a641fecc055e1f602d8a418bd7d822cf2f812a0965ac9a3e",
+          "lines": 1711
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_tim.h",
+          "sha256": "0d7eb3fd74100ee33cf592c6edb2e340d85ac320364702a6cc1d0e9d22da66d2",
+          "lines": 4096
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_usart.h",
+          "sha256": "982c4448c49ddc7c6c71bd788e5354f05e96aca5e98edd0626f8ffcaefc65e79",
+          "lines": 2521
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_usb.h",
+          "sha256": "b9b9f9da33abf806bf1a79018138ef6cab3e4e657316c299740809d86f239758",
+          "lines": 578
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_utils.h",
+          "sha256": "535cb625cfcd461d6054549bf04d25ef939ec5754f77731a5f9fd92728280ded",
+          "lines": 307
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c",
+          "sha256": "e10d4b81df863cc52a9351269a8856cc669122b13c933a54e3a49bb8ec0f62eb",
+          "lines": 616
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc.c",
+          "sha256": "790f43889092b72d10d4d041d24139f759176cd15739442f6ad71a44dd0dae40",
+          "lines": 2110
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc_ex.c",
+          "sha256": "ada629c191f329d8565bde9e8631d3b0214a15a1d6d6857217d30072ef13b8cf",
+          "lines": 1115
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_can.c",
+          "sha256": "dfb45dd4ba66954cc063b5c7766f9850b8281aadc02c06d39516fbe3175d5bbe",
+          "lines": 2464
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c",
+          "sha256": "9aaa0f19137d700616bec01a5a806786c24e3f3386120365c5d2addaa4055505",
+          "lines": 538
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma.c",
+          "sha256": "a345a1b1fe0221c827d5ad21d5a0f5387296bc2c075e06e5b8539c23da5678e4",
+          "lines": 1305
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma_ex.c",
+          "sha256": "90cafb5a5b17a46b478770ef4abdc9a641cb395419abbb80f288138a63d44582",
+          "lines": 313
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_exti.c",
+          "sha256": "f56651f86e5d89e8bba3bcb331353e00f291db15c902927a205d81bbe8951e6d",
+          "lines": 553
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash.c",
+          "sha256": "f30415c546330c72e702e1eefafc8429576fabfbf1cb0b1711510189771309d2",
+          "lines": 769
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ex.c",
+          "sha256": "4f4e11c76c64208b98556a551e680dd7eed9a78206add14cabb8b4462f463941",
+          "lines": 1344
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ramfunc.c",
+          "sha256": "d3b426e8cb9d617f9064d2b0cea2a1d02b7bb6a74cba3f094779d6e922e477e3",
+          "lines": 172
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.c",
+          "sha256": "408908b15477b6ce2b0b9703caabcb053293d98f2f109d6e6940e076a6a3902b",
+          "lines": 533
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c.c",
+          "sha256": "1e0ba175bf0ec87ddabca6d1796d9fd45cf9698d79cccf5691974745f96e3ef3",
+          "lines": 7571
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c_ex.c",
+          "sha256": "1d3dbcd648b379ef0e109646bc37d0140c16381c3d0f74c610a112fd84546846",
+          "lines": 182
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_iwdg.c",
+          "sha256": "98b792938f989c9c92dcb6b156a0a8ee8dfc553ef907b4a87a7f44867bc52343",
+          "lines": 262
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pcd.c",
+          "sha256": "7eb1b2b9a272d8a11817ff4b068c03add42c3b80efaf0d19616464e58b369a48",
+          "lines": 2393
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pcd_ex.c",
+          "sha256": "1db062fd007ce9bd838da2c7b97de938a661da237aa3fe52d0b7fd4c15af59bc",
+          "lines": 347
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr.c",
+          "sha256": "d779468a95df34421bf6c8417136a79aa910753381a644afa9ed10b185ae18b5",
+          "lines": 598
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr_ex.c",
+          "sha256": "4409dddc0d2019f918d0ddebecf659f06d4de3f9aa28566621a16ea47203331f",
+          "lines": 600
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c",
+          "sha256": "c6c90b44618af21f25346bf8bd2c73ca229b6a5c4790ceb498111716dfd9c13e",
+          "lines": 1124
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c",
+          "sha256": "a867e0b370950d34d73b98784db5b5a26871383ed0a4a7a8036706f906de7453",
+          "lines": 3833
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_spi.c",
+          "sha256": "50716b20a9c05da64e89cb8bd6dc23a276316da995a65d2cac058b1ee621ff8d",
+          "lines": 3930
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim.c",
+          "sha256": "6f71df9831eb2fac548c925466a0d4784bed0e19b362c6dc40392f1b96156af1",
+          "lines": 7632
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim_ex.c",
+          "sha256": "4471b582d56545fbd48725401249b4a2a728ccc0d933b3f1a02e2b09dda8d8fa",
+          "lines": 2410
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c",
+          "sha256": "581f14026cba4ad2e4322376bfa6d626e55c83b2981ed2117d0ccdffa904ca23",
+          "lines": 3771
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_adc.c",
+          "sha256": "9fe6fbeee8b8d44d8bc548f6d4abd8ee06693f56f12be013277dac2f767f19ec",
+          "lines": 922
+        },
+        {
+          "path": "Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_usb.c",
+          "sha256": "07441c16b83b3b6d889c50f045dcbc2b3f28b410b2f86100ec68b9a46ef4690a",
+          "lines": 2316
+        }
+      ]
+    },
+    "F407VG_DISCO": {
+      "version_components": [
+        1,
+        8,
+        3,
+        0
+      ],
+      "config_path": "Firmware/Targets/F407VG_DISCO/Core/Inc/stm32f4xx_hal_conf.h",
+      "config_sha256": "1bb8d2c6de486aecb5bc50aa9bb2abafc26cd487d6461d4d1d127c91993f9c6c",
+      "enabled_modules": [
+        "HAL_ADC_MODULE_ENABLED",
+        "HAL_CAN_MODULE_ENABLED",
+        "HAL_I2C_MODULE_ENABLED",
+        "HAL_IWDG_MODULE_ENABLED",
+        "HAL_SPI_MODULE_ENABLED",
+        "HAL_TIM_MODULE_ENABLED",
+        "HAL_UART_MODULE_ENABLED",
+        "HAL_PCD_MODULE_ENABLED",
+        "HAL_GPIO_MODULE_ENABLED",
+        "HAL_EXTI_MODULE_ENABLED",
+        "HAL_DMA_MODULE_ENABLED",
+        "HAL_RCC_MODULE_ENABLED",
+        "HAL_FLASH_MODULE_ENABLED",
+        "HAL_PWR_MODULE_ENABLED",
+        "HAL_CORTEX_MODULE_ENABLED"
+      ],
+      "files": [
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy/stm32_hal_legacy.h",
+          "sha256": "ea1d8cb835b5898c17b227f0e1d72aa6a9d0d81cdc0baaa8da988be57fd63eb7",
+          "lines": 4359
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h",
+          "sha256": "6942f40453fee331e026179cfac4c0f24ffe6313fedcb68af9c3382f702dbaf5",
+          "lines": 297
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_adc.h",
+          "sha256": "d1be882b4bef7d53646e85e3d1783b47e7880647ee8a1436da58d652c803b12f",
+          "lines": 898
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_adc_ex.h",
+          "sha256": "c7da815c495df4b6d5e0764af990c1ae8df871fdd9e7f6e49416e931d40b3a0f",
+          "lines": 407
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_can.h",
+          "sha256": "b9d9e38908bbc1546e241eeacabeb3a72ade26f99ef3d448334c06ec89bae122",
+          "lines": 857
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_cortex.h",
+          "sha256": "d96dba22903abda49d66cad29ac0c49357e6a27cf9cb03dfd8c6db71b61a7fca",
+          "lines": 410
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_def.h",
+          "sha256": "c8eb3f7b393f8c5a0c32e16ccfa101c83ddb59e96bd42239b8a5c5d4da83e97f",
+          "lines": 212
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma.h",
+          "sha256": "71c38dfd65c5415b388375147e5317c7ac018b39893d6fd0ac1c897f4313329c",
+          "lines": 802
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma_ex.h",
+          "sha256": "3ee15423d73ac394de39e7b65821775966389b13749ff0849894548ab6968676",
+          "lines": 102
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_exti.h",
+          "sha256": "61e8f76bdb45dedf38fef592504e10418ca410952c7a209cd271b45ac835833a",
+          "lines": 366
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash.h",
+          "sha256": "10be06c6e06fcf4eb11e236641948aed861898fea235c606ae221fa72bc46638",
+          "lines": 425
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ex.h",
+          "sha256": "7c206f5dbed3c147a6f090ab808933132a1b06b8339623ad7174fd0a222e981c",
+          "lines": 1063
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ramfunc.h",
+          "sha256": "f18a6eabc99f56483566f9231ca33c780afa98bc93929e60bb419b5e544eee2a",
+          "lines": 76
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_gpio.h",
+          "sha256": "0b40fc83363b64d3c7396a202be7a914ceaa7735ab0fa81d566ed320102b23fb",
+          "lines": 325
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_gpio_ex.h",
+          "sha256": "4091beefc5bf8b250f376d400f43ca028ef7378e1c7ba5c9eb5de64ec74231c0",
+          "lines": 1590
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_i2c.h",
+          "sha256": "4f14fcdc4967efd8ed64d95ef0269ff6acdc0db0864df1bde3e95c427d8f9fbf",
+          "lines": 741
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_i2c_ex.h",
+          "sha256": "0f7dcff0dbfd058691564f75803353ad0c4b5ef756b0f9915f4d2f9f78e1716c",
+          "lines": 115
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_iwdg.h",
+          "sha256": "5a0259ec13549adf9a21224c7698b14479b777ec95a3996b4527f2abb295d484",
+          "lines": 220
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pcd.h",
+          "sha256": "6694ecb5f99106582053b1080ea192b9685131a789c37e14cd75e0952c6d6026",
+          "lines": 461
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pcd_ex.h",
+          "sha256": "3dcb909d0aafba72741ab372c038ee0086e4b21dec0d876da48fc2646e17d209",
+          "lines": 93
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr.h",
+          "sha256": "d6f6abc4af3d5a1ca59d886f5a9154e44f257a43af77c7f18173f160825ed6b5",
+          "lines": 436
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr_ex.h",
+          "sha256": "1794b88c5e080858c0205a2e94340c0250ac9171b3a3f01cad6d050005a1b09d",
+          "lines": 340
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc.h",
+          "sha256": "43104017711b2522c72f5c167aa155bc584b6216f9de57b8a2864ee14701bd58",
+          "lines": 1458
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc_ex.h",
+          "sha256": "49f0c8068524e1de248738530cff3bbe630dc4784b6e8b5568fbc7e1a154f772",
+          "lines": 7190
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_spi.h",
+          "sha256": "099246e9928bc3e6df6e40efa938b207c777e73b56343d461a508da9027e06e4",
+          "lines": 729
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h",
+          "sha256": "4298bbab7d1b0aed5b5fbb836721513616b201ec058ec4cc251af5fc80433109",
+          "lines": 2155
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h",
+          "sha256": "518fd2bec898bbfcca5141c1ee4675a51f08308e66d17e581038b9d7af41d2f7",
+          "lines": 355
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h",
+          "sha256": "42528bc9caa6e2fe96b7e6d7b3fcdf35d8d85ae38d33195a233e18a072f157a1",
+          "lines": 909
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_adc.h",
+          "sha256": "fabfc9706709a9997e96d87aee25356b3ca84021668a915ad816ba42e1babadc",
+          "lines": 4782
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_bus.h",
+          "sha256": "95a518139f74d14a4477519b5172675347990e9fa637bd3948c69bd475bd7c88",
+          "lines": 2105
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_cortex.h",
+          "sha256": "d8b268ca207e51864d1a71ce14fff316c57d09e62a04d0c28310b4a1008e6f17",
+          "lines": 647
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_dma.h",
+          "sha256": "7c59bfc0c1be96371df1fc7de4372caf7c43c6c9fd715f82eea87cafd5259ba3",
+          "lines": 2868
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_exti.h",
+          "sha256": "6da580d41ebdcfd7349e29666a2e561c8e2c2e01f6e7ef29dfec6ebf6ae237df",
+          "lines": 954
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_gpio.h",
+          "sha256": "e46857f5f9a5f5a2d13ca2d6925dc9e66dfa7fc56a2cc72e54b891bdb88e2f16",
+          "lines": 981
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_i2c.h",
+          "sha256": "d675d5e20effac4790a2664eed686ed1caa9af86e5f542bda7f6c05927d00d1d",
+          "lines": 1890
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_iwdg.h",
+          "sha256": "4707b446ede3cf402feb4274b30d5b1678c7468b699831fb14e37383d8d2eb44",
+          "lines": 302
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_pwr.h",
+          "sha256": "229af558bfeef8bb88d2224277b083c3b927c5c2612991fdeba00dad56255abc",
+          "lines": 985
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_rcc.h",
+          "sha256": "31c94bc2bf40630fd893232c373334d26a6e1c0fb2a008ca5136d2b01155f969",
+          "lines": 7101
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_spi.h",
+          "sha256": "d01f7f73eb62be6662861b58cfc92e09c05aae72088d237c82a3ea8e5fd92ae2",
+          "lines": 2027
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_system.h",
+          "sha256": "d634a419a55e99b4a641fecc055e1f602d8a418bd7d822cf2f812a0965ac9a3e",
+          "lines": 1711
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_tim.h",
+          "sha256": "0d7eb3fd74100ee33cf592c6edb2e340d85ac320364702a6cc1d0e9d22da66d2",
+          "lines": 4096
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_usart.h",
+          "sha256": "982c4448c49ddc7c6c71bd788e5354f05e96aca5e98edd0626f8ffcaefc65e79",
+          "lines": 2521
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_usb.h",
+          "sha256": "b9b9f9da33abf806bf1a79018138ef6cab3e4e657316c299740809d86f239758",
+          "lines": 578
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_utils.h",
+          "sha256": "535cb625cfcd461d6054549bf04d25ef939ec5754f77731a5f9fd92728280ded",
+          "lines": 307
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c",
+          "sha256": "e10d4b81df863cc52a9351269a8856cc669122b13c933a54e3a49bb8ec0f62eb",
+          "lines": 616
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc.c",
+          "sha256": "790f43889092b72d10d4d041d24139f759176cd15739442f6ad71a44dd0dae40",
+          "lines": 2110
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc_ex.c",
+          "sha256": "ada629c191f329d8565bde9e8631d3b0214a15a1d6d6857217d30072ef13b8cf",
+          "lines": 1115
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_can.c",
+          "sha256": "dfb45dd4ba66954cc063b5c7766f9850b8281aadc02c06d39516fbe3175d5bbe",
+          "lines": 2464
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c",
+          "sha256": "9aaa0f19137d700616bec01a5a806786c24e3f3386120365c5d2addaa4055505",
+          "lines": 538
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma.c",
+          "sha256": "a345a1b1fe0221c827d5ad21d5a0f5387296bc2c075e06e5b8539c23da5678e4",
+          "lines": 1305
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma_ex.c",
+          "sha256": "90cafb5a5b17a46b478770ef4abdc9a641cb395419abbb80f288138a63d44582",
+          "lines": 313
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_exti.c",
+          "sha256": "f56651f86e5d89e8bba3bcb331353e00f291db15c902927a205d81bbe8951e6d",
+          "lines": 553
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash.c",
+          "sha256": "f30415c546330c72e702e1eefafc8429576fabfbf1cb0b1711510189771309d2",
+          "lines": 769
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ex.c",
+          "sha256": "4f4e11c76c64208b98556a551e680dd7eed9a78206add14cabb8b4462f463941",
+          "lines": 1344
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ramfunc.c",
+          "sha256": "d3b426e8cb9d617f9064d2b0cea2a1d02b7bb6a74cba3f094779d6e922e477e3",
+          "lines": 172
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.c",
+          "sha256": "408908b15477b6ce2b0b9703caabcb053293d98f2f109d6e6940e076a6a3902b",
+          "lines": 533
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c.c",
+          "sha256": "1e0ba175bf0ec87ddabca6d1796d9fd45cf9698d79cccf5691974745f96e3ef3",
+          "lines": 7571
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c_ex.c",
+          "sha256": "1d3dbcd648b379ef0e109646bc37d0140c16381c3d0f74c610a112fd84546846",
+          "lines": 182
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_iwdg.c",
+          "sha256": "98b792938f989c9c92dcb6b156a0a8ee8dfc553ef907b4a87a7f44867bc52343",
+          "lines": 262
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pcd.c",
+          "sha256": "7eb1b2b9a272d8a11817ff4b068c03add42c3b80efaf0d19616464e58b369a48",
+          "lines": 2393
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pcd_ex.c",
+          "sha256": "1db062fd007ce9bd838da2c7b97de938a661da237aa3fe52d0b7fd4c15af59bc",
+          "lines": 347
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr.c",
+          "sha256": "d779468a95df34421bf6c8417136a79aa910753381a644afa9ed10b185ae18b5",
+          "lines": 598
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr_ex.c",
+          "sha256": "4409dddc0d2019f918d0ddebecf659f06d4de3f9aa28566621a16ea47203331f",
+          "lines": 600
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c",
+          "sha256": "c6c90b44618af21f25346bf8bd2c73ca229b6a5c4790ceb498111716dfd9c13e",
+          "lines": 1124
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c",
+          "sha256": "a867e0b370950d34d73b98784db5b5a26871383ed0a4a7a8036706f906de7453",
+          "lines": 3833
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_spi.c",
+          "sha256": "50716b20a9c05da64e89cb8bd6dc23a276316da995a65d2cac058b1ee621ff8d",
+          "lines": 3930
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim.c",
+          "sha256": "6f71df9831eb2fac548c925466a0d4784bed0e19b362c6dc40392f1b96156af1",
+          "lines": 7632
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim_ex.c",
+          "sha256": "4471b582d56545fbd48725401249b4a2a728ccc0d933b3f1a02e2b09dda8d8fa",
+          "lines": 2410
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c",
+          "sha256": "581f14026cba4ad2e4322376bfa6d626e55c83b2981ed2117d0ccdffa904ca23",
+          "lines": 3771
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_adc.c",
+          "sha256": "9fe6fbeee8b8d44d8bc548f6d4abd8ee06693f56f12be013277dac2f767f19ec",
+          "lines": 922
+        },
+        {
+          "path": "Firmware/Targets/F407VG_DISCO/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_usb.c",
+          "sha256": "07441c16b83b3b6d889c50f045dcbc2b3f28b410b2f86100ec68b9a46ef4690a",
+          "lines": 2316
+        }
+      ]
+    },
+    "F411RE": {
+      "version_components": [
+        1,
+        8,
+        3,
+        0
+      ],
+      "config_path": "Firmware/Targets/F411RE/Core/Inc/stm32f4xx_hal_conf.h",
+      "config_sha256": "115b717bc3eb09ae1d87d00accd872a027397e336697dd8317c947f2d2916a35",
+      "enabled_modules": [
+        "HAL_ADC_MODULE_ENABLED",
+        "HAL_I2C_MODULE_ENABLED",
+        "HAL_IWDG_MODULE_ENABLED",
+        "HAL_SPI_MODULE_ENABLED",
+        "HAL_TIM_MODULE_ENABLED",
+        "HAL_UART_MODULE_ENABLED",
+        "HAL_PCD_MODULE_ENABLED",
+        "HAL_GPIO_MODULE_ENABLED",
+        "HAL_EXTI_MODULE_ENABLED",
+        "HAL_DMA_MODULE_ENABLED",
+        "HAL_RCC_MODULE_ENABLED",
+        "HAL_FLASH_MODULE_ENABLED",
+        "HAL_PWR_MODULE_ENABLED",
+        "HAL_CORTEX_MODULE_ENABLED"
+      ],
+      "files": [
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy/stm32_hal_legacy.h",
+          "sha256": "ea1d8cb835b5898c17b227f0e1d72aa6a9d0d81cdc0baaa8da988be57fd63eb7",
+          "lines": 4359
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h",
+          "sha256": "6942f40453fee331e026179cfac4c0f24ffe6313fedcb68af9c3382f702dbaf5",
+          "lines": 297
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_adc.h",
+          "sha256": "d1be882b4bef7d53646e85e3d1783b47e7880647ee8a1436da58d652c803b12f",
+          "lines": 898
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_adc_ex.h",
+          "sha256": "c7da815c495df4b6d5e0764af990c1ae8df871fdd9e7f6e49416e931d40b3a0f",
+          "lines": 407
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_cortex.h",
+          "sha256": "d96dba22903abda49d66cad29ac0c49357e6a27cf9cb03dfd8c6db71b61a7fca",
+          "lines": 410
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_def.h",
+          "sha256": "c8eb3f7b393f8c5a0c32e16ccfa101c83ddb59e96bd42239b8a5c5d4da83e97f",
+          "lines": 212
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma.h",
+          "sha256": "71c38dfd65c5415b388375147e5317c7ac018b39893d6fd0ac1c897f4313329c",
+          "lines": 802
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma_ex.h",
+          "sha256": "3ee15423d73ac394de39e7b65821775966389b13749ff0849894548ab6968676",
+          "lines": 102
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_exti.h",
+          "sha256": "61e8f76bdb45dedf38fef592504e10418ca410952c7a209cd271b45ac835833a",
+          "lines": 366
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash.h",
+          "sha256": "10be06c6e06fcf4eb11e236641948aed861898fea235c606ae221fa72bc46638",
+          "lines": 425
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ex.h",
+          "sha256": "7c206f5dbed3c147a6f090ab808933132a1b06b8339623ad7174fd0a222e981c",
+          "lines": 1063
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ramfunc.h",
+          "sha256": "f18a6eabc99f56483566f9231ca33c780afa98bc93929e60bb419b5e544eee2a",
+          "lines": 76
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_gpio.h",
+          "sha256": "0b40fc83363b64d3c7396a202be7a914ceaa7735ab0fa81d566ed320102b23fb",
+          "lines": 325
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_gpio_ex.h",
+          "sha256": "4091beefc5bf8b250f376d400f43ca028ef7378e1c7ba5c9eb5de64ec74231c0",
+          "lines": 1590
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_i2c.h",
+          "sha256": "4f14fcdc4967efd8ed64d95ef0269ff6acdc0db0864df1bde3e95c427d8f9fbf",
+          "lines": 741
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_i2c_ex.h",
+          "sha256": "0f7dcff0dbfd058691564f75803353ad0c4b5ef756b0f9915f4d2f9f78e1716c",
+          "lines": 115
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_iwdg.h",
+          "sha256": "5a0259ec13549adf9a21224c7698b14479b777ec95a3996b4527f2abb295d484",
+          "lines": 220
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pcd.h",
+          "sha256": "6694ecb5f99106582053b1080ea192b9685131a789c37e14cd75e0952c6d6026",
+          "lines": 461
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pcd_ex.h",
+          "sha256": "3dcb909d0aafba72741ab372c038ee0086e4b21dec0d876da48fc2646e17d209",
+          "lines": 93
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr.h",
+          "sha256": "d6f6abc4af3d5a1ca59d886f5a9154e44f257a43af77c7f18173f160825ed6b5",
+          "lines": 436
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr_ex.h",
+          "sha256": "1794b88c5e080858c0205a2e94340c0250ac9171b3a3f01cad6d050005a1b09d",
+          "lines": 340
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc.h",
+          "sha256": "43104017711b2522c72f5c167aa155bc584b6216f9de57b8a2864ee14701bd58",
+          "lines": 1458
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc_ex.h",
+          "sha256": "49f0c8068524e1de248738530cff3bbe630dc4784b6e8b5568fbc7e1a154f772",
+          "lines": 7190
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_spi.h",
+          "sha256": "099246e9928bc3e6df6e40efa938b207c777e73b56343d461a508da9027e06e4",
+          "lines": 729
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h",
+          "sha256": "4298bbab7d1b0aed5b5fbb836721513616b201ec058ec4cc251af5fc80433109",
+          "lines": 2155
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h",
+          "sha256": "518fd2bec898bbfcca5141c1ee4675a51f08308e66d17e581038b9d7af41d2f7",
+          "lines": 355
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h",
+          "sha256": "42528bc9caa6e2fe96b7e6d7b3fcdf35d8d85ae38d33195a233e18a072f157a1",
+          "lines": 909
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_adc.h",
+          "sha256": "fabfc9706709a9997e96d87aee25356b3ca84021668a915ad816ba42e1babadc",
+          "lines": 4782
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_bus.h",
+          "sha256": "95a518139f74d14a4477519b5172675347990e9fa637bd3948c69bd475bd7c88",
+          "lines": 2105
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_cortex.h",
+          "sha256": "d8b268ca207e51864d1a71ce14fff316c57d09e62a04d0c28310b4a1008e6f17",
+          "lines": 647
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_dma.h",
+          "sha256": "7c59bfc0c1be96371df1fc7de4372caf7c43c6c9fd715f82eea87cafd5259ba3",
+          "lines": 2868
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_exti.h",
+          "sha256": "6da580d41ebdcfd7349e29666a2e561c8e2c2e01f6e7ef29dfec6ebf6ae237df",
+          "lines": 954
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_gpio.h",
+          "sha256": "e46857f5f9a5f5a2d13ca2d6925dc9e66dfa7fc56a2cc72e54b891bdb88e2f16",
+          "lines": 981
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_i2c.h",
+          "sha256": "d675d5e20effac4790a2664eed686ed1caa9af86e5f542bda7f6c05927d00d1d",
+          "lines": 1890
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_iwdg.h",
+          "sha256": "4707b446ede3cf402feb4274b30d5b1678c7468b699831fb14e37383d8d2eb44",
+          "lines": 302
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_pwr.h",
+          "sha256": "229af558bfeef8bb88d2224277b083c3b927c5c2612991fdeba00dad56255abc",
+          "lines": 985
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_rcc.h",
+          "sha256": "31c94bc2bf40630fd893232c373334d26a6e1c0fb2a008ca5136d2b01155f969",
+          "lines": 7101
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_spi.h",
+          "sha256": "d01f7f73eb62be6662861b58cfc92e09c05aae72088d237c82a3ea8e5fd92ae2",
+          "lines": 2027
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_system.h",
+          "sha256": "d634a419a55e99b4a641fecc055e1f602d8a418bd7d822cf2f812a0965ac9a3e",
+          "lines": 1711
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_tim.h",
+          "sha256": "0d7eb3fd74100ee33cf592c6edb2e340d85ac320364702a6cc1d0e9d22da66d2",
+          "lines": 4096
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_usart.h",
+          "sha256": "982c4448c49ddc7c6c71bd788e5354f05e96aca5e98edd0626f8ffcaefc65e79",
+          "lines": 2521
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_usb.h",
+          "sha256": "b9b9f9da33abf806bf1a79018138ef6cab3e4e657316c299740809d86f239758",
+          "lines": 578
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_utils.h",
+          "sha256": "535cb625cfcd461d6054549bf04d25ef939ec5754f77731a5f9fd92728280ded",
+          "lines": 307
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c",
+          "sha256": "e10d4b81df863cc52a9351269a8856cc669122b13c933a54e3a49bb8ec0f62eb",
+          "lines": 616
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc.c",
+          "sha256": "790f43889092b72d10d4d041d24139f759176cd15739442f6ad71a44dd0dae40",
+          "lines": 2110
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc_ex.c",
+          "sha256": "ada629c191f329d8565bde9e8631d3b0214a15a1d6d6857217d30072ef13b8cf",
+          "lines": 1115
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c",
+          "sha256": "9aaa0f19137d700616bec01a5a806786c24e3f3386120365c5d2addaa4055505",
+          "lines": 538
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma.c",
+          "sha256": "a345a1b1fe0221c827d5ad21d5a0f5387296bc2c075e06e5b8539c23da5678e4",
+          "lines": 1305
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma_ex.c",
+          "sha256": "90cafb5a5b17a46b478770ef4abdc9a641cb395419abbb80f288138a63d44582",
+          "lines": 313
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_exti.c",
+          "sha256": "f56651f86e5d89e8bba3bcb331353e00f291db15c902927a205d81bbe8951e6d",
+          "lines": 553
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash.c",
+          "sha256": "f30415c546330c72e702e1eefafc8429576fabfbf1cb0b1711510189771309d2",
+          "lines": 769
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ex.c",
+          "sha256": "4f4e11c76c64208b98556a551e680dd7eed9a78206add14cabb8b4462f463941",
+          "lines": 1344
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ramfunc.c",
+          "sha256": "d3b426e8cb9d617f9064d2b0cea2a1d02b7bb6a74cba3f094779d6e922e477e3",
+          "lines": 172
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.c",
+          "sha256": "408908b15477b6ce2b0b9703caabcb053293d98f2f109d6e6940e076a6a3902b",
+          "lines": 533
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c.c",
+          "sha256": "1e0ba175bf0ec87ddabca6d1796d9fd45cf9698d79cccf5691974745f96e3ef3",
+          "lines": 7571
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c_ex.c",
+          "sha256": "1d3dbcd648b379ef0e109646bc37d0140c16381c3d0f74c610a112fd84546846",
+          "lines": 182
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_iwdg.c",
+          "sha256": "98b792938f989c9c92dcb6b156a0a8ee8dfc553ef907b4a87a7f44867bc52343",
+          "lines": 262
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pcd.c",
+          "sha256": "7eb1b2b9a272d8a11817ff4b068c03add42c3b80efaf0d19616464e58b369a48",
+          "lines": 2393
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pcd_ex.c",
+          "sha256": "1db062fd007ce9bd838da2c7b97de938a661da237aa3fe52d0b7fd4c15af59bc",
+          "lines": 347
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr.c",
+          "sha256": "d779468a95df34421bf6c8417136a79aa910753381a644afa9ed10b185ae18b5",
+          "lines": 598
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr_ex.c",
+          "sha256": "4409dddc0d2019f918d0ddebecf659f06d4de3f9aa28566621a16ea47203331f",
+          "lines": 600
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c",
+          "sha256": "c6c90b44618af21f25346bf8bd2c73ca229b6a5c4790ceb498111716dfd9c13e",
+          "lines": 1124
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c",
+          "sha256": "a867e0b370950d34d73b98784db5b5a26871383ed0a4a7a8036706f906de7453",
+          "lines": 3833
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_spi.c",
+          "sha256": "50716b20a9c05da64e89cb8bd6dc23a276316da995a65d2cac058b1ee621ff8d",
+          "lines": 3930
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim.c",
+          "sha256": "6f71df9831eb2fac548c925466a0d4784bed0e19b362c6dc40392f1b96156af1",
+          "lines": 7632
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim_ex.c",
+          "sha256": "4471b582d56545fbd48725401249b4a2a728ccc0d933b3f1a02e2b09dda8d8fa",
+          "lines": 2410
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c",
+          "sha256": "581f14026cba4ad2e4322376bfa6d626e55c83b2981ed2117d0ccdffa904ca23",
+          "lines": 3771
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_adc.c",
+          "sha256": "9fe6fbeee8b8d44d8bc548f6d4abd8ee06693f56f12be013277dac2f767f19ec",
+          "lines": 922
+        },
+        {
+          "path": "Firmware/Targets/F411RE/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_usb.c",
+          "sha256": "07441c16b83b3b6d889c50f045dcbc2b3f28b410b2f86100ec68b9a46ef4690a",
+          "lines": 2316
+        }
+      ]
+    }
+  },
+  "source_comparison_to_F407VG": {
+    "F407VG_DISCO": {
+      "different_common_sources": [],
+      "missing_from_target": [],
+      "additional_in_target": []
+    },
+    "F411RE": {
+      "different_common_sources": [],
+      "missing_from_target": [
+        "stm32f4xx_hal_can.c"
+      ],
+      "additional_in_target": []
+    }
+  },
+  "lexical_HAL_occurrences": {
+    "HAL_ADC_ConfigChannel": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 346
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 355
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 364
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 373
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 382
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 391
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 401
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 410
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 462
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 471
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 331
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 340
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 349
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 359
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 368
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 420
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 429
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 339
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 348
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 357
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 366
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 375
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 384
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 394
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 403
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 412
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 421
+      }
+    ],
+    "HAL_ADC_ConvCpltCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 60
+      }
+    ],
+    "HAL_ADC_Init": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 336
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 452
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 321
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 410
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 329
+      }
+    ],
+    "HAL_ADC_MspDeInit": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 210
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 222
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 163
+      }
+    ],
+    "HAL_ADC_MspInit": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 106
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 108
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 98
+      }
+    ],
+    "HAL_ADC_Start_DMA": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 409
+      },
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 412
+      },
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 415
+      }
+    ],
+    "HAL_CAN_AbortTxRequest": [
+      {
+        "path": "Firmware/FFBoard/Src/CANPort2B.cpp",
+        "line": 143
+      },
+      {
+        "path": "Firmware/FFBoard/Src/CANPort2B.cpp",
+        "line": 181
+      },
+      {
+        "path": "Firmware/FFBoard/Src/CANPort2B.cpp",
+        "line": 204
+      }
+    ],
+    "HAL_CAN_ActivateNotification": [
+      {
+        "path": "Firmware/FFBoard/Src/CANPort2B.cpp",
+        "line": 106
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 471
+      }
+    ],
+    "HAL_CAN_AddTxMessage": [
+      {
+        "path": "Firmware/FFBoard/Src/CANPort2B.cpp",
+        "line": 217
+      }
+    ],
+    "HAL_CAN_ConfigFilter": [
+      {
+        "path": "Firmware/FFBoard/Src/CANPort2B.cpp",
+        "line": 63
+      },
+      {
+        "path": "Firmware/FFBoard/Src/CANPort2B.cpp",
+        "line": 317
+      },
+      {
+        "path": "Firmware/FFBoard/Src/CANPort2B.cpp",
+        "line": 334
+      }
+    ],
+    "HAL_CAN_ErrorCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 186
+      }
+    ],
+    "HAL_CAN_GetRxFifoFillLevel": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 117
+      },
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 131
+      }
+    ],
+    "HAL_CAN_GetRxMessage": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 120
+      },
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 134
+      }
+    ],
+    "HAL_CAN_GetTxMailboxesFreeLevel": [
+      {
+        "path": "Firmware/FFBoard/Src/CANPort2B.cpp",
+        "line": 202
+      },
+      {
+        "path": "Firmware/FFBoard/Src/CANPort2B.cpp",
+        "line": 207
+      }
+    ],
+    "HAL_CAN_IRQHandler": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 264
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 278
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 276
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 290
+      }
+    ],
+    "HAL_CAN_Init": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 508
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 466
+      }
+    ],
+    "HAL_CAN_MspDeInit": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 308
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 322
+      }
+    ],
+    "HAL_CAN_MspInit": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 267
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 281
+      }
+    ],
+    "HAL_CAN_ResetError": [
+      {
+        "path": "Firmware/FFBoard/Src/CANPort2B.cpp",
+        "line": 145
+      }
+    ],
+    "HAL_CAN_RxFifo0FullCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 144
+      }
+    ],
+    "HAL_CAN_RxFifo0MsgPendingCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 115
+      }
+    ],
+    "HAL_CAN_RxFifo1FullCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 149
+      }
+    ],
+    "HAL_CAN_RxFifo1MsgPendingCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 129
+      }
+    ],
+    "HAL_CAN_Start": [
+      {
+        "path": "Firmware/FFBoard/Src/CANPort2B.cpp",
+        "line": 108
+      },
+      {
+        "path": "Firmware/FFBoard/Src/CANPort2B.cpp",
+        "line": 147
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 477
+      }
+    ],
+    "HAL_CAN_Stop": [
+      {
+        "path": "Firmware/FFBoard/Src/CANPort2B.cpp",
+        "line": 66
+      },
+      {
+        "path": "Firmware/FFBoard/Src/CANPort2B.cpp",
+        "line": 120
+      },
+      {
+        "path": "Firmware/FFBoard/Src/CANPort2B.cpp",
+        "line": 142
+      }
+    ],
+    "HAL_CAN_TxMailbox0AbortCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 170
+      }
+    ],
+    "HAL_CAN_TxMailbox0CompleteCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 155
+      }
+    ],
+    "HAL_CAN_TxMailbox1AbortCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 175
+      }
+    ],
+    "HAL_CAN_TxMailbox1CompleteCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 160
+      }
+    ],
+    "HAL_CAN_TxMailbox2AbortCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 180
+      }
+    ],
+    "HAL_CAN_TxMailbox2CompleteCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 165
+      }
+    ],
+    "HAL_DMA_DeInit": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 233
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 253
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 640
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 641
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 665
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 666
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 690
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 691
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 242
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 267
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 432
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 671
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 672
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 696
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 697
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 718
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 719
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 188
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 442
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 443
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 467
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 468
+      }
+    ],
+    "HAL_DMA_IRQHandler": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 208
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 222
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 236
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 250
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 519
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 533
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 547
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 561
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 206
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 220
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 234
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 248
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 262
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 474
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 488
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 502
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 516
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_it.c",
+        "line": 199
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_it.c",
+        "line": 213
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_it.c",
+        "line": 356
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_it.c",
+        "line": 370
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_it.c",
+        "line": 384
+      }
+    ],
+    "HAL_DMA_Init": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 149
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 190
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 451
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 469
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 516
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 534
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 581
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 599
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 148
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 202
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 390
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 485
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 503
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 550
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 568
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 612
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 630
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 143
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 321
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 339
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 386
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 404
+      }
+    ],
+    "HAL_Delay": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 186
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 181
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 169
+      }
+    ],
+    "HAL_FLASHEx_Erase": [
+      {
+        "path": "Firmware/FFBoard/Src/eeprom.c",
+        "line": 109
+      },
+      {
+        "path": "Firmware/FFBoard/Src/eeprom.c",
+        "line": 122
+      },
+      {
+        "path": "Firmware/FFBoard/Src/eeprom.c",
+        "line": 189
+      },
+      {
+        "path": "Firmware/FFBoard/Src/eeprom.c",
+        "line": 205
+      },
+      {
+        "path": "Firmware/FFBoard/Src/eeprom.c",
+        "line": 251
+      },
+      {
+        "path": "Firmware/FFBoard/Src/eeprom.c",
+        "line": 298
+      },
+      {
+        "path": "Firmware/FFBoard/Src/eeprom.c",
+        "line": 466
+      },
+      {
+        "path": "Firmware/FFBoard/Src/eeprom.c",
+        "line": 485
+      },
+      {
+        "path": "Firmware/FFBoard/Src/eeprom.c",
+        "line": 715
+      }
+    ],
+    "HAL_FLASH_Lock": [
+      {
+        "path": "Firmware/FFBoard/Src/flash_helpers.cpp",
+        "line": 40
+      },
+      {
+        "path": "Firmware/FFBoard/Src/flash_helpers.cpp",
+        "line": 58
+      },
+      {
+        "path": "Firmware/FFBoard/Src/flash_helpers.cpp",
+        "line": 83
+      },
+      {
+        "path": "Firmware/FFBoard/Src/flash_helpers.cpp",
+        "line": 119
+      },
+      {
+        "path": "Firmware/FFBoard/Src/flash_helpers.cpp",
+        "line": 313
+      }
+    ],
+    "HAL_FLASH_Program": [
+      {
+        "path": "Firmware/FFBoard/Src/eeprom.c",
+        "line": 130
+      },
+      {
+        "path": "Firmware/FFBoard/Src/eeprom.c",
+        "line": 177
+      },
+      {
+        "path": "Firmware/FFBoard/Src/eeprom.c",
+        "line": 213
+      },
+      {
+        "path": "Firmware/FFBoard/Src/eeprom.c",
+        "line": 286
+      },
+      {
+        "path": "Firmware/FFBoard/Src/eeprom.c",
+        "line": 474
+      },
+      {
+        "path": "Firmware/FFBoard/Src/eeprom.c",
+        "line": 605
+      },
+      {
+        "path": "Firmware/FFBoard/Src/eeprom.c",
+        "line": 612
+      },
+      {
+        "path": "Firmware/FFBoard/Src/eeprom.c",
+        "line": 673
+      },
+      {
+        "path": "Firmware/FFBoard/Src/eeprom.c",
+        "line": 723
+      },
+      {
+        "path": "Firmware/FFBoard/Src/flash_helpers.cpp",
+        "line": 311
+      },
+      {
+        "path": "Firmware/FFBoard/Src/flash_helpers.cpp",
+        "line": 312
+      }
+    ],
+    "HAL_FLASH_Unlock": [
+      {
+        "path": "Firmware/FFBoard/Src/flash_helpers.cpp",
+        "line": 37
+      },
+      {
+        "path": "Firmware/FFBoard/Src/flash_helpers.cpp",
+        "line": 47
+      },
+      {
+        "path": "Firmware/FFBoard/Src/flash_helpers.cpp",
+        "line": 71
+      },
+      {
+        "path": "Firmware/FFBoard/Src/flash_helpers.cpp",
+        "line": 108
+      },
+      {
+        "path": "Firmware/FFBoard/Src/flash_helpers.cpp",
+        "line": 309
+      }
+    ],
+    "HAL_GPIO_DeInit": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 228
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 230
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 250
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 322
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 395
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 397
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 637
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 662
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 687
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 952
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 982
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1090
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1187
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1207
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1284
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 237
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 239
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 260
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 262
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 264
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 336
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 427
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 429
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 668
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 693
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 715
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1016
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1113
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1133
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1210
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 183
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 185
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 265
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 267
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 439
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 464
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 724
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 798
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 868
+      }
+    ],
+    "HAL_GPIO_EXTI_Callback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 93
+      }
+    ],
+    "HAL_GPIO_EXTI_IRQHandler": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 194
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 292
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 293
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 434
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 192
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 304
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 305
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_it.c",
+        "line": 185
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_it.c",
+        "line": 227
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_it.c",
+        "line": 228
+      }
+    ],
+    "HAL_GPIO_Init": [
+      {
+        "path": "Firmware/FFBoard/Inc/GPIOPin.h",
+        "line": 60
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1396
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1402
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1409
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1416
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1422
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1429
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1435
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1442
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1449
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1456
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1462
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1468
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1475
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1482
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1488
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1494
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 130
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 135
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 176
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 288
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 359
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 437
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 502
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 567
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 742
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 779
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 874
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 904
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1128
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1155
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1242
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1249
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1186
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1192
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1198
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1205
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1211
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1218
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1224
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1231
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1238
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1245
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1252
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1261
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1268
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1274
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1280
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 129
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 134
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 178
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 183
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 188
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 302
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 373
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 471
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 536
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 598
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 849
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 882
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1054
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1081
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1168
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1175
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 997
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1004
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1011
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1017
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1024
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1031
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1037
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1044
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1050
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1056
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1062
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1069
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1077
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1084
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 124
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 129
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 222
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 229
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 307
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 372
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 588
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 762
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 769
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 834
+      }
+    ],
+    "HAL_GPIO_ReadPin": [
+      {
+        "path": "Firmware/FFBoard/Inc/GPIOPin.h",
+        "line": 77
+      },
+      {
+        "path": "Firmware/FFBoard/Src/cppmain.cpp",
+        "line": 84
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/EncoderLocal.cpp",
+        "line": 100
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/FFBHIDMain.cpp",
+        "line": 103
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/FFBHIDMain.cpp",
+        "line": 321
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/FFBHIDMain.cpp",
+        "line": 335
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/FFBHIDMain.cpp",
+        "line": 342
+      }
+    ],
+    "HAL_GPIO_TogglePin": [
+      {
+        "path": "Firmware/FFBoard/Src/ledEffects.cpp",
+        "line": 91
+      }
+    ],
+    "HAL_GPIO_WritePin": [
+      {
+        "path": "Firmware/FFBoard/Inc/GPIOPin.h",
+        "line": 47
+      },
+      {
+        "path": "Firmware/FFBoard/Src/ledEffects.cpp",
+        "line": 30
+      },
+      {
+        "path": "Firmware/FFBoard/Src/ledEffects.cpp",
+        "line": 35
+      },
+      {
+        "path": "Firmware/FFBoard/Src/ledEffects.cpp",
+        "line": 67
+      },
+      {
+        "path": "Firmware/FFBoard/Src/ledEffects.cpp",
+        "line": 87
+      },
+      {
+        "path": "Firmware/FFBoard/Src/voltagesense.cpp",
+        "line": 86
+      },
+      {
+        "path": "Firmware/FFBoard/Src/voltagesense.cpp",
+        "line": 90
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/TMCDebugBridge.cpp",
+        "line": 255
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 183
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 184
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 185
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1374
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1377
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1380
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1384
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1388
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1535
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1536
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1537
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1577
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 112
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 178
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 179
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 180
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 476
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1164
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1167
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1170
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1173
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1178
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1315
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1316
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1317
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1357
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 110
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 166
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 167
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 168
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 979
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 982
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 985
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 988
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 991
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1111
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1112
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1113
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1156
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1158
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_it.c",
+        "line": 103
+      }
+    ],
+    "HAL_GetDEVID": [
+      {
+        "path": "Firmware/FFBoard/Src/SystemCommands.cpp",
+        "line": 219
+      },
+      {
+        "path": "Firmware/FFBoard/Src/cppmain.cpp",
+        "line": 33
+      }
+    ],
+    "HAL_GetREVID": [
+      {
+        "path": "Firmware/FFBoard/Src/SystemCommands.cpp",
+        "line": 219
+      }
+    ],
+    "HAL_GetTick": [
+      {
+        "path": "Firmware/FFBoard/Src/CANPort2B.cpp",
+        "line": 202
+      },
+      {
+        "path": "Firmware/FFBoard/Src/CANPort2B.cpp",
+        "line": 232
+      },
+      {
+        "path": "Firmware/FFBoard/Src/CmdParser.cpp",
+        "line": 39
+      },
+      {
+        "path": "Firmware/FFBoard/Src/CmdParser.cpp",
+        "line": 55
+      },
+      {
+        "path": "Firmware/FFBoard/Src/CommandInterface.cpp",
+        "line": 274
+      },
+      {
+        "path": "Firmware/FFBoard/Src/CommandInterface.cpp",
+        "line": 290
+      },
+      {
+        "path": "Firmware/FFBoard/Src/CommandInterface.cpp",
+        "line": 311
+      },
+      {
+        "path": "Firmware/FFBoard/Src/EffectsCalculator.cpp",
+        "line": 134
+      },
+      {
+        "path": "Firmware/FFBoard/Src/EffectsCalculator.cpp",
+        "line": 138
+      },
+      {
+        "path": "Firmware/FFBoard/Src/EffectsCalculator.cpp",
+        "line": 234
+      },
+      {
+        "path": "Firmware/FFBoard/Src/EffectsCalculator.cpp",
+        "line": 495
+      },
+      {
+        "path": "Firmware/FFBoard/Src/HidFFB.cpp",
+        "line": 429
+      },
+      {
+        "path": "Firmware/FFBoard/Src/SerialFFB.cpp",
+        "line": 119
+      },
+      {
+        "path": "Firmware/FFBoard/Src/cppmain.cpp",
+        "line": 127
+      },
+      {
+        "path": "Firmware/FFBoard/Src/ledEffects.cpp",
+        "line": 34
+      },
+      {
+        "path": "Firmware/FFBoard/Src/ledEffects.cpp",
+        "line": 85
+      },
+      {
+        "path": "Firmware/FFBoard/Src/ledEffects.cpp",
+        "line": 90
+      },
+      {
+        "path": "Firmware/FFBoard/Src/voltagesense.cpp",
+        "line": 78
+      },
+      {
+        "path": "Firmware/FFBoard/Src/voltagesense.cpp",
+        "line": 83
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Inc/MotorSimplemotion.h",
+        "line": 191
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Inc/MotorSimplemotion.h",
+        "line": 193
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Inc/MotorSimplemotion.h",
+        "line": 233
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Inc/MotorSimplemotion.h",
+        "line": 235
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/ADS111X.cpp",
+        "line": 217
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/ADS111X.cpp",
+        "line": 269
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/ADS111X.cpp",
+        "line": 327
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/CanBridge.cpp",
+        "line": 200
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/EncoderBissC.cpp",
+        "line": 71
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/EncoderBissC.cpp",
+        "line": 209
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/FFBHIDMain.cpp",
+        "line": 107
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/FFBHIDMain.cpp",
+        "line": 343
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/FFBHIDMain.cpp",
+        "line": 344
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/LocalButtons.cpp",
+        "line": 69
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/LocalButtons.cpp",
+        "line": 70
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MotorSimplemotion.cpp",
+        "line": 72
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MotorSimplemotion.cpp",
+        "line": 72
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MotorSimplemotion.cpp",
+        "line": 97
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MotorSimplemotion.cpp",
+        "line": 115
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MotorSimplemotion.cpp",
+        "line": 149
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MotorSimplemotion.cpp",
+        "line": 274
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MotorSimplemotion.cpp",
+        "line": 279
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MotorSimplemotion.cpp",
+        "line": 290
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MotorSimplemotion.cpp",
+        "line": 314
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MotorSimplemotion.cpp",
+        "line": 355
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MtEncoderSPI.cpp",
+        "line": 105
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MtEncoderSPI.cpp",
+        "line": 268
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/ODriveCAN.cpp",
+        "line": 201
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/ODriveCAN.cpp",
+        "line": 205
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/ODriveCAN.cpp",
+        "line": 253
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/ODriveCAN.cpp",
+        "line": 397
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/ODriveCAN.cpp",
+        "line": 422
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/ODriveCAN.cpp",
+        "line": 430
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/PCF8574.cpp",
+        "line": 107
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/PCF8574.cpp",
+        "line": 133
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/PCF8574.cpp",
+        "line": 147
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/PCF8574.cpp",
+        "line": 150
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/RmdMotorCAN.cpp",
+        "line": 166
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/RmdMotorCAN.cpp",
+        "line": 268
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/RmdMotorCAN.cpp",
+        "line": 275
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/TMC4671.cpp",
+        "line": 357
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/TMC4671.cpp",
+        "line": 553
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/TMC4671.cpp",
+        "line": 730
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/TMC4671.cpp",
+        "line": 734
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/TMC4671.cpp",
+        "line": 1395
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/TMC4671.cpp",
+        "line": 1396
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/VescCAN.cpp",
+        "line": 372
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/VescCAN.cpp",
+        "line": 386
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/VescCAN.cpp",
+        "line": 390
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/VescCAN.cpp",
+        "line": 605
+      }
+    ],
+    "HAL_GetUIDw0": [
+      {
+        "path": "Firmware/FFBoard/Src/SystemCommands.cpp",
+        "line": 296
+      },
+      {
+        "path": "Firmware/FFBoard/Src/SystemCommands.cpp",
+        "line": 299
+      },
+      {
+        "path": "Firmware/FFBoard/Src/SystemCommands.cpp",
+        "line": 307
+      },
+      {
+        "path": "Firmware/FFBoard/Src/USBdevice.cpp",
+        "line": 45
+      },
+      {
+        "path": "Firmware/FFBoard/Src/USBdevice.cpp",
+        "line": 81
+      }
+    ],
+    "HAL_GetUIDw1": [
+      {
+        "path": "Firmware/FFBoard/Src/SystemCommands.cpp",
+        "line": 296
+      },
+      {
+        "path": "Firmware/FFBoard/Src/SystemCommands.cpp",
+        "line": 301
+      },
+      {
+        "path": "Firmware/FFBoard/Src/SystemCommands.cpp",
+        "line": 307
+      },
+      {
+        "path": "Firmware/FFBoard/Src/USBdevice.cpp",
+        "line": 45
+      }
+    ],
+    "HAL_GetUIDw2": [
+      {
+        "path": "Firmware/FFBoard/Src/SystemCommands.cpp",
+        "line": 296
+      },
+      {
+        "path": "Firmware/FFBoard/Src/SystemCommands.cpp",
+        "line": 303
+      },
+      {
+        "path": "Firmware/FFBoard/Src/SystemCommands.cpp",
+        "line": 307
+      },
+      {
+        "path": "Firmware/FFBoard/Src/USBdevice.cpp",
+        "line": 45
+      }
+    ],
+    "HAL_I2C_DeInit": [
+      {
+        "path": "Firmware/FFBoard/Src/I2C.cpp",
+        "line": 124
+      }
+    ],
+    "HAL_I2C_ER_IRQHandler": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 364
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_it.c",
+        "line": 425
+      }
+    ],
+    "HAL_I2C_EV_IRQHandler": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 350
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 348
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_it.c",
+        "line": 411
+      }
+    ],
+    "HAL_I2C_ErrorCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 266
+      }
+    ],
+    "HAL_I2C_Init": [
+      {
+        "path": "Firmware/FFBoard/Src/I2C.cpp",
+        "line": 138
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 543
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 507
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 455
+      }
+    ],
+    "HAL_I2C_IsDeviceReady": [
+      {
+        "path": "Firmware/FFBoard/Src/I2C.cpp",
+        "line": 217
+      }
+    ],
+    "HAL_I2C_MasterRxCpltCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 248
+      }
+    ],
+    "HAL_I2C_MasterTxCpltCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 242
+      }
+    ],
+    "HAL_I2C_Master_Receive": [
+      {
+        "path": "Firmware/FFBoard/Src/I2C.cpp",
+        "line": 164
+      }
+    ],
+    "HAL_I2C_Master_Receive_DMA": [
+      {
+        "path": "Firmware/FFBoard/Src/I2C.cpp",
+        "line": 172
+      }
+    ],
+    "HAL_I2C_Master_Receive_IT": [
+      {
+        "path": "Firmware/FFBoard/Src/I2C.cpp",
+        "line": 178
+      }
+    ],
+    "HAL_I2C_Master_Transmit": [
+      {
+        "path": "Firmware/FFBoard/Src/I2C.cpp",
+        "line": 144
+      }
+    ],
+    "HAL_I2C_Master_Transmit_DMA": [
+      {
+        "path": "Firmware/FFBoard/Src/I2C.cpp",
+        "line": 152
+      }
+    ],
+    "HAL_I2C_Master_Transmit_IT": [
+      {
+        "path": "Firmware/FFBoard/Src/I2C.cpp",
+        "line": 158
+      }
+    ],
+    "HAL_I2C_MemRxCpltCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 260
+      }
+    ],
+    "HAL_I2C_MemTxCpltCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 254
+      }
+    ],
+    "HAL_I2C_Mem_Read": [
+      {
+        "path": "Firmware/FFBoard/Src/I2C.cpp",
+        "line": 193
+      }
+    ],
+    "HAL_I2C_Mem_Read_IT": [
+      {
+        "path": "Firmware/FFBoard/Src/I2C.cpp",
+        "line": 201
+      }
+    ],
+    "HAL_I2C_Mem_Write": [
+      {
+        "path": "Firmware/FFBoard/Src/I2C.cpp",
+        "line": 185
+      }
+    ],
+    "HAL_I2C_Mem_Write_IT": [
+      {
+        "path": "Firmware/FFBoard/Src/I2C.cpp",
+        "line": 209
+      }
+    ],
+    "HAL_I2C_MspDeInit": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 381
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 413
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 251
+      }
+    ],
+    "HAL_I2C_MspInit": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 340
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 354
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 202
+      }
+    ],
+    "HAL_IWDG_Init": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 571
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 535
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 483
+      }
+    ],
+    "HAL_IWDG_Refresh": [
+      {
+        "path": "Firmware/FFBoard/Src/cppmain.cpp",
+        "line": 113
+      }
+    ],
+    "HAL_IncTick": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1560
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1340
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1137
+      }
+    ],
+    "HAL_Init": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 144
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 141
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 131
+      }
+    ],
+    "HAL_InitTick": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 41
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 41
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 42
+      }
+    ],
+    "HAL_MspInit": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 82
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 84
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 74
+      }
+    ],
+    "HAL_NVIC_DisableIRQ": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 325
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 326
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 400
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 401
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 644
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 669
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 694
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 955
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 985
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 999
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1093
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1190
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1210
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1287
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 339
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 340
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 435
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 675
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 722
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 939
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 953
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 988
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1019
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1116
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1136
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1213
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 270
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 271
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 446
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 622
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 636
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 650
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 664
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 727
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 801
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 871
+      }
+    ],
+    "HAL_NVIC_EnableIRQ": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 298
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 301
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1332
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1335
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1338
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1341
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1344
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1347
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1350
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1498
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1501
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1504
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 292
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 294
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 365
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 367
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 478
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 543
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 608
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 720
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 746
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 783
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 797
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 811
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 825
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 839
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1132
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1159
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1255
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 95
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 286
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1119
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1122
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1125
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1128
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1131
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1134
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1137
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1140
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1284
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1287
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 306
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 308
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 399
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 512
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 639
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 747
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 772
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 786
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 800
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 814
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 853
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1058
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1085
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1181
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 95
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 276
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 279
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 282
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 285
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 288
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 291
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 294
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 947
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 950
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 953
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 956
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1088
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 235
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 237
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 348
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 493
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 495
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 542
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 840
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 87
+      }
+    ],
+    "HAL_NVIC_SetPriority": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 297
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 300
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1331
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1334
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1337
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1340
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1343
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1346
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1349
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1497
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1500
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1503
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 93
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 291
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 293
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 364
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 366
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 477
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 542
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 607
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 719
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 745
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 782
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 796
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 810
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 824
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 838
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1131
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1158
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1254
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 100
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 285
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1118
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1121
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1124
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1127
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1130
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1133
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1136
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1139
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1283
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1286
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 95
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 305
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 307
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 398
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 511
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 638
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 746
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 771
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 785
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 799
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 813
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 852
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1057
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1084
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1180
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 100
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 275
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 278
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 281
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 284
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 287
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 290
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 293
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 946
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 949
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 952
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 955
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1087
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 85
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 234
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 236
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 347
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 492
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 494
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 541
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 839
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 92
+      }
+    ],
+    "HAL_PCD_Init": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1309
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1096
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 925
+      }
+    ],
+    "HAL_PCD_MspDeInit": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1269
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1195
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 854
+      }
+    ],
+    "HAL_PCD_MspInit": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1224
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1150
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 815
+      }
+    ],
+    "HAL_RCC_ClockConfig": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 284
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 272
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 262
+      }
+    ],
+    "HAL_RCC_GetClockConfig": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 54
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 54
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 55
+      }
+    ],
+    "HAL_RCC_GetHCLKFreq": [
+      {
+        "path": "Firmware/FFBoard/Src/cppmain.cpp",
+        "line": 10
+      }
+    ],
+    "HAL_RCC_GetPCLK1Freq": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 61
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 65
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 61
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 65
+      }
+    ],
+    "HAL_RCC_GetPCLK2Freq": [
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 58
+      }
+    ],
+    "HAL_RCC_OscConfig": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 270
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 258
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 248
+      }
+    ],
+    "HAL_ResumeTick": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 132
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 132
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 124
+      }
+    ],
+    "HAL_SPI_ErrorCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 234
+      }
+    ],
+    "HAL_SPI_IRQHandler": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 378
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 392
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 477
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 362
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 432
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_it.c",
+        "line": 314
+      }
+    ],
+    "HAL_SPI_Init": [
+      {
+        "path": "Firmware/FFBoard/Src/SPI.cpp",
+        "line": 77
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 609
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 647
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 685
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 573
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 611
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 649
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 521
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 559
+      }
+    ],
+    "HAL_SPI_MspDeInit": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 622
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 653
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 424
+      }
+    ],
+    "HAL_SPI_MspInit": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 415
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 449
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 285
+      }
+    ],
+    "HAL_SPI_Receive": [
+      {
+        "path": "Firmware/FFBoard/Src/SPI.cpp",
+        "line": 172
+      }
+    ],
+    "HAL_SPI_Receive_DMA": [
+      {
+        "path": "Firmware/FFBoard/Src/SPI.cpp",
+        "line": 123
+      }
+    ],
+    "HAL_SPI_Receive_IT": [
+      {
+        "path": "Firmware/FFBoard/Src/SPI.cpp",
+        "line": 154
+      }
+    ],
+    "HAL_SPI_RxCpltCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 204
+      }
+    ],
+    "HAL_SPI_RxHalfCpltCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 222
+      }
+    ],
+    "HAL_SPI_Transmit": [
+      {
+        "path": "Firmware/FFBoard/Src/SPI.cpp",
+        "line": 163
+      }
+    ],
+    "HAL_SPI_TransmitReceive": [
+      {
+        "path": "Firmware/FFBoard/Src/SPI.cpp",
+        "line": 181
+      }
+    ],
+    "HAL_SPI_TransmitReceive_DMA": [
+      {
+        "path": "Firmware/FFBoard/Src/SPI.cpp",
+        "line": 109
+      }
+    ],
+    "HAL_SPI_TransmitReceive_IT": [
+      {
+        "path": "Firmware/FFBoard/Src/SPI.cpp",
+        "line": 144
+      }
+    ],
+    "HAL_SPI_Transmit_DMA": [
+      {
+        "path": "Firmware/FFBoard/Src/SPI.cpp",
+        "line": 95
+      }
+    ],
+    "HAL_SPI_Transmit_IT": [
+      {
+        "path": "Firmware/FFBoard/Src/SPI.cpp",
+        "line": 134
+      }
+    ],
+    "HAL_SPI_TxCpltCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 198
+      }
+    ],
+    "HAL_SPI_TxHalfCpltCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 216
+      }
+    ],
+    "HAL_SPI_TxRxCpltCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 210
+      }
+    ],
+    "HAL_SPI_TxRxHalfCpltCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 228
+      }
+    ],
+    "HAL_SuspendTick": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 120
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 120
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 112
+      }
+    ],
+    "HAL_TIMEx_ConfigBreakDeadTime": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 771
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1139
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 735
+      }
+    ],
+    "HAL_TIMEx_MasterConfigSynchronization": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 737
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 846
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 895
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 945
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1027
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1065
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1117
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 701
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 785
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 835
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 888
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 926
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 605
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 650
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 699
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 744
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 789
+      }
+    ],
+    "HAL_TIM_Base_Init": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 722
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 808
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 930
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 989
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1059
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1102
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1172
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1208
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 87
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 686
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 820
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 877
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 920
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 959
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 995
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 87
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 594
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 639
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 733
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 778
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 822
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 858
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 79
+      }
+    ],
+    "HAL_TIM_Base_MspDeInit": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 918
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 896
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 603
+      }
+    ],
+    "HAL_TIM_Base_MspInit": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 708
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 736
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 482
+      }
+    ],
+    "HAL_TIM_Base_Start_IT": [
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/EncoderLocal.cpp",
+        "line": 24
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/FFBHIDMain.cpp",
+        "line": 111
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MidiMain.cpp",
+        "line": 70
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/TMC4671.cpp",
+        "line": 3158
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 91
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 91
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_timebase_tim.c",
+        "line": 83
+      }
+    ],
+    "HAL_TIM_Base_Stop_IT": [
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MotorPWM.cpp",
+        "line": 54
+      }
+    ],
+    "HAL_TIM_ConfigClockSource": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 727
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 813
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 935
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 994
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1107
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1177
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 691
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 825
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 882
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 964
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 599
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 644
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 738
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 783
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 827
+      }
+    ],
+    "HAL_TIM_Encoder_Init": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 889
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 779
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 693
+      }
+    ],
+    "HAL_TIM_Encoder_MspDeInit": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1076
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1002
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 710
+      }
+    ],
+    "HAL_TIM_Encoder_MspInit": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 853
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 828
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 567
+      }
+    ],
+    "HAL_TIM_IC_ConfigChannel": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 834
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 840
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1015
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1021
+      }
+    ],
+    "HAL_TIM_IC_Init": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 817
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 998
+      }
+    ],
+    "HAL_TIM_IRQHandler": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 307
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 308
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 322
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 336
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 448
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 449
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 463
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 491
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 505
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 319
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 320
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 334
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 404
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 418
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 446
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 460
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_it.c",
+        "line": 242
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_it.c",
+        "line": 243
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_it.c",
+        "line": 257
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_it.c",
+        "line": 258
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_it.c",
+        "line": 272
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_it.c",
+        "line": 286
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_it.c",
+        "line": 300
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_it.c",
+        "line": 342
+      }
+    ],
+    "HAL_TIM_MspPostInit": [
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MotorPWM.cpp",
+        "line": 173
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Inc/main.h",
+        "line": 53
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 778
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 78
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 883
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Inc/main.h",
+        "line": 53
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 742
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 80
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 861
+      }
+    ],
+    "HAL_TIM_OC_ConfigChannel": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1128
+      }
+    ],
+    "HAL_TIM_OC_Init": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1111
+      }
+    ],
+    "HAL_TIM_PWM_ConfigChannel": [
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MotorPWM.cpp",
+        "line": 310
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MotorPWM.cpp",
+        "line": 329
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 748
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 752
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 756
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 760
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 953
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 712
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 716
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 720
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 724
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 843
+      }
+    ],
+    "HAL_TIM_PWM_Init": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 731
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 939
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 695
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 829
+      }
+    ],
+    "HAL_TIM_PWM_Start": [
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MotorPWM.cpp",
+        "line": 312
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MotorPWM.cpp",
+        "line": 330
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 958
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 848
+      }
+    ],
+    "HAL_TIM_PWM_Stop": [
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MotorPWM.cpp",
+        "line": 50
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MotorPWM.cpp",
+        "line": 51
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MotorPWM.cpp",
+        "line": 52
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MotorPWM.cpp",
+        "line": 53
+      },
+      {
+        "path": "Firmware/FFBoard/UserExtensions/Src/MotorPWM.cpp",
+        "line": 309
+      }
+    ],
+    "HAL_TIM_PeriodElapsedCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 80
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1554
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1334
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1131
+      }
+    ],
+    "HAL_TIM_PeriodElapsedCallback_CPP": [
+      {
+        "path": "Firmware/FFBoard/Inc/global_callbacks.h",
+        "line": 55
+      },
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 81
+      },
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 84
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1564
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1344
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 1141
+      }
+    ],
+    "HAL_TIM_SlaveConfigSynchro": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 826
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1007
+      }
+    ],
+    "HAL_UART_AbortReceive": [
+      {
+        "path": "Firmware/FFBoard/Src/UART.cpp",
+        "line": 118
+      }
+    ],
+    "HAL_UART_AbortTransmit": [
+      {
+        "path": "Firmware/FFBoard/Src/UART.cpp",
+        "line": 130
+      }
+    ],
+    "HAL_UART_IRQHandler": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 406
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_it.c",
+        "line": 420
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 376
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_it.c",
+        "line": 390
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_it.c",
+        "line": 328
+      }
+    ],
+    "HAL_UART_Init": [
+      {
+        "path": "Firmware/FFBoard/Src/UART.cpp",
+        "line": 42
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1241
+      },
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/main.c",
+        "line": 1274
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1028
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/main.c",
+        "line": 1061
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/main.c",
+        "line": 891
+      }
+    ],
+    "HAL_UART_MspDeInit": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1173
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1099
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 784
+      }
+    ],
+    "HAL_UART_MspInit": [
+      {
+        "path": "Firmware/Targets/F407VG/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1107
+      },
+      {
+        "path": "Firmware/Targets/F407VG_DISCO/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 1033
+      },
+      {
+        "path": "Firmware/Targets/F411RE/Core/Src/stm32f4xx_hal_msp.c",
+        "line": 741
+      }
+    ],
+    "HAL_UART_Receive": [
+      {
+        "path": "Firmware/FFBoard/Src/UART.cpp",
+        "line": 88
+      }
+    ],
+    "HAL_UART_Receive_DMA": [
+      {
+        "path": "Firmware/FFBoard/Src/UART.cpp",
+        "line": 98
+      }
+    ],
+    "HAL_UART_Receive_IT": [
+      {
+        "path": "Firmware/FFBoard/Src/UART.cpp",
+        "line": 58
+      },
+      {
+        "path": "Firmware/FFBoard/Src/UART.cpp",
+        "line": 105
+      }
+    ],
+    "HAL_UART_RxCpltCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 99
+      }
+    ],
+    "HAL_UART_Transmit": [
+      {
+        "path": "Firmware/FFBoard/Src/UART.cpp",
+        "line": 72
+      }
+    ],
+    "HAL_UART_Transmit_DMA": [
+      {
+        "path": "Firmware/FFBoard/Src/UART.cpp",
+        "line": 65
+      }
+    ],
+    "HAL_UART_Transmit_IT": [
+      {
+        "path": "Firmware/FFBoard/Src/UART.cpp",
+        "line": 81
+      }
+    ],
+    "HAL_UART_TxCpltCallback": [
+      {
+        "path": "Firmware/FFBoard/Src/global_callbacks.cpp",
+        "line": 105
+      }
+    ]
+  }
+}

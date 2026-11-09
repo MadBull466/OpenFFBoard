@@ -752,14 +752,31 @@ class ExeRunner:
 
 	def inventory(self, extra=()):
 		rc, timed_out, stderr, text = self.doctest(["--list-test-cases", "--no-skip"] + list(extra), "list", True)
+		if rc != 0 or timed_out:
+			raise RuntimeError("%s --list-test-cases failed (%s): %s" % (
+				self.name, "timeout" if timed_out else signal_name(rc), one_line(stderr)))
 		try:
+			root = ET.fromstring(text)
+			if root.tag != "doctest" or any(child.tag not in ("Options", "TestCase", "OverallResultsTestCases") for child in root):
+				raise ValueError("expected doctest list structure")
+			cases = root.findall("TestCase")
+			for case in cases:
+				if list(case) or not case.get("name", "").strip() or not case.get("filename", "").strip():
+					raise ValueError("inventory case requires name, filename and no run results")
+				if int(case.get("line", "0")) <= 0:
+					raise ValueError("inventory case requires a positive source line")
+			summaries = root.findall("OverallResultsTestCases")
+			if len(summaries) != 1 or root[-1] is not summaries[0] or int(summaries[0].get("unskipped", "-1")) != len(cases):
+				raise ValueError("inventory requires a final matching unskipped count")
 			return parse_inventory(text)
-		except ET.ParseError:
-			raise RuntimeError("%s --list-test-cases failed (%s): %s" % (self.name, signal_name(rc), one_line(stderr)))
+		except (ET.ParseError, ValueError) as exc:
+			raise RuntimeError("%s --list-test-cases invalid inventory: %s" % (self.name, exc))
 
 	def run(self):
 		"""Returns the results of every case of the executable."""
 		inventory = self.inventory()
+		if not inventory:
+			raise RuntimeError("%s --list-test-cases returned no test cases" % self.name)
 		ident = lambda suite, name, fn, line: (os.path.basename(fn), line, name)
 		order = [ident(*c[:4]) for c in inventory]
 		unskipped = [ident(*c[:4]) for c in inventory if not c[4]]
@@ -932,6 +949,11 @@ def python_results(python_dir, workdir, timeout, python=sys.executable):
 	except (OSError, ValueError):
 		return [], ["python tests did not finish (%s): %s" % ("timeout" if timed_out else signal_name(rc),
 			one_line(stderr[-400:]))]
+	if rc != 0 or timed_out:
+		problems.append("python tests did not finish (%s): %s" % (
+			"timeout" if timed_out else signal_name(rc), one_line(stderr[-400:])))
+	if not records:
+		problems.append("python tests discovered no tests in %s" % python_dir)
 	return records_to_results(records), problems
 
 
@@ -1206,9 +1228,10 @@ def main(argv=None):
 			exes_run.append(exe)
 		if not args.no_python:
 			print("running the python helper tests ...", flush=True)
-			py, py_problems = python_results(os.path.join(TESTS_DIR, "python"), workdir, args.timeout, args.python)
-			results.extend(py)
-			problems.extend(py_problems)
+			for owner in ("claude", "codex"):
+				py, py_problems = python_results(os.path.join(TESTS_DIR, owner, "python"), workdir, args.timeout, args.python)
+				results.extend(py)
+				problems.extend(py_problems)
 			exes_run.append(PYTHON_EXE)
 	finally:
 		shutil.rmtree(workdir, ignore_errors=True)

@@ -44,30 +44,32 @@ Framework: [doctest](https://github.com/doctest/doctest) 2.4.11 (single header, 
 Requirements: CMake >= 3.16 and gcc/g++ with C++20 support (MinGW-w64 on Windows).
 
 ```sh
-cd Firmware/Tests
-cmake -S . -B build                # Windows with MinGW: add  -G "MinGW Makefiles"
-cmake --build build -j
-ctest --test-dir build --output-on-failure
+# From the repository root; keep build output outside the checkout.
+cmake -S Firmware/Tests -B ../ffb-test-build/host  # MinGW: add -G "MinGW Makefiles"
+cmake --build ../ffb-test-build/host --parallel
+ctest --test-dir ../ffb-test-build/host --output-on-failure
 ```
 
-or with presets (CMake >= 3.21): `cmake --preset host && cmake --build --preset host && ctest --preset host`
-(`host-mingw` on Windows).
+Existing presets (CMake >= 3.21, `host-mingw` on Windows) define in-tree build locations.
+For this checkout, use the explicit out-of-tree commands above, or override the preset's binary directory
+and build/test that chosen directory. Do not create build output under `Firmware/`.
 
-`ctest` runs 9 entries: the seven test executables `ffb_unit_tests`, `ffb_target_tests`, `ffb_flash_tests`,
+`ctest` runs 10 entries: the seven test executables `ffb_unit_tests`, `ffb_target_tests`, `ffb_flash_tests`,
 `ffb_rtos_tests`, `ffb_usb_tests`, `ffb_driver_tests` and `ffb_dsp_tests` (each with its exclusion list), `ffb_unit_tests_baseline` (the baseline check, see
-below) and `python_helper_tests` (the last two only if Python 3 is found; `ffb_flash_tests` is not built on macOS;
-`ffb_dsp_tests` only with CMSIS-DSP and its `Testing/Patterns`, so 8 entries without them).
+below) and `python_helper_tests` and `codex_python_tests` (the baseline and Python entries only if Python 3 is found; `ffb_flash_tests` is not built on macOS;
+`ffb_dsp_tests` only with CMSIS-DSP and its `Testing/Patterns`, so 9 entries without them).
 
 | Executable | Test cases | Section |
 |---|---|---|
-| `ffb_unit_tests` | `cases/` | this section (the original suite) |
-| `ffb_target_tests` | `claude/cases_target/` | [`ffb_target_tests`](#ffb_target_tests-f407-feature-set-with-the-real-axis) |
+| `ffb_unit_tests` | `cases/`, `claude/cases/`, `codex/cases/` | this section (the original suite) |
+| `ffb_target_tests` | `claude/cases_target/`, `codex/cases_target/` | [`ffb_target_tests`](#ffb_target_tests-f407-feature-set-with-the-real-axis) |
 | `ffb_flash_tests` | `claude/cases_flash/` | [`ffb_flash_tests`](#ffb_flash_tests-the-real-flash-layer-on-a-fake-hal-flash) |
-| `ffb_rtos_tests` | `claude/cases_rtos/` | [`ffb_rtos_tests`](#ffb_rtos_tests-the-freertos-c-wrappers-on-a-fake-freertos-api) |
-| `ffb_usb_tests` | `claude/cases_usb/` | [`ffb_usb_tests`](#ffb_usb_tests-the-tinyusb-device-stack-on-a-fake-usb-device-controller) |
-| `ffb_driver_tests` | `claude/cases/driver/` | [`ffb_driver_tests`](#ffb_driver_tests-the-tmc4671-odrive-and-vesc-drivers-driver-track) |
+| `ffb_rtos_tests` | `claude/cases_rtos/`, `codex/cases_rtos/` | [`ffb_rtos_tests`](#ffb_rtos_tests-the-freertos-c-wrappers-on-a-fake-freertos-api) |
+| `ffb_usb_tests` | `claude/cases_usb/`, `codex/cases_usb/` | [`ffb_usb_tests`](#ffb_usb_tests-the-tinyusb-device-stack-on-a-fake-usb-device-controller) |
+| `ffb_driver_tests` | `claude/cases/driver/`, `codex/cases/driver/` | [`ffb_driver_tests`](#ffb_driver_tests-the-tmc4671-odrive-and-vesc-drivers-driver-track) |
 | `ffb_dsp_tests` | `claude/cases_dsp/` | [`ffb_dsp_tests`](#ffb_dsp_tests-the-cmsis-dsp-modules-phase-p11) |
-| `python_helper_tests` | `python/` | [Python helper tests](#python-helper-tests) |
+| `python_helper_tests` | `claude/python/` | [Python helper tests](#python-helper-tests) |
+| `codex_python_tests` | `codex/python/` | Mandatory nonempty stdlib tooling/discovery regressions |
 
 The test executables can be started directly for more control. With GCC 16 (libstdc++ with `_GLIBCXX_ASSERTIONS` at
 `-O0`) a run of `ffb_unit_tests` without the exclusion aborts in the case
@@ -75,12 +77,12 @@ The test executables can be started directly for more control. With GCC 16 (libs
 sanitizer build with CMSIS-DSP also the two spline cases of `FFB_TESTS_EXCLUDE_SANITIZE`):
 
 ```sh
-build/ffb_unit_tests -tce="requesting the forces of a not existing axis is rejected"   # all other tests, prints details of known issues
-build/ffb_unit_tests -ts=CmdParser          # one test suite
-build/ffb_unit_tests -tc="*sine*"           # test cases by name
-build/ffb_unit_tests --list-test-cases
-build/ffb_unit_tests -ts=CmdParser -s       # also print successful assertions
-build/ffb_target_tests                      # the other executables need no exclusion by default
+../ffb-test-build/host/ffb_unit_tests -tce="requesting the forces of a not existing axis is rejected"   # all other tests, prints details of known issues
+../ffb-test-build/host/ffb_unit_tests -ts=CmdParser          # one test suite
+../ffb-test-build/host/ffb_unit_tests -tc="*sine*"           # test cases by name
+../ffb-test-build/host/ffb_unit_tests --list-test-cases
+../ffb-test-build/host/ffb_unit_tests -ts=CmdParser -s       # also print successful assertions
+../ffb-test-build/host/ffb_target_tests                      # the other executables need no exclusion by default
 ```
 
 Expected result of `ffb_unit_tests` with the documented exclusions (GCC 16, Linux): 646 passed, 0 failed, 4 skipped
@@ -88,6 +90,12 @@ Expected result of `ffb_unit_tests` with the documented exclusions (GCC 16, Linu
 CMSIS-DSP: 645 / 0 / 5). doctest counts a
 `KNOWN_ISSUE` case that fails as expected as passed. The 318 baseline cases are a subset of these; their own result
 (316 passed, 2 skipped on GCC 16 with the exclusion) is checked by `tools/check_baseline.py` (see below).
+
+Codex unit, target, RTOS, USB and driver cases are registered alongside existing cases. The additional
+Codex Python entry rejects empty discovery. Shared changes and current verified counts are recorded in
+`Tests/codex/SHARED_FILE_CHANGES.md` and `Tests/codex/REGRESSION_RESULTS.md`; older phase counts below
+are historical where superseded by that closeout record. The forced-skip full report remains a separate
+forensic tool, not the normal verification gate.
 
 ### Build options
 
@@ -101,7 +109,7 @@ CMSIS-DSP: 645 / 0 / 5). doctest counts a
 
 The active exclusions are printed when CMake configures (`OpenFFBoard tests: excluded from ctest: ...`).
 When running the executable directly, pass the same list, e.g.
-`build/ffb_unit_tests --test-case-exclude="requesting the forces of a not existing axis is rejected"`.
+`../ffb-test-build/host/ffb_unit_tests --test-case-exclude="requesting the forces of a not existing axis is rejected"`.
 
 doctest splits the values of `-tc` / `-tce` / `-ts` / `--test-case-exclude` at commas, and the exclusion options are
 passed to doctest the same way, so a test name that contains a comma can not be given verbatim (in a filter or in an
@@ -708,7 +716,7 @@ The FreeRTOS kernel itself is not tested; the fake reproduces the documented beh
   and event groups exist than at its construction (the timer service task and timers whose delete command is queued
   do not count). Justified leaks: `allowLeak(Leak::Queues, n)`; `keepAlive` of a `MemoryPool` allows its mutex.
 * **Exclusions:** `FFB_RTOS_TESTS_EXCLUDE` and `FFB_RTOS_TESTS_EXCLUDE_SANITIZE` (both default empty), printed at
-  configure time like the others. Run directly: `build/ffb_rtos_tests` (`-ts=RtosSetup` for the smoke tests).
+  configure time like the others. Run directly: `../ffb-test-build/host/ffb_rtos_tests` (`-ts=RtosSetup` for the smoke tests).
 * **Host-vs-target:** the host uses the exception variant of the wrappers (the F407 defines `CPP_FREERTOS_NO_EXCEPTIONS`
   and stops in `configASSERT`); `sizeof(void *)` is 8 on the host and 4 on the target (`MemoryPool` raises the
   alignment to the pointer size, so item sizes differ).
@@ -723,7 +731,7 @@ real `tusb_config.h` of the F407 target (`OPT_MCU_STM32F4`, `OPT_OS_FREERTOS`, f
 fake device controller, together with the firmware's USB glue: `USBdevice.cpp`, `CDCcomm.cpp`, `UsbHidHandler.cpp`, the
 descriptors and the TinyUSB callbacks of `global_callbacks.cpp`.
 
-* **Test cases:** `claude/cases_usb/test_*.cpp` (own glob). Run directly: `build/ffb_usb_tests` (`-ts=UsbSetup` for the smoke
+* **Test cases:** `claude/cases_usb/test_*.cpp` (own glob). Run directly: `../ffb-test-build/host/ffb_usb_tests` (`-ts=UsbSetup` for the smoke
   tests). Exclusion lists `FFB_USB_TESTS_EXCLUDE` / `FFB_USB_TESTS_EXCLUDE_SANITIZE` (default empty), printed at
   configure time like the others. Built on Linux, macOS and MinGW (no fixed addresses; unverified on macOS / Windows).
 * **Sources:** the firmware and platform sources of `ffb_target_tests` (F407 feature set; `global_callbacks.cpp` needs
@@ -790,7 +798,7 @@ phases D0-D3). It tests the real motor drivers against simulated peers, not thei
 * **Platform:** `platform/src/host_driver_timers.cpp` adds the fake TIM6 (`htim6`, as left by `MX_TIM6_Init`), which the
   TMC4671 driver uses as its external encoder timer. It is reset by `HostTarget::reset()` through
   `HostTarget::addResetHook`; the other executables do not link it.
-* **Test cases:** `claude/cases/driver/test_*.cpp` (own glob). Run directly: `build/ffb_driver_tests`. Exclusion lists
+* **Test cases:** `claude/cases/driver/test_*.cpp` (own glob). Run directly: `../ffb-test-build/host/ffb_driver_tests`. Exclusion lists
   `FFB_DRIVER_TESTS_EXCLUDE` / `FFB_DRIVER_TESTS_EXCLUDE_SANITIZE` (default empty), printed at configure time like the
   others. Also covered by `tools/run_all_tests.py` / `test_report`.
 * **Requirements and specifications:** the requirement charters (requirements, spec facts, lead decisions) are
@@ -817,7 +825,7 @@ phases D0-D3). It tests the real motor drivers against simulated peers, not thei
 
 ```sh
 ctest --test-dir build -V > ctest.log; python3 -B tools/summarise_results.py ctest.log
-build/ffb_driver_tests -r=xml | python3 -B tools/summarise_results.py       # XML shows skipped cases by name
+../ffb-test-build/host/ffb_driver_tests -r=xml | python3 -B tools/summarise_results.py       # XML shows skipped cases by name
 cmake --build build 2>&1 | python3 -B tools/summarise_results.py --format build
 ```
 
@@ -853,7 +861,7 @@ source is compiled into it.
   `test_dsp_*.cpp`) limits the compiled files, e.g. `cmake -DFFB_DSP_TEST_FILTER="test_dsp_fastmath*.cpp" .`; the
   loader self-tests are always compiled. Exclusion lists `FFB_DSP_TESTS_EXCLUDE` / `FFB_DSP_TESTS_EXCLUDE_SANITIZE`
   (default empty). Test names carry the requirement id and the unit, e.g. `[C1 arm_sin_f32] ...`.
-* **Run:** `build/ffb_dsp_tests` (from any directory; the loader tests write short-lived files into the current
+* **Run:** `../ffb-test-build/host/ffb_dsp_tests` (from any directory; the loader tests write short-lived files into the current
   directory), or `ctest -R ffb_dsp_tests`. Also covered by `tools/run_all_tests.py` / `test_report`; the coverage report
   has its own "CMSIS-DSP in scope" section (outside tier C and the ladder, so their numbers stay comparable).
 * **Host vs target:** the host runs the portable C path; results of the Cortex-M `ARM_MATH_DSP` path, FMA

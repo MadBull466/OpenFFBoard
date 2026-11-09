@@ -77,7 +77,8 @@ double worstTrigRatio(F f, R ref, double first, double last, int steps, float* w
 		const float x = static_cast<float>(first + (last - first) * i / steps);
 		const double err = std::fabs(static_cast<double>(f(x)) - ref(static_cast<double>(x)));
 		const double ratio = err / trigTolerance(x);
-		if (ratio > worst) {
+		// "!(ratio <= worst)" also takes a NaN result (CDX-014): "ratio > worst" would drop it and the check would pass
+		if (!(ratio <= worst)) {
 			worst = ratio;
 			*worstX = x;
 		}
@@ -144,7 +145,8 @@ struct DspCascade {
 double maxAbsDiff(const std::vector<float>& a, const std::vector<double>& b) {
 	double worst = 0;
 	for (size_t i = 0; i < a.size(); i++) {
-		worst = std::max(worst, std::fabs(static_cast<double>(a[i]) - b[i]));
+		const double diff = std::fabs(static_cast<double>(a[i]) - b[i]);
+		if (!(diff <= worst)) worst = diff; // keeps a NaN result (std::max would drop it, CDX-014)
 	}
 	return worst;
 }
@@ -741,7 +743,8 @@ TEST_CASE("arm_pid_f32 equals the positional PID Kp e + Ki sum(e) + Kd (e - prev
 		integral += err;
 		const double expected = pid.Kp * double(err) + pid.Ki * integral + pid.Kd * (double(err) - previous);
 		previous = err;
-		worst = std::max(worst, std::fabs(arm_pid_f32(&pid, err) - expected));
+		const double diff = std::fabs(arm_pid_f32(&pid, err) - expected);
+		if (!(diff <= worst)) worst = diff; // keeps a NaN result (std::max would drop it, CDX-014)
 	}
 	CHECK(worst <= TOL);
 }
