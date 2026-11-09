@@ -258,18 +258,24 @@ TEST_CASE_FIXTURE(RtosFixture, "a schedule with a timeout of 0 returns at once w
 								"ran it. The first failing assertion is CHECK(secondReturned)")) {
 	LoggingTasklet tasklet;
 	bool first = false;
+	bool second = true; // Result of the second schedule; stays true while the call has not returned
 	bool secondReturned = false;
 	TaskletTestThread task([&] {
 		first = tasklet.Schedule(1, 0);
-		(void)tasklet.Schedule(2, 0);
+		second = tasklet.Schedule(2, 0);
 		secondReturned = true;
 	});
 	TaskHandle_t handle = task.startResumable();
 	HostRtos::runUntilBlocked(handle); // Priority 3: before the timer service ran the first schedule
 	REQUIRE(first);
 	REQUIRE_ALL_RTOS_MODELLED();
-	CHECK(secondReturned);
+	CHECK(secondReturned); // The defect assertion: it fails first today (the call blocks)
+	// Codex review CDX-012: a repair that only stops waiting but ignores the failed lock (unchecked take, the pend still
+	// queued) would make the call return at once and would flip this marker although the race stays. The assertions
+	// below pass only for a repair that rejects the call (false, nothing queued, only the first parameter delivered).
+	CHECK_FALSE(second);
 	runReady(); // Let a blocked task finish
+	CHECK(tasklet.parameters == std::vector<uint32_t>{1});
 }
 
 TEST_CASE_FIXTURE(RtosFixture, "a tasklet that schedules itself again from its run does not block the timer service"

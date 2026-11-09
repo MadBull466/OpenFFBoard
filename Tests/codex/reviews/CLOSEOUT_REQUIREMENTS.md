@@ -1,3 +1,5 @@
+> Edited by Claude 2026-11-09: this historical report mentions the CDX-008 ring-buffer exclusion/quarantine. That exclusion no longer exists (the Claude test was fixed instead). See `Tests/claude/reports/CODEX_REVIEW_AUDIT.md`. The text below is otherwise unchanged.
+
 # P0–P10 closeout requirements
 
 2026-11-06 · technical lead, GPT-6 Astra, high effort · assignment

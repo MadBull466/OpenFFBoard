@@ -1,3 +1,5 @@
+> Edited by Claude 2026-11-09: this historical report mentions the CDX-008 ring-buffer exclusion/quarantine. That exclusion no longer exists (the Claude test was fixed instead). See `Tests/claude/reports/CODEX_REVIEW_AUDIT.md`. The text below is otherwise unchanged.
+
 # Regression results
 
 > Current status (2026-11-06): the authorized closeout is complete; see [CLOSEOUT_RESULTS](CLOSEOUT_RESULTS.md) and [final QC](reviews/CLOSEOUT_FINAL_QC.md#final-integrated-release-acceptance). Earlier counts and pending statements below are historical staged evidence.

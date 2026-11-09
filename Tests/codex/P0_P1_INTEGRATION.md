@@ -1,3 +1,5 @@
+> Edited by Claude 2026-11-09: this historical report mentions the CDX-008 ring-buffer exclusion/quarantine. That exclusion no longer exists (the Claude test was fixed instead). See `Tests/claude/reports/CODEX_REVIEW_AUDIT.md`. The text below is otherwise unchanged.
+
 # Approved P0 tooling and P1 lifecycle integration
 
 2026-11-06. Owner instruction: **“Apply both.”** Applied the exact previously reviewed P0_TOOLING_FIXES.patch and P1_TEST_INTEGRATION.patch. The earlier approved target-case registration remains in place. No further approval is pending for these three patches.

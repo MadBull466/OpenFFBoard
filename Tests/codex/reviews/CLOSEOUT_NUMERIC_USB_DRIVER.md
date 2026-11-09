@@ -1,3 +1,5 @@
+> Edited by Claude 2026-11-09: this historical report mentions the CDX-008 ring-buffer exclusion/quarantine. That exclusion no longer exists (the Claude test was fixed instead). See `Tests/claude/reports/CODEX_REVIEW_AUDIT.md`. The text below is otherwise unchanged.
+
 # Numerical, USB and driver closeout implementation
 
 2026-11-06 · GPT-6.1 Sol writer · assignment

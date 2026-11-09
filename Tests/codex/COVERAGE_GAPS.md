@@ -35,6 +35,6 @@ Out-of-scope platform/vendor/driver/MIDI areas and hardware/ARM/Windows/macOS li
 - Critical-error flag assertions omit motor-side inhibition and later torque output (CDX-010). A proper/unsafe repair pair demonstrates the gap despite equal existing-suite results.
 - ADS threshold assertions can become unreachable after a valid implementation-strategy change (CDX-011).
 - Tasklet timeout assertions omit return value and rejection of the second callback (CDX-012); EventGroup Sync omits the reserved set-mask argument and the fake differs from the supplied kernel (CDX-013).
-- Ordinary ring-buffer test UB (CDX-008) limits sanitizer-cleanliness claims; supplemental unit runs explicitly omit that nonbaseline case. Shared exclusions remain unchanged.
+- Ordinary ring-buffer test UB (CDX-008) limits sanitizer-cleanliness claims; ~~supplemental unit runs explicitly omit that nonbaseline case~~ the test was fixed and runs normally. [Edited by Claude 2026-11-09: the CDX-008 quarantine was removed from `Firmware/Tests/CMakeLists.txt`; the Claude test `typed access reads single bytes and counts elements` was fixed instead (empty-buffer check moved to its own case). See `Tests/claude/reports/CODEX_REVIEW_AUDIT.md`.]
 
 These findings concern assertion reachability, state transitions, error handling and fake fidelity even where lines are already covered. See REVIEW_FINDINGS and phase reports for exact evidence, recommendations and limitations.

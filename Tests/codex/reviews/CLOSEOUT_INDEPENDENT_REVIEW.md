@@ -1,3 +1,5 @@
+> Edited by Claude 2026-11-09: this historical report mentions the CDX-008 ring-buffer exclusion/quarantine. That exclusion no longer exists (the Claude test was fixed instead). See `Tests/claude/reports/CODEX_REVIEW_AUDIT.md`. The text below is otherwise unchanged.
+
 # Independent closeout review: foundations, RTOS, inputs and buses
 
 2026-11-06. Fresh GPT-6.1 Sol, high effort. **Accept the reviewed implementation**, subject to the coordinator's combined configuration/baseline gates and current release ledger. This is a bounded independent review of CLOSEOUT_REQUIREMENTS.md's foundation, P5/P6 and P8 rows; it does not approve P9/P10 numerical, USB or driver work or establish current coverage percentages.

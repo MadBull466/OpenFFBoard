@@ -19,6 +19,7 @@
 #include "flash_helpers.h"
 #include "CANPort2B.h"
 
+#include <array>
 #include <cstdint>
 #include <vector>
 
@@ -500,6 +501,22 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O14] the peer accepts both requests and answe
 	CHECK(peer0.violations().empty());
 	CHECK(peer0.rtrCount(0x09) == 1);
 	CHECK(peer0.rtrCount(0x17) == 1);
+	// The replies named by the title (Codex review CDX-016: the case used to check the requests only). Each reply is a
+	// data frame with the id of its request, DLC 8, two little endian float32 (CSV 0x009 / 0x017): 1.5f = 0x3FC00000,
+	// 0.0f; 24.0f = 0x41C00000, 0.0f.
+	std::vector<FakeOdrivePeer::Sent> encoder, bus;
+	for (const auto &f : peer0.sent()) {
+		if (f.id == 0x009) encoder.push_back(f);
+		if (f.id == 0x017) bus.push_back(f);
+	}
+	REQUIRE(encoder.size() == 1);
+	CHECK_FALSE(encoder[0].rtr);
+	CHECK(encoder[0].dlc == 8);
+	CHECK(encoder[0].data == std::array<uint8_t, 8>{0x00, 0x00, 0xC0, 0x3F, 0, 0, 0, 0});
+	REQUIRE(bus.size() == 1);
+	CHECK_FALSE(bus[0].rtr);
+	CHECK(bus[0].dlc == 8);
+	CHECK(bus[0].data == std::array<uint8_t, 8>{0x00, 0x00, 0xC0, 0x41, 0, 0, 0, 0});
 }
 
 TEST_CASE_FIXTURE(OdriveFixture, "[O14] the periodic bus voltage request of the driver thread is a remote frame with id 0x037 and DLC 0 (node 1)") {
