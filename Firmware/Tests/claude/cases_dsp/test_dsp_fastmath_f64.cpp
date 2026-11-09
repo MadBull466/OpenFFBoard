@@ -167,6 +167,24 @@ TEST_CASE("[C2 arm_vexp_f64] block size 0 leaves the output untouched") {
 // ---------------------------------------------------------------------------------------------------------------
 // C4: edge values (DEF, C99 Annex F)
 // ---------------------------------------------------------------------------------------------------------------
+TEST_CASE("[C2 arm_vexp_f64 arm_vlog_f64] hand-derived constants: exp(1), exp(-1), log(2) and log(10) within 4 ulp") {
+	// The C2 block tests compare with std::exp / std::log, the functions the library calls, so their values are
+	// self-referential (placement and guard are the point there). These literals are independent (known decimal
+	// expansions: e = 2.718281828459045, 1/e = 0.36787944117144233, ln 2 = 0.6931471805599453, ln 10 = 2.302585092994046).
+	const double in[] = {1.0, -1.0};
+	const double expect[] = {2.718281828459045, 0.36787944117144233};
+	dsp::GuardedBuffer<double> o(2);
+	arm_vexp_f64(in, o.data(), 2);
+	for (int i = 0; i < 2; i++) CHECK(std::fabs(o.output()[i] - expect[i]) <= 4.0 * 2.2e-16 * expect[i]);
+	CHECK(o.guardIntact());
+	const double in2[] = {2.0, 10.0};
+	const double expect2[] = {0.6931471805599453, 2.302585092994046};
+	dsp::GuardedBuffer<double> l(2);
+	arm_vlog_f64(in2, l.data(), 2);
+	for (int i = 0; i < 2; i++) CHECK(std::fabs(l.output()[i] - expect2[i]) <= 4.0 * 2.2e-16 * expect2[i]);
+	CHECK(l.guardIntact());
+}
+
 TEST_CASE("[C4 arm_vlog_f64] log of +0 is -inf and of -0 is -inf") {
 	const double in[2] = {0.0, -0.0};
 	double out[2] = {1, 1};

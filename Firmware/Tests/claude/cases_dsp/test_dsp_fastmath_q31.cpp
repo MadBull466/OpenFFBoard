@@ -114,7 +114,7 @@ TEST_SUITE("DSP FastMath q31") {
 // C1: ARM's tests
 // ---------------------------------------------------------------------------------------------------------------
 
-TEST_CASE("[C1 arm_cos_q31] the cosine of ARM's 23 angles matches the reference within 100 dB SNR and 2200 LSB" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:77 / arm_cos_q31.c:79), undefined in C; UBSan reports it, the result is the intended one on the host")) {
+TEST_CASE("[C1 arm_cos_q31] the cosine of ARM's 23 angles matches the reference within 100 dB SNR and 2200 LSB" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:79-80 / arm_cos_q31.c:82), undefined in C; UBSan reports it, the result is the intended one on the host")) {
 	std::vector<int32_t> in = pat("Angles1_q31.txt").q31(), ref = pat("Cos1_q31.txt").q31(), out(ref.size());
 	REQUIRE(in.size() == ref.size());
 	for (size_t i = 0; i < ref.size(); i++) out[i] = arm_cos_q31(in[i]);
@@ -123,7 +123,7 @@ TEST_CASE("[C1 arm_cos_q31] the cosine of ARM's 23 angles matches the reference 
 	CHECK_MESSAGE(c, c.message);
 }
 
-TEST_CASE("[C1 arm_sin_q31] the sine of ARM's 23 angles matches the reference within 100 dB SNR and 2200 LSB" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:77 / arm_cos_q31.c:79), undefined in C; UBSan reports it, the result is the intended one on the host")) {
+TEST_CASE("[C1 arm_sin_q31] the sine of ARM's 23 angles matches the reference within 100 dB SNR and 2200 LSB" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:79-80 / arm_cos_q31.c:82), undefined in C; UBSan reports it, the result is the intended one on the host")) {
 	std::vector<int32_t> in = pat("Angles1_q31.txt").q31(), ref = pat("Sin1_q31.txt").q31(), out(ref.size());
 	REQUIRE(in.size() == ref.size());
 	for (size_t i = 0; i < ref.size(); i++) out[i] = arm_sin_q31(in[i]);
@@ -242,7 +242,7 @@ TEST_CASE("[C2 arm_vlog_q31] a block size of 0 writes nothing") {
 // C3: DEF checks where ARM has no pattern
 // ---------------------------------------------------------------------------------------------------------------
 
-TEST_CASE("[C3 arm_sin_q31] on all 1024 table nodes (positive and negative inputs) the sine is within 3 LSB of the definition" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:77 / arm_cos_q31.c:79), undefined in C; UBSan reports it, the result is the intended one on the host")) {
+TEST_CASE("[C3 arm_sin_q31] on all 1024 table nodes (positive and negative inputs) the sine is within 3 LSB of the definition" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:79-80 / arm_cos_q31.c:82), undefined in C; UBSan reports it, the result is the intended one on the host")) {
 	// nodes k * 2^22 for k = -512 .. 511 (angles -2pi .. 2pi), bound 3 LSB (header derivation)
 	for (int k = -512; k < 512; k++) {
 		const int32_t x = (int32_t)((int64_t)k * 4194304);
@@ -252,7 +252,7 @@ TEST_CASE("[C3 arm_sin_q31] on all 1024 table nodes (positive and negative input
 	}
 }
 
-TEST_CASE("[C3 arm_cos_q31] on all 1024 table nodes (positive and negative inputs) the cosine is within 3 LSB of the definition" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:77 / arm_cos_q31.c:79), undefined in C; UBSan reports it, the result is the intended one on the host")) {
+TEST_CASE("[C3 arm_cos_q31] on all 1024 table nodes (positive and negative inputs) the cosine is within 3 LSB of the definition" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:79-80 / arm_cos_q31.c:82), undefined in C; UBSan reports it, the result is the intended one on the host")) {
 	for (int k = -512; k < 512; k++) {
 		const int32_t x = (int32_t)((int64_t)k * 4194304);
 		const double ref = (double)clipQ31(defCos(x));
@@ -261,7 +261,7 @@ TEST_CASE("[C3 arm_cos_q31] on all 1024 table nodes (positive and negative input
 	}
 }
 
-TEST_CASE("[C3 arm_sin_q31] between the table nodes the sine is within the linear interpolation error of the definition" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:77 / arm_cos_q31.c:79), undefined in C; UBSan reports it, the result is the intended one on the host")) {
+TEST_CASE("[C3 arm_sin_q31] between the table nodes the sine is within the linear interpolation error of the definition" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:79-80 / arm_cos_q31.c:82), undefined in C; UBSan reports it, the result is the intended one on the host")) {
 	uint32_t s = 12345;
 	const double bound = interpBound();
 	for (int i = 0; i < 4000; i++) {
@@ -271,13 +271,34 @@ TEST_CASE("[C3 arm_sin_q31] between the table nodes the sine is within the linea
 	}
 }
 
-TEST_CASE("[C3 arm_cos_q31] between the table nodes the cosine is within the linear interpolation error of the definition" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:77 / arm_cos_q31.c:79), undefined in C; UBSan reports it, the result is the intended one on the host")) {
+TEST_CASE("[C3 arm_cos_q31] between the table nodes the cosine is within the linear interpolation error of the definition" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:79-80 / arm_cos_q31.c:82), undefined in C; UBSan reports it, the result is the intended one on the host")) {
 	uint32_t s = 54321;
 	const double bound = interpBound();
 	for (int i = 0; i < 4000; i++) {
 		const int32_t x = (int32_t)lcg(s);
 		CAPTURE(x);
 		CHECK(std::fabs((double)arm_cos_q31(x) - defCos(x)) <= bound);
+	}
+}
+
+TEST_CASE("[C3 arm_sin_q31 arm_cos_q31] the error follows the position dependent interpolation bound t(1-t)/2 * h^2 * (|f| + h)" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:79-80 / arm_cos_q31.c:82), undefined in C; UBSan reports it, the result is the intended one on the host")) {
+	// Linear interpolation between two nodes of a function f: |error| <= t (1-t) / 2 * h^2 * max|f''|, t the position in
+	// the interval. For sine and cosine max|f''| over the interval is at most |f(x)| + h (|f''| = |f|, and f moves by at
+	// most h within one interval). Node spacing: 2^31 counts per cycle / 512 intervals = 2^22 counts, h = 2*pi/512
+	// rad; the cosine table is the sine table shifted by 128 intervals, so its grid is the same. Slack 8 LSB for the
+	// library's own rounding (as in interpBound). This is tighter than the 40448 LSB worst case near the zero
+	// crossings of f, where the second derivative is small.
+	const double h = 2.0 * kPi / 512.0;
+	uint32_t s = 2468;
+	for (int i = 0; i < 4000; i++) {
+		const int32_t x = (int32_t)lcg(s);
+		const double t = (double)((uint32_t)x & 0x3FFFFFu) / 4194304.0;
+		const double fs = defSin(x), fc = defCos(x);
+		const double bs = t * (1.0 - t) / 2.0 * h * h * (std::fabs(fs) / kTwo31 + h) * kTwo31 + 8.0;
+		const double bc = t * (1.0 - t) / 2.0 * h * h * (std::fabs(fc) / kTwo31 + h) * kTwo31 + 8.0;
+		CAPTURE(x);
+		CHECK(std::fabs((double)arm_sin_q31(x) - fs) <= bs);
+		CHECK(std::fabs((double)arm_cos_q31(x) - fc) <= bc);
 	}
 }
 
@@ -340,13 +361,31 @@ TEST_CASE("[C3 arm_divide_q31] a zero numerator gives a zero quotient") {
 	int16_t sh = 99;
 	CHECK((int)arm_divide_q31(0, 0x12345678, &q, &sh) == (int)ARM_MATH_SUCCESS);
 	CHECK(q == 0);
+	CHECK(sh == 0);
+}
+
+TEST_CASE("[C4 arm_divide_q31] the operand INT32_MIN is saturated by arm_abs_q31 before the division") {
+	// DOC (arm_abs_q31.c): "The Q31 value -1 (0x80000000) will be saturated to the maximum allowable positive value
+	// 0x7FFFFFFF". INT32_MIN / 2^30 is computed as -(2^31-1) / 2^30 = -1.9999999991 (true value -2.0, 4.7e-10 away)
+	q31_t q = 0;
+	int16_t sh = 0;
+	CHECK((int)arm_divide_q31(INT32_MIN, 0x40000000, &q, &sh) == (int)ARM_MATH_SUCCESS);
+	const double got = (double)q / kTwo31 * std::ldexp(1.0, sh);
+	CHECK(std::fabs(got + 2.0) <= (std::ldexp(1.0, sh) + 1.0) / kTwo31 + 4.7e-10);
+}
+
+TEST_CASE("[C4 arm_divide_q31] a division of the most negative numerator by zero returns ARM_MATH_NANINF and the saturated negative quotient") {
+	q31_t q = 0;
+	int16_t sh = 0;
+	CHECK((int)arm_divide_q31(INT32_MIN, 0, &q, &sh) == (int)ARM_MATH_NANINF);
+	CHECK((uint32_t)q == 0x80000000u);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
 // C4: documented edge behaviour
 // ---------------------------------------------------------------------------------------------------------------
 
-TEST_CASE("[C4 arm_sin_q31] the ends of the input range give the sine of 0, almost 2pi and -2pi" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:77 / arm_cos_q31.c:79), undefined in C; UBSan reports it, the result is the intended one on the host")) {
+TEST_CASE("[C4 arm_sin_q31] the ends of the input range give the sine of 0, almost 2pi and -2pi" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:79-80 / arm_cos_q31.c:82), undefined in C; UBSan reports it, the result is the intended one on the host")) {
 	// DOC: "The Q31 input value is in the range [0 +0.9999] and is mapped to a radian value in the range [0 2*PI)".
 	// 0 -> 0; 0x7FFFFFFF -> 2pi (1 - 2^-31) -> sin = -sin(2pi / 2^31) = -6.28 LSB (inside the last interval the
 	// interpolation is exact within 3 LSB: the table is linear to 1e-18 there); 0x80000000 (-1.0) is the same angle as 0.
@@ -355,14 +394,14 @@ TEST_CASE("[C4 arm_sin_q31] the ends of the input range give the sine of 0, almo
 	CHECK(std::fabs((double)arm_sin_q31((int32_t)0x80000000)) <= 3.0);
 }
 
-TEST_CASE("[C4 arm_cos_q31] the ends of the input range give the cosine of 0, almost 2pi and -2pi" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:77 / arm_cos_q31.c:79), undefined in C; UBSan reports it, the result is the intended one on the host")) {
+TEST_CASE("[C4 arm_cos_q31] the ends of the input range give the cosine of 0, almost 2pi and -2pi" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:79-80 / arm_cos_q31.c:82), undefined in C; UBSan reports it, the result is the intended one on the host")) {
 	// cos(0) = 1 saturates to 0x7FFFFFFF (1 LSB), cos(2pi (1 - 2^-31)) = 1 - 1e-17 -> 0x7FFFFFFF, cos(-2pi) = 1
 	CHECK(std::fabs((double)arm_cos_q31(0) - 2147483647.0) <= 3.0);
 	CHECK(std::fabs((double)arm_cos_q31(0x7FFFFFFF) - 2147483647.0) <= 3.0);
 	CHECK(std::fabs((double)arm_cos_q31((int32_t)0x80000000) - 2147483647.0) <= 3.0);
 }
 
-TEST_CASE("[C4 arm_sin_q31] the sine of a quarter turn, half turn and three quarter turns is 1, 0 and -1" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:77 / arm_cos_q31.c:79), undefined in C; UBSan reports it, the result is the intended one on the host")) {
+TEST_CASE("[C4 arm_sin_q31] the sine of a quarter turn, half turn and three quarter turns is 1, 0 and -1" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:79-80 / arm_cos_q31.c:82), undefined in C; UBSan reports it, the result is the intended one on the host")) {
 	CHECK(std::fabs((double)arm_sin_q31(0x20000000) - 2147483647.0) <= 3.0);
 	CHECK(std::fabs((double)arm_sin_q31(0x40000000)) <= 3.0);
 	CHECK(std::fabs((double)arm_sin_q31(0x60000000) + 2147483648.0) <= 3.0);
@@ -451,17 +490,54 @@ TEST_CASE("[C4 arm_atan2_q31] characterization: atan2(0, 0) returns ARM_MATH_NAN
 }
 
 TEST_CASE("[C4 arm_vlog_q31] the log of the largest input is a negative value of at most one LSB of magnitude") {
-	// ln(1 - 2^-31) = -4.66e-10, times 2^26 = -0.03 LSB: the result is 0 or -1 (2 LSB bound)
+	// ln(1 - 2^-31) = -4.66e-10, times 2^26 = -0.03 LSB: the exact result rounds to 0; ARM's bound is 2 LSB, so a
+	// result of -1 is allowed and anything beyond one LSB of magnitude is not
 	int32_t in = 0x7FFFFFFF, out = 99;
 	arm_vlog_q31(&in, &out, 1);
-	CHECK(std::abs(out) <= 2);
+	CHECK(std::abs(out) <= 1);
+}
+
+TEST_CASE("[C3 arm_sqrt_q31] a strided sweep over the whole input range stays within ARM's 7 LSB of the double square root" *
+		  KNOWN_ISSUE("B-DFQ31-2: arm_sqrt_q31 exceeds ARM's own bound of 7 LSB (FastMathQ31.cpp) against round(sqrt(x/2^31)*2^31); "
+			  "measured over all 2^31-1 inputs: worst error 9 LSB (x=2065697199), 39621 inputs above 7, 1285810 above 6; "
+			  "the first sweep point above 7 is x=2147483393 (error 8)")) {
+	// DEF: round(sqrt(x / 2^31) * 2^31), bound 7 LSB as ARM's (FastMathQ31.cpp SQRT, L4). The stride 8388607 is odd
+	// and covers about 256 inputs; the small inputs 1..64 are added because the relative error grows there.
+	std::vector<int32_t> xs;
+	for (int64_t x = 1; x <= 0x7FFFFFFF; x += 8388607) xs.push_back((int32_t)x);
+	for (int32_t x = 1; x <= 64; x++) xs.push_back(x);
+	for (int32_t x : xs) {
+		q31_t out = -1;
+		CAPTURE(x);
+		REQUIRE((int)arm_sqrt_q31(x, &out) == (int)ARM_MATH_SUCCESS);
+		CHECK(std::fabs((double)out - std::floor(std::sqrt((double)x / kTwo31) * kTwo31 + 0.5)) <= 7.0);
+	}
+}
+
+TEST_CASE("[C3 arm_vlog_q31] the normalisation boundaries 2^k-1, 2^k and 2^k+1 give the double log within 2 LSB") {
+	// DEF: ln(x / 2^31) * 2^26 (q5.26), ARM's bound 2 LSB. Every power of two is a normalisation (CLZ) boundary.
+	std::vector<int32_t> xs;
+	for (int k = 0; k <= 30; k++) {
+		const int64_t p = 1LL << k;
+		for (int64_t d = -1; d <= 1; d++) {
+			const int64_t x = p + d;
+			if (x >= 1 && x <= 0x7FFFFFFF) xs.push_back((int32_t)x);
+		}
+	}
+	dsp::GuardedBuffer<int32_t> out(xs.size());
+	arm_vlog_q31(xs.data(), out.data(), (uint32_t)xs.size());
+	std::vector<int32_t> o = out.output();
+	for (size_t i = 0; i < xs.size(); i++) {
+		CAPTURE(xs[i]);
+		CHECK(std::fabs((double)o[i] - defLog(xs[i])) <= 2.0);
+	}
 }
 
 // ---------------------------------------------------------------------------------------------------------------
 // C5: agreement with the f32 functions / double definition
 // ---------------------------------------------------------------------------------------------------------------
 
-TEST_CASE("[C5 arm_sin_q31] the sine agrees with arm_sin_f32 of the same angle" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:77 / arm_cos_q31.c:79), undefined in C; UBSan reports it, the result is the intended one on the host")) {
+TEST_CASE("[C5 arm_sin_q31] the sine agrees with arm_sin_f32 of the same angle" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:79-80 / arm_cos_q31.c:82), undefined in C; UBSan reports it, the result is the intended one on the host")) {
 	// both use a 512 interval linear table: each is within 1.8835e-5 (h^2/8) of the true sine, so they are within
 	// 3.77e-5 of each other; the float angle has an absolute error below 4.8e-7. Bound 4e-5 (a wrong scale or
 	// shift would give errors of order 1)
@@ -473,7 +549,7 @@ TEST_CASE("[C5 arm_sin_q31] the sine agrees with arm_sin_f32 of the same angle" 
 	}
 }
 
-TEST_CASE("[C5 arm_cos_q31] the cosine agrees with arm_cos_f32 of the same angle" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:77 / arm_cos_q31.c:79), undefined in C; UBSan reports it, the result is the intended one on the host")) {
+TEST_CASE("[C5 arm_cos_q31] the cosine agrees with arm_cos_f32 of the same angle" * KNOWN_ISSUE_UB_HIDDEN("B-DFQ31-1: arm_sin_q31 / arm_cos_q31 left shift a negative value (sinVal << 1, arm_sin_q31.c:79-80 / arm_cos_q31.c:82), undefined in C; UBSan reports it, the result is the intended one on the host")) {
 	for (int i = 0; i < 400; i++) {
 		const int32_t x = (int32_t)((int64_t)(i - 200) * 10737418 + 12345);
 		const float theta = (float)(2.0 * kPi * (double)x / kTwo31);
@@ -537,8 +613,10 @@ TEST_CASE("[C5 arm_divide_q31] the quotient times 2^shift equals the double rati
 	// DEF in the header: error of n/d below (2^shift + 1) / 2^31
 	uint32_t s = 4242;
 	for (int i = 0; i < 2000; i++) {
-		int32_t n = (int32_t)lcg(s) >> (lcg(s) % 24);
-		int32_t d = (int32_t)lcg(s) >> (lcg(s) % 24);
+		// separate statements: the evaluation order of two calls in one expression is unspecified
+		const uint32_t rn = lcg(s), sn = lcg(s), rd = lcg(s), sd = lcg(s);
+		int32_t n = (int32_t)rn >> (sn % 24);
+		int32_t d = (int32_t)rd >> (sd % 24);
 		if (d == 0 || n == INT32_MIN || d == INT32_MIN) continue;
 		q31_t q = 0;
 		int16_t sh = 0;

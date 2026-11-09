@@ -284,6 +284,26 @@ TEST_CASE("[C3 arm_cos_f32] cos over -7..7 rad is within the linear interpolatio
 	CHECK_MESSAGE(c, c.message);
 }
 
+TEST_CASE("[C3 arm_sin_f32] sin and cos for 7..1000 rad are within the table error plus the growing phase rounding error") {
+	// Table interpolation 1.88e-5 + 1e-6 (as in the -7..7 test). The phase in cycles is x * 0.159154943092f: the
+	// constant is rounded (relative 4.7e-8, half an ulp of 0.159) and the product is rounded (relative 6e-8), so the
+	// phase error is at most (4.7e-8 + 6e-8) * x/(2*pi) cycles = 1.7e-8 * x cycles = 1.07e-7 * x rad. Bound
+	// 2.2e-5 + 1.2e-7 * |x| (a 12 % margin on the phase term).
+	bool ok = true;
+	double worst = 0.0;
+	for (int k = 0; k < 2700; k++) {
+		const float x = 7.0f + static_cast<float>(k) * 0.3677f;
+		const double bound = 2.2e-5 + 1.2e-7 * x;
+		const double es = std::fabs(static_cast<double>(arm_sin_f32(x)) - std::sin(static_cast<double>(x)));
+		const double ec = std::fabs(static_cast<double>(arm_cos_f32(x)) - std::cos(static_cast<double>(x)));
+		if (es > bound || ec > bound) {
+			ok = false;
+			worst = std::fmax(worst, std::fmax(es, ec));
+		}
+	}
+	CHECK_MESSAGE(ok, "largest failing error " << worst);
+}
+
 TEST_CASE("[C3 arm_sin_f32] sin and cos satisfy sin^2 + cos^2 = 1 within the interpolation error") {
 	// Both are chords of the unit circle sampled at 512 points: each is at most 1.88e-5 + 1e-6 off, and the sum of
 	// squares deviates by at most 2*(2.0e-5)*(|s|+|c|) <= 2*2.0e-5*1.42 = 5.7e-5 (first order); 1e-4 used.
@@ -299,6 +319,8 @@ TEST_CASE("[C3 arm_sin_f32] sin and cos satisfy sin^2 + cos^2 = 1 within the int
 TEST_CASE("[C3 arm_sqrt_f32] sqrt equals the correctly rounded square root of the input, including subnormals and the largest float") {
 	// IEEE 754 requires sqrt to be correctly rounded; sqrt in double rounded to float is correctly rounded too
 	// (double rounding is harmless for sqrt, because 53 >= 2*24 + 2). Hence an exact comparison.
+	// C6: the subnormal inputs (1e-40, 1e-45) assume denormals are honoured. On a Cortex-M4F with FPSCR.FZ set
+	// (flush-to-zero) they would be treated as 0; the host runs with FZ clear, which is the default of this suite.
 	const float in[] = {0.0f, FLT_MIN, 1.0e-45f /* smallest subnormal */, 1.0e-40f, 1.0e-10f, 0.25f, 1.0f, 2.0f, 3.0f,
 	                    10.0f, 12345.678f, 1.0e30f, FLT_MAX};
 	for (float x : in) {
@@ -404,6 +426,15 @@ TEST_CASE("[C4 arm_sin_f32] sin of 0 is 0 and of the multiples of 2*pi is within
 		}
 	}
 	CHECK(ok);
+}
+
+TEST_CASE("[C4 arm_sin_f32 arm_cos_f32] a phase just below a whole cycle uses the wrap of the table index") {
+	// Targets the branch "when in is exactly 1, rotate the index down to 0" (arm_sin_f32.c / arm_cos_f32.c): the
+	// phase of -1e-10 rad is -1.6e-11 cycles, which float arithmetic folds to exactly 1.0 cycle, i.e. table index
+	// 512. Without the wrap the library reads one element past the interpolation node; that is only visible under
+	// ASan (sanitizer builds), the value is the same. Expected: sin = -1e-10 and cos = 1 within the table error.
+	CHECK(std::fabs(static_cast<double>(arm_sin_f32(-1e-10f))) <= 2.5e-5);
+	CHECK(std::fabs(static_cast<double>(arm_cos_f32(-1e-10f)) - 1.0) <= 2.5e-5);
 }
 
 TEST_CASE("[C4 arm_cos_f32] cos of 0 is 1 and cos of pi is -1 within the table error") {

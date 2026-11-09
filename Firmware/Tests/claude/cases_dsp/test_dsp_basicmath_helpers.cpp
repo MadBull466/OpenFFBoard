@@ -106,7 +106,7 @@ TEST_CASE("[C2 arm_abs_q31] block size 0 does not write the output") {
 	CHECK(out.guardIntact());
 }
 
-TEST_CASE("[C4 arm_abs_q15] -1 (0x8000) saturates to 0x7FFF at every position of the unrolled loop and of the tail") {
+TEST_CASE("[C4 arm_abs_q15] 0x8000 (-1.0) saturates to 0x7FFF at every position of the unrolled loop and of the tail") {
 	// block size 9 = two unrolled groups of 4 (positions 0-7) plus a tail of 1 (position 8)
 	for (size_t pos = 0; pos < 9; pos++) {
 		CAPTURE(pos);
@@ -137,7 +137,7 @@ TEST_CASE("[C4 arm_abs_q31] INT32_MIN+1 gives INT32_MAX exactly (no saturation n
 	CHECK(out[2] == 0);
 	CHECK(out[3] == 0);
 }
-TEST_CASE("[C4 arm_abs_q15] the result is never negative for any of the 65536 input values") {
+TEST_CASE("[C4 arm_abs_q15] the result equals the saturated absolute value for all 65536 input values") {
 	// DEF: saturating |x| = min(|x|, 32767); blocks of 64 so the unrolled loop is used
 	std::vector<q15_t> src(65536), out(65536);
 	for (int i = 0; i < 65536; i++) src[i] = static_cast<q15_t>(i - 32768);

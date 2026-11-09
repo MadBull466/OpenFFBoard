@@ -233,7 +233,7 @@ TEST_CASE("[C1 arm_vinverse_f16] ARM test_inverse_f16 (id 12): 256 inputs match 
 	checkArmVector(arm_vinverse_f16, "Samples1_f16.txt", "Inverse1_f16.txt", 256);
 }
 
-TEST_CASE("[C1 arm_sin_f16 arm_cos_f16] ARM ids 1 and 2 (test_cos_f16, test_sin_f16) are disabled and the library has no f16 sin or cos") {
+TEST_CASE("[doc arm_sin_f16 arm_cos_f16] ARM ids 1 and 2 (test_cos_f16, test_sin_f16) are disabled and the library has no f16 sin or cos") {
 	// desc_f16.txt:428-429 "disabled{...}", FastMathF16.cpp:25-58 under #if 0. fast_math_functions_f16.h declares no
 	// arm_sin_f16 / arm_cos_f16, so nothing can be run. This case only documents the gap (patterns exist).
 	CHECK(load("Angles1_f16.txt").size() == load("Sin1_f16.txt").size());
@@ -390,7 +390,7 @@ TEST_CASE("[C4 arm_atan2_f16] the result stays between -pi and pi for every angl
 		float16_t res = 0;
 		INFO("angle " << deg);
 		CHECK(arm_atan2_f16(y, x, &res) == ARM_MATH_SUCCESS);
-		CHECK(std::fabs(static_cast<double>(res)) <= kPi);
+		CHECK(std::fabs(static_cast<double>(res)) <= kPi + kAbsAtan);  // margin: f16 rounding of pi
 	}
 }
 
@@ -436,6 +436,55 @@ TEST_CASE("[C4 arm_vinverse_f16] the inverse of +0 is +infinity and of -0 is -in
 	VecResult r = runVec(arm_vinverse_f16, make({0.0, -0.0}), 2);
 	CHECK(static_cast<double>(r.out[0]) == kInf);
 	CHECK(static_cast<double>(r.out[1]) == -kInf);
+}
+
+TEST_CASE("[C4 arm_vexp_f16] exp of +infinity is +infinity, of -infinity is 0 and of NaN is NaN") {
+	// DEF (IEEE 754 / C99 exp): exp(+inf) = +inf, exp(-inf) = +0, exp(NaN) = NaN. DOC is silent.
+	VecResult r = runVec(arm_vexp_f16, make({kInf, -kInf, std::nan("")}), 3);
+	CHECK(static_cast<double>(r.out[0]) == kInf);
+	CHECK(static_cast<double>(r.out[1]) == 0.0);
+	CHECK(std::isnan(static_cast<double>(r.out[2])));
+	CHECK(r.guardIntact);
+}
+
+TEST_CASE("[C4 arm_vexp_f16] an argument just below ln(65504) = 11.09 gives a finite result within 1e-3 relative") {
+	// DEF: exp(11.0) = 59874.14; the f16 spacing there is 32 (relative 5.3e-4 per half ulp), ARM's REL_ERROR 1e-3
+	VecResult r = runVec(arm_vexp_f16, make({11.0}), 1);
+	CHECK(std::fabs(static_cast<double>(r.out[0]) - std::exp(11.0)) <= 1.0e-3 * std::exp(11.0));
+}
+
+TEST_CASE("[C4 arm_vinverse_f16] the inverse of NaN is NaN and of plus minus infinity is plus minus zero") {
+	// DEF: IEEE division 1/x: 1/NaN = NaN, 1/+inf = +0, 1/-inf = -0. DOC is silent.
+	VecResult r = runVec(arm_vinverse_f16, make({std::nan(""), kInf, -kInf}), 3);
+	CHECK(std::isnan(static_cast<double>(r.out[0])));
+	CHECK(static_cast<double>(r.out[1]) == 0.0);
+	CHECK(!std::signbit(static_cast<double>(r.out[1])));
+	CHECK(static_cast<double>(r.out[2]) == 0.0);
+	CHECK(std::signbit(static_cast<double>(r.out[2])));
+}
+
+TEST_CASE("[C4 arm_vinverse_f16] the inverse of the smallest subnormal overflows to +infinity") {
+	// DEF: 1 / 2^-24 = 2^24 = 16777216 > 65504 (largest f16) -> +inf after conversion to binary16
+	VecResult r = runVec(arm_vinverse_f16, make({5.9604644775390625e-08}), 1);
+	CHECK(static_cast<double>(r.out[0]) == kInf);
+}
+
+TEST_CASE("[C4 arm_sqrt_f16] the square root of +infinity is +infinity with ARM_MATH_SUCCESS") {
+	// DEF: IEEE sqrt(+inf) = +inf; the inline wrapper converts to float, calls arm_sqrt_f32 and converts back
+	float16_t out = static_cast<float16_t>(5.0);
+	CHECK(arm_sqrt_f16(static_cast<float16_t>(kInf), &out) == ARM_MATH_SUCCESS);
+	CHECK(static_cast<double>(out) == kInf);
+}
+
+TEST_CASE("[C4 arm_atan2_f16] a huge ratio y/x gives pi/2 and a tiny ratio gives 0 within 2e-3") {
+	// DEF: atan2(60000, 1e-4) = pi/2 - 1.7e-9 (ratio 6e8, beyond the f16 range if computed in binary16 -> inf -> pi/2),
+	// atan2(1e-4, 60000) = 1.7e-9 (ratio below the smallest f16 subnormal -> 0). Tolerance ARM's 2e-3 absolute.
+	float16_t res = static_cast<float16_t>(99.0);
+	CHECK(arm_atan2_f16(static_cast<float16_t>(60000.0), static_cast<float16_t>(1.0e-4), &res) == ARM_MATH_SUCCESS);
+	CHECK(std::fabs(static_cast<double>(res) - kPi / 2) <= kAbsAtan);
+	res = static_cast<float16_t>(99.0);
+	CHECK(arm_atan2_f16(static_cast<float16_t>(1.0e-4), static_cast<float16_t>(60000.0), &res) == ARM_MATH_SUCCESS);
+	CHECK(std::fabs(static_cast<double>(res)) <= kAbsAtan);
 }
 
 TEST_CASE("[C4 arm_vinverse_f16] the inverse of 1 and of -1 is exact") {

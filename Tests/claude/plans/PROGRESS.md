@@ -7,7 +7,7 @@
 ## Current state
 
 - **Current phase:** P11 CMSIS-DSP (in-scope modules), started 2026-11-04 at my request. P0-P10 (incl. driver track) done and approved.
-- **Phase status:** P0-P10 approved; P11 in progress. G1: infrastructure committed; FastMath and helper tests written (6 files, 2026-11-05) and green in the gate; fresh review and mutation check NOT done yet; not approved.
+- **Phase status:** P0-P10 approved; P11 in progress. G1: infrastructure committed; FastMath and helper tests written (6 files, 2026-11-05); fresh review and mutation check done 2026-11-09 (2 Sonnet reviewers, 96 mutants, 91 killed; fixes applied; see "G1 review result" below); full gate green; waiting for my approval of G1.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system")
 - **Last commit:** see `git log` (D2 final commit).
 - **Last updated:** 2026-11-04
@@ -15,7 +15,7 @@
 
 ## Next action
 
-P11 G1: run the fresh review and mutation check of the six `claude/cases_dsp/test_dsp_fastmath_*` / `test_dsp_basicmath_helpers.cpp` files, apply fixes, then stop for my approval of G1. Then G2-G5 (stop after each group). Pending decision: open question 17 (V41). Open questions in `Tests/claude/reports/OPEN_QUESTIONS.md` unchanged.
+P11 G1 is reviewed and fixed; stop and wait for my approval of G1 (see "G1 review result"). Then G2 (Interpolation, Controller), stop after each group. Pending decisions: open question 17 (V41, V42), CLAUDE.md tier C wording.
 
 ## Phase checklist
 
@@ -1023,6 +1023,17 @@ Functions never run by any test (counts of never-run / total): ErrorHandler 15/2
 
 New tests that describe unclear behaviour use the `characterization:` name prefix and get a row here. Tests that describe intended behaviour but fail use `KNOWN_ISSUE` and get a row under "Suspected firmware bugs".
 
+
+## G1 review result (2026-11-09)
+
+- **Reviewers:** two fresh Sonnet `driver-test-reviewer` agents (float side: f32/f64/f16/helpers; fixed point: q31/q15), scratch trees under `../ffb-test-build/audit/g1f-*` and `g1q-*`. Repo untouched by them.
+- **Mutation check:** 96 mutants of CMSIS-DSP sources (58 float, 38 fixed point), 91 killed. Survivors: 3 perturbations inside ARM's own tolerance (atan2_f32 coefficient, atan2_f16 pi/2, vlog_f16 slope), the f32 sin table wrap (killed under ASan only; a value test added), R31b/R15b (index -8 read for input 0, killed under ASan only), L31d (out-of-domain vlog, excluded by decision L8), A31e (equivalent).
+- **Fixes applied:** q31 divide fuzz drew two `lcg` calls in one expression (unspecified order) now separate statements; q31 vlog "at most one LSB" now asserts 1; added q31 divide INT32_MIN operand and INT32_MIN/0 tests, `sh == 0` check, q31 sqrt strided sweep, q31 vlog normalisation-boundary sweep; corrected vendor line numbers in B-DFQ31-1; f32 sin/cos table-wrap case; f16 atan2 range margin; renamed two abs tests; f16 sin/cos placeholder is tagged `[doc ...]`.
+- **New finding V42** (`arm_sqrt_q31`, see bug table; the sweep I added found it, then a temporary full-range scratch test measured it; the scratch file was deleted).
+- **Low items (done at my request, 2026-11-09):** f16 C4 edges added (vexp +-inf/NaN and 11.0, vinverse NaN/+-inf and overflow, sqrt +inf, atan2 huge/tiny ratio; all pass), f64 hand-derived constants for vexp/vlog, f32 sin/cos sweep 7..1000 rad with a growing phase-error bound, FPSCR.FZ remark in the f32 sqrt test, position dependent q31 sin/cos bound (t(1-t)/2 h^2 (|f|+h)). All passed on the first run; no new finding.
+- **Gate (2026-11-09):** default, ASan+UBSan, clang 23: ctest 11 of 11; DSP off 10 of 10; `--coverage` build 11 of 11; baseline check OK (default and san, 340 new cases, 0 failed). `ffb_dsp_tests` after the low items: 232 cases default and clang, 204 run (28 skipped) in the sanitizer build, 0 failed; ctest default/san/clang 11 of 11, DSP off 10 of 10, baseline OK. No compiler warning in the DSP test files (gcc, clang).
+- **Coverage:** FastMath 443 / 451 lines (98.2 %), 26 / 26 functions; BasicMath helpers 62 / 62.
+
 ## Suspected firmware bugs
 
 | # | Module | Location | Description | Evidence |
@@ -1200,6 +1211,7 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 | V39 | CMSIS-DSP (**vendor, tier C**) | `arm_vlog_f16.c:83` (`logf16_scalar`) | `vecExpUnBiased << 10` is a left shift of a negative value for every input below 1: undefined behaviour | KNOWN_ISSUE_UB_HIDDEN "B-DFF16-2" in 6 cases of `claude/cases_dsp/test_dsp_fastmath_f16.cpp` |
 | V40 | CMSIS-DSP (**vendor, tier C**) | `arm_vlog_f16.c` (`logf16_scalar`) | Positive f16 subnormals are not normalised: log(2^-24) should be -16.6 and is -10.4; log(1.0014e-5) should be -11.5 and is -10.24 (measured while probing). DOC gives no input range, but the input is positive and in the domain | KNOWN_ISSUE_UB "log of a positive subnormal input ..." (B-DFF16-1; UB because the call also hits V39) |
 | V41 | CMSIS-DSP (**vendor, tier C**, low, open question 17) | `arm_sqrt_q15.c` | 6 of the 32767 positive inputs exceed ARM's own bound of 6 LSB against the rounded double sqrt (x=30840 gives 31796, reference 31789, error 7; also 31373, 31782, 31796, 31797, 31812). ARM's 1024-point pattern does not contain them. Unrounded worst error 7.15 at x=31797. Possibly a tolerance question, not a defect | KNOWN_ISSUE "B-DFQ15-1" (`[C3 arm_sqrt_q15] ... within ARM's 6 LSB of the rounded sqrt(x)`) |
+| V42 | CMSIS-DSP (**vendor, tier C**, low, open question 17) | `arm_sqrt_q31.c` | Measured over all 2^31-1 positive inputs against round(sqrt(x/2^31)*2^31): worst error 9 LSB (x=2065697199), 39621 inputs exceed ARM's own bound of 7 LSB, 1285810 exceed 6. ARM's pattern does not contain them. Same question as V41 (is ARM's tolerance the contract?) | KNOWN_ISSUE "a strided sweep over the whole input range stays within ARM's 7 LSB ..." (B-DFQ31-2; the strided sweep first fails at x=2147483393, error 8) |
 | 6 | Test setup (not firmware) | `CMakePresets.json` `host-sanitize`, `CMakeLists.txt` | With the CMSIS-DSP submodule checked out, `ctest` in the sanitizer preset fails on the spline overflow (bug 2). Reproduced with the same flags by script, preset not run | Fixed by F1 (`8861c911`) + F1b (P0). Verified in P0: `cmake --preset host-sanitize -B <out-of-tree>`, `ctest` 2/2 passed |
 | 139 | TMC4671 driver: SPI transport | `TMC4671.cpp:2529-2540`, SPI config `:63` | Register reads run at SCK 5.25 MHz as one 5-byte transfer; the datasheet allows reads above 2 MHz only with a 500 ns pause after the address byte (DS §4.2.1 Table 2 p18-19). The comment "500ns delay" at `:2533` is not implemented | KNOWN_ISSUE "[R5] a register read respects the read timing ..." (B-T1) |
 | 140 | TMC4671 driver: SPI transport | `TMC4671.cpp:2532` + `SPI.cpp:163,172,181` | `readReg` returns the uninitialised `tbuf` when the HAL transfer fails (`SPIPort` ignores the HAL result): stack garbage is used as register data | code reading; nondeterministic, no test (R8) |

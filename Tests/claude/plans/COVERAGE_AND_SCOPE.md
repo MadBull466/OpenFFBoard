@@ -3,7 +3,7 @@
 Date: 2026-11-09 (numbers re-measured with gcov on 2026-11-09 for the firmware, tier A/B/C, drivers and the G1 DSP files), branch `add-test-suite`. Earlier sources:
 - Firmware, tier A/B/C: the gcov report of the P9 final build (2026-11-02), `Tests/claude/reports/PROJECT_SUMMARY.md`, `Tests/claude/plans/PROGRESS.md`.
 - Drivers: `Tests/claude/reports/DRIVER_TRACK_REPORT.md` (2026-11-04).
-- CMSIS-DSP P11: no coverage measured yet for the G1 files (the `dsp-cov` build has no data). Pass counts are from the G1 gate of 2026-11-05.
+- CMSIS-DSP P11: G1 files measured with gcov on 2026-11-09 after the G1 review (FastMath 443 / 451 lines, BasicMath helpers 62 / 62).
 - Regenerate per-file numbers with `tools/coverage_report.py` (see "Environment" in `Tests/claude/plans/PROGRESS.md`).
 
 ## 1. Covered (in scope and tested)
@@ -50,7 +50,7 @@ Headers of these modules: 392 / 413 lines (94.9 %).
 
 ### 1.5 CMSIS-DSP (tier C and P11)
 - Tier C, the 10 functions the firmware calls (100 %, 198 / 198 lines): `arm_sin_f32`, `arm_cos_f32`, `arm_biquad_cascade_df1_f32` and `_init_f32`, `arm_spline_interp_f32` and `_init_f32`, `arm_std_f32`, `arm_var_f32`, `arm_pid_init_f32`, `arm_pid_reset_f32`.
-- P11 `ffb_dsp_tests` (218 cases, 0 failed; fresh gcov: FastMath 443 / 451 lines, BasicMath helpers 62 / 62, 27 of 258 in-scope source files linked and measured, 231 without data): G1 done as tests, review pending. Covers FastMath f32 / f64 / f16 / q31 / q15 (sin, cos, sqrt, divide, atan2, vlog, vexp, vinverse, recip_q15) and the helpers `arm_abs_q15/q31`, `arm_add_f32/f16`, plus the pattern-loader self-tests.
+- P11 `ffb_dsp_tests` (232 cases, 0 failed; fresh gcov: FastMath 443 / 451 lines, BasicMath helpers 62 / 62, 27 of 258 in-scope source files linked and measured, 231 without data): G1 done and reviewed (2 reviewers, 96 mutants, 91 killed); approval pending. Covers FastMath f32 / f64 / f16 / q31 / q15 (sin, cos, sqrt, divide, atan2, vlog, vexp, vinverse, recip_q15) and the helpers `arm_abs_q15/q31`, `arm_add_f32/f16`, plus the pattern-loader self-tests.
 
 ## 2. Out of scope (decided by you)
 
@@ -74,7 +74,6 @@ Headers of these modules: 392 / 413 lines (94.9 %).
 - G3: Statistics (93 units, about 289 ARM test ids), plus the int64 helpers of `dsp/utils.h`.
 - G4: Filtering part 1 (biquad variants, FIR, decimation / interpolation).
 - G5: Filtering part 2 (convolution, correlation, LMS, lattice, sparse FIR, Levinson-Durbin), plus `arm_recip_q31`.
-- G1 FastMath: review, mutation check and coverage measurement are still to do; approval pending.
 - G1 deliberately untested: vlog of 0 / negative, q15 0/0, f64 sin / cos / sqrt (do not exist, ARM disables them), f16 sin / cos (do not exist).
 
 ### 3.2 Partly covered, lines left (firmware ladder, 88 lines of about 8,095)
