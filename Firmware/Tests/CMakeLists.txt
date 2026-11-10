@@ -772,7 +772,7 @@ endif()
 # ===========================================================================
 # ffb_driver_tests (driver track, Tests/claude/plans/DRIVER_TEST_PLAN.md): the real TMC4671, ODrive and VESC drivers on the
 # fake HAL SPI / CAN of ffb_target_tests. Feature header platform/target_f407_drivers/target_constants.h = the
-# ffb_target_tests header + TMC4671DRIVER, ODRIVE, VESC, (P13) TMCDEBUG and (P14) PWMDRIVER (MIDI, RMDCAN, SIMPLEMOTION stay off until P15-P17).
+# ffb_target_tests header + TMC4671DRIVER, ODRIVE, VESC, (P13) TMCDEBUG (P14) PWMDRIVER, (P15) SIMPLEMOTION and (P16) RMDCAN (MIDI stays off until P17).
 #
 # The executables above are not changed by this section (their compile commands are identical). The firmware and
 # platform sources of ffb_target_tests are compiled again for this executable (they include target_constants.h).
@@ -787,6 +787,7 @@ set(DRIVER_FIRMWARE_SOURCES
 	${FFBOARD_DIR}/UserExtensions/Src/ODriveCAN.cpp
 	${FFBOARD_DIR}/UserExtensions/Src/VescCAN.cpp
 	${FFBOARD_DIR}/UserExtensions/Src/TMCDebugBridge.cpp # P13, behind TMCDEBUG (platform/target_f407_drivers/target_constants.h)
+	${FFBOARD_DIR}/UserExtensions/Src/RmdMotorCAN.cpp # P16, behind RMDCAN (same header); fake motor fakes/FakeRmdPeer.cpp
 	${FFBOARD_DIR}/UserExtensions/Src/MotorPWM.cpp # P14, behind PWMDRIVER (same header); fake TIM1 in platform/src/host_driver_timers.cpp
 )
 # P15: MotorSimplemotion.cpp, behind SIMPLEMOTION (same header); fake device fakes/FakeSmDevice.cpp on huart3. The executable is
@@ -806,7 +807,7 @@ endif()
 # as Axis.cpp above (F14); the value is in range, the firmware source is not changed.
 set_property(SOURCE ${FFBOARD_DIR}/UserExtensions/Src/TMC4671.cpp APPEND PROPERTY COMPILE_OPTIONS
 	$<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-c++11-narrowing>)
-set(DRIVER_PLATFORM_SOURCES ${TARGET_PLATFORM_SOURCES} platform/src/host_driver_timers.cpp fakes/FakeTmc4671.cpp fakes/FakeOdrivePeer.cpp fakes/FakeVescPeer.cpp fakes/FakeSmDevice.cpp)
+set(DRIVER_PLATFORM_SOURCES ${TARGET_PLATFORM_SOURCES} platform/src/host_driver_timers.cpp fakes/FakeTmc4671.cpp fakes/FakeOdrivePeer.cpp fakes/FakeVescPeer.cpp fakes/FakeSmDevice.cpp fakes/FakeRmdPeer.cpp)
 # FFB_DRIVER_TEST_FILTER (developer aid for parallel test writing): glob of the driver test files to compile, e.g.
 # "test_tmc4671_init*.cpp". The setup and fake self-tests are always compiled. Default: all driver tests.
 set(FFB_DRIVER_TEST_FILTER "test_*.cpp" CACHE STRING "Glob of the claude/cases/driver test files compiled into ffb_driver_tests")

@@ -1,6 +1,6 @@
 # MyActuator RMD driver (`RmdMotorCAN`): requirements charter (phase P16, T0)
 
-Status: **DRAFT by the lead (Sonnet 5.5), 2026-11-10, waiting for the owner's approval of T0.** Nothing is built or tested yet.
+Status: **T0 approved by the owner 2026-11-10** ("approve and start T1"); drafted by the lead (Sonnet 5.5). T1 (wiring, fake, fixture, skeleton) built 2026-11-10, waiting for the owner's approval; T2 not started.
 
 Unit under test: `Firmware/FFBoard/UserExtensions/Src/RmdMotorCAN.cpp` (412 lines, `RS` below) and `Inc/RmdMotorCAN.h` (144 lines, `RH`), classes `RmdMotorCAN : MotorDriver, PersistentStorage, Encoder, CanHandler, CommandHandler, cpp_freertos::Thread` and the two instances `RmdMotorCAN1` / `RmdMotorCAN2`, behind the macro `RMDCAN`, class ids `CLSID_MOT_RMD1` / `CLSID_MOT_RMD2`, motor drivers 11 and 12 (`MotorDriver.cpp:50-53`; `Axis.cpp:68-70` id 11 in axis 1 only and `Axis.cpp:92-94` id 12 in axis 2 only).
 Executable: `ffb_driver_tests` (owner's decision, question 28). Plan: `Tests/claude/plans/P14_P17_REMAINING_DRIVERS_PLAN.md`. Tests: `Firmware/Tests/claude/cases/driver/test_rmd_*.cpp`, fixture `support/RmdFixture.h`, peer fake `fakes/FakeRmdPeer.{h,cpp}`.
