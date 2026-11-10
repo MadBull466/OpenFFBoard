@@ -1,6 +1,6 @@
 # MIDI (`MidiMain`, `MidiHandler`, TinyUSB `class/midi`): requirements charter (phase P17, T0)
 
-Status: **T0 approved by the owner 2026-11-10** ("Approve, start T1"; the lead's proposal L1 / question 53 option A is therefore the plan); drafted by the lead (Sonnet 5.5), committed as `f21e631a`. **T1 built 2026-11-10** (see "T1 amendments" at the end): the macro `MIDI` is on in `ffb_usb_tests` only. Open owner questions start at number 53 (see the end).
+Status: **T0 approved by the owner 2026-11-10** ("Approve, start T1"; the lead's proposal L1 / question 53 option A is therefore the plan); drafted by the lead (Sonnet 5.5), committed as `f21e631a`. **T1 approved and built 2026-11-10** (see "T1 amendments" at the end): the macro `MIDI` is on in `ffb_usb_tests` only. **T2 done 2026-11-10** (see "T2 amendments": 319 cases, four reviewers, gate), waiting for the owner's approval. Open owner questions start at number 53 (see the end).
 
 Units under test (sources read by the lead on 2026-11-10):
 * `Firmware/FFBoard/UserExtensions/Src/MidiMain.cpp` (180 lines, `MM`) and `Inc/MidiMain.h` (78 lines), class `MidiMain : FFBoardMain, MidiHandler, TimerHandler`, class id `CLSID_MAIN_MIDI` (0xD), name "MIDI (TMC)", visibility debug, behind the macro `MIDI`; it plays notes by moving the phase of a TMC4671 (`TMC_1`) on the user timer `TIM_USER` (`htim9`).
@@ -153,8 +153,8 @@ Rules inherited from `CLAUDE.md` and the P13-P16 charters: fixture per test, sim
 ### R11: packet API and bulk transfers
 | ID | Requirement | Oracle |
 |---|---|---|
-| R11.1 | `tud_midi_n_packet_write(packet)` queues the 4 bytes; the host reads them on 0x83 as one transfer of 4 bytes; several packets written before the host reads arrive as one transfer in order | UM section 4 |
-| R11.2 | A full TX FIFO (16 packets of 4 bytes unread) makes `packet_write` return false and queues nothing; after the host reads, writing works again | MD, plain |
+| R11.1 | `tud_midi_n_packet_write(packet)` queues the 4 bytes; the host reads them on 0x83 as one transfer of 4 bytes; several packets written before the host reads arrive in order (not necessarily as one transfer: the first write is flushed at once as its own 4 byte transfer, the rest follow, `characterization:`) | UM section 4 |
+| R11.2 | A full TX FIFO (17 packets unread: one already in the endpoint buffer plus the 16 of the 64 byte FIFO) makes `packet_write` return false and queues nothing; after the host reads, writing works again | MD, plain |
 | R11.3 | A transfer of exactly 64 bytes (16 packets) is followed by a zero length packet, a shorter transfer is not; with nothing more to send the endpoint NAKs | USB 2.0 bulk rule (not in the supplied documents), `characterization:` |
 | R11.4 | `packet_write` and `stream_write` before the interface is mounted return false / 0 and queue nothing | MD, plain |
 | R11.5 | The packets the device sends are well formed for UM section 4: byte 0 high nibble = cable number given, CIN valid, unused bytes zero | UM |
@@ -175,7 +175,7 @@ Rules inherited from `CLAUDE.md` and the P13-P16 charters: fixture per test, sim
 | B-MIDI-2 | `MM:148-155` | a pitch bend does not apply to notes started afterwards | `KNOWN_ISSUE` | 220 |
 | B-MIDI-3 | `MH:33-45` | `sysexState` stays true after a SysEx that ends in byte 2 or 3 of the packet (CIN 6 / 7) | `KNOWN_ISSUE` | 221 |
 | B-MIDI-4 | `MH:24-31` | the CIN is ignored: single byte packets (CIN 0xF) with data bytes are decoded as events | `KNOWN_ISSUE` | 222 |
-| B-MIDI-5 | `MM:116`, `MM:160-165` | `range` (and `power`) unchecked: the float to `int16_t` conversion is undefined above 32767 | `KNOWN_ISSUE_UB` | 223 |
+| B-MIDI-5 | `MM:102`, `MM:116`, `MM:160-165` | `range` and `power` unchecked: the float to `int16_t` conversion of `range` is undefined above 32767 (`KNOWN_ISSUE_UB`); `power` above 32767 reaches `setUdUq(int16_t)` as a negative voltage by wrap-around (`KNOWN_ISSUE`, defined behaviour) | `KNOWN_ISSUE_UB` + `KNOWN_ISSUE` | 223 |
 | B-MIDI-6 | `GC:355` | without a handler nothing reads the RX FIFO and the OUT endpoint is not armed again (to be verified by a T2 case) | `KNOWN_ISSUE` if confirmed | 224 |
 | B-MIDI-7 (candidate) | `MM:115` | `sinf(M_PI * p)` with `p = counter * f` oscillates at f / 2 (an octave below the note); no document decides it | `characterization:` until question 54 | none |
 | B-MIDI-V1 | `MD:288-312` | vendor: real-time messages (F8-FF) are written with CIN 5 instead of 0xF | `KNOWN_ISSUE` | vendor bug V86 (reserved) |
@@ -238,3 +238,15 @@ What was built (all under `Firmware/Tests/`, nothing under `FFBoard/` changed):
 * `support/UsbHost.h`: `midiStreamingInterface()` (additive); `support/MidiFixture.h`: `MidiProbe`, `MidiFixture` (`startMidi`, `startAndEnumerate`, `sendPackets`, `receivePackets`, packet builders `pkt`, `noteOnPkt`, `noteOffPkt`), `MidiMainFixture` (`createMidiMain`, `tick`).
 * `claude/cases_usb/test_midi_setup.cpp`: 12 skeleton cases (macro, driver double, `htim9`, enumeration with the MIDI configuration and endpoints 0x02 / 0x83, packet builders, handler registration, note on end to end, packet write, stream write, `MidiMain` construction, a note and the first tick, `update()` with the 500 ms delay).
 Charter change: R6.2 no longer puts `allowSlowSPI` into the call order (it is a field).
+
+## T2 amendments (2026-11-10, lead decisions after the writers' reports)
+- **L9 R11.1:** packets written before the host reads arrive in order, not as one transfer (the first write is armed at once as a 4 byte transfer): plain "in order" test plus a `characterization:` test of the split.
+- **L10 R11.2:** the TX capacity is 17 packets (1 in the endpoint buffer plus 16 in the 64 byte FIFO), not 16.
+- **L11 R8.7 / R3.4:** the OUT endpoint is armed only while the 64 byte RX FIFO is completely empty (`_prep_out_transaction` needs 64 free bytes), so exactly one transfer is acknowledged while nobody reads. B-MIDI-6 is **confirmed by experiment** (a 4 byte transfer without a handler, then a handler, then a packet: NAK): `KNOWN_ISSUE` B-MIDI-6 in `test_midi_handler.cpp`.
+- **L12 R8.6:** the refusal of a configuration whose AudioControl interface has a vendor class comes from `usbd.c` (no driver claims the class), not from `midid_open`; kept as a `characterization:` case.
+- **Infrastructure fact:** `MidiFixture::sendPackets` always sends a zero length packet after a full 64 byte transfer; with no handler present (RX FIFO full) that packet is NAKed. Tests that send exactly 64 bytes without a handler use `host.sendOut(..., false)`.
+- **Observation (not a defect of the project):** the comment at `usbd.h:362` says "88 bytes", the real `TUD_MIDI_DESC_LEN` is 92.
+- **L13 R5.8 / B-MIDI-1:** the intended behaviour is "a note number above 127 is ignored" and the test counts the phase calls only (never the value computed from the out of range table read, which depends on stale heap content).
+- **L14 R6.8:** the sentence "two `MidiMain` objects at once are not created by the chooser" is struck (`MidiMain` is not a singleton, the chooser would build two); the test covers create / destroy twice with the leak check.
+- **L15 R6.2:** the recorded constructor sequence starts with `construct` (the double's own record), then `setLimits`, ...
+- **L16 B-MIDI-5 covers `power`:** the writer's candidate B-MIDI-N1 (a `power` above 32767 reaches `setUdUq(int16_t, ...)` as a negative voltage) is part of bug B-MIDI-5 (question 59), marked `KNOWN_ISSUE`, not a new id.

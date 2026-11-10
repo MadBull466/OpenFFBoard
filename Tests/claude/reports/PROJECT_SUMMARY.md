@@ -6,10 +6,10 @@ are in `Tests/claude/plans/PROGRESS.md` (the source of truth); all suspected bug
 
 > **Update 2026-11-10 (documentation review).** This summary was written at P9 and is kept as the P9 record; the tables below are updated where they
 > are plain counts. Since then P10 (TMC4671, ODrive, VESC), P11 (CMSIS-DSP), P13-P16 (TMCDebugBridge, PWM, SimpleMotion, MyActuator) were added, approved and
-> pushed to the fork. Current counts (GCC 16): `ffb_unit_tests` 654, `ffb_target_tests` 1832, `ffb_flash_tests` 159, `ffb_rtos_tests` 278, `ffb_usb_tests` 287,
-> `ffb_driver_tests` 1717, `ffb_dsp_tests` 2485 = 7,412 C++ cases (unit tests counted with the documented exclusion), 115 Python tests, ctest 11 of 11. Suspected firmware bugs are numbered up to 218,
-> vendor bugs up to V85, NEEDS REVIEW up to 262, open questions up to 52. Remaining out of scope: ST HAL, CMSIS core, FreeRTOS kernel, `Firmware/Targets/**`,
-> CubeMX code; MIDI is in scope: P17 T0 approved, T1 built (waiting for approval). The authoritative numbers are in `Tests/claude/plans/PROGRESS.md` and `Tests/claude/plans/COVERAGE_AND_SCOPE.md`.
+> pushed to the fork. Current counts (GCC 16): `ffb_unit_tests` 654, `ffb_target_tests` 1832, `ffb_flash_tests` 159, `ffb_rtos_tests` 278, `ffb_usb_tests` 606,
+> `ffb_driver_tests` 1717, `ffb_dsp_tests` 2485 = 7,731 C++ cases (unit tests counted with the documented exclusion), 115 Python tests, ctest 11 of 11. Suspected firmware bugs are numbered up to 224,
+> vendor bugs up to V88, NEEDS REVIEW up to 280, open questions up to 61. Remaining out of scope: ST HAL, CMSIS core, FreeRTOS kernel, `Firmware/Targets/**`,
+> CubeMX code; MIDI (P17) is done: 319 cases in `ffb_usb_tests` (606 in total), T2 waiting for approval. The authoritative numbers are in `Tests/claude/plans/PROGRESS.md` and `Tests/claude/plans/COVERAGE_AND_SCOPE.md`.
 
 ## Result in one paragraph
 
@@ -28,7 +28,7 @@ functions the firmware calls 100 %. The firmware was never changed. The suite fo
 | `ffb_target_tests` | 1,832 | the real F407 feature set without drivers/MIDI: axis, main classes, system, inputs, encoders, SPI/I2C/CAN buses, serial FFB, CMSIS-DSP | fake HAL (GPIO, TIM, ADC, SPI, I2C, CAN modelled on the ST HAL), fake FreeRTOS with simulated time and resumable tasks |
 | `ffb_flash_tests` | 159 | the real `flash_helpers.cpp` and ST `eeprom.c` | a NOR-flash fake mapped at the real addresses (not on macOS) |
 | `ffb_rtos_tests` | 278 | the `cpp_freertos` wrappers | a fake FreeRTOS API following V10.3.1 semantics, create-failure injection, configASSERT faults, leak check |
-| `ffb_usb_tests` | 287 | the real TinyUSB device stack with the firmware's descriptors, CDC and HID handlers | a fake dwc2 device controller and a host-side USB driver |
+| `ffb_usb_tests` | 606 | the real TinyUSB device stack with the firmware's descriptors, CDC, HID and (P17) MIDI class driver, `MidiHandler` and `MidiMain` | a fake dwc2 device controller and a host-side USB driver |
 | `python_helper_tests` | 115 (counted in `claude/python`) | `generate_memory.py`, `dwc2_info.py` | stdlib `unittest`, temp dirs only |
 
 `ctest` runs all of them (11 entries today incl. the baseline check and the Codex entries; 7 at P9). Six build variants are verified: GCC 16 and clang 23, CMSIS-DSP on and off,

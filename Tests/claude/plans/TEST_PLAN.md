@@ -6,7 +6,7 @@ Keep every existing test in `Firmware/Tests/` and raise line coverage of the in-
 
 - P0-P11 and P13-P16 are done, approved, committed and pushed to the fork (last commit `1d30019d`). P17 (MIDI) is in scope but not started. The resume point is `Tests/claude/plans/PROGRESS.md`.
 - Original starting point (2026-10-21, kept for the record): 318 test cases, 24 of 97 firmware source files compiled into the tests, in-scope line coverage measured in P0 at 2,136 of about 8,160 lines (26.2 %), mutation check 42 of 48.
-- Today (GCC 16): in-scope firmware coverage 98.9 % (8,007 of about 8,095 lines, 2026-11-09 gcov run); `ffb_unit_tests` 654 / `ffb_target_tests` 1832 / `ffb_flash_tests` 159 / `ffb_rtos_tests` 278 / `ffb_usb_tests` 287 / `ffb_driver_tests` 1717 / `ffb_dsp_tests` 2485 cases, Python 115 tests, ctest 11 of 11. Per-file numbers: `Tests/claude/plans/COVERAGE_AND_SCOPE.md`.
+- Today (GCC 16): in-scope firmware coverage 98.9 % (8,171 of about 8,260 lines, 2026-11-10 gcov run after P17); `ffb_unit_tests` 654 / `ffb_target_tests` 1832 / `ffb_flash_tests` 159 / `ffb_rtos_tests` 278 / `ffb_usb_tests` 606 / `ffb_driver_tests` 1717 / `ffb_dsp_tests` 2485 cases, Python 115 tests, ctest 11 of 11. Per-file numbers: `Tests/claude/plans/COVERAGE_AND_SCOPE.md`.
 
 ## How to start or resume
 
@@ -186,7 +186,7 @@ Added 2026-11-10 (owner). P13: `TMCDebugBridge.cpp`, `Tests/claude/plans/P13_TMC
 
 ### P17: MIDI (`MidiMain`, `MidiHandler`, TinyUSB `class/midi`; `ffb_usb_tests`)
 
-Added 2026-11-10 (owner). Status: T0 charter `Tests/claude/charters/driver/MIDI_REQUIREMENTS.md` approved 2026-11-10, T1 built (macro `MIDI` on in `ffb_usb_tests` only, TMC4671 double, fake TIM9, fixture, 12 skeleton cases; waiting for approval), T2 not started. Oracles supplied: `midi10.pdf` (USB Device Class Definition for MIDI Devices 1.0) and `MIDI_1.0_Detailed_Specification.pdf`; the firmware class is USB-MIDI 1.0 style, so `USB MIDI v2_0.pdf` is not needed. Where the specs are silent the tests are `characterization:`. The macro `MIDI` is turned on in `ffb_usb_tests` only, at T1. Next step: the owner's approval of T1, then T2 (writers, reviewers, gate). See the P17 section of `P14_P17_REMAINING_DRIVERS_PLAN.md`.
+Added 2026-11-10 (owner). Status: T0 (`Tests/claude/charters/driver/MIDI_REQUIREMENTS.md`) and T1 approved 2026-11-10; T2 done and gated (319 cases in `ffb_usb_tests`, `MidiHandler.cpp` 100 %, `MidiMain.cpp` 100 %, `midi_device.c` 98.5 %, firmware bugs 219-224, vendor bugs V86-V88; waiting for approval). Oracles supplied: `midi10.pdf` (USB Device Class Definition for MIDI Devices 1.0) and `MIDI_1.0_Detailed_Specification.pdf`; the firmware class is USB-MIDI 1.0 style, so `USB MIDI v2_0.pdf` is not needed. Where the specs are silent the tests are `characterization:`. The macro `MIDI` is turned on in `ffb_usb_tests` only, at T1. Next step: the owner's approval of T2 (then the commit). See the P17 section of `P14_P17_REMAINING_DRIVERS_PLAN.md`.
 
 ## Fake fidelity rules
 
@@ -215,7 +215,7 @@ Fidelity entries for the driver peers are kept in the "Driver track" section of 
 ## Scope and known issues (unchanged)
 
 - In scope: firmware outside `Firmware/Libraries/`, plus the vendor tiers A, B, C above. Since 2026-11-04 (P11) tier C covers every function and data type of the CMSIS-DSP modules the firmware uses. Not tested: ST HAL, CMSIS core, the FreeRTOS kernel, `Firmware/Targets/**`, CubeMX code.
-- In scope since 2026-11-10 (P14 PWM, P15 SimpleMotion, P16 MyActuator, P17 MIDI incl. TinyUSB `class/midi`; plan `P14_P17_REMAINING_DRIVERS_PLAN.md`): P14, P15 and P16 are complete (their macros are on in `ffb_driver_tests` only); P17: T0 approved, T1 built; `MIDI` is on in `ffb_usb_tests` only. The TMC4671, ODrive and VESC drivers are in scope since 2026-11-03 (P10, `ffb_driver_tests` only). `TMCDebugBridge` is in scope since 2026-11-10 (P13, complete, `ffb_driver_tests` only, `TMCDEBUG` on there).
+- In scope since 2026-11-10 (P14 PWM, P15 SimpleMotion, P16 MyActuator, P17 MIDI incl. TinyUSB `class/midi`; plan `P14_P17_REMAINING_DRIVERS_PLAN.md`): P14, P15 and P16 are complete (their macros are on in `ffb_driver_tests` only); P17 is done (T2 waits for approval); `MIDI` is on in `ffb_usb_tests` only. The TMC4671, ODrive and VESC drivers are in scope since 2026-11-03 (P10, `ffb_driver_tests` only). `TMCDebugBridge` is in scope since 2026-11-10 (P13, complete, `ffb_driver_tests` only, `TMCDEBUG` on there).
 - **Known issue 1:** `effectsForces` out-of-bounds read aborts on GCC 16. Exclude only the case `requesting the forces of a not existing axis is rejected`.
 - **Known issue 2:** CMSIS-DSP `arm_spline_f32` overflow found by ASan. Skip only the two spline cases in sanitizer runs.
 - **Known issue 3:** the skipped case `command with an unknown id is rejected` (`test_command_execution.cpp:186`) stays skipped. `executeCommands` dereferences the command definition before the null check.

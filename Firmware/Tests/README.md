@@ -303,7 +303,11 @@ Headers in `support/`:
 | Suites | Files | Tested firmware |
 |---|---|---|
 | `UsbSetup` | `test_usb_setup.cpp` | Smoke tests: bus reset and enumeration, string descriptor, CDC line coding and commands, HID input / output / feature reports, stall, suspend / resume, the OSAL on the fake FreeRTOS |
-| `MidiSetup` | `test_midi_setup.cpp` | P17 skeleton (T1, 12 cases): the `MIDI` macro, the TMC4671 recording double, the fake `htim9`, enumeration with the MIDI configuration, the packet builders, `MidiProbe`, one smoke case each for the handler, the class driver (packet write, byte stream) and `MidiMain`; the requirement tests follow in T2 (`test_midi_handler/main/class/stream.cpp`) |
+| `MidiSetup` | `test_midi_setup.cpp` | P17 skeleton (T1, 12 cases): the `MIDI` macro, the TMC4671 recording double, the fake `htim9`, enumeration with the MIDI configuration, the packet builders, `MidiProbe`, one smoke case each for the handler, the class driver and `MidiMain` |
+| `MidiHandler` | `test_midi_handler.cpp` | P17 (66 cases): `MidiHandler::midiRx` decoding of every message kind and channel, SysEx packets of the USB class definition table 4-2, the global handler pointer and `tud_midi_rx_cb` through the fake bus; B-MIDI-3, B-MIDI-4 and B-MIDI-6 as `KNOWN_ISSUE` |
+| `MidiMain` | `test_midi_main.cpp` | P17 (106 cases): identity and chooser, notes and controllers, the phase synthesis per timer tick (hand derived values), construction order on the TMC4671 double, `update()`, the commands, life cycle; B-MIDI-1, B-MIDI-2 and B-MIDI-5 as `KNOWN_ISSUE` / `KNOWN_ISSUE_UB` |
+| `MidiClass` | `test_midi_class.cpp` | P17 (68 cases): the descriptors of `usb_cdc_midi_conf` against the USB class definition 1.0 tables, mount and reset, class requests stall, RX / TX FIFO behaviour, transfers and zero length packets, end to end host to handler and to `MidiMain` |
+| `MidiStream` | `test_midi_stream.cpp` | P17 (67 cases): byte stream to USB-MIDI packets and back (Tables 4-1 and 4-2: all channel statuses, system common, real-time, five SysEx lengths, cables), split writes, FIFO limits; vendor bugs B-MIDI-V1 / V2 / V3 as `KNOWN_ISSUE` |
 
 Python (`python/`, ctest entry `python_helper_tests`): `test_generate_memory.py` (`Firmware/scripts/generate_memory.py`),
 `test_dwc2_info.py` (`dwc2_info.py`).
@@ -750,7 +754,7 @@ fake device controller, together with the firmware's USB glue: `USBdevice.cpp`, 
 descriptors and the TinyUSB callbacks of `global_callbacks.cpp`.
 
 * **Test cases:** `claude/cases_usb/test_*.cpp` (own glob). Run directly: `../ffb-test-build/host/ffb_usb_tests` (`-ts=UsbSetup` for the smoke
-  tests). Exclusion lists `FFB_USB_TESTS_EXCLUDE` / `FFB_USB_TESTS_EXCLUDE_SANITIZE` (default empty), printed at
+  tests; `-ts=MidiHandler` etc. for MIDI; `FFB_USB_TEST_FILTER` restricts the compiled test files like `FFB_DRIVER_TEST_FILTER`). Exclusion lists `FFB_USB_TESTS_EXCLUDE` / `FFB_USB_TESTS_EXCLUDE_SANITIZE` (default empty), printed at
   configure time like the others. Built on Linux, macOS and MinGW (no fixed addresses; unverified on macOS / Windows).
 * **Sources:** the firmware and platform sources of `ffb_target_tests` (F407 feature set; `global_callbacks.cpp` needs
   them) plus `ctickhook.cpp` and `ccondition_variable.cpp`, without `platform/src/host_usb.cpp` (the recording TinyUSB
@@ -921,7 +925,7 @@ report tool `tools/run_all_tests.py` with synthetic doctest XML and tables (no t
 * The host is a 64 bit little endian machine with a different compiler backend. Stack usage, timing, alignment
   faults and float to integer conversions of out of range values are not covered.
 * No preemption. Race conditions between threads and interrupts can not be found.
-* Only the TMC4671, ODrive, VESC, PWM, SimpleMotion and MyActuator drivers and `TMCDebugBridge` are compiled (in `ffb_driver_tests` only); `MidiMain` / `MidiHandler` are compiled in `ffb_usb_tests` only (P17, T1 built, T2 pending). `Axis`, the main classes and `SystemCommands` are only
+* Only the TMC4671, ODrive, VESC, PWM, SimpleMotion and MyActuator drivers and `TMCDebugBridge` are compiled (in `ffb_driver_tests` only); `MidiMain` / `MidiHandler` are compiled and tested in `ffb_usb_tests` only (P17). `Axis`, the main classes and `SystemCommands` are only
   compiled in `ffb_target_tests`.
 * Outside `ffb_usb_tests` the USB descriptors are not parsed; the report layouts are compared with constants in the
   tests. `ffb_usb_tests` parses the configuration descriptor during the enumeration (interfaces and endpoints only).
@@ -931,8 +935,8 @@ report tool `tools/run_all_tests.py` with synthetic doctest XML and tables (no t
 ## Next steps
 
 * **P17 (MIDI):** `MidiMain`, `MidiHandler` and the TinyUSB `class/midi` code are in scope since 2026-11-10 (macro `MIDI` in
-  `ffb_usb_tests` only). Oracles supplied: the USB class definition for MIDI devices 1.0 (`midi10.pdf`) and the MIDI 1.0
-  detailed specification. T0 (charter `Tests/claude/charters/driver/MIDI_REQUIREMENTS.md`) is approved and T1 (wiring, doubles, fixture, 12 skeleton cases) is built and waits for the owner's approval; T2 is not started (see "Next action" in
+  `ffb_usb_tests` only); the tests are done (see the suite table). Oracles supplied: the USB class definition for MIDI devices 1.0 (`midi10.pdf`) and the MIDI 1.0
+  detailed specification. T0 (charter `Tests/claude/charters/driver/MIDI_REQUIREMENTS.md`), T1 (wiring, doubles, fixture) and T2 (319 cases, four reviewers, gate) are done; T2 waits for the owner's approval (see "Next action" in
   `Tests/claude/plans/PROGRESS.md`).
 * Open questions (CI job, Windows / macOS verification, P11 to P16 decisions) are in `Tests/claude/reports/OPEN_QUESTIONS.md`;
   suspected bugs and NEEDS REVIEW items in `Tests/claude/reports/BUG_REPORT.md`.

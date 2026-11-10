@@ -690,9 +690,14 @@ list(APPEND USB_PLATFORM_SOURCES
 	fakes/FakeTmcPhase.cpp # P17: recording double of the TMC4671 interface MidiMain uses (platform/usb_midi/TMC4671.h)
 )
 
+# FFB_USB_TEST_FILTER (developer aid for parallel test writing, like FFB_DRIVER_TEST_FILTER): glob of the claude/cases_usb
+# test files to compile, e.g. "test_midi_handler.cpp". The MIDI skeleton is always compiled. Default: all.
+set(FFB_USB_TEST_FILTER "test_*.cpp" CACHE STRING "Glob of the claude/cases_usb test files compiled into ffb_usb_tests")
 file(GLOB USB_TEST_SOURCES CONFIGURE_DEPENDS
-	${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_usb/test_*.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_usb/${FFB_USB_TEST_FILTER}
+	${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_usb/test_midi_setup.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/codex/cases_usb/test_*.cpp)
+list(REMOVE_DUPLICATES USB_TEST_SOURCES)
 
 add_executable(ffb_usb_tests
 	${USB_TINYUSB_SOURCES}

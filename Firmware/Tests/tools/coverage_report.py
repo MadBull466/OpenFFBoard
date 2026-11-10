@@ -50,8 +50,8 @@ DEFAULT_EXCLUSIONS = os.path.join(TOOLS_DIR, "coverage_exclusions.txt")
 COVERAGE_TARGET = 85.0  # % of in-scope lines without hardware-only code (Tests/claude/plans/TEST_PLAN.md)
 DEFAULT_FIRMWARE_DIR = os.path.normpath(os.path.join(TOOLS_DIR, "..", ".."))
 
-# MIDI code: in scope since 2026-11-10 (P17), compiled in ffb_usb_tests since T1; kept out of the ladder until T2 decides its tier (usb)
-OUT_OF_SCOPE = {"MidiMain", "MidiHandler"}
+# MIDI code (MidiMain, MidiHandler): in scope since 2026-11-10 (P17), compiled and tested in ffb_usb_tests since T1/T2: counted in the ladder
+OUT_OF_SCOPE = set()  # P17: MidiMain and MidiHandler are in scope and tested in ffb_usb_tests (they count in the firmware ladder)
 # The three drivers of the driver track (ffb_driver_tests): reported in their own tier, not in the ladder
 DRIVER_TRACK = {"TMC4671", "TMC4671_configs", "ODriveCAN", "VescCAN", "TMCDebugBridge", "MotorPWM", "MotorSimplemotion", "RmdMotorCAN"}  # TMCDebugBridge: P13, MotorPWM: P14, MotorSimplemotion: P15, RmdMotorCAN: P16 (in scope since 2026-11-10)
 # ffb_dsp_tests: the CMSIS-DSP sources are built by these CMake targets (object directories CMakeFiles/<target>.dir)
@@ -400,7 +400,7 @@ def main():
 	total = gcov_lines + sum(estimated.values())
 
 	print("\n### In-scope firmware sources (coverage ladder)\n")
-	print("- In-scope sources: %d (`FFBoard/Src`, `FFBoard/UserExtensions/Src`, without drivers and MIDI, tier A included)" % len(in_scope))
+	print("- In-scope sources: %d (`FFBoard/Src`, `FFBoard/UserExtensions/Src`, without the drivers, tier A included; MidiMain and MidiHandler count since P17)" % len(in_scope))
 	print("- Compiled into the tests: %d files, %d of %d executable lines covered (%s)" % (
 		len(compiled), covered, gcov_lines, pct(covered, gcov_lines)))
 	print("- Not compiled: %d files, %d code lines, estimated %d executable lines (ratio gcov/code lines of the compiled files: %.2f)" % (
