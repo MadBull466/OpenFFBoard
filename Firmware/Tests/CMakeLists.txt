@@ -772,7 +772,7 @@ endif()
 # ===========================================================================
 # ffb_driver_tests (driver track, Tests/claude/plans/DRIVER_TEST_PLAN.md): the real TMC4671, ODrive and VESC drivers on the
 # fake HAL SPI / CAN of ffb_target_tests. Feature header platform/target_f407_drivers/target_constants.h = the
-# ffb_target_tests header + TMC4671DRIVER, ODRIVE, VESC (MIDI, TMCDEBUG, RMDCAN, PWMDRIVER, SIMPLEMOTION stay off).
+# ffb_target_tests header + TMC4671DRIVER, ODRIVE, VESC and (P13) TMCDEBUG (MIDI, RMDCAN, PWMDRIVER, SIMPLEMOTION stay off).
 #
 # The executables above are not changed by this section (their compile commands are identical). The firmware and
 # platform sources of ffb_target_tests are compiled again for this executable (they include target_constants.h).
@@ -786,6 +786,7 @@ set(DRIVER_FIRMWARE_SOURCES
 	${FFBOARD_DIR}/UserExtensions/Src/TMC4671_configs.cpp
 	${FFBOARD_DIR}/UserExtensions/Src/ODriveCAN.cpp
 	${FFBOARD_DIR}/UserExtensions/Src/VescCAN.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/TMCDebugBridge.cpp # P13, behind TMCDEBUG (platform/target_f407_drivers/target_constants.h)
 )
 # TMC4671.cpp:2467 calls clip(maxcnt, 255, 4095) with an uint16_t value: the braced return in clip() (cppmain.h:67) narrows
 # int to unsigned short. GCC only warns, clang rejects it (-Wc++11-narrowing is an error by default). Same workaround

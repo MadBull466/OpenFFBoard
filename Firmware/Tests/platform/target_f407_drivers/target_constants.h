@@ -6,11 +6,13 @@
  *
  * Host test copy of Targets/F407VG/Core/Inc/target_constants.h for ffb_driver_tests (driver track,
  * Tests/claude/plans/DRIVER_TEST_PLAN.md). It is platform/target_f407/target_constants.h (the F407VG header without
- * the drivers and MIDI) with exactly three feature macros added back:
+ * the drivers and MIDI) with exactly four feature macros added back:
  *   TMC4671DRIVER  (F407VG target_constants.h:46)
  *   ODRIVE         (F407VG target_constants.h:50)
  *   VESC           (F407VG target_constants.h:51)
- * MIDI, TMCDEBUG, RMDCAN, PWMDRIVER and SIMPLEMOTION stay off (out of scope). HSPIDRV (hspi1), CANBUS and
+ *   TMCDEBUG       (P13, TMCDebugBridge in scope since 2026-11-10; Tests/claude/plans/P13_TMCDEBUGBRIDGE_PLAN.md).
+ *                  On in ffb_driver_tests only: the other executables keep their own target_constants.h.
+ * MIDI, RMDCAN, PWMDRIVER and SIMPLEMOTION stay off (out of scope). HSPIDRV (hspi1), CANBUS and
  * TIM_TMC htim6 are as in the F407VG header (FFBoard/Inc/constants.h:23-27, 52-54 drop the drivers without them).
  * htim6 is declared extern below (the real main.h declares it; the host main.h only declares htim7).
  */
@@ -42,6 +44,7 @@
 #define TMC4671DRIVER // F407VG target_constants.h:46
 #define ODRIVE // F407VG target_constants.h:50
 #define VESC // F407VG target_constants.h:51
+#define TMCDEBUG // P13: TMCDebugBridge (adds TMCDebugBridge to mainclass_chooser.cpp and `friend class TMCDebugBridge` to TMC4671.h)
 
 /*
  * FFBWheel uses 2 FFB axis descriptor instead of 1 axis.

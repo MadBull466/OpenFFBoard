@@ -279,7 +279,8 @@ Headers in `support/`:
 
 | Suites | Files | Tested firmware |
 |---|---|---|
-| `DriverSetup` | `test_driver_setup.cpp` | Skeleton (phase D0): the feature macros of the executable (TMC4671, ODrive, VESC on; MIDI, TMCDEBUG, RMDCAN, PWMDRIVER, SIMPLEMOTION off) |
+| `DriverSetup` | `test_driver_setup.cpp` | Skeleton (phase D0, P13): the feature macros of the executable (TMC4671, ODrive, VESC and, since P13, TMCDEBUG on; MIDI, RMDCAN, PWMDRIVER, SIMPLEMOTION off) |
+| `TMCDebugBridge setup` | `test_tmcdebug_setup.cpp` | P13 T1 skeleton: the `TmcDebugFixture` frame helper, construction on the fake TMC4671, identity, the non-TMCL frame path (more in T2) |
 
 `ffb_usb_tests` (`claude/cases_usb/`):
 
@@ -789,12 +790,13 @@ phases D0-D3). It tests the real motor drivers against simulated peers, not thei
 `Tests/claude/reports/DRIVER_TRACK_REPORT.md`):
 
 * **Feature header:** `platform/target_f407_drivers/target_constants.h` is the `ffb_target_tests` header plus
-  `TMC4671DRIVER`, `ODRIVE` and `VESC` (lines 46, 50, 51 of the F407VG header). `MIDI`, `TMCDEBUG`, `RMDCAN`,
+  `TMC4671DRIVER`, `ODRIVE` and `VESC` (lines 46, 50, 51 of the F407VG header) and, since P13, `TMCDEBUG`
+  (`TMCDebugBridge`, on in this executable only). `MIDI`, `RMDCAN`,
   `PWMDRIVER` and `SIMPLEMOTION` stay off; `HSPIDRV`, `CANBUS` and `TIM_TMC htim6` stay as on the F407VG. The directory
   is first in the include path, so only this header is shadowed (`main.h` etc. come from `platform/target_f407`).
 * **Driver sources:** `FFBoard/UserExtensions/Src/TMC4671.cpp`, `TMC4671_configs.cpp`, `ODriveCAN.cpp` and `VescCAN.cpp`
-  on top of the firmware and platform sources of `ffb_target_tests` (fake HAL SPI and CAN). `TMCDebugBridge.cpp`,
-  `MotorPWM.cpp`, `RmdMotorCAN.cpp`, `MotorSimplemotion.cpp` and the MIDI sources are not compiled.
+  on top of the firmware and platform sources of `ffb_target_tests` (fake HAL SPI and CAN), and (P13) `TMCDebugBridge.cpp`
+  (its fixture is `support/TmcDebugFixture.h`: `TmcFixture` plus the CDC capture). `MotorPWM.cpp`, `RmdMotorCAN.cpp`, `MotorSimplemotion.cpp` and the MIDI sources are not compiled.
 * **Platform:** `platform/src/host_driver_timers.cpp` adds the fake TIM6 (`htim6`, as left by `MX_TIM6_Init`), which the
   TMC4671 driver uses as its external encoder timer. It is reset by `HostTarget::reset()` through
   `HostTarget::addResetHook`; the other executables do not link it.
