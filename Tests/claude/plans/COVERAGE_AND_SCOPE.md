@@ -45,8 +45,8 @@ Headers of these modules: 392 / 413 lines (94.9 %).
 | `USB/tusb.c` | 96.4 % (160 / 166) |
 | `USB/class/midi/midi_device.c` (MIDI is out of scope, compiled only because `usbd.c` needs it) | 14.7 % (30 / 204) |
 
-### 1.4 Driver track (`ffb_driver_tests`, 1097 cases, outside the ladder)
-`TMC4671.cpp` 89.8 % (1,731 / 1,928), `ODriveCAN.cpp` 97.8 % (263 / 269), `VescCAN.cpp` 95.7 % (382 / 399), `TMCDebugBridge.cpp` 100 % (166 / 166, phase P13, TMCL frames on the CDC port against the supplied TMCL reference; the opcodes 143 / 146 / 148 are `characterization:` only); driver tier 92.0 % (2,542 / 2,762). `TMC4671_configs.cpp` is part of the TMC4671 suite; no separate figure was recorded.
+### 1.4 Driver track (`ffb_driver_tests`, 1238 cases, outside the ladder)
+`TMC4671.cpp` 89.8 % (1,731 / 1,928), `ODriveCAN.cpp` 97.8 % (263 / 269), `VescCAN.cpp` 95.7 % (382 / 399), `TMCDebugBridge.cpp` 100 % (166 / 166, phase P13, TMCL frames on the CDC port against the supplied TMCL reference; the opcodes 143 / 146 / 148 are `characterization:` only); `MotorPWM.cpp` 100 % (191 / 191, phase P14, against the firmware's own labels and hand derivations; the fake TIM1 does not simulate the counter, shadow registers or pin levels; 4 findings B-PWM-1..4 as `KNOWN_ISSUE` / `KNOWN_ISSUE_UB`, RC sign, gain and stop behaviour as `characterization:`); driver tier 92.7 % (2,737 / 2,953). `TMC4671_configs.cpp` is part of the TMC4671 suite; no separate figure was recorded.
 
 ### 1.5 CMSIS-DSP (tier C and P11)
 - Tier C, the 10 functions the firmware calls (100 %, 198 / 198 lines): `arm_sin_f32`, `arm_cos_f32`, `arm_biquad_cascade_df1_f32` and `_init_f32`, `arm_spline_interp_f32` and `_init_f32`, `arm_std_f32`, `arm_var_f32`, `arm_pid_init_f32`, `arm_pid_reset_f32`.

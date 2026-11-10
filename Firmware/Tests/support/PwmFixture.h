@@ -24,6 +24,7 @@
  *   pulseUs(ch)        CCRch * (PSC + 1) / 168 MHz in microseconds (RC pulse width)
  *   duty(ch)           min(CCRch, ARR + 1) / (ARR + 1): PWM mode 1 duty, CCR above ARR gives 1.0 (always high)
  *   outputFrequencyHz()  168 MHz / ((PSC + 1)(ARR + 1))
+ *   log()              the PWM HAL calls in order ("Config:2", "Start:2:OK", "Start:2:ERR", "Stop:2"); clearLog()
  */
 #ifndef HOSTTEST_PWMFIXTURE_H_
 #define HOSTTEST_PWMFIXTURE_H_
@@ -36,8 +37,11 @@
 #include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <string>
+#include <vector>
 
 extern uint32_t hosttestTim1MspPostInitCalls; // platform/src/host_driver_timers.cpp
+extern std::vector<std::string> hosttestTim1Log; // platform/src/host_driver_timers.cpp: PWM HAL calls in order (R2.6)
 
 struct PwmFixture : TargetFixture {
 	static constexpr double kTimerHz = 168000000.0;
@@ -50,6 +54,8 @@ struct PwmFixture : TargetFixture {
 
 	std::unique_ptr<MotorPWM> makePwm() { return std::make_unique<MotorPWM>(); }
 
+	static const std::vector<std::string> &log() { return hosttestTim1Log; }
+	static void clearLog() { hosttestTim1Log.clear(); }
 	static TIM_TypeDef &tim() { return *htim1.Instance; }
 	static uint32_t arr() { return tim().ARR; }
 	static uint32_t psc() { return tim().PSC; }

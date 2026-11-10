@@ -20,9 +20,11 @@
  * P14 (PWM driver, PWMDRIVER on in ffb_driver_tests only): fake TIM1 with PWM output compare, htim1 (TIM_PWM).
  * Models:  the handle as left by MX_TIM1_Init (Targets/F407VG/Core/Src/main.c:716-721): Prescaler 0, up-counting,
  *          Period 0xffff, auto-reload preload ENABLED, State READY, all four channel states READY (HAL_TIM_PWM_Init);
+ *          (including the four HAL_TIM_PWM_ConfigChannel calls of MX_TIM1_Init: CCMR1 = CCMR2 = 0x6868);
  *          the register writes of the PWM HAL calls with the contracts of stm32f4xx_hal_tim.c (the copy in
  *          Targets/F411RE/Drivers):
- *            HAL_TIM_PWM_ConfigChannel: channel 1-4 only and OCMode PWM1 / PWM2 only (else HAL_ERROR and a record in
+ *            HAL_TIM_PWM_ConfigChannel: clears CCxE first (TIM_OCx_SetConfig: a running channel is switched off, so a
+ *              following Start of a BUSY channel is rejected); channel 1-4 only and OCMode PWM1 / PWM2 only (else HAL_ERROR and a record in
  *              HostTarget::state().unmodelledHalCalls, which the TargetFixture check turns into a test failure);
  *              CCRx = Pulse, OCxM = OCMode, CCxP = OCPolarity, OCxPE set (preload), OCxFE = OCFastMode.
  *            HAL_TIM_PWM_Start: HAL_ERROR unless the channel state is READY (a second Start without Stop is rejected
@@ -30,6 +32,7 @@
  *            HAL_TIM_PWM_Stop: CCxE cleared; MOE cleared and CEN cleared only if no CCxE / CCxNE bit remains
  *              (__HAL_TIM_MOE_DISABLE / __HAL_TIM_DISABLE); channel state READY.
  *            HAL_TIM_MspPostInit: only counted (hosttestTim1MspPostInitCalls).
+ *          Every PWM call is also appended to hosttestTim1Log (order of Config / Start / Stop, rejected Starts included).
  *          The definition of MotorPWM::timerConfig (the board table of Targets/F407VG/Core/Src/cpp_target_config.cpp:62,
  *          same values).
  * Does not model: the counter (it never advances: no waveform, no real pin levels), the shadow registers (ARR, PSC and
@@ -38,18 +41,28 @@
  *          the HAL lock (single threaded fake), the timer clock (168 MHz is a constant of MotorPWM::timerConfig).
  * Source:  RM0090 chapter 'Advanced-control timers (TIM1 and TIM8)' (PWM mode, CCRx / ARR / PSC, BDTR.MOE), ST HAL
  *          stm32f4xx_hal_tim.c (HAL_TIM_PWM_Start, _Stop, _ConfigChannel, TIM_OCx_SetConfig).
- * Confidence: High for the HAL call contracts and the initial state, Low for timing semantics (not simulated).
+ * Differences to the HAL that are NOT modelled and do not matter for MotorPWM: the assert_param checks of polarity, fast
+ *          mode and idle states (only channel and OCMode are checked), TIM_OCx_SetConfig clearing CCxNP / CCxNE and writing
+ *          CR2 OISx (complementary outputs), OCxCE cleared with the whole CCMR byte, the slave-mode branch of Start (always
+ *          sets CEN; MX_TIM1_Init configures master mode only). HAL_TIM_Base_Stop_IT of the destructor is the generic fake
+ *          of host_target.cpp (UIE cleared, CEN cleared if no CCxE, State READY).
+ * Confidence: High for the HAL call contracts (compared call by call with stm32f4xx_hal_tim.c in review PWR3), Medium-High
+ *          for the initial state, Low for timing semantics (not simulated).
  */
 #include "HostTarget.h"
 #include "main.h"
 
 #include "target_constants.h"
+
+#include <string>
+#include <vector>
 #ifdef PWMDRIVER
 #include "MotorPWM.h"
 #endif
 
 extern uint32_t hosttestTim1MspPostInitCalls;
 extern TIM_HandleTypeDef htim1;
+extern std::vector<std::string> hosttestTim1Log;
 
 namespace {
 // Values of the ST HAL (stm32f4xx_hal_tim.h:518, :549); the host main.h does not define these constants
@@ -84,17 +97,24 @@ void resetDriverTimers() {
 	htim1.Init.AutoReloadPreload = HOSTTEST_TIM_AUTORELOAD_PRELOAD_ENABLE;
 	tim1Regs.PSC = htim1.Init.Prescaler;
 	tim1Regs.ARR = htim1.Init.Period;
+	// MX_TIM1_Init (main.c:737-755) also calls HAL_TIM_PWM_ConfigChannel for channels 1-4 (PWM1, Pulse 0, polarity high):
+	// OCxM = PWM1 (0x60) and OCxPE (0x08) in both CCMR registers, CCRx 0, outputs not enabled
+	tim1Regs.CCMR1 = 0x6868U;
+	tim1Regs.CCMR2 = 0x6868U;
 	htim1.State = HAL_TIM_STATE_READY;
 	for (auto &c : htim1.ChannelState) {
 		c = kChannelReady;
 	}
 	hosttestTim1MspPostInitCalls = 0;
+	hosttestTim1Log.clear();
 }
 } // namespace
 
 TIM_HandleTypeDef htim6 = {};
 TIM_HandleTypeDef htim1 = {};
 uint32_t hosttestTim1MspPostInitCalls = 0;
+/** Every PWM HAL call in order, "Config:<ch>", "Start:<ch>:OK|ERR", "Stop:<ch>" (ch 1..4); cleared by the reset hook (P14, R2.6) */
+std::vector<std::string> hosttestTim1Log;
 
 namespace {
 /** Registers the reset and applies it once, so htim6 is initialised before the first fixture reset (like main()) */
@@ -134,6 +154,7 @@ HAL_StatusTypeDef HAL_TIM_PWM_ConfigChannel(TIM_HandleTypeDef *htim, const TIM_O
 		record("HAL_TIM_PWM_ConfigChannel: OCMode is not PWM1 / PWM2 (assert_param IS_TIM_PWM_MODE)");
 		return HAL_ERROR;
 	}
+	hosttestTim1Log.push_back("Config:" + std::to_string(ch + 1));
 	TIM_TypeDef *t = htim->Instance;
 	volatile uint32_t *ccmr = (ch < 2) ? &t->CCMR1 : &t->CCMR2;
 	const unsigned shift = (ch % 2) ? 8U : 0U;
@@ -142,6 +163,7 @@ HAL_StatusTypeDef HAL_TIM_PWM_ConfigChannel(TIM_HandleTypeDef *htim, const TIM_O
 	v |= ((sConfig->OCMode & 0x70U) | TIM_CCMR1_OC1PE | (sConfig->OCFastMode & TIM_OCFAST_ENABLE)) << shift;
 	*ccmr = v;
 	const unsigned ccerPos = 4U * static_cast<unsigned>(ch);
+	t->CCER &= ~(1U << ccerPos); // TIM_OCx_SetConfig: TIMx->CCER &= ~TIM_CCER_CCxE
 	t->CCER = (t->CCER & ~(0x2U << ccerPos)) | ((sConfig->OCPolarity & 0x2U) << ccerPos); // CCxP
 	switch (ch) {
 	case 0: t->CCR1 = sConfig->Pulse; break;
@@ -160,8 +182,10 @@ HAL_StatusTypeDef HAL_TIM_PWM_Start(TIM_HandleTypeDef *htim, uint32_t Channel) {
 		return HAL_ERROR;
 	}
 	if (htim->ChannelState[ch] != kChannelReady) {
+		hosttestTim1Log.push_back("Start:" + std::to_string(ch + 1) + ":ERR");
 		return HAL_ERROR; // like the real HAL: a channel that is not READY (already started) is rejected
 	}
+	hosttestTim1Log.push_back("Start:" + std::to_string(ch + 1) + ":OK");
 	htim->ChannelState[ch] = kChannelBusy;
 	htim->Instance->CCER |= 1U << (4U * static_cast<unsigned>(ch)); // CCxE
 	htim->Instance->BDTR |= TIM_BDTR_MOE;
@@ -176,6 +200,7 @@ HAL_StatusTypeDef HAL_TIM_PWM_Stop(TIM_HandleTypeDef *htim, uint32_t Channel) {
 		record("HAL_TIM_PWM_Stop: channel is not TIM_CHANNEL_1..4");
 		return HAL_ERROR;
 	}
+	hosttestTim1Log.push_back("Stop:" + std::to_string(ch + 1));
 	TIM_TypeDef *t = htim->Instance;
 	t->CCER &= ~(1U << (4U * static_cast<unsigned>(ch)));
 	if ((t->CCER & TIM_CCER_CCxE_MASK) == 0U && (t->CCER & TIM_CCER_CCxNE_MASK) == 0U) {

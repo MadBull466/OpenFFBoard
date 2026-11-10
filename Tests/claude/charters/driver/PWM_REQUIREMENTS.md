@@ -1,6 +1,6 @@
 # PWM driver (`MotorPWM`): requirements charter (phase P14, T0)
 
-Status: **DRAFT by the lead (Sonnet 5.5), 2026-11-10, waiting for the owner's approval of T0.** Nothing is built or tested yet.
+Status: **APPROVED by the owner, 2026-11-10 (T0); T1 approved and committed (`70bf9659`); T2 done 2026-11-10, waiting for the owner's approval (results in `Tests/claude/plans/PROGRESS.md` "P14 review result (T2)"). Corrections after the writers (lead, Sonnet 5.5): B-PWM-4 (CENTERED `int32_t` overflow at speed LOW, `KNOWN_ISSUE_UB`) and the RC half-scale saturation (`characterization:`, open question 36) were found in T2; the T0 note that no product overflows was wrong (it only checked PWM_DIR / DUAL).**
 
 Unit under test: `Firmware/FFBoard/UserExtensions/Src/MotorPWM.cpp` (332 lines, `MP` below) and `Inc/MotorPWM.h` (107 lines, `MH`). Class `MotorPWM : MotorDriver, CommandHandler, PersistentStorage`, behind the macro `PWMDRIVER`, class id `CLSID_MOT_PWM` 0x84, registered as motor driver 4 in `MotorDriver.cpp:35` and `Axis.cpp:56 / :83`.
 Executable: `ffb_driver_tests` (owner's decision, question 28). Plan: `Tests/claude/plans/P14_P17_REMAINING_DRIVERS_PLAN.md`. Tests: `Firmware/Tests/claude/cases/driver/test_pwm_*.cpp`, fixture `support/PwmFixture.h`.
@@ -103,10 +103,12 @@ Items 1-3 are `KNOWN_ISSUE` (the owner may later change the decision); items 4-6
 
 1. B-PWM-1: RC frame period is 1.2 % longer than named (R2.4): the prescaler register is divider minus one. Pulse widths are right because `tFreq` also uses `prescaler + 1`.
 2. B-PWM-2 / B-PWM-3: no range check for `freq` set and `mode` set (R4.4 to R4.6, R5.4); a stored invalid mode freezes the output.
-3. Duty never reaches exactly 100 % with CCR = ARR (one count low) and the PWM_DIR / DUAL / CENTERED full-scale duty is 99.998 %: informational, the tolerance in R3.4 to R3.6 is one count.
-4. `HAL_TIM_Base_Start_IT` is commented out in the constructor (`MP:39`): the counter is started by `HAL_TIM_PWM_Start`; verified by R2.1 (CEN set), not a defect.
-5. `setPWM_HAL` and `pwmInitTimer` are free functions in the header: `setPWM_HAL` is never called (dead code, no test) and has an uninitialised `sConfigOC` fields (`OCNPolarity`, `OCNIdleState`, `OCIdleState` partly set): informational.
-6. Constructor calls the virtual `restoreFlash()` from the base `PersistentStorage` interface: safe here (no further derived class). Informational.
+3. B-PWM-4 (found in T2): `turn` in CENTERED mode computes `(pval * period) / 0xffff` with two `int32_t`: at speed LOW (period 56000, the DEFAULT mode and speed) the product exceeds `INT32_MAX` for power above about 5580 (65534 x 56000 = 3.67e9 at +32767). Signed overflow, undefined behaviour on host and target; the host wraps and writes a CCR near 2^32 (about 100 % duty) instead of 55999. `KNOWN_ISSUE_UB` (intended CCR = floor((32767 + p) x 56000 / 65535)). PWM_DIR / DUAL (max 32768 x 56000 = 1.84e9) and CENTERED at MID / HIGH / VERYHIGH fit.
+4. (found in T2) RC gain: the offset is `p * 1000 / 32767` us, the pulse is clipped to 1000..2000 us, so the full range is reached at half scale (+-16384) and +-8192 already gives 1250 / 1750 us; a full-scale mapping would use 500. `characterization:` (no document states the gain), open question 36.
+5. Duty never reaches exactly 100 % with CCR = ARR (one count low) and the PWM_DIR / DUAL / CENTERED full-scale duty is 99.998 %: informational, the tolerance in R3.4 to R3.6 is one count.
+6. `HAL_TIM_Base_Start_IT` is commented out in the constructor (`MP:39`): the counter is started by `HAL_TIM_PWM_Start`; verified by R2.1 (CEN set), not a defect.
+7. `setPWM_HAL` and `pwmInitTimer` are free functions in the header: `setPWM_HAL` is never called (dead code, no test) and has an uninitialised `sConfigOC` fields (`OCNPolarity`, `OCNIdleState`, `OCIdleState` partly set): informational.
+8. Constructor calls the virtual `restoreFlash()` from the base `PersistentStorage` interface: safe here (no further derived class). Informational.
 
 ## Fake: TIM1 PWM (T1, owner approved question 31)
 
@@ -122,7 +124,7 @@ The fake header comment follows the fidelity rules: models (register writes, cha
 
 ## Target differences to flag
 
-Host 64-bit, target 32-bit ARM with a single-precision FPU: `tFreq` and the RC CCR are `float` (both SSE and VFP single precision, same rounding for these few operations; R3.2 uses a one-tick tolerance); `(abs(power) * period)` is `int` arithmetic: the largest product 32768 x 56000 = 1.84e9 fits `int32_t` on both; `-power` narrowing (R3.8) is implementation-defined and wraps on GCC for both; float to `uint32_t` conversion of the clipped (always non-negative) RC value is in range.
+Host 64-bit, target 32-bit ARM with a single-precision FPU: `tFreq` and the RC CCR are `float` (both SSE and VFP single precision, same rounding for these few operations; R3.2 uses a one-tick tolerance); `(abs(power) * period)` is `int` arithmetic: the largest product 32768 x 56000 = 1.84e9 fits `int32_t` on both, but the CENTERED product `(0x7fff + power) * period` does NOT at speed LOW (B-PWM-4); `-power` narrowing (R3.8) is implementation-defined and wraps on GCC for both; float to `uint32_t` conversion of the clipped (always non-negative) RC value is in range.
 
 ## Out of scope for P14
 

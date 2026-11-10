@@ -19,6 +19,9 @@ TEST_CASE_FIXTURE(PwmFixture, "the fake TIM1 starts as MX_TIM1_Init leaves it: p
 	CHECK(psc() == 0);
 	CHECK(arr() == 0xffff);
 	CHECK(htim1.Init.AutoReloadPreload != 0);
+	// MX_TIM1_Init (main.c:737-755) already configured the four channels as PWM1 with preload
+	CHECK(tim().CCMR1 == 0x6868U);
+	CHECK(tim().CCMR2 == 0x6868U);
 	for (int ch = 1; ch <= 4; ++ch) {
 		CHECK_FALSE(channelOn(ch));
 		CHECK(ccr(ch) == 0);
@@ -33,7 +36,7 @@ TEST_CASE_FIXTURE(PwmFixture, "the fake HAL_TIM_PWM_Start enables channel, main 
 	oc.Pulse = 1234;
 	REQUIRE(HAL_TIM_PWM_ConfigChannel(&htim1, &oc, TIM_CHANNEL_2) == HAL_OK);
 	CHECK(ccr(2) == 1234); // ConfigChannel loads CCR2 from Pulse
-	CHECK((tim().CCMR1 & (0xFFU << 8)) != 0); // OC2M, OC2PE set
+	CHECK((tim().CCMR1 & 0xFF00U) == 0x6800U); // OC2M = PWM1 (0x60), OC2PE (0x08)
 	REQUIRE(HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2) == HAL_OK);
 	CHECK(channelOn(2));
 	CHECK(mainOutput()); // TIM1 is a break instance: __HAL_TIM_MOE_ENABLE
@@ -70,6 +73,52 @@ TEST_CASE_FIXTURE(PwmFixture, "the fake rejects a configuration the HAL asserts 
 	CHECK(HAL_TIM_PWM_ConfigChannel(&htim1, &oc, 0x10U) == HAL_ERROR); // not TIM_CHANNEL_1..4
 	CHECK(HostTarget::state().unmodelledHalCalls.size() == 2);
 	HostTarget::state().unmodelledHalCalls.clear(); // declared: the fixture check would otherwise fail the test
+}
+
+TEST_CASE_FIXTURE(PwmFixture, "the fake HAL_TIM_PWM_ConfigChannel switches a running channel off so the next start is rejected until it is stopped") {
+	// TIM_OC1_SetConfig: TIMx->CCER &= ~TIM_CCER_CC1E (stm32f4xx_hal_tim.c); the channel state stays BUSY
+	TIM_OC_InitTypeDef oc = {};
+	oc.OCMode = TIM_OCMODE_PWM1;
+	REQUIRE(HAL_TIM_PWM_ConfigChannel(&htim1, &oc, TIM_CHANNEL_1) == HAL_OK);
+	REQUIRE(HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1) == HAL_OK);
+	REQUIRE(channelOn(1));
+	REQUIRE(HAL_TIM_PWM_ConfigChannel(&htim1, &oc, TIM_CHANNEL_1) == HAL_OK);
+	CHECK_FALSE(channelOn(1));
+	CHECK(HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1) == HAL_ERROR); // still BUSY
+	HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
+	CHECK(HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1) == HAL_OK);
+	HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
+}
+
+TEST_CASE_FIXTURE(PwmFixture, "the fake HAL_TIM_PWM_ConfigChannel accepts PWM mode 2 and low polarity and stores them") {
+	TIM_OC_InitTypeDef oc = {};
+	oc.OCMode = TIM_OCMODE_PWM2;
+	oc.OCPolarity = TIM_OCPOLARITY_LOW;
+	oc.Pulse = 77;
+	REQUIRE(HAL_TIM_PWM_ConfigChannel(&htim1, &oc, TIM_CHANNEL_3) == HAL_OK);
+	CHECK((tim().CCMR2 & 0x00FFU) == 0x78U); // OC3M = PWM2 (0x70) | OC3PE (0x08)
+	CHECK((tim().CCER & (0x2U << 8)) != 0);	 // CC3P
+	CHECK(ccr(3) == 77);
+}
+
+TEST_CASE_FIXTURE(PwmFixture, "the fake HAL_TIM_PWM_Stop on a never started channel is harmless and an invalid channel is recorded and rejected") {
+	CHECK(HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_4) == HAL_OK);
+	CHECK_FALSE(mainOutput());
+	CHECK(HAL_TIM_PWM_Start(&htim1, 0x10U) == HAL_ERROR);
+	CHECK(HostTarget::state().unmodelledHalCalls.size() == 1);
+	HostTarget::state().unmodelledHalCalls.clear(); // declared: the fixture check would otherwise fail the test
+}
+
+TEST_CASE_FIXTURE(PwmFixture, "characterization: the unused free function setPWM_HAL configures the channel in PWM mode 1 with the given pulse and starts it") {
+	// MotorPWM.cpp:321-331 is dead code in the firmware (no caller); it is public in MotorPWM.h. Its sConfigOC leaves
+	// OCNPolarity / OCNIdleState uninitialised (the real HAL would read them; the fake does not): informational, no test of that.
+	setPWM_HAL(1234, &htim1, TIM_CHANNEL_3, 56000);
+	CHECK(ccr(3) == 1234);
+	CHECK((tim().CCMR2 & 0x00FFU) == 0x68U); // OC3M = PWM1, OC3PE
+	CHECK(channelOn(3));
+	CHECK(mainOutput());
+	CHECK(counterOn());
+	HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_3);
 }
 
 TEST_CASE_FIXTURE(PwmFixture, "the MotorPWM is constructed on the fake TIM1 with the default timer set-up of 3 kHz centred PWM") {
