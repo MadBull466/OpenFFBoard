@@ -517,6 +517,14 @@ uint32_t HAL_I2C_GetError(I2C_HandleTypeDef *hi2c);
 typedef struct { uint32_t SR; uint32_t DR; } USART_TypeDef;
 typedef struct { uint32_t BaudRate; uint32_t WordLength; uint32_t StopBits; uint32_t Parity; uint32_t Mode; uint32_t HwFlowCtl; uint32_t OverSampling; } UART_InitTypeDef;
 typedef struct { USART_TypeDef *Instance; UART_InitTypeDef Init; uint32_t ErrorCode; } UART_HandleTypeDef;
+// UART_InitTypeDef values used by MotorSimplemotion (P15). Same values as stm32f4xx_hal_uart.h (Targets/F407VG/Drivers):
+// WORDLENGTH_8B 272, STOPBITS_1 281, PARITY_NONE 290, HWCONTROL_NONE 300, MODE_TX_RX 313 (USART_CR1_TE 0x8 | RE 0x4), OVERSAMPLING_8 331 (USART_CR1_OVER8 0x8000)
+#define UART_WORDLENGTH_8B 0x00000000U
+#define UART_STOPBITS_1 0x00000000U
+#define UART_PARITY_NONE 0x00000000U
+#define UART_HWCONTROL_NONE 0x00000000U
+#define UART_MODE_TX_RX 0x0000000CU
+#define UART_OVERSAMPLING_8 0x00008000U
 
 HAL_StatusTypeDef HAL_UART_Init(UART_HandleTypeDef *huart);
 HAL_StatusTypeDef HAL_UART_Transmit(UART_HandleTypeDef *huart, const uint8_t *data, uint16_t size, uint32_t timeout);

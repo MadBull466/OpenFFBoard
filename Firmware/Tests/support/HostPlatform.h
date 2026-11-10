@@ -88,6 +88,25 @@ void uartReceive(const std::string &data);
 /** Simulates the transmit complete interrupt of the external uart. Releases the port for the next transfer */
 void uartCompleteTx();
 
+/** Same for any uart handle (the motor port is huart3). `huart` is a UART_HandleTypeDef* (void* here: the type is an anonymous struct) */
+void uartCompleteTx(const void *huart);
+
+/**
+ * Optional peer on the uarts (P15, the SimpleMotion device on huart3). Null by default: the fake HAL then behaves exactly
+ * as before. The peer sees every HAL_UART_Transmit / _IT / _DMA (after the fake accepted it) and every armed receive
+ * (HAL_UART_Receive_IT / _DMA, after the fake accepted it); `huart` is the UART_HandleTypeDef* of the call. onPoll is
+ * called from HAL_IWDG_Refresh (refreshWatchdog(): the busy-wait loops of the firmware call it), the only place where
+ * simulated time can advance while the firmware spins. reset() removes the peer.
+ */
+struct UartPeer {
+	virtual ~UartPeer() = default;
+	virtual void onTransmit(const void *huart, const uint8_t *data, uint16_t size) = 0;
+	virtual void onReceiveArmed(const void *huart) = 0;
+	virtual void onPoll() = 0;
+};
+void setUartPeer(UartPeer *peer);
+void pollUartPeer(); //!< calls UartPeer::onPoll() when a peer is installed
+
 } // namespace HostPlatform
 
 #endif

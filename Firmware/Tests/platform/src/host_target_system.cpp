@@ -424,6 +424,7 @@ void HAL_IncTick(void) { HostTarget::state().halIncTicks++; }
 HAL_StatusTypeDef HAL_IWDG_Refresh(IWDG_HandleTypeDef *hiwdg) {
 	hiwdg->Instance->KR = IWDG_KEY_RELOAD;
 	HostTarget::state().watchdogRefreshes++;
+	HostPlatform::pollUartPeer(); // P15: no peer installed = no effect. Lets a UART peer advance time while the firmware spins
 	return HAL_OK;
 }
 

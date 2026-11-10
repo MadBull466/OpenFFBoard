@@ -789,12 +789,24 @@ set(DRIVER_FIRMWARE_SOURCES
 	${FFBOARD_DIR}/UserExtensions/Src/TMCDebugBridge.cpp # P13, behind TMCDEBUG (platform/target_f407_drivers/target_constants.h)
 	${FFBOARD_DIR}/UserExtensions/Src/MotorPWM.cpp # P14, behind PWMDRIVER (same header); fake TIM1 in platform/src/host_driver_timers.cpp
 )
+# P15: MotorSimplemotion.cpp, behind SIMPLEMOTION (same header); fake device fakes/FakeSmDevice.cpp on huart3. The executable is
+# compiled with -funsigned-char (like the target: charter L4). MotorSimplemotion.h:175 and :222 initialise variable length
+# arrays (`uint8_t buf[n] = {0}`), a GCC extension: clang rejects it ("variable-sized object may not be initialized", an error
+# without a suppressing flag), so with clang the driver is not built, SIMPLEMOTION stays off (HOSTTEST_NO_SIMPLEMOTION, see
+# platform/target_f407_drivers/target_constants.h) and the test_sm_*.cpp files are left out. The firmware is not edited.
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+	set(FFB_SIMPLEMOTION_BUILT OFF)
+	message(STATUS "OpenFFBoard tests: MotorSimplemotion not built (clang rejects its variable length array initialisers)")
+else()
+	set(FFB_SIMPLEMOTION_BUILT ON)
+	list(APPEND DRIVER_FIRMWARE_SOURCES ${FFBOARD_DIR}/UserExtensions/Src/MotorSimplemotion.cpp)
+endif()
 # TMC4671.cpp:2467 calls clip(maxcnt, 255, 4095) with an uint16_t value: the braced return in clip() (cppmain.h:67) narrows
 # int to unsigned short. GCC only warns, clang rejects it (-Wc++11-narrowing is an error by default). Same workaround
 # as Axis.cpp above (F14); the value is in range, the firmware source is not changed.
 set_property(SOURCE ${FFBOARD_DIR}/UserExtensions/Src/TMC4671.cpp APPEND PROPERTY COMPILE_OPTIONS
 	$<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-c++11-narrowing>)
-set(DRIVER_PLATFORM_SOURCES ${TARGET_PLATFORM_SOURCES} platform/src/host_driver_timers.cpp fakes/FakeTmc4671.cpp fakes/FakeOdrivePeer.cpp fakes/FakeVescPeer.cpp)
+set(DRIVER_PLATFORM_SOURCES ${TARGET_PLATFORM_SOURCES} platform/src/host_driver_timers.cpp fakes/FakeTmc4671.cpp fakes/FakeOdrivePeer.cpp fakes/FakeVescPeer.cpp fakes/FakeSmDevice.cpp)
 # FFB_DRIVER_TEST_FILTER (developer aid for parallel test writing): glob of the driver test files to compile, e.g.
 # "test_tmc4671_init*.cpp". The setup and fake self-tests are always compiled. Default: all driver tests.
 set(FFB_DRIVER_TEST_FILTER "test_*.cpp" CACHE STRING "Glob of the claude/cases/driver test files compiled into ffb_driver_tests")
@@ -805,6 +817,9 @@ file(GLOB DRIVER_TEST_SOURCES CONFIGURE_DEPENDS
 file(GLOB CODEX_DRIVER_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/codex/cases/driver/test_*.cpp)
 list(APPEND DRIVER_TEST_SOURCES ${CODEX_DRIVER_TEST_SOURCES})
 list(REMOVE_DUPLICATES DRIVER_TEST_SOURCES)
+if(NOT FFB_SIMPLEMOTION_BUILT)
+	list(FILTER DRIVER_TEST_SOURCES EXCLUDE REGEX "/test_sm_[^/]*\\.cpp$")
+endif()
 
 add_executable(ffb_driver_tests
 	${DRIVER_FIRMWARE_SOURCES}
@@ -832,6 +847,9 @@ target_include_directories(ffb_driver_tests PRIVATE
 
 # Same definitions as ffb_target_tests (see there)
 target_compile_definitions(ffb_driver_tests PRIVATE HOSTTEST HOSTTEST_REAL_CPPMAIN HOSTTEST_REAL_LED_EFFECTS HOSTTEST_TARGET_OTP)
+if(NOT FFB_SIMPLEMOTION_BUILT)
+	target_compile_definitions(ffb_driver_tests PRIVATE HOSTTEST_NO_SIMPLEMOTION)
+endif()
 
 if(USE_DSP)
 	target_sources(ffb_driver_tests PRIVATE

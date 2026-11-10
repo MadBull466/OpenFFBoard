@@ -14,7 +14,9 @@
  *                  On in ffb_driver_tests only: the other executables keep their own target_constants.h.
  *   PWMDRIVER      (P14, MotorPWM in scope since 2026-11-10; F407VG target_constants.h:47; Tests/claude/plans/P14_P17_REMAINING_DRIVERS_PLAN.md).
  *                  On in ffb_driver_tests only. TIM_PWM htim1 is the fake TIM1 of platform/src/host_driver_timers.cpp.
- * MIDI, RMDCAN and SIMPLEMOTION stay off until their phases (P15 SimpleMotion, P16 MyActuator, P17 MIDI). HSPIDRV (hspi1), CANBUS and
+ *   SIMPLEMOTION   (P15, MotorSimplemotion in scope since 2026-11-10; F407VG target_constants.h:49; Tests/claude/plans/P14_P17_REMAINING_DRIVERS_PLAN.md).
+ *                  On in ffb_driver_tests only. gpMotor is defined in platform/src/host_driver_timers.cpp.
+ * MIDI and RMDCAN stay off until their phases (P16 MyActuator, P17 MIDI). HSPIDRV (hspi1), CANBUS and
  * TIM_TMC htim6 are as in the F407VG header (FFBoard/Inc/constants.h:23-27, 52-54 drop the drivers without them).
  * htim6 is declared extern below (the real main.h declares it; the host main.h only declares htim7).
  */
@@ -48,6 +50,9 @@
 #define VESC // F407VG target_constants.h:51
 extern TIM_HandleTypeDef htim1; // defined by platform/src/host_driver_timers.cpp (fake TIM1, TIM_PWM)
 #define PWMDRIVER // P14: MotorPWM (adds MotorPWM to MotorDriver.cpp / Axis.cpp driver lists as id 4)
+#ifndef HOSTTEST_NO_SIMPLEMOTION // set by CMake with clang: MotorSimplemotion.h uses GCC-only variable length array initialisers
+#define SIMPLEMOTION // P15: MotorSimplemotion (adds ids 9 and 10 to MotorDriver.cpp / Axis.cpp driver lists, GPIO_MOTOR via constants.h; fake motor UART huart3 with FakeSmDevice)
+#endif
 #define TMCDEBUG // P13: TMCDebugBridge (adds TMCDebugBridge to mainclass_chooser.cpp and `friend class TMCDebugBridge` to TMC4671.h)
 
 /*

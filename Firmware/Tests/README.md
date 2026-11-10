@@ -279,7 +279,8 @@ Headers in `support/`:
 
 | Suites | Files | Tested firmware |
 |---|---|---|
-| `DriverSetup` | `test_driver_setup.cpp` | Skeleton (phase D0, P13): the feature macros of the executable (TMC4671, ODrive, VESC and, since P13, TMCDEBUG on; MIDI, RMDCAN, PWMDRIVER, SIMPLEMOTION off) |
+| `DriverSetup` | `test_driver_setup.cpp` | Skeleton (phase D0, P13): the feature macros of the executable (TMC4671, ODrive, VESC, since P13 TMCDEBUG, since P14 PWMDRIVER and since P15 SIMPLEMOTION on (not with clang); MIDI and RMDCAN off) |
+| `SM setup` | `test_sm_setup.cpp` | P15 T1 skeleton: the fake SimpleMotion device (`FakeSmDevice`: CRC-8 / CRC-16 checks, fast and instant frames, silent peer), `SmFixture`, `MotorSimplemotion` constructed on the motor UART `huart3`, settings sequence, fast update and reply, write-enable pin (10 cases; T2 adds the requirement groups). Not built with clang (open question 43) |
 | `PWM setup` | `test_pwm_setup.cpp` | P14: the fake TIM1 (initial state as MX_TIM1_Init, strict `HAL_TIM_PWM_*`, Config clears CCxE), `PwmFixture`, `MotorPWM` constructed with the default timer set-up (9 cases) |
 | `PWM output` | `test_pwm_output.cpp` | P14: timer set-up for every mode and speed, `turn` in RC / centred / PWM+DIR / dual mode with exact integer CCR values, inversion, start / stop, HAL call order; B-PWM-1 and B-PWM-4 as `KNOWN_ISSUE` / `KNOWN_ISSUE_UB`, RC sign and gain as `characterization:` (63 cases) |
 | `PWM config` | `test_pwm_config.cpp` | P14: the `freq`, `mode`, `dir` commands, info strings, the flash word (all 32 combinations), restore; B-PWM-2 and B-PWM-3 as `KNOWN_ISSUE` (42 cases) |
@@ -803,7 +804,7 @@ phases D0-D3). It tests the real motor drivers against simulated peers, not thei
   is first in the include path, so only this header is shadowed (`main.h` etc. come from `platform/target_f407`).
 * **Driver sources:** `FFBoard/UserExtensions/Src/TMC4671.cpp`, `TMC4671_configs.cpp`, `ODriveCAN.cpp` and `VescCAN.cpp`
   on top of the firmware and platform sources of `ffb_target_tests` (fake HAL SPI and CAN), and (P13) `TMCDebugBridge.cpp`
-  (its fixture is `support/TmcDebugFixture.h`: `TmcFixture` plus the CDC capture). `MotorPWM.cpp` (P14, `PWMDRIVER` on in this executable only; fixture `support/PwmFixture.h`) is compiled since P14. `RmdMotorCAN.cpp`, `MotorSimplemotion.cpp` and the MIDI sources are not compiled yet (P15-P17).
+  (its fixture is `support/TmcDebugFixture.h`: `TmcFixture` plus the CDC capture). `MotorPWM.cpp` (P14, `PWMDRIVER` on in this executable only; fixture `support/PwmFixture.h`) is compiled since P14, `MotorSimplemotion.cpp` (P15, `SIMPLEMOTION` on in this executable only with GCC; fixture `support/SmFixture.h`, fake device `fakes/FakeSmDevice.h` on `huart3` through the neutral `HostPlatform::UartPeer` hook) since P15 T1. `RmdMotorCAN.cpp` and the MIDI sources are not compiled yet (P16-P17).
 * **Platform:** `platform/src/host_driver_timers.cpp` adds the fake TIM6 (`htim6`, as left by `MX_TIM6_Init`) and, since P14, the fake TIM1 with PWM output compare (`htim1`, strict `HAL_TIM_PWM_ConfigChannel` / `_Start` / `_Stop`, the board table `MotorPWM::timerConfig`; no counter, no shadow registers, see the file header), which the
   TMC4671 driver uses as its external encoder timer. It is reset by `HostTarget::reset()` through
   `HostTarget::addResetHook`; the other executables do not link it.

@@ -35,6 +35,7 @@ uint8_t *uartRxBuffer = nullptr; // Buffer armed by HAL_UART_Receive_IT/_DMA
 UART_HandleTypeDef *uartRxHandle = nullptr;
 uint16_t uartRxSize = 0;  // Armed transfer size. Completion after this many bytes
 uint16_t uartRxCount = 0; // Bytes stored in the armed buffer so far
+HostPlatform::UartPeer *uartPeer = nullptr; // Optional peer (P15), null: no change of behaviour
 } // namespace
 
 #ifdef HOSTTEST_REAL_CPPMAIN
@@ -74,6 +75,7 @@ void reset() {
 	uartRxHandle = nullptr;
 	uartRxSize = 0;
 	uartRxCount = 0;
+	uartPeer = nullptr;
 	huart1 = {};
 	// Release the port in case a test left a transfer unfinished
 	external_uart.giveSemaphore(true);
@@ -104,6 +106,20 @@ void uartReceive(const std::string &data) {
 		for (UartHandler *handler : UartHandler::getUARTHandlers()) {
 			handler->uartRxComplete(huart);
 		}
+	}
+}
+
+void uartCompleteTx(const void *huart) {
+	IsrContext isr;
+	for (UartHandler *handler : UartHandler::getUARTHandlers()) {
+		handler->uartTxComplete((UART_HandleTypeDef *)huart);
+	}
+}
+
+void setUartPeer(UartPeer *peer) { uartPeer = peer; }
+void pollUartPeer() {
+	if (uartPeer) {
+		uartPeer->onPoll();
 	}
 }
 
@@ -182,12 +198,15 @@ HAL_StatusTypeDef HAL_UART_Init(UART_HandleTypeDef *) {
 	uartState.initCount++;
 	return (HAL_StatusTypeDef)uartState.initResult;
 }
-static HAL_StatusTypeDef recordUartTx(const uint8_t *data, uint16_t size) {
+static HAL_StatusTypeDef recordUartTx(UART_HandleTypeDef *huart, const uint8_t *data, uint16_t size) {
 	if (uartState.txResult != HAL_OK) {
 		return (HAL_StatusTypeDef)uartState.txResult;
 	}
 	uartState.tx.append((const char *)data, size);
 	uartState.txTransfers++;
+	if (uartPeer) {
+		uartPeer->onTransmit(huart, data, size);
+	}
 	return HAL_OK;
 }
 static HAL_StatusTypeDef armUartRx(UART_HandleTypeDef *huart, uint8_t *data, uint16_t size) {
@@ -199,20 +218,23 @@ static HAL_StatusTypeDef armUartRx(UART_HandleTypeDef *huart, uint8_t *data, uin
 	uartRxHandle = huart;
 	uartRxSize = size == 0 ? 1 : size;
 	uartRxCount = 0;
+	if (uartPeer) {
+		uartPeer->onReceiveArmed(huart);
+	}
 	return HAL_OK;
 }
-HAL_StatusTypeDef HAL_UART_Transmit(UART_HandleTypeDef *, const uint8_t *data, uint16_t size, uint32_t timeout) {
+HAL_StatusTypeDef HAL_UART_Transmit(UART_HandleTypeDef *huart, const uint8_t *data, uint16_t size, uint32_t timeout) {
 	uartState.txBlockingCount++;
 	uartState.lastTimeout = timeout;
-	return recordUartTx(data, size);
+	return recordUartTx(huart, data, size);
 }
-HAL_StatusTypeDef HAL_UART_Transmit_IT(UART_HandleTypeDef *, const uint8_t *data, uint16_t size) {
+HAL_StatusTypeDef HAL_UART_Transmit_IT(UART_HandleTypeDef *huart, const uint8_t *data, uint16_t size) {
 	uartState.txItCount++;
-	return recordUartTx(data, size);
+	return recordUartTx(huart, data, size);
 }
-HAL_StatusTypeDef HAL_UART_Transmit_DMA(UART_HandleTypeDef *, const uint8_t *data, uint16_t size) {
+HAL_StatusTypeDef HAL_UART_Transmit_DMA(UART_HandleTypeDef *huart, const uint8_t *data, uint16_t size) {
 	uartState.txDmaCount++;
-	return recordUartTx(data, size);
+	return recordUartTx(huart, data, size);
 }
 HAL_StatusTypeDef HAL_UART_Receive(UART_HandleTypeDef *, uint8_t *data, uint16_t size, uint32_t timeout) {
 	uartState.rxBlockingCount++;

@@ -229,3 +229,11 @@ const PWMConfig MotorPWM::timerConfig = {
 	1, 2,	 // dualpwm1, dualpwm2
 	&TIM_PWM, 168000000U};
 #endif
+
+#ifdef SIMPLEMOTION
+// RS485 transceiver direction pin of MotorSimplemotion (P15): Targets/F407VG/Core/Src/cpp_target_config.cpp:43, same pin
+// (DRV_GP1, PE12). OutputPin writes through the fake HAL_GPIO_WritePin, so the tests read the pin level from GPIOE->ODR.
+#include "cpp_target_config.h"
+extern const OutputPin gpMotor; // external linkage (a namespace scope const would be internal)
+const OutputPin gpMotor{*DRV_GP1_GPIO_Port, DRV_GP1_Pin};
+#endif
