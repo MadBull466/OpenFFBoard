@@ -1,4 +1,4 @@
-# P13 plan: `TMCDebugBridge` (2026-11-10, owner's answers recorded, T0 not started)
+# P13 plan: `TMCDebugBridge` (2026-11-10, owner's answers recorded, T0 approved, T1 started)
 
 Scope change (owner, 2026-11-10): `Firmware/FFBoard/UserExtensions/Src/TMCDebugBridge.cpp` (258 lines) and its header are now IN scope. Everything else that was out of scope stays out (PWM, MyActuator, SimpleMotion, `MidiMain`, `MidiHandler`). P12 is Codex's phase (`Tests/codex/p12`); this is P13.
 
@@ -41,6 +41,6 @@ Gate rule: the 318 baseline cases stay unchanged (`tools/check_baseline.py`), th
 
 ## Owner's decisions (2026-11-10)
 
-1. No TMCL specification will be supplied: every TMCL byte value (opcodes 143 / 146 / 148 / 10 / 0x0F / 0x88, reply status, global-parameter numbers, version string) is a `characterization:` test and a NEEDS REVIEW item. The behaviour that does not depend on TMCL values (checksum rule as coded, length and address-byte routing, register byte order, driver calls) is tested against the code's own documented structure, as R1 describes.
+1. TMCL specification: first answered "characterization tests"; the owner then supplied `TMCL_reference.pdf` (v2.22), `TMC4671-TOSV-REF_HW_FW_manual_Rev1.1.pdf` and `TMC4671-LEV-REF_datasheet_hw1.00_fw1.00_rev1.00.pdf` (copied to the git-ignored `Tests/shared/specs/`). What they specify (frame, checksum, reply layout, status codes, opcodes 10 / 15 / 136) is tested as plain tests; opcodes 143 / 146 / 148, GGP / GIO type meanings and the version content are not in them and stay `characterization:` + NEEDS REVIEW. The silent drops (wrong checksum, unknown command, bad type) and the status-0 reply of 143 are `KNOWN_ISSUE` (owner, L5 of the charter).
 2. `CLAUDE.md` and `AGENTS.md` updated (P13 scope line; `TMCDEBUG` on in `ffb_driver_tests` only).
 3. The bridge goes into `ffb_driver_tests`.
