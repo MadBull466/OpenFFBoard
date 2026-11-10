@@ -167,6 +167,7 @@ private:
 	std::vector<uint8_t> pendingReply;
 	size_t replyPos = 0;
 	bool chunkStarted = false;
+	bool gapPaid = false;
 	std::vector<Frame> frameLog;
 	std::vector<std::pair<uint16_t, uint32_t>> writeLog;
 	std::vector<int16_t> setpointLog;

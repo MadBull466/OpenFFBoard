@@ -69,6 +69,7 @@ void FakeSmDevice::injectRaw(const std::vector<uint8_t> &bytes) {
 	pendingReply = bytes;
 	replyPos = 0;
 	chunkStarted = false;
+	gapPaid = false;
 }
 
 void FakeSmDevice::queueReply(std::vector<uint8_t> bytes) {
@@ -259,9 +260,13 @@ bool FakeSmDevice::pump() {
 	}
 	const size_t remaining = pendingReply.size() - replyPos;
 	const size_t n = chunk ? std::min(chunk, remaining) : remaining;
-	if (chunkStarted && gapMs) {
+	if (chunkStarted && gapMs && !gapPaid) {
+		// The gap passes first and the poll ends: the firmware checks its 10 ms deadline before the next chunk arrives
 		HostPlatform::advanceMs(gapMs);
+		gapPaid = true;
+		return true;
 	}
+	gapPaid = false;
 	chunkStarted = true;
 	UART_HandleTypeDef *h = const_cast<UART_HandleTypeDef *>(static_cast<const UART_HandleTypeDef *>(port));
 	for (size_t k = 0; k < n; ++k) {

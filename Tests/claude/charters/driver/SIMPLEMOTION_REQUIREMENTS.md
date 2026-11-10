@@ -1,6 +1,6 @@
 # SimpleMotion driver (`MotorSimplemotion`): requirements charter (phase P15, T0)
 
-Status: **DRAFT by the lead (Sonnet 5.5), 2026-11-10, waiting for the owner's approval of T0.** Nothing is built or tested yet.
+Status: **T0 approved by the owner 2026-11-10; T1 committed (`ff86dd7e`); T2 written 2026-11-10, waiting for approval.** Amendments made in T2 (lead): R1.2, R6.2, R6.1, R12 items 10-11 (marked "T2 amendment").
 
 Unit under test: `Firmware/FFBoard/UserExtensions/Src/MotorSimplemotion.cpp` (528 lines, `MS` below) and `Inc/MotorSimplemotion.h` (288 lines, `MH`), classes `MotorSimplemotion : MotorDriver, Encoder, CommandHandler, UARTDevice` and the two instances `MotorSimplemotion1` / `MotorSimplemotion2`, behind the macro `SIMPLEMOTION`, class ids `CLSID_MOT_SM1` 0x89 / `CLSID_MOT_SM2` 0x8A, motor drivers 9 and 10 in `MotorDriver.cpp:46-49`, `Axis.cpp`.
 Executable: `ffb_driver_tests` (owner's decision, question 28). Plan: `Tests/claude/plans/P14_P17_REMAINING_DRIVERS_PLAN.md`. Tests: `Firmware/Tests/claude/cases/driver/test_sm_*.cpp`, fixture `support/SmFixture.h`, peer fake `fakes/FakeSmDevice.{h,cpp}`.
@@ -35,7 +35,7 @@ Rules inherited from `CLAUDE.md` and the D1-D3 / P13 / P14 charters: fixture per
 | ID | Requirement | Oracle |
 |---|---|---|
 | R1.1 | `MotorSimplemotion1::info` name "Simplemotion 1" id 0x89, `MotorSimplemotion2::info` name "Simplemotion 2" id 0x8A; `getHelpstring` text; `hasIntegratedEncoder()` true; `getEncoder()` returns the driver itself; `getEncoderType()` absolute | FW (identity facts of `ClassIDs.h`, plain) + IF |
-| R1.2 | With `SIMPLEMOTION` on, `MotorDriver::all_drivers` and both Axis lists contain ids 9 and 10 once each and `Create` builds a working object | FW, plain |
+| R1.2 | With `SIMPLEMOTION` on, `MotorDriver::all_drivers` contains ids 9 and 10 once each and `Create` builds a working object; **T2 amendment:** the Axis 1 list contains id 9 only, the id 10 entry of `axis2_drivers` is commented out in `Axis.cpp:95-97` ("TODO likely does not work reliably with a single uart port and multiple devices"): `characterization:` | FW, plain |
 | R1.3 | Each instance has its own in-use flag: `isCreatable` true / false / true over create and destroy, instance 2 stays creatable while instance 1 exists; a second creation of the same instance through the chooser returns nullptr | FW, plain |
 | R1.4 | Instance 1 uses device address 1 and instance 2 address 2 (`instance + 1`) | HD from the constructor intent; **`KNOWN_ISSUE_UB` B-SM-1** (member initialised from itself; deterministic only when constructed in a poisoned buffer, see Fixture) |
 
@@ -82,8 +82,9 @@ Rules inherited from `CLAUDE.md` and the D1-D3 / P13 / P14 charters: fixture per
 ### R6: position tracking
 | ID | Requirement | Oracle |
 |---|---|---|
-| R6.1 | First reply: position equals the reported 16 bit value, for reports 0, 1, 0x7fff, 0x8000 (the first sample defines the zero point `lastPosRep = 0x7fff`: position 0 for report 0) | HD (derive from `updatePosition`'s documented intent: the position follows the 16 bit feedback) |
+| R6.1 | (T2 amendment: the first report is read as a signed 16 bit value around `lastPosRep` 0x7fff: 0x8000 gives -32767, one count short of -32768, the same B-SM-2 loss; no test) First reply: position equals the reported 16 bit value, for reports 0, 1, 0x7fff, 0x8000 (the first sample defines the zero point `lastPosRep = 0x7fff`: position 0 for report 0) | HD (derive from `updatePosition`'s documented intent: the position follows the 16 bit feedback) |
 | R6.2 | Forward motion across the 16 bit wrap (0xfff0 -> 0x0010) advances by 0x20 counts; backward across the wrap likewise; several wraps accumulate 65536 counts per wrap | SM (read1 = lowest 16 bits of the position feedback, so the counter has period 65536), **`KNOWN_ISSUE` B-SM-2** (0xffff per wrap: after one wrap the position is one count short, after n wraps n counts) |
+| R6.2a | **T2 amendment:** the one-count loss of B-SM-2 does NOT show at the 16 bit counter wrap (0xfff0 -> 0x0010 is exact, +0x20): the shifted counter `value + 0x7fff` wraps at the reports 0x7fff -> 0x8000, and there `0xffff * overflows` loses one count (0x7ff0 -> 0x8010 gives +0x1f instead of +0x20, three revolutions give 196605 instead of 196608). The `KNOWN_ISSUE` cases use these steps; bounded plain tests (position within 3 counts of the ideal) guard the direction logic | HD from `updatePosition` |
 | R6.3 | `setPos(p)` makes `getPos()` equal p and later motion is relative to it | FW, plain |
 | R6.4 | The jump detection threshold: a step of exactly 0x7fff is not an overflow, 0x8000 is (positions of single steps near half range) | `characterization:` |
 
@@ -133,6 +134,9 @@ Items 1-3 are `KNOWN_ISSUE` / `KNOWN_ISSUE_UB` (decision L2); the others become 
 7. `sendCommand` failure does not set `uartErrorOccured` (`readParameter` does): informational.
 8. `CommandHandler("sm2", CLSID_MOT_SM1, instance)`: the same pattern as the other drivers (class id of instance 0 + instance index); the handler name "sm2" is a leftover name: informational.
 9. `readParameter` with `replylen == none` relies on a previous `getSettings` having fixed the device's return format: `getVoltage` / `getTorque` / `reg getat` before initialization read in the device default format (R4.1 order shows the dependency; informational).
+10. B-SM-5 (**T2, found by the protocol writer**): when the receive path rejects a reply (wrong CRC-16 or another device address) it calls `resetBuffer()`, which clears `waitingReply`; the busy wait of `readParameter` / `writeParameter` then ends as if the reply had arrived, copies the stale `replyvalues[]` and returns true. Intended (R5.3): false. `KNOWN_ISSUE`, three cases (bad CRC read, bad CRC write, wrong address read).
+11. B-SM-6 (**T2, review finding**): `getTorque()` returns `int16_t` mA: 20000 counts = 35714 mA wraps to -29822 (same shape as B-SM-3). `KNOWN_ISSUE`.
+12. Informational (T2): after a timeout the next request is refused until more than 10 ms passed since the last RECEIVED byte (`prepareUartTransmit`): the unanswered frame starts no timeout of its own (`characterization:`, NEEDS REVIEW).
 
 ## Fake: SimpleMotion device on the motor UART (T1, owner approved question 31)
 

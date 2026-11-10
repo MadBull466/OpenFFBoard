@@ -595,6 +595,14 @@ void vSemaphoreDelete(SemaphoreHandle_t sem) {
 }
 
 BaseType_t xSemaphoreTake(SemaphoreHandle_t sem, TickType_t ticksToWait) {
+	if (sem->count == 0 && ticksToWait != 0 && ticksToWait != portMAX_DELAY && resumableCurrent() == nullptr) {
+		// Test thread with a finite timeout (P15): the target would block here while interrupts keep running. The only
+		// interrupt source the fake can run is the optional UART peer (HostPlatform::UartPeer): poll it once per tick
+		// until the semaphore is given or the timeout is over. Without a peer this does nothing (as before).
+		for (TickType_t t = 0; t < ticksToWait && sem->count == 0; ++t) {
+			HostPlatform::pollUartPeer();
+		}
+	}
 	if (sem->count == 0 && ticksToWait != 0 && resumableCurrent() != nullptr) {
 		// Resumable task: waits (parks) until the semaphore is available. With a finite timeout it parks once: an
 		// activation while the semaphore is still taken ends the wait as a timeout. No simulated time passes
