@@ -9,7 +9,8 @@ IN scope, in this fixed order:
 2. **ODrive** driver (CAN)
 3. **VESC** driver (CAN)
 
-Still OUT of scope: PWM, MyActuator, SimpleMotion, `TMCDebugBridge`, `MidiMain`, `MidiHandler`, ST HAL, CMSIS core, FreeRTOS kernel, `Firmware/Targets/**`, CubeMX code. Their feature macros stay off in every executable.
+Since 2026-11-10 `TMCDebugBridge` is IN scope as phase P13 (`Tests/claude/plans/P13_TMCDEBUGBRIDGE_PLAN.md`, `TMCDEBUG` on in `ffb_driver_tests` only; complete).
+Still OUT of scope: PWM, MyActuator, SimpleMotion, `MidiMain`, `MidiHandler`, ST HAL, CMSIS core, FreeRTOS kernel, `Firmware/Targets/**`, CubeMX code. Their feature macros stay off in every executable.
 
 What "testing a driver" means here: the firmware side of the conversation. We test what the driver sends, how it interprets what comes back, its state machine, scaling, limits, error handling and timeouts, against a simulated peer. We do not test the silicon or the external board.
 

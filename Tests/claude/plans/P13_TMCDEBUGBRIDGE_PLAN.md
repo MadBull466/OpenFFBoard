@@ -1,4 +1,4 @@
-# P13 plan: `TMCDebugBridge` (2026-11-10, owner's answers recorded, T0 approved, T1 started)
+# P13 plan: `TMCDebugBridge` (2026-11-10, COMPLETE: T0, T1, T2 approved and committed; T3 and T4 ran inside T2; commit `61535bd0`)
 
 Scope change (owner, 2026-11-10): `Firmware/FFBoard/UserExtensions/Src/TMCDebugBridge.cpp` (258 lines) and its header are now IN scope. Everything else that was out of scope stays out (PWM, MyActuator, SimpleMotion, `MidiMain`, `MidiHandler`). P12 is Codex's phase (`Tests/codex/p12`); this is P13.
 
@@ -28,6 +28,8 @@ The driver executable `ffb_driver_tests` already compiles the real `TMC4671.cpp`
 The TMCL framing and the opcode numbers 143, 146, 148, 10, 0x0F and 0x88, the reply status byte 0x64, the global-parameter numbers (2, 5) and the version string format are not in `Tests/shared/specs/`: only the TMC4671 datasheet (Rev 2.07) is there. Needed from the owner (git-ignored under `Tests/shared/specs/`): the TMCL reference / programming manual and the TMC4671 TMCL firmware manual that the TMCL-IDE uses (command list with the TMC4671-specific commands 143 / 146 / 148, GGP / GIO numbers, reply format), and, if available, a TMCL-IDE capture of a session with the real board. Without it only R2, R3 and R4 (everything that is not a TMCL byte value) can be tested; the TMCL byte values would be `characterization:` at best.
 
 ## Phases (stop after each)
+
+Result: T3 (4 reviewers with mutation checks, fixes) and T4 (full gate, docs) were run inside T2 and approved with it. 164 new cases (167 with T1), `TMCDebugBridge.cpp` 166 / 166 lines, firmware findings 194-200, NEEDS REVIEW 238-243: see `PROGRESS.md` "P13 review result (T2)".
 
 | Phase | Content | Who |
 |---|---|---|
