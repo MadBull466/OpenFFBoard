@@ -868,11 +868,17 @@ source is compiled into it.
   contraction and out-of-range float to integer conversions can differ on the target (each affected test says so).
   `arm_copy_q15` / `arm_fill_q15` of SupportFunctions are linked for the `arm_conv_opt_*` / `arm_correlate_opt_*`
   variants (charter L6) and have no tests of their own.
-* **Test files so far (G1, FastMath and helpers):** `test_dsp_fastmath_{f32,f64,f16,q31,q15}.cpp` and
-  `test_dsp_basicmath_helpers.cpp` (`arm_abs_q15/q31`). Suspected vendor bugs found there (Tests/claude/plans/PROGRESS.md V37-V41):
+* **Test files (G1-G5, 2485 cases, 5 skipped):** FastMath and helpers `test_dsp_fastmath_{f32,f64,f16,q31,q15}.cpp`,
+  `test_dsp_basicmath_helpers.cpp`; Interpolation `test_dsp_interp_{f32,f16,fixed}.cpp`; Controller
+  `test_dsp_controller_{pid,sincos,transforms}.cpp`; Statistics `test_dsp_stats_{f32,f64,f16,q31,q15,q7}.cpp`; Filtering
+  `test_dsp_filt_{biquad_f32,biquad_f64,biquad_f16,biquad_q,fir_float,fir_f16,fir_q,decim_float,decim_q,conv_float,conv_f16,conv_q31,conv_q15,conv_q7,lms,lattice,sparse}.cpp`.
+  Suspected vendor bugs found there (Tests/claude/plans/PROGRESS.md V37-V85):
   `KNOWN_ISSUE_UB_HIDDEN` cases are skipped in sanitizer builds (UBSan stops at the first finding), so a sanitizer run
-  of `ffb_dsp_tests` reports skipped cases on purpose. Files for Statistics, Interpolation, Controller and Filtering follow
-  in G2-G5.
+  of `ffb_dsp_tests` reports skipped cases on purpose (about 400 of 2485 in the sanitizer build). Also skipped by design:
+  a few `doctest::skip` crash cases (INT64_MIN / -1 division, sparse FIR `numTaps` = 1). The host builds only the code
+  branches the portable flags select: the `ARM_MATH_DSP` unrolled kernels of the conv / correlate family are not run
+  (PROGRESS NEEDS REVIEW 231). Tests that run the kernels on state, scratch or output buffers use exact-size heap
+  allocations, because `GuardedBuffer` keeps its guard words in the same allocation and ASan cannot see small overruns.
 
 ## Python helper tests
 

@@ -174,7 +174,7 @@ Added 2026-11-03. Driven by `Tests/claude/plans/DRIVER_TEST_PLAN.md` (its phases
 
 ### P11: CMSIS-DSP modules in scope (extends tier C)
 
-Status 2026-11-05: G1 infrastructure committed; G1 FastMath and helper tests written and green in the gate, fresh review and mutation check pending, G1 not yet approved. Group results and decisions L7-L11: `Tests/claude/charters/dsp/CMSIS_DSP_REQUIREMENTS.md`.
+Status 2026-11-10: P11 complete. G1 (infrastructure, FastMath, helpers), G2 (Interpolation, Controller), G3 (Statistics), G4 (Filtering part 1: biquad, FIR, decimation / interpolation) and G5 (Filtering part 2: conv, correlate, partial conv, Levinson-Durbin, LMS, lattices, sparse FIR) are written, reviewed, gated, approved and pushed (`caefd66e`, `8425c55a`, `aaa99958`, `2000a082`, `eb682e0b`); `ffb_dsp_tests` 2485 cases, vendor findings V37-V85 (PROGRESS bug table), open questions 17-23. Group results and decisions L7-L11: `Tests/claude/charters/dsp/CMSIS_DSP_REQUIREMENTS.md`.
 
 Added 2026-11-04 at my request. Scope: all functions and all data types (f64, f32, f16, q31, q15, q7 where they exist) of the CMSIS-DSP modules the firmware uses (fast math, filtering, interpolation, controller, and the basic/support/common-table helpers they depend on), not only the functions the firmware calls. Oracle: ARM's reference patterns in `Firmware/Libraries/CMSIS-DSP/Testing/Patterns` (vendor-generated expected results) plus the mathematical definition / hand derivation for edge cases; never the library's own output. Same method as the driver track (Sonnet inventory, lead charter, Sonnet writers in parallel, fresh reviewer with mutation spot-check in a scratch copy, lead QC). Stop for my approval after each module group. Vendor bugs are reported, never fixed.
 

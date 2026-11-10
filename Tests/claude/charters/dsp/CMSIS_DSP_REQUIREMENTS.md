@@ -50,11 +50,11 @@ A finding where the library contradicts its pattern, its DOC or DEF is a **suspe
 
 | Group | Content | Notes |
 |---|---|---|
-| **G1** | Infrastructure (`ffb_dsp_tests`, pattern loader, f16/f64 build) + FastMath (25) + the 4 BasicMath helpers | first stop |
-| **G2** | Interpolation (12) + Controller (19) | Controller and natural spline: DEF only (no ARM patterns) |
-| **G3** | Statistics (93) | 289 ARM test ids |
-| **G4** | Filtering part 1: biquad (df1, df2T, stereo, 32x64, fast), FIR family, decimation/interpolation | |
-| **G5** | Filtering part 2 (MISC): convolution, correlation, partial conv, LMS / normalised LMS, IIR lattice, FIR lattice, sparse FIR, Levinson-Durbin, the rest | ~420 ARM ids |
+| **G1** | Infrastructure (`ffb_dsp_tests`, pattern loader, f16/f64 build) + FastMath (25) + the 4 BasicMath helpers | first stop; done, `caefd66e` |
+| **G2** | Interpolation (12) + Controller (19) | Controller and natural spline: DEF only (no ARM patterns); done, `8425c55a` |
+| **G3** | Statistics (93) | 289 ARM test ids; done, `aaa99958` |
+| **G4** | Filtering part 1: biquad (df1, df2T, stereo, 32x64, fast), FIR family, decimation/interpolation | done 2026-11-09, `2000a082` |
+| **G5** | Filtering part 2 (MISC): convolution, correlation, partial conv, LMS / normalised LMS, IIR lattice, FIR lattice, sparse FIR, Levinson-Durbin, the rest | ~420 ARM ids; done 2026-11-10, `eb682e0b` (LMS, lattices, sparse FIR have no ARM test: DEF only) |
 
 ## Infrastructure (G1, built by a worker, reviewed by the lead)
 
@@ -83,3 +83,7 @@ Writers FF32 / FF64 / FF16 / FQ31 / FQ15 produced `claude/cases_dsp/test_dsp_fas
 * **L9** ARM's loose tolerances stay (L4); derived tighter DEF checks stay where the derivation is in a comment. `atan2(0,0)` returning `ARM_MATH_NANINF` is a `characterization:` item.
 * **L10** Left shifts of negative values in vendor code are `KNOWN_ISSUE_UB_HIDDEN` (V37-V39); UBSan stops at the first hit, so more UB may be hidden behind them.
 * **L11** `arm_sqrt_q15` 7 LSB (V41): kept as KNOWN_ISSUE pending the owner's answer to open question 17.
+
+## Group results (G2-G5)
+
+Results, reviews, lead decisions and vendor findings per group are recorded in `Tests/claude/plans/PROGRESS.md` ("G1 review result" to "G5 review result"); the work orders are `G1_WORK_ORDERS.md` to `G5_WORK_ORDERS.md` in this directory. Lead rules added after G1: a DOC that contradicts itself is a `characterization:` test, never a plain test or a KNOWN_ISSUE (G4); state, scratch and output buffers are tested on exact-size heap allocations (G4 review); a KNOWN_ISSUE whose pass or fail depends on stale heap content is not allowed (G5 review).
