@@ -1,6 +1,6 @@
 # MIDI (`MidiMain`, `MidiHandler`, TinyUSB `class/midi`): requirements charter (phase P17, T0)
 
-Status: **T0 approved by the owner 2026-11-10** ("Approve, start T1"; the lead's proposal L1 / question 53 option A is therefore the plan); drafted by the lead (Sonnet 5.5), committed as `f21e631a`. **T1 approved and built 2026-11-10** (see "T1 amendments" at the end): the macro `MIDI` is on in `ffb_usb_tests` only. **T2 done 2026-11-10** (see "T2 amendments": 319 cases, four reviewers, gate), waiting for the owner's approval. Open owner questions start at number 53 (see the end).
+Status: **T0 approved by the owner 2026-11-10** ("Approve, start T1"; the lead's proposal L1 / question 53 option A is therefore the plan); drafted by the lead (Sonnet 5.5), committed as `f21e631a`. **T1 approved and built 2026-11-10** (see "T1 amendments" at the end): the macro `MIDI` is on in `ffb_usb_tests` only. **T2 done 2026-11-10** (see "T2 amendments": 319 cases, four reviewers, gate), approved by the owner and committed as `fe232b2d` (pushed). Open owner questions start at number 53 (see the end; 53 is settled, 54-61 are open).
 
 Units under test (sources read by the lead on 2026-11-10):
 * `Firmware/FFBoard/UserExtensions/Src/MidiMain.cpp` (180 lines, `MM`) and `Inc/MidiMain.h` (78 lines), class `MidiMain : FFBoardMain, MidiHandler, TimerHandler`, class id `CLSID_MAIN_MIDI` (0xD), name "MIDI (TMC)", visibility debug, behind the macro `MIDI`; it plays notes by moving the phase of a TMC4671 (`TMC_1`) on the user timer `TIM_USER` (`htim9`).

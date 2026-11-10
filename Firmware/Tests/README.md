@@ -936,7 +936,7 @@ report tool `tools/run_all_tests.py` with synthetic doctest XML and tables (no t
 
 * **P17 (MIDI):** `MidiMain`, `MidiHandler` and the TinyUSB `class/midi` code are in scope since 2026-11-10 (macro `MIDI` in
   `ffb_usb_tests` only); the tests are done (see the suite table). Oracles supplied: the USB class definition for MIDI devices 1.0 (`midi10.pdf`) and the MIDI 1.0
-  detailed specification. T0 (charter `Tests/claude/charters/driver/MIDI_REQUIREMENTS.md`), T1 (wiring, doubles, fixture) and T2 (319 cases, four reviewers, gate) are done; T2 waits for the owner's approval (see "Next action" in
-  `Tests/claude/plans/PROGRESS.md`).
+  detailed specification. T0 (charter `Tests/claude/charters/driver/MIDI_REQUIREMENTS.md`), T1 (wiring, doubles, fixture) and T2 (319 cases, four reviewers, gate) are done, approved and pushed (`fe232b2d`); P17 is the last phase of the plan. What remains is the owner's decisions, see "Next action" in
+  `Tests/claude/plans/PROGRESS.md`.
 * Open questions (CI job, Windows / macOS verification, P11 to P16 decisions) are in `Tests/claude/reports/OPEN_QUESTIONS.md`;
   suspected bugs and NEEDS REVIEW items in `Tests/claude/reports/BUG_REPORT.md`.

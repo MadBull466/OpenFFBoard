@@ -9,7 +9,7 @@ are in `Tests/claude/plans/PROGRESS.md` (the source of truth); all suspected bug
 > pushed to the fork. Current counts (GCC 16): `ffb_unit_tests` 654, `ffb_target_tests` 1832, `ffb_flash_tests` 159, `ffb_rtos_tests` 278, `ffb_usb_tests` 606,
 > `ffb_driver_tests` 1717, `ffb_dsp_tests` 2485 = 7,731 C++ cases (unit tests counted with the documented exclusion), 115 Python tests, ctest 11 of 11. Suspected firmware bugs are numbered up to 224,
 > vendor bugs up to V88, NEEDS REVIEW up to 280, open questions up to 61. Remaining out of scope: ST HAL, CMSIS core, FreeRTOS kernel, `Firmware/Targets/**`,
-> CubeMX code; MIDI (P17) is done: 319 cases in `ffb_usb_tests` (606 in total), T2 waiting for approval. The authoritative numbers are in `Tests/claude/plans/PROGRESS.md` and `Tests/claude/plans/COVERAGE_AND_SCOPE.md`.
+> CubeMX code; MIDI (P17) is done: 319 cases in `ffb_usb_tests` (606 in total), approved and pushed (`fe232b2d`). The authoritative numbers are in `Tests/claude/plans/PROGRESS.md` and `Tests/claude/plans/COVERAGE_AND_SCOPE.md`.
 
 ## Result in one paragraph
 
@@ -89,4 +89,4 @@ and "Related bugs"). Highlights:
 - Host 64-bit vs target 32-bit ARM: differences (type sizes, float rounding/FMA, out-of-range conversions, division by zero) are listed in
   `Tests/claude/plans/PROGRESS.md`, "Host-vs-target caveats", and handled with tolerances or skipped cases.
 - Out of scope by decision: ST HAL, CMSIS core, the FreeRTOS kernel, `Firmware/Targets/**`, CubeMX code. (At P9 the motor drivers, TMCDebugBridge and
-  MIDI were out of scope too; they were brought in scope on 2026-11-02 and 2026-11-10, MIDI is not started.)
+  MIDI were out of scope too; they were brought in scope on 2026-11-02 and 2026-11-10 and are tested now.)

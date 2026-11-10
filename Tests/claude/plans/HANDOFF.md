@@ -13,18 +13,16 @@ A host-side (Linux/Windows, no hardware) unit-test suite for the OpenFFBoard fir
 | P0-P9 (in-scope firmware, FreeRTOS wrappers, TinyUSB, CMSIS-DSP functions the firmware calls, Python helpers) | done, approved |
 | P10 driver track D0-D3 (TMC4671, ODrive, VESC) | done, approved 2026-11-04 |
 | P11 CMSIS-DSP (G1-G5) | done, approved and pushed 2026-11-10 |
-| P13 TMCDebugBridge, P14 PWM, P15 SimpleMotion, P16 MyActuator | done, approved, committed and pushed 2026-11-10 (`1d30019d` is the last) |
-| P17 MIDI (`MidiMain`, `MidiHandler`, TinyUSB `class/midi`, in `ffb_usb_tests`) | in scope; T0, T1 approved; **T2 done and gated (319 cases, four reviewers; `MidiHandler.cpp` 100 %, `MidiMain.cpp` 100 %, `midi_device.c` 98.5 %), waiting for the owner's approval** (charter `Tests/claude/charters/driver/MIDI_REQUIREMENTS.md`, work orders `P17_WORK_ORDERS.md`) |
+| P13 TMCDebugBridge, P14 PWM, P15 SimpleMotion, P16 MyActuator, P17 MIDI | done, approved, committed and pushed to the fork 2026-11-10 (`fe232b2d` is the last: P17 T2) |
+| P17 MIDI detail (`MidiMain`, `MidiHandler`, TinyUSB `class/midi`, in `ffb_usb_tests`) | T0 `f21e631a`, T1 `88980f93`, T2 `fe232b2d` (319 cases, four reviewers; `MidiHandler.cpp` 100 %, `MidiMain.cpp` 100 %, `midi_device.c` 98.5 %); charter `Tests/claude/charters/driver/MIDI_REQUIREMENTS.md`, work orders `P17_WORK_ORDERS.md` |
 | Open questions | `Tests/claude/reports/OPEN_QUESTIONS.md` (pending 17-23, 32-52 and 54-61) |
 | Suspected bugs | `Tests/claude/reports/BUG_REPORT.md` (generated, do not hand-edit): firmware bugs up to 224, vendor bugs up to V88, NEEDS REVIEW up to 280 |
 
 Current counts (GCC 16, 2026-11-10): `ffb_unit_tests` 654 passed / 4 skipped, `ffb_target_tests` 1832, `ffb_flash_tests` 159, `ffb_rtos_tests` 278, `ffb_usb_tests` 606, `ffb_driver_tests` 1717, `ffb_dsp_tests` 2485, Python `claude/python` 115; ctest 11 of 11. The resume point and the exact numbers are in `Tests/claude/plans/PROGRESS.md` ("Current state", "Next action"); whole-project numbers in `Tests/claude/reports/PROJECT_SUMMARY.md`.
 
-### Where to continue: P17 MIDI
+### Where to continue
 
-* Plan: the P17 section of `Tests/claude/plans/P14_P17_REMAINING_DRIVERS_PLAN.md`. Oracles (git-ignored, `Tests/shared/specs/`): `midi10.pdf` (it is the USB MIDI class definition 1.0) and `MIDI_1.0_Detailed_Specification.pdf`. The firmware class is USB-MIDI 1.0 style, so `USB MIDI v2_0.pdf` is not needed.
-* Model for the charter and work orders: `Tests/claude/charters/driver/RMD_REQUIREMENTS.md` and `P16_WORK_ORDERS.md`. Reusable P16 pattern for threads with several `Delay` calls: `support/RmdFixture.h`.
-* Phase shape: T0 charter (draft commit, stop), T1 wiring and fixture (macro `MIDI` on in `ffb_usb_tests` only, stop), T2 tests, review with mutation checks and gate, stop for approval.
+The test plan P0-P17 is complete: every phase is approved, committed and pushed. Nothing is waiting for a decision of yours except the open questions (17-23, 32-52, 54-61 in `Tests/claude/reports/OPEN_QUESTIONS.md`) and the two stale lines of `CLAUDE.md` (tier C wording, `USB MIDI v2_0.pdf` spec line), which are the owner's file. New work starts only on the owner's request; if an open question is answered, update the affected tests, `PROGRESS.md`, `OPEN_QUESTIONS.md` and `BUG_REPORT.md` (run `make_bug_report.py`). Reusable pieces for a new phase: the charter and work-order shape of `MIDI_REQUIREMENTS.md` / `P17_WORK_ORDERS.md`, `support/RmdFixture.h` (threads with several `Delay` calls), `support/MidiFixture.h` and `platform/usb_midi/` (a recording double of a driver interface for a caller built into another executable).
 
 ## Rules you must follow (from the owner's `CLAUDE.md`, repeated here because they are strict)
 

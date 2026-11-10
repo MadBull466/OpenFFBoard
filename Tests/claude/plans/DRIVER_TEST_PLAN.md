@@ -10,7 +10,7 @@ IN scope, in this fixed order:
 3. **VESC** driver (CAN)
 
 Since 2026-11-10 `TMCDebugBridge` is IN scope as phase P13 (`Tests/claude/plans/P13_TMCDEBUGBRIDGE_PLAN.md`, `TMCDEBUG` on in `ffb_driver_tests` only; complete).
-Since 2026-11-10 PWM, SimpleMotion, MyActuator and MIDI are IN scope as P14-P17 (`P14_P17_REMAINING_DRIVERS_PLAN.md`): P14, P15 and P16 are complete (macros `PWMDRIVER`, `SIMPLEMOTION`, `RMDCAN` on in `ffb_driver_tests` only), P17 MIDI is not started (`MIDI` off everywhere). Still OUT of scope: ST HAL, CMSIS core, FreeRTOS kernel, `Firmware/Targets/**`, CubeMX code.
+Since 2026-11-10 PWM, SimpleMotion, MyActuator and MIDI are IN scope as P14-P17 (`P14_P17_REMAINING_DRIVERS_PLAN.md`): P14, P15 and P16 are complete (macros `PWMDRIVER`, `SIMPLEMOTION`, `RMDCAN` on in `ffb_driver_tests` only), P17 MIDI is complete too (`MIDI` on in `ffb_usb_tests` only; `MidiMain` runs against a recording double of the TMC4671 interface, the real driver stays in this executable). Still OUT of scope: ST HAL, CMSIS core, FreeRTOS kernel, `Firmware/Targets/**`, CubeMX code.
 
 What "testing a driver" means here: the firmware side of the conversation. We test what the driver sends, how it interprets what comes back, its state machine, scaling, limits, error handling and timeouts, against a simulated peer. We do not test the silicon or the external board.
 
