@@ -1,6 +1,6 @@
-# P14-P17 plan: PWM (P14), SimpleMotion (P15), MyActuator (P16), MIDI (P17) (2026-11-10, owner's answers to questions 27-31 recorded; P14 not started)
+# P14-P17 plan: PWM (P14), SimpleMotion (P15), MyActuator (P16), MIDI (P17) (2026-11-10; P14, P15 and P16 complete and pushed, P17 not started)
 
-Scope change (owner, 2026-11-10): these are now IN scope. Nothing is built or tested yet. `CLAUDE.md`, `AGENTS.md`, `TEST_PLAN.md` and `COVERAGE_AND_SCOPE.md` are updated; the feature headers are changed per phase (T1).
+Scope change (owner, 2026-11-10): these are now IN scope. Status 2026-11-10 (documentation review): P14, P15 and P16 are built, tested and approved; P17 (MIDI) is waiting for its T0 charter. `CLAUDE.md`, `AGENTS.md`, `TEST_PLAN.md` and `COVERAGE_AND_SCOPE.md` are updated; the feature headers are changed per phase (T1).
 
 ## Units
 
@@ -17,10 +17,10 @@ About 2,800 lines in total. The MIDI class is vendor code (report bugs, never fi
 
 ## Facts found
 
-- Specs in `Tests/shared/specs/` today: TMC4671, TMCL, ODrive CAN, VESC CAN, STM32F407 RM / datasheet / errata, `bldc-master`. There is NO spec for the RMD (MyActuator) CAN protocol, the SimpleMotion protocol (UART frames, commands, parameter ids, FBR) or the USB-MIDI class (USB-MIDI 1.0 class spec, MIDI 1.0 message table). PWM needs no protocol spec, only the timer / RM0090 chapters already supplied.
+- Specs (original state, superseded): when the plan was drafted there was no spec for the RMD (MyActuator) CAN protocol, the SimpleMotion protocol or the USB-MIDI class. All were supplied later (see decision 27 and the P17 oracles below). PWM needs no protocol spec, only the timer / RM0090 chapters already supplied.
 - Rule: never invent register maps, opcodes or frames. Without a spec, byte values are `characterization:` tests (as in P13) and the unit is not "specified".
 - Existing fakes: fake HAL SPI and CAN (used by the driver executable), UART fake (check the platform for `UARTPort`), fake dwc2 and CDC capture (tier B), `MockMotorDriver`, `MockEncoder`. Timer / PWM HAL may need a new strict fake (`fakes/`, with the fidelity header rules).
-- Today all four macros are off in every executable; the F407VG header turns them on. The `ffb_driver_tests` feature header (`platform/target_f407_drivers/target_constants.h`) says they stay off.
+- State now: `PWMDRIVER`, `SIMPLEMOTION` and `RMDCAN` are on in `ffb_driver_tests` only (`platform/target_f407_drivers/target_constants.h`); `MIDI` is still off everywhere and goes on in `ffb_usb_tests` only at P17 T1.
 
 ## Phases (each is its own phase, stop for the owner after each)
 
@@ -44,3 +44,10 @@ Gate rule: the 318 baseline cases stay unchanged, the other executables get no n
 ## Not decided yet
 
 Requirements, oracles, case counts and coverage targets. They come with each phase's charter (T0).
+
+## P17 oracles (supplied 2026-11-10, git-ignored under `Tests/shared/specs/`)
+
+- `midi10.pdf` (restored 2026-11-10 after being briefly missing): despite its name this is "Universal Serial Bus Device Class Definition for MIDI Devices, Release 1.0" (Nov 1, 1999, 43 pages): USB-MIDI event packets and code index numbers, MIDIStreaming descriptors, class requests. Oracle for the TinyUSB `class/midi` code.
+- `MIDI_1.0_Detailed_Specification.pdf` (document version 4.2.1, 86 pages): oracle for the message bytes.
+- `USB MIDI v2_0.pdf` is no longer needed: the firmware class is USB-MIDI 1.0 style. This settles the caveat in decision 27; the P17 T0 charter records it.
+- Where both are silent (the firmware's own mapping of MIDI messages to internal actions) the tests are `characterization:` with NEEDS REVIEW rows.

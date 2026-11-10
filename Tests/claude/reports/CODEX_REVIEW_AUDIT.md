@@ -1,6 +1,12 @@
 # Audit of the Codex review (2026-11-09)
 
-Scope: Codex's findings CDX-001 to CDX-017 and P12-TICK-001 (`Tests/codex/`), its edits to shared files in `Firmware/Tests/`, and the fixes applied by Claude. Nothing is committed or pushed. Firmware sources were not changed.
+Scope: Codex's findings CDX-001 to CDX-017 and P12-TICK-001 (`Tests/codex/`), its edits to shared files in `Firmware/Tests/`, and the fixes applied by Claude. Firmware sources were not changed. The audit and the integrated Codex work were committed on 2026-11-09 (`211228a1`, `63a3db81`) and have been pushed to the fork since.
+
+## Status 2026-11-10 (kept current)
+
+- The audit's results table is a 2026-11-09 snapshot. Since then P11 G4-G5 and P13-P16 changed the executables: `ffb_dsp_tests` 218 -> 2485 cases, `ffb_driver_tests` 930 -> 1717, `ffb_target_tests`, `ffb_unit_tests`, `ffb_flash_tests`, `ffb_rtos_tests` and `ffb_usb_tests` are unchanged (654 / 1832 / 159 / 278 / 287). Current counts and ctest results (11 of 11 default / sanitizer / clang / coverage, 10 of 10 DSP off) are in `Tests/claude/plans/PROGRESS.md` ("Current state"). The driver coverage figure in the gcov bullet below (2,376 / 2,596, 91.5 %) is now 3,262 / 3,484 (93.6 %) with P13-P16; the firmware, tier A, TinyUSB and tier C figures are unchanged.
+- Findings CDX-001..017 and P12-TICK-001 / P12-I2C-001: verdicts and actions below are final; nothing was reopened. The Codex tools and tests audited here are still part of the suite (`codex_python_tests`, `codex_usb_setup_guard`, opt-in `codex_st_hal`).
+- Left open item 1 (bug 39) is open question 20 in `Tests/claude/reports/OPEN_QUESTIONS.md`; item 2 (real-hardware questions) is unchanged.
 
 ## Method
 1. Read all Codex documents; listed findings, proposed fixes and gap claims.

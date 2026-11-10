@@ -16,7 +16,7 @@ The report (Markdown, stdout) separates:
   dsp        the in-scope CMSIS-DSP modules of ffb_dsp_tests (phase P11, Tests/claude/charters/dsp/CMSIS_DSP_REQUIREMENTS.md). Own section,
              built from the .gcda files of the CMake targets ffb_cmsis_dsp, ffb_cmsis_dsp_f16 and ffb_dsp_tests ONLY, so the
              numbers of tier C (the other executables) stay comparable. NOT part of the in-scope coverage ladder.
-  driver     the driver track (Tests/claude/plans/DRIVER_TEST_PLAN.md): TMC4671.cpp, TMC4671_configs.cpp, ODriveCAN.cpp, VescCAN.cpp, TMCDebugBridge.cpp (P13), MotorPWM.cpp (P14), MotorSimplemotion.cpp (P15).
+  driver     the driver track (Tests/claude/plans/DRIVER_TEST_PLAN.md): TMC4671.cpp, TMC4671_configs.cpp, ODriveCAN.cpp, VescCAN.cpp, TMCDebugBridge.cpp (P13), MotorPWM.cpp (P14), MotorSimplemotion.cpp (P15), RmdMotorCAN.cpp (P16).
              Own section; NOT part of the in-scope coverage ladder (its total is unchanged by the driver track)
 Firmware/Tests/, the remaining out-of-scope drivers, MIDI, the rest of Libraries/ and Targets/ are not reported.
 
@@ -50,7 +50,7 @@ DEFAULT_EXCLUSIONS = os.path.join(TOOLS_DIR, "coverage_exclusions.txt")
 COVERAGE_TARGET = 85.0  # % of in-scope lines without hardware-only code (Tests/claude/plans/TEST_PLAN.md)
 DEFAULT_FIRMWARE_DIR = os.path.normpath(os.path.join(TOOLS_DIR, "..", ".."))
 
-# Driver and MIDI code that is out of scope (Tests/claude/plans/PROGRESS.md, "Out-of-scope driver files")
+# MIDI code: in scope since 2026-11-10 (P17) but not compiled yet; kept out of the ladder until its T1 (then it moves to the usb tier)
 OUT_OF_SCOPE = {"MidiMain", "MidiHandler"}
 # The three drivers of the driver track (ffb_driver_tests): reported in their own tier, not in the ladder
 DRIVER_TRACK = {"TMC4671", "TMC4671_configs", "ODriveCAN", "VescCAN", "TMCDebugBridge", "MotorPWM", "MotorSimplemotion", "RmdMotorCAN"}  # TMCDebugBridge: P13, MotorPWM: P14, MotorSimplemotion: P15, RmdMotorCAN: P16 (in scope since 2026-11-10)

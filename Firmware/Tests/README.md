@@ -54,10 +54,10 @@ Existing presets (CMake >= 3.21, `host-mingw` on Windows) define in-tree build l
 For this checkout, use the explicit out-of-tree commands above, or override the preset's binary directory
 and build/test that chosen directory. Do not create build output under `Firmware/`.
 
-`ctest` runs 10 entries: the seven test executables `ffb_unit_tests`, `ffb_target_tests`, `ffb_flash_tests`,
+`ctest` runs 11 entries: the seven test executables `ffb_unit_tests`, `ffb_target_tests`, `ffb_flash_tests`,
 `ffb_rtos_tests`, `ffb_usb_tests`, `ffb_driver_tests` and `ffb_dsp_tests` (each with its exclusion list), `ffb_unit_tests_baseline` (the baseline check, see
-below) and `python_helper_tests` and `codex_python_tests` (the baseline and Python entries only if Python 3 is found; `ffb_flash_tests` is not built on macOS;
-`ffb_dsp_tests` only with CMSIS-DSP and its `Testing/Patterns`, so 9 entries without them).
+below) and `python_helper_tests`, `codex_python_tests` and `codex_usb_setup_guard` (the baseline and Python entries only if Python 3 is found; `ffb_flash_tests` is not built on macOS;
+`ffb_dsp_tests` only with CMSIS-DSP and its `Testing/Patterns`, so 10 entries without them; the optional `codex_st_hal` entry needs `-DFFB_TESTS_ST_HAL=ON`).
 
 | Executable | Test cases | Section |
 |---|---|---|
@@ -70,6 +70,7 @@ below) and `python_helper_tests` and `codex_python_tests` (the baseline and Pyth
 | `ffb_dsp_tests` | `claude/cases_dsp/` | [`ffb_dsp_tests`](#ffb_dsp_tests-the-cmsis-dsp-modules-phase-p11) |
 | `python_helper_tests` | `claude/python/` | [Python helper tests](#python-helper-tests) |
 | `codex_python_tests` | `codex/python/` | Mandatory nonempty stdlib tooling/discovery regressions |
+| `codex_usb_setup_guard` | `codex/python/check_usb_guard.py` | Guard script for the USB setup (Codex) |
 
 The test executables can be started directly for more control. With GCC 16 (libstdc++ with `_GLIBCXX_ASSERTIONS` at
 `-O0`) a run of `ffb_unit_tests` without the exclusion aborts in the case
@@ -85,9 +86,9 @@ sanitizer build with CMSIS-DSP also the two spline cases of `FFB_TESTS_EXCLUDE_S
 ../ffb-test-build/host/ffb_target_tests                      # the other executables need no exclusion by default
 ```
 
-Expected result of `ffb_unit_tests` with the documented exclusions (GCC 16, Linux): 646 passed, 0 failed, 4 skipped
-(the same with clang 23 and without CMSIS-DSP; sanitizer build with CMSIS-DSP: 643 / 0 / 7; sanitizer build without
-CMSIS-DSP: 645 / 0 / 5). doctest counts a
+Expected result of `ffb_unit_tests` with the documented exclusions (GCC 16, Linux): 654 passed, 0 failed, 4 skipped
+(re-measured 2026-11-10 on the P16 gate builds: the same with clang 23 and without CMSIS-DSP; sanitizer build with CMSIS-DSP, with the
+spline exclusion: 651 / 0 / 7; the sanitizer build without CMSIS-DSP was not re-measured). doctest counts a
 `KNOWN_ISSUE` case that fails as expected as passed. The 318 baseline cases are a subset of these; their own result
 (316 passed, 2 skipped on GCC 16 with the exclusion) is checked by `tools/check_baseline.py` (see below).
 
@@ -175,10 +176,10 @@ python3 -B tools/run_all_tests.py --build-dir build [--out FILE] [--timeout S]  
 | `claude/cases_flash/test_*.cpp` | Test cases of `ffb_flash_tests` (real `flash_helpers.cpp` and `eeprom.c` on the fake HAL FLASH). |
 | `claude/cases_rtos/test_*.cpp` | Test cases of `ffb_rtos_tests` (the `cpp_freertos` wrappers on the fake FreeRTOS API). |
 | `claude/cases_usb/test_*.cpp` | Test cases of `ffb_usb_tests` (TinyUSB device stack on the fake USB device controller). |
-| `claude/cases/driver/test_*.cpp` | Test cases of `ffb_driver_tests` (TMC4671, ODrive, VESC drivers; not picked up by `ffb_unit_tests`, whose glob is not recursive). |
+| `claude/cases/driver/test_*.cpp` | Test cases of `ffb_driver_tests` (TMC4671, ODrive, VESC, TMCDebugBridge, PWM, SimpleMotion, MyActuator drivers; not picked up by `ffb_unit_tests`, whose glob is not recursive). |
 | `claude/cases_dsp/test_dsp_*.cpp` | Test cases of `ffb_dsp_tests` (CMSIS-DSP modules against ARM's reference patterns). |
 | (`Tests/claude/charters/dsp/`) | Requirement charter of the CMSIS-DSP track (`CMSIS_DSP_REQUIREMENTS.md`); documents live under `Tests/`, not here. |
-| (`Tests/claude/charters/driver/`) | Requirement charters of the driver track (`<name>_REQUIREMENTS.md`). |
+| (`Tests/claude/charters/driver/`) | Requirement charters and work orders of the driver track and P13-P16 (`<name>_REQUIREMENTS.md`, `P1x_WORK_ORDERS.md`). |
 | `specs/` | Local copies of vendor specifications for the driver track. Ignored by git (`.gitignore`), never committed. |
 | `python/` | `test_*.py`: stdlib `unittest` tests of the Python helper scripts; `helper_paths.py` (paths, loader). |
 | `mocks/` | Implementations of firmware class interfaces for tests (`Mock*.h`, see "Mocks and helpers"). |
@@ -292,6 +293,10 @@ Headers in `support/`:
 | `TMCDebugBridge commands` | `test_tmcdebug_commands.cpp` | P13: the text commands `reg`, `torque`, `pos`, `velocity`, `mode`, `openloopspeed`, `openloopspeedpwm` against the register traffic at the fake chip (56 cases) |
 | `TMCDebugBridge frames` | `test_tmcdebug_frames.cpp` | P13: TMCL binary frames on the CDC port: checksum, reply layout, GGP / GIO / version, silent drops as `KNOWN_ISSUE` (85 cases; specs `Tests/shared/specs/TMCL_reference.pdf` and the TOSV / LEV manuals) |
 | `TMCDebugBridge lifecycle` | `test_tmcdebug_lifecycle.cpp` | P13: constructor / destructor effects, limits, flash restore, chooser, `tmcpids` not applied (23 cases) |
+| `RMD setup` | `test_rmd_setup.cpp` | P16: identity, chooser, construction (filters, port), the 100 ms start and the thread cycle against `FakeRmdPeer` (44 cases) |
+| `RMD frames` | `test_rmd_frames.cpp` | P16: the frames the driver sends (ids `0x140 + ID`, command bytes, units, little endian fields) against MyActuator protocol V4.3 (46 cases) |
+| `RMD receive` | `test_rmd_receive.cpp` | P16: reply handling, position and status decoding, error flags, request mode, fault injection (82 cases; B-RMD-4, 6, 7 as `KNOWN_ISSUE`) |
+| `RMD commands` | `test_rmd_commands.cpp` | P16: the commands (`canid`, `maxtorque`, offsets, ...), flash word save / restore, life cycle (84 cases; B-RMD-1, 2, 3, 5, 8 as `KNOWN_ISSUE` / `KNOWN_ISSUE_UB`) |
 
 `ffb_usb_tests` (`claude/cases_usb/`):
 
@@ -797,17 +802,17 @@ descriptors and the TinyUSB callbacks of `global_callbacks.cpp`.
 ## `ffb_driver_tests`: the TMC4671, ODrive and VESC drivers (driver track)
 
 A sixth executable built by the same `CMakeLists.txt` and run by `ctest` (driver track, `Tests/claude/plans/DRIVER_TEST_PLAN.md`,
-phases D0-D3). It tests the real motor drivers against simulated peers, not their hardware (1238 cases incl. 167 of P13 and 141 of P14; final report
-`Tests/claude/reports/DRIVER_TRACK_REPORT.md`):
+phases D0-D3). It tests the real motor drivers against simulated peers, not their hardware (1717 cases on 2026-11-10: 1701 run in the sanitizer build, 1494 with clang because SimpleMotion is not built there; TMC4671, ODrive, VESC and
+P13-P16: TMCDebugBridge, PWM, SimpleMotion, MyActuator; the final report of the first three is
+`Tests/claude/reports/DRIVER_TRACK_REPORT.md`, its numbers (938 cases) are historic):
 
 * **Feature header:** `platform/target_f407_drivers/target_constants.h` is the `ffb_target_tests` header plus
   `TMC4671DRIVER`, `ODRIVE` and `VESC` (lines 46, 50, 51 of the F407VG header) and, since P13, `TMCDEBUG`
-  (`TMCDebugBridge`, on in this executable only). `MIDI`, `RMDCAN`,
-  `PWMDRIVER` and `SIMPLEMOTION` stay off; `HSPIDRV`, `CANBUS` and `TIM_TMC htim6` stay as on the F407VG. The directory
+  (`TMCDebugBridge`, on in this executable only). `PWMDRIVER` (P14), `SIMPLEMOTION` (P15, not with clang) and `RMDCAN` (P16) are on in this executable only. `MIDI` stays off; `HSPIDRV`, `CANBUS` and `TIM_TMC htim6` stay as on the F407VG. The directory
   is first in the include path, so only this header is shadowed (`main.h` etc. come from `platform/target_f407`).
 * **Driver sources:** `FFBoard/UserExtensions/Src/TMC4671.cpp`, `TMC4671_configs.cpp`, `ODriveCAN.cpp` and `VescCAN.cpp`
   on top of the firmware and platform sources of `ffb_target_tests` (fake HAL SPI and CAN), and (P13) `TMCDebugBridge.cpp`
-  (its fixture is `support/TmcDebugFixture.h`: `TmcFixture` plus the CDC capture). `MotorPWM.cpp` (P14, `PWMDRIVER` on in this executable only; fixture `support/PwmFixture.h`) is compiled since P14, `MotorSimplemotion.cpp` (P15, `SIMPLEMOTION` on in this executable only with GCC; fixture `support/SmFixture.h`, fake device `fakes/FakeSmDevice.h` on `huart3` through the neutral `HostPlatform::UartPeer` hook; the host `xSemaphoreTake` polls the peer while a finite wait on the test thread cannot be satisfied) since P15. `RmdMotorCAN.cpp` and the MIDI sources are not compiled yet (P16-P17).
+  (its fixture is `support/TmcDebugFixture.h`: `TmcFixture` plus the CDC capture). `MotorPWM.cpp` (P14, `PWMDRIVER` on in this executable only; fixture `support/PwmFixture.h`) is compiled since P14, `MotorSimplemotion.cpp` (P15, `SIMPLEMOTION` on in this executable only with GCC; fixture `support/SmFixture.h`, fake device `fakes/FakeSmDevice.h` on `huart3` through the neutral `HostPlatform::UartPeer` hook; the host `xSemaphoreTake` polls the peer while a finite wait on the test thread cannot be satisfied) since P15. `RmdMotorCAN.cpp` (P16, `RMDCAN` on in this executable only, also with clang; fake motor `fakes/FakeRmdPeer.h` on the fake CAN, fixture `support/RmdFixture.h`, which parks every `Delay` of the RMD thread by setting the delay budget to 1 ms and measuring the clock jump) is compiled since P16. The MIDI sources are not compiled outside the `class/midi` TinyUSB driver of `ffb_usb_tests` yet (P17, charter not written).
 * **Platform:** `platform/src/host_driver_timers.cpp` adds the fake TIM6 (`htim6`, as left by `MX_TIM6_Init`) and, since P14, the fake TIM1 with PWM output compare (`htim1`, strict `HAL_TIM_PWM_ConfigChannel` / `_Start` / `_Stop`, the board table `MotorPWM::timerConfig`; no counter, no shadow registers, see the file header), which the
   TMC4671 driver uses as its external encoder timer. It is reset by `HostTarget::reset()` through
   `HostTarget::addResetHook`; the other executables do not link it.
@@ -824,15 +829,15 @@ phases D0-D3). It tests the real motor drivers against simulated peers, not thei
 * **Simulated peers and fixtures** (each with a fidelity header: what it models, source, what it does not model,
   confidence): `fakes/FakeTmc4671` (register file behind the fake SPI, fixture `support/TmcFixture.h`),
   `fakes/FakeOdrivePeer` (ODrive CAN Simple node, `support/OdriveFixture.h`), `fakes/FakeVescPeer` (VESC CAN node with the
-  buffer protocol and CRC, `support/VescFixture.h`). The peers are strict: a frame the real device would reject is
+  buffer protocol and CRC, `support/VescFixture.h`), `fakes/FakeSmDevice` (SimpleMotion drive on `huart3`, `support/SmFixture.h`), `fakes/FakeRmdPeer` (MyActuator motors on the fake CAN, `support/RmdFixture.h`); PWM uses the fake TIM1 in `platform/src/host_driver_timers.cpp` (`support/PwmFixture.h`). The peers are strict: a frame the real device would reject is
   recorded as a violation and the fixture fails the test at teardown unless the test declared it. The CAN fixtures
   schedule the driver thread themselves (500 ms loop, clock rewind after each `Delay`, see the fixture headers).
-* **Test files:** `test_tmc4671_*.cpp`, `test_odrive_*.cpp`, `test_vesc_*.cpp`; each test name starts with its
+* **Test files:** `test_tmc4671_*.cpp`, `test_odrive_*.cpp`, `test_vesc_*.cpp`, `test_tmcdebug_*.cpp`, `test_pwm_*.cpp`, `test_sm_*.cpp`, `test_rmd_*.cpp`; in the TMC4671, ODrive and VESC files each test name starts with its
   requirement id (`[R12]`, `[O33]`, `[V30]`). `FFB_DRIVER_TEST_FILTER` (cache variable, default `test_*.cpp`) compiles
   only matching files plus the setup and TMC fake self-tests (a developer aid for writing tests in parallel).
 * **Markers:** suspected driver bugs are `KNOWN_ISSUE` / `KNOWN_ISSUE_UB` / `KNOWN_ISSUE_UB_HIDDEN` tests or skipped
   cases ("KNOWN ISSUE (crash)", "KNOWN ISSUE (memory corruption)", run them with `--no-skip`); firmware-only behaviour
-  is `characterization:`. Bugs 139-193 in `Tests/claude/reports/BUG_REPORT.md`.
+  is `characterization:`. Bugs 139-218 in `Tests/claude/reports/BUG_REPORT.md` (139-193 TMC4671, ODrive, VESC; 194-200 TMCDebugBridge; 201-204 PWM; 205-210 SimpleMotion; 211-218 MyActuator).
 * **Reading a result:** `tools/summarise_results.py` condenses a log into counts, the failing cases with file:line and
   the first failed assertion, skipped and excluded cases and build errors:
 
@@ -842,7 +847,7 @@ ctest --test-dir build -V > ctest.log; python3 -B tools/summarise_results.py cte
 cmake --build build 2>&1 | python3 -B tools/summarise_results.py --format build
 ```
 
-* **Coverage:** `tools/coverage_report.py` lists the four driver files in the section "Driver track". They are not part
+* **Coverage:** `tools/coverage_report.py` lists the driver files (TMC4671, TMC4671_configs, ODriveCAN, VescCAN, TMCDebugBridge, MotorPWM, MotorSimplemotion, RmdMotorCAN) in the section "Driver track" (3262 of 3484 lines on 2026-11-10). They are not part
   of the coverage ladder (its total is unchanged).
 
 ## `ffb_dsp_tests`: the CMSIS-DSP modules (phase P11)
@@ -887,7 +892,7 @@ source is compiled into it.
   `test_dsp_filt_{biquad_f32,biquad_f64,biquad_f16,biquad_q,fir_float,fir_f16,fir_q,decim_float,decim_q,conv_float,conv_f16,conv_q31,conv_q15,conv_q7,lms,lattice,sparse}.cpp`.
   Suspected vendor bugs found there (Tests/claude/plans/PROGRESS.md V37-V85):
   `KNOWN_ISSUE_UB_HIDDEN` cases are skipped in sanitizer builds (UBSan stops at the first finding), so a sanitizer run
-  of `ffb_dsp_tests` reports skipped cases on purpose (about 400 of 2485 in the sanitizer build). Also skipped by design:
+  of `ffb_dsp_tests` reports skipped cases on purpose (403 skipped in the sanitizer build, measured 2026-11-10). Also skipped by design:
   a few `doctest::skip` crash cases (INT64_MIN / -1 division, sparse FIR `numTaps` = 1). The host builds only the code
   branches the portable flags select: the `ARM_MATH_DSP` unrolled kernels of the conv / correlate family are not run
   (PROGRESS NEEDS REVIEW 231). Tests that run the kernels on state, scratch or output buffers use exact-size heap
@@ -914,7 +919,7 @@ report tool `tools/run_all_tests.py` with synthetic doctest XML and tables (no t
 * The host is a 64 bit little endian machine with a different compiler backend. Stack usage, timing, alignment
   faults and float to integer conversions of out of range values are not covered.
 * No preemption. Race conditions between threads and interrupts can not be found.
-* The real motor drivers are not compiled (out of scope). `Axis`, the main classes and `SystemCommands` are only
+* Only the TMC4671, ODrive, VESC, PWM, SimpleMotion and MyActuator drivers and `TMCDebugBridge` are compiled (in `ffb_driver_tests` only); `MidiMain` / `MidiHandler` are not (P17 pending). `Axis`, the main classes and `SystemCommands` are only
   compiled in `ffb_target_tests`.
 * Outside `ffb_usb_tests` the USB descriptors are not parsed; the report layouts are compared with constants in the
   tests. `ffb_usb_tests` parses the configuration descriptor during the enumeration (interfaces and endpoints only).
@@ -923,9 +928,9 @@ report tool `tools/run_all_tests.py` with synthetic doctest XML and tables (no t
 
 ## Next steps
 
-* **P9:** TinyUSB (tier B), the CMSIS-DSP functions the firmware calls (tier C) and the Python helpers. It was on hold
-  for the wrap-up review and has since been started: batch 0 (`ffb_usb_tests`, the Python helper tests) is in place,
-  the module tests follow (plan in `Tests/claude/plans/TEST_PLAN.md`, status in `Tests/claude/plans/PROGRESS.md`).
-* Open questions (USB HID PID 1.01 specification for the `HidFFB` characterization tests, the CI job, Windows / macOS
-  verification) are listed under "Open questions for me" in `Tests/claude/plans/PROGRESS.md`; suspected bugs and NEEDS REVIEW items
-  in `Tests/claude/reports/BUG_REPORT.md`.
+* **P17 (MIDI):** `MidiMain`, `MidiHandler` and the TinyUSB `class/midi` code are in scope since 2026-11-10 (macro `MIDI` in
+  `ffb_usb_tests` only). Oracles supplied: the USB class definition for MIDI devices 1.0 (`midi10.pdf`) and the MIDI 1.0
+  detailed specification. Next is the T0 requirements charter; it has not been started (see "Next action" in
+  `Tests/claude/plans/PROGRESS.md`).
+* Open questions (CI job, Windows / macOS verification, P11 to P16 decisions) are in `Tests/claude/reports/OPEN_QUESTIONS.md`;
+  suspected bugs and NEEDS REVIEW items in `Tests/claude/reports/BUG_REPORT.md`.

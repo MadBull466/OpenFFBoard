@@ -1,6 +1,6 @@
 # P13 plan: `TMCDebugBridge` (2026-11-10, COMPLETE: T0, T1, T2 approved and committed; T3 and T4 ran inside T2; commit `61535bd0`)
 
-Scope change (owner, 2026-11-10): `Firmware/FFBoard/UserExtensions/Src/TMCDebugBridge.cpp` (258 lines) and its header are now IN scope. Everything else that was out of scope stays out (PWM, MyActuator, SimpleMotion, `MidiMain`, `MidiHandler`). P12 is Codex's phase (`Tests/codex/p12`); this is P13.
+Scope change (owner, 2026-11-10): `Firmware/FFBoard/UserExtensions/Src/TMCDebugBridge.cpp` (258 lines) and its header are now IN scope. At the time of writing everything else stayed out (PWM, MyActuator, SimpleMotion, `MidiMain`, `MidiHandler`); the same day they were put in scope as P14-P17 (`P14_P17_REMAINING_DRIVERS_PLAN.md`). P12 is Codex's phase (`Tests/codex/p12`); this is P13.
 
 ## What the unit is
 

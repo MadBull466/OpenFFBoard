@@ -1,8 +1,8 @@
-# Driver track (P10) final report: TMC4671, ODrive, VESC (2026-11-04)
+# Driver track report: P10 (TMC4671, ODrive, VESC) and P13-P16 (TMCDebugBridge, PWM, SimpleMotion, MyActuator); updated 2026-11-10
 
 Status: **Driver track complete and approved: D3 (VESC) approved by me 2026-11-04.** D1 TMC4671 approved 2026-11-03, D2 ODrive approved 2026-11-04. Per-driver details: `Tests/claude/reports/D1_TMC4671_REPORT.md`, `Tests/claude/reports/D2_ODRIVE_REPORT.md`, this file for D3 and the whole track. Open questions: `Tests/claude/reports/OPEN_QUESTIONS.md`. Bugs: `Tests/claude/reports/BUG_REPORT.md`. Resume point: `Tests/claude/plans/PROGRESS.md`.
 
-Nothing was pushed; all commits are local on `add-test-suite`. No spec file is committed (PDFs, the ODrive CSV and the VESC source are git-ignored). `Firmware/` outside `Firmware/Tests/` is unchanged.
+Kept current: the sections "What was built" to "Open questions" describe the P10 track as of D3 (2026-11-04); the section "Later driver phases (P13-P16)" and the whole-executable numbers below are as of 2026-11-10. Everything is committed and pushed to the fork `MadBull466/OpenFFBoard` (last commit `1d30019d`). No spec file is committed (PDFs, the ODrive CSV and the VESC source are git-ignored). `Firmware/` outside `Firmware/Tests/` is unchanged.
 
 ## What was built
 
@@ -18,9 +18,31 @@ Nothing was pushed; all commits are local on `add-test-suite`. No spec file is c
 | Suspected driver bugs | 30 (bugs 139-168) | 10 (169-178) | 15 (179-193) |
 | NEEDS REVIEW | 166-175 | 176-184 | 185-191 |
 
-Whole driver executable `ffb_driver_tests`: **938 cases, 0 failed** (default/clang23/nodsp/cov: 860 passed, 9 skipped, 69 known issues failing as expected; sanitizer builds: 855 passed, 19 skipped, 64 known issues). Driver tier coverage 2,376 / 2,596 lines = 91.5 %. All 6 build variants + coverage build: ctest 8/8, `check_baseline.py` OK, no sanitizer finding, no warning in test files; the other five executables are unchanged.
+Whole driver executable `ffb_driver_tests` after D3 (2026-11-04): **938 cases, 0 failed** (now 1717, see "Later driver phases") (default/clang23/nodsp/cov: 860 passed, 9 skipped, 69 known issues failing as expected; sanitizer builds: 855 passed, 19 skipped, 64 known issues). Driver tier coverage 2,376 / 2,596 lines = 91.5 %. All 6 build variants + coverage build: ctest 8/8, `check_baseline.py` OK, no sanitizer finding, no warning in test files; the other five executables are unchanged.
 
 Method per driver (`Tests/claude/plans/DRIVER_TEST_PLAN.md`): Sonnet inventory -> lead charter from the spec -> Sonnet matrix -> Sonnet fake peer reviewed by the lead -> 4-8 Sonnet writers in parallel -> lead decisions on every question -> full gate -> fresh Sonnet reviewer with random-order, isolated runs and mutations -> fixes -> lead re-run of all real mutation survivors and final gate.
+
+## Later driver phases (P13-P16, 2026-11-10)
+
+Same method (T0 charter by the lead, T1 wiring and fixture, T2 writers plus reviewers with mutation checks on scratch copies, full gate, approval). Details and review results are in `Tests/claude/plans/PROGRESS.md` ("P13 review result" to "P16 review result"). Each feature macro is on in `ffb_driver_tests` only.
+
+| | TMCDebugBridge (P13) | PWM (P14) | SimpleMotion (P15) | MyActuator RMD (P16) |
+|---|---|---|---|---|
+| Bus / peer | CDC port, TMCL frames | HAL TIM1 PWM output (fake TIM1) | UART, `FakeSmDevice` on `huart3` | CAN, `FakeRmdPeer` |
+| Oracle | TMCL reference v2.22 and two TMC4671 board manuals; unspecified opcodes `characterization:` | firmware labels, RM0090 / HAL semantics, hand derivations | SimpleMotion V2 reference library and documentation | MyActuator CAN protocol V4.3 |
+| Charter | `TMCDEBUG_REQUIREMENTS.md` | `PWM_REQUIREMENTS.md` | `SIMPLEMOTION_REQUIREMENTS.md` | `RMD_REQUIREMENTS.md` |
+| Cases added | 167 (164 + 3 setup) | 141 | 223 | 256 |
+| Line coverage | 166 / 166 (100 %) | 191 / 191 (100 %) | 294 / 300 (98.0 %) | 231 / 231 (100 %) |
+| Suspected bugs | 194-200 | 201-204 (B-PWM-1..4) | 205-210 (B-SM-1..6) | 211-218 (B-RMD-1..8) |
+| NEEDS REVIEW | 238-243 | 244-248 | 249-257 | 258-262 |
+| Open questions | 24-26 (answered) | 27-31 (answered), 32-37 | 38-43 | 44-52 |
+| Commits (T0 / T1 / T2) | `08548390` / `b1d1c531` / `61535bd0` | `ac6d66a6` / `70bf9659` / `c688687b` | `cf3d341e` / `ff86dd7e` / `999872fa` | `6b2315e1` / `70a7598b` / `1d30019d` |
+
+Whole driver executable on 2026-11-10 (GCC 16): **1717 cases, 0 failed** (default, DSP off, coverage: 9 skipped; sanitizer build 1701 run; clang 1494 run, because SimpleMotion is not built with clang, open question 43). ctest 11 of 11 (DSP off 10 of 10), `check_baseline.py` OK. Driver tier 3262 / 3484 lines = 93.6 %. P15 notes: uncovered `getCumstat()` (never called), the empty destructor line and the receive branch of `startUartTransfer`.
+
+Suspected bugs worth a look first (all four): B-RMD-1 (`~RmdMotorCAN` never frees the CAN port), B-RMD-5 and B-RMD-6 (offset sign on restore; interpolation divides instead of multiplying), B-SM-1 (SimpleMotion address initialised from itself), B-SM-2 (position wrap), B-PWM-4 (CENTERED overflow of `int32_t`), B-PWM-1 (RC frame 1.2 % long).
+
+What the new fakes cannot prove: PWM waveforms on the pins, ESC / H-bridge behaviour and shadow-register timing at the update event; RS485 bus timing and real SimpleMotion drives (the fake device answers every address with ACK status subpackets only); a real MyActuator motor (the peer answers with zero latency and models only the commands the firmware uses); TMCL opcodes 143 / 146 / 148 and their parameter meanings (in no supplied document).
 
 ## D3 VESC in short
 
@@ -58,4 +80,4 @@ Method per driver (`Tests/claude/plans/DRIVER_TEST_PLAN.md`): Sonnet inventory -
 
 ## Open questions for me
 
-Collected in `Tests/claude/reports/OPEN_QUESTIONS.md`: project items 3, 5-8; TMC4671 9-12; ODrive 13-14; VESC 16 (5.3 FW_VERSION layout; STATUS frames as liveness). Question 15 (VESC spec gaps) was answered by the VESC source.
+Collected in `Tests/claude/reports/OPEN_QUESTIONS.md`: project items 3, 5-8; TMC4671 9-12; ODrive 13-14; VESC 16 (5.3 FW_VERSION layout; STATUS frames as liveness); P14 PWM 32-37; P15 SimpleMotion 38-43; P16 MyActuator 44-52. Question 15 (VESC spec gaps) was answered by the VESC source; 24-31 (P13 and P14-P17 scope) were answered 2026-11-10.

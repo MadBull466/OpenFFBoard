@@ -6,26 +6,25 @@ Written 2026-11-04 by Claude (Opus 5.5) for the project owner (GitHub `MadBull46
 
 A host-side (Linux/Windows, no hardware) unit-test suite for the OpenFFBoard firmware (STM32F407, C/C++), built with doctest 2.4.11 and CMake in `Firmware/Tests/`. It started from upstream's `feature/host-unit-tests` (commit `a5418ff5`, 318 baseline cases, kept unchanged) and was extended in phases P0-P11. The firmware itself was never changed. Everything is on branch `add-test-suite`.
 
-## State at handoff
+## State at handoff (updated 2026-11-10 by the documentation review; written first 2026-11-04)
 
 | Item | State |
 |---|---|
-| P0-P9 (in-scope firmware, FreeRTOS wrappers, TinyUSB, CMSIS-DSP functions the firmware calls, Python helpers) | done, approved by the owner |
+| P0-P9 (in-scope firmware, FreeRTOS wrappers, TinyUSB, CMSIS-DSP functions the firmware calls, Python helpers) | done, approved |
 | P10 driver track D0-D3 (TMC4671, ODrive, VESC) | done, approved 2026-11-04 |
-| P11 CMSIS-DSP in scope (all functions and types of the modules the firmware uses) | **in progress: G1 tests written (2026-11-05), review pending** |
-| Open questions for the owner | `Tests/claude/reports/OPEN_QUESTIONS.md` (project 3, 5-8; TMC4671 9-12; ODrive 13-14; VESC 16; P11 17) |
-| Suspected bugs | `Tests/claude/reports/BUG_REPORT.md` (generated, do not hand-edit): firmware bugs numbered up to 193, vendor bugs up to V41, NEEDS REVIEW up to 199 |
+| P11 CMSIS-DSP (G1-G5) | done, approved and pushed 2026-11-10 |
+| P13 TMCDebugBridge, P14 PWM, P15 SimpleMotion, P16 MyActuator | done, approved, committed and pushed 2026-11-10 (`1d30019d` is the last) |
+| P17 MIDI (`MidiMain`, `MidiHandler`, TinyUSB `class/midi`, in `ffb_usb_tests`) | in scope, **not started**: T0 charter is next, only when the owner asks |
+| Open questions | `Tests/claude/reports/OPEN_QUESTIONS.md` (pending 17-23, 32-52) |
+| Suspected bugs | `Tests/claude/reports/BUG_REPORT.md` (generated, do not hand-edit): firmware bugs up to 218, vendor bugs up to V85, NEEDS REVIEW up to 262 |
 
-Whole-project numbers are in `Tests/claude/reports/PROJECT_SUMMARY.md` and `Tests/claude/reports/DRIVER_TRACK_REPORT.md` (driver executable: 938 cases, 0 failed).
+Current counts (GCC 16, 2026-11-10): `ffb_unit_tests` 654 passed / 4 skipped, `ffb_target_tests` 1832, `ffb_flash_tests` 159, `ffb_rtos_tests` 278, `ffb_usb_tests` 287, `ffb_driver_tests` 1717, `ffb_dsp_tests` 2485, Python `claude/python` 115; ctest 11 of 11. The resume point and the exact numbers are in `Tests/claude/plans/PROGRESS.md` ("Current state", "Next action"); whole-project numbers in `Tests/claude/reports/PROJECT_SUMMARY.md`.
 
-### P11 in detail (the unfinished work)
+### Where to continue: P17 MIDI
 
-* Decisions (the owner's): scope = all functions and data types of the CMSIS-DSP modules the firmware uses (FastMath, Controller, Interpolation, Statistics, Filtering, plus helpers `arm_abs_q15/q31`, `arm_add_f32/f16`); oracle = ARM's reference patterns in `Firmware/Libraries/CMSIS-DSP/Testing/Patterns` plus mathematical definitions where ARM has none; new phase with a **stop for approval after each module group G1-G5**.
-* Charter: `Tests/claude/charters/dsp/CMSIS_DSP_REQUIREMENTS.md` (requirements C1-C6, lead decisions L1-L6, groups). Survey of the library and ARM tolerances: `Tests/claude/charters/dsp/CMSIS_DSP_INVENTORY.md`. Work orders for G1: `Tests/claude/charters/dsp/G1_WORK_ORDERS.md`.
-* **Done (G1 infrastructure):** executable `ffb_dsp_tests` (CMake block, own ctest entry, f16 feature check), pattern loader `support/DspPatterns.h/.cpp`, 27 cases (loader self-tests and smoke tests), README section, run_all_tests and coverage integration. Commit `c1348426`.
-* **Done (G1 tests, 2026-11-05, uncommitted until the docs commit):** `claude/cases_dsp/test_dsp_fastmath_{f32,f64,f16,q31,q15}.cpp`, `test_dsp_basicmath_helpers.cpp`. `ffb_dsp_tests` 218 cases, 0 failed (default, clang 23); sanitizer 191 / 0 failed / 27 skipped; ctest 9/9. Suspected vendor bugs V37-V41, NEEDS REVIEW 192-199, open question 17.
-* **Not done:** the fresh-reviewer review and mutation check of the G1 files (scratch copies of the CMSIS-DSP sources, never the repo), the no-DSP/coverage variants, G1 approval; then G2-G5.
-* After G1 the lead must: run the full gate, get a fresh reviewer with mutation checks, update PROGRESS (vendor bug numbers start at V37, NEEDS REVIEW at 192), run `tools/make_bug_report.py`, write a short group report, commit, and **stop for the owner's approval**.
+* Plan: the P17 section of `Tests/claude/plans/P14_P17_REMAINING_DRIVERS_PLAN.md`. Oracles (git-ignored, `Tests/shared/specs/`): `midi10.pdf` (it is the USB MIDI class definition 1.0) and `MIDI_1.0_Detailed_Specification.pdf`. The firmware class is USB-MIDI 1.0 style, so `USB MIDI v2_0.pdf` is not needed.
+* Model for the charter and work orders: `Tests/claude/charters/driver/RMD_REQUIREMENTS.md` and `P16_WORK_ORDERS.md`. Reusable P16 pattern for threads with several `Delay` calls: `support/RmdFixture.h`.
+* Phase shape: T0 charter (draft commit, stop), T1 wiring and fixture (macro `MIDI` on in `ffb_usb_tests` only, stop), T2 tests, review with mutation checks and gate, stop for approval.
 
 ## Rules you must follow (from the owner's `CLAUDE.md`, repeated here because they are strict)
 
@@ -37,10 +36,10 @@ Whole-project numbers are in `Tests/claude/reports/PROJECT_SUMMARY.md` and `Test
 6. Test conventions (full text in `Firmware/Tests/README.md`): use a fixture; test through public interfaces; one behaviour per test; the name is a statement that is true if the test passes; never sleep (advance simulated time); `KNOWN_ISSUE("...")` describes the INTENDED behaviour and fails today because of a suspected defect (the first failing assertion must be the defect), `KNOWN_ISSUE_UB` is the same for undefined behaviour and is skipped in sanitizer builds; never write a test that expects a suspected buggy result without a marker.
 7. Keep the 318 baseline case names (`Firmware/Tests/baseline/test_cases.txt`); never edit existing test files, add new ones; after every CMake or test change rebuild and run `tools/check_baseline.py`.
 8. Host is 64-bit, target is 32-bit ARM with a single-precision FPU: flag any test whose result could differ on target (type sizes, packing, endianness, float/double promotion, integer overflow, signed shifts, out-of-range float-to-int).
-9. Out of scope (confirmed): PWM, MyActuator and SimpleMotion drivers, `TMCDebugBridge`, `MidiMain`/`MidiHandler` (feature macros stay off); ST HAL, CMSIS core, FreeRTOS kernel, `Firmware/Targets/**`, CubeMX code. Fake out-of-scope drivers at their interface.
+9. Out of scope (confirmed): ST HAL, CMSIS core, FreeRTOS kernel, `Firmware/Targets/**`, CubeMX code. Since 2026-11-10 the PWM, SimpleMotion and MyActuator drivers, `TMCDebugBridge` and MIDI are in scope (each feature macro is on in one executable only). Fake any driver that is not built into the executable under test at its interface.
 10. Stop at the end of every phase or module group and wait for the owner's approval. Do not start the next one without it.
 
-Note: `CLAUDE.md` still describes tier C as "only the CMSIS-DSP functions the firmware calls". Since 2026-11-04 tier C covers every function and type of the used modules (P11). The owner has not yet said whether to update that line.
+Note (still true 2026-11-10, owner's file, not changed): `CLAUDE.md` still describes tier C as "only the CMSIS-DSP functions the firmware calls". Since 2026-11-04 tier C covers every function and type of the used modules (P11). The owner has not yet said whether to update that line.
 
 ## Known issues you will meet
 
@@ -75,7 +74,7 @@ Pitfalls seen: writers sometimes locked in a buggy value without a marker (alway
 
 ## Suggested ways to help
 
-* **Continue P11:** review G1 (fresh reviewer, mutation checks), then stop for approval; then G2-G5. Stop after each group.
+* **Continue with P17 (MIDI):** see "Where to continue" above. Stop at each approval gate.
 * **Review the owner's work:** pick a phase, run the gate, mutate the firmware in a scratch copy, read the tests for weak oracles (tests that would pass for a wrong implementation), check every `characterization:` test and its NEEDS REVIEW entry, and check the claims in the bug report against the source. Report findings; do not fix firmware.
 * **Answer open questions** only if the owner gives you the answer; otherwise do not guess.
 

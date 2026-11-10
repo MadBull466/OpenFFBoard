@@ -1,4 +1,4 @@
-# Open questions for me (collected 2026-11-04)
+# Open questions for me (collected 2026-11-04, last synced with `PROGRESS.md` 2026-11-10: questions 1-52)
 
 All questions still waiting for my answer, in one place. The numbers match "Open questions for me" in `Tests/claude/plans/PROGRESS.md` (the source; answered ones are struck through there). The roughly 165 smaller "is this intended?" items about firmware behaviour are the NEEDS REVIEW list in `Tests/claude/reports/BUG_REPORT.md` (open questions section) and are not repeated here.
 

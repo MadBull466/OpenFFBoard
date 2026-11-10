@@ -2,12 +2,11 @@
 
 Keep every existing test in `Firmware/Tests/` and raise line coverage of the in-scope firmware from about 24% to **85% or more** (decided 2026-10-23; hardware-only code is not tested and not counted, see "Coverage goal"). Work in phases, ordered by risk and by lines gained per effort. Permanent rules are in the root `CLAUDE.md`. The two that matter most: **`Firmware/` is read-only except `Firmware/Tests/`, and never push.**
 
-## Where we are (2026-10-21)
+## Where we are (updated 2026-11-10)
 
-- The existing suite works. 318 test cases, 317 run. All pass with CMSIS-DSP on and off. The only sanitizer finding is the vendor spline overflow (known issue 2).
-- A mutation check caught 42 of 48 deliberate code changes. The 6 survivors are test gaps (listed in P1).
-- 24 of 97 firmware source files are compiled into the tests. 63 files (about 9,000 code lines) have no tests. Inside the 24 compiled files about 550 executable lines are never run.
-- Line coverage of in-scope firmware, measured in P0 (`tools/coverage_report.py`, GCC 16, CMSIS-DSP on): 2,136 of about 8,160 executable lines, about 26%. The 24 compiled files are at 79.5% (2,136 of 2,687, gcov). The 5,470 lines of the 63 files that are not compiled are an estimate from their code lines.
+- P0-P11 and P13-P16 are done, approved, committed and pushed to the fork (last commit `1d30019d`). P17 (MIDI) is in scope but not started. The resume point is `Tests/claude/plans/PROGRESS.md`.
+- Original starting point (2026-10-21, kept for the record): 318 test cases, 24 of 97 firmware source files compiled into the tests, in-scope line coverage measured in P0 at 2,136 of about 8,160 lines (26.2 %), mutation check 42 of 48.
+- Today (GCC 16): in-scope firmware coverage 98.9 % (8,007 of about 8,095 lines, 2026-11-09 gcov run); `ffb_unit_tests` 654 / `ffb_target_tests` 1832 / `ffb_flash_tests` 159 / `ffb_rtos_tests` 278 / `ffb_usb_tests` 287 / `ffb_driver_tests` 1717 / `ffb_dsp_tests` 2485 cases, Python 115 tests, ctest 11 of 11. Per-file numbers: `Tests/claude/plans/COVERAGE_AND_SCOPE.md`.
 
 ## How to start or resume
 
@@ -28,28 +27,28 @@ Keep every existing test in `Firmware/Tests/` and raise line coverage of the in-
 
 1. Every executable builds, with DSP on and off.
 2. `tools/check_baseline.py` passes: no baseline case missing or changed.
-3. `ffb_unit_tests` reports 0 failed. On GCC 16 the expected result is 316 passed, 2 skipped with the documented exclusion. On older compilers the exclusion is not needed.
+3. `ffb_unit_tests` reports 0 failed. On GCC 16 the expected result with the documented exclusion is 654 passed, 4 skipped (2026-11-10; it grew with the Claude and Codex gap cases); the 318 baseline cases alone are 316 passed, 2 skipped, which `check_baseline.py` verifies. On older compilers the exclusion is not needed.
 4. A sanitizer run (ASan + UBSan) is clean, apart from the two documented spline cases.
 5. `git status --short Firmware` shows changes only under `Firmware/Tests/`, and no build files were written under `Firmware/`.
 6. If the gate fails, fix it before continuing. Never continue past a red gate.
 
-## Coverage ladder (estimates, replaced by gcov numbers after each phase)
+## Coverage ladder (estimates at plan time; measured results in the last column)
 
 Measured as gcov executable lines of in-scope firmware (P0: about 8,160, of which 2,687 measured by gcov and about 5,470 estimated for the files that are not compiled yet; the earlier estimate was 8,900). Drivers, MIDI, HAL, the RTOS kernel, CubeMX code, TinyUSB and the Python helpers are not in this number.
 
-| Milestone | What gets covered | Est. lines gained | Est. cumulative |
-| --- | --- | --- | --- |
-| Baseline | 24 compiled files | none | **measured: 2,136 of about 8,160 (26.2%)** |
-| P1 | Gaps in the compiled files | about 470 | about 2,610 (29%) |
-| P2 | Axis and main classes | about 790 | about 3,400 (38%) |
-| P3 | Flash and persistence | about 365 | about 3,765 (42%) |
-| P4 | System, callbacks, misc | about 460 | about 4,225 (47%) |
-| P5 | Buttons and analog inputs | about 775 | about 5,000 (56%) |
-| P6 | Encoders and buses | about 640 | about 5,640 (63%) |
-| P7 | CAN and serial FFB | about 420 | about 6,060 (68%) |
-| P8 | RTOS wrappers | about 365 | about 6,425 (72%) |
+| Milestone | What gets covered | Est. lines gained | Est. cumulative | Measured (gcov, after approval) |
+| --- | --- | --- | --- | --- |
+| Baseline | 24 compiled files | none | **measured: 2,136 of about 8,160 (26.2%)** | 26.2 % |
+| P1 | Gaps in the compiled files | about 470 | about 2,610 (29%) | 32.4 % |
+| P2 | Axis and main classes | about 790 | about 3,400 (38%) | 50.5 % |
+| P3 | Flash and persistence | about 365 | about 3,765 (42%) | 55.3 % |
+| P4 | System, callbacks, misc | about 460 | about 4,225 (47%) | 62.6 % |
+| P5 | Buttons and analog inputs | about 775 | about 5,000 (56%) | 76.5 % |
+| P6 | Encoders and buses | about 640 | about 5,640 (63%) | 86.2 % |
+| P7 | CAN and serial FFB | about 420 | about 6,060 (68%) | 93.3 % |
+| P8 | RTOS wrappers | about 365 | about 6,425 (72%) | 98.9 % |
 
-The cumulative percentages of P1 to P8 still use the old 8,900 denominator; with the measured 8,160 the same line gains would reach about 79% after P8. They are replaced by gcov numbers after each phase.
+The cumulative percentages of P1 to P8 still use the old 8,900 denominator; with the measured 8,160 the same line gains would reach about 79% after P8. They were replaced by the measured numbers in the last column (98.9 % after P8, goal 85 % reached at P6). P9-P17 add vendor and driver tiers that are not part of this ladder.
 
 ### Coverage goal (2026-10-23)
 
@@ -67,7 +66,10 @@ The cumulative percentages of P1 to P8 still use the old 8,900 denominator; with
 | `ffb_target_tests` | F407 feature set minus drivers, real `Axis.h`; Axis, main classes, inputs, encoders, buses, CAN, system | P2 |
 | `ffb_flash_tests` | Real `flash_helpers.cpp` and `eeprom.c` on a fake HAL FLASH | P3 |
 | `ffb_rtos_tests` | The `cpp_freertos` wrappers on a fake RTOS | P8 |
-| `ffb_usb_tests` | TinyUSB device code on a fake USB controller | P9 |
+| `ffb_usb_tests` | TinyUSB device code on a fake USB controller; MIDI (P17, planned) | P9 |
+| `ffb_driver_tests` | TMC4671, ODrive, VESC, TMCDebugBridge, PWM, SimpleMotion, MyActuator drivers against simulated peers | P10, P13-P16 |
+| `ffb_dsp_tests` | CMSIS-DSP modules the firmware uses, against ARM's reference patterns | P11 |
+| `python_helper_tests` | the two Python helpers (stdlib `unittest`) | P9 |
 
 They share one static library of platform fakes. Firmware sources are compiled per executable. The feature header for `ffb_target_tests` is built from the real F407 `target_constants.h`: copy its feature macros, remove the driver macros (`TMC4671DRIVER`, `PWMDRIVER`, `ODRIVE`, `VESC`, `SIMPLEMOTION`, `RMDCAN`, `TMCDEBUG`), leave `MIDI` off, and show me the diff before using it.
 
@@ -147,7 +149,7 @@ Estimated gain about 640 lines.
 
 - `EncoderLocal`, `EncoderSSI`, `EncoderBissC` (CRC6, error and warning bits, multiturn), `MtEncoderSPI` (parity, status), `CRC` against known check values.
 - `SPI`, `I2C` and their handlers, `TimerHandler`, `ExtiHandler`: port and device arbitration, callbacks.
-- Driver encoders (TMC, ODrive, VESC, RMD, SimpleMotion) stay out of scope.
+- Driver encoders (TMC, ODrive, VESC, RMD, SimpleMotion) are not part of this phase; they are tested with their drivers in P10 and P13-P16 (`ffb_driver_tests`).
 
 ### P7: CAN and serial FFB (`ffb_target_tests`)
 
@@ -178,6 +180,14 @@ Status 2026-11-10: P11 complete. G1 (infrastructure, FastMath, helpers), G2 (Int
 
 Added 2026-11-04 at my request. Scope: all functions and all data types (f64, f32, f16, q31, q15, q7 where they exist) of the CMSIS-DSP modules the firmware uses (fast math, filtering, interpolation, controller, and the basic/support/common-table helpers they depend on), not only the functions the firmware calls. Oracle: ARM's reference patterns in `Firmware/Libraries/CMSIS-DSP/Testing/Patterns` (vendor-generated expected results) plus the mathematical definition / hand derivation for edge cases; never the library's own output. Same method as the driver track (Sonnet inventory, lead charter, Sonnet writers in parallel, fresh reviewer with mutation spot-check in a scratch copy, lead QC). Stop for my approval after each module group. Vendor bugs are reported, never fixed.
 
+### P13-P16: TMCDebugBridge, PWM, SimpleMotion, MyActuator (`ffb_driver_tests`)
+
+Added 2026-11-10 (owner). P13: `TMCDebugBridge.cpp`, `Tests/claude/plans/P13_TMCDEBUGBRIDGE_PLAN.md`. P14-P16: `MotorPWM.cpp`, `MotorSimplemotion.cpp`, `RmdMotorCAN.cpp`, `Tests/claude/plans/P14_P17_REMAINING_DRIVERS_PLAN.md`. Each phase had T0 (charter), T1 (wiring, fake, fixture) and T2 (tests, review with mutation checks, gate), with a stop for approval. Status: all four complete and pushed. Results: `TMCDebugBridge.cpp` 166 / 166 lines, `MotorPWM.cpp` 191 / 191, `MotorSimplemotion.cpp` 294 / 300, `RmdMotorCAN.cpp` 231 / 231; `ffb_driver_tests` 1717 cases; details in `PROGRESS.md` and `Tests/claude/reports/DRIVER_TRACK_REPORT.md`.
+
+### P17: MIDI (`MidiMain`, `MidiHandler`, TinyUSB `class/midi`; `ffb_usb_tests`)
+
+Added 2026-11-10 (owner). Status: in scope, not started. Oracles supplied: `midi10.pdf` (USB Device Class Definition for MIDI Devices 1.0) and `MIDI_1.0_Detailed_Specification.pdf`; the firmware class is USB-MIDI 1.0 style, so `USB MIDI v2_0.pdf` is not needed. Where the specs are silent the tests are `characterization:`. The macro `MIDI` is turned on in `ffb_usb_tests` only, at T1. Next step: the T0 charter `Tests/claude/charters/driver/MIDI_REQUIREMENTS.md`, started only when the owner asks. See the P17 section of `P14_P17_REMAINING_DRIVERS_PLAN.md`.
+
 ## Fake fidelity rules
 
 Every fake (HAL peripheral, kernel, bus, peer device) states in its header:
@@ -205,7 +215,7 @@ Fidelity entries for the driver peers are kept in the "Driver track" section of 
 ## Scope and known issues (unchanged)
 
 - In scope: firmware outside `Firmware/Libraries/`, plus the vendor tiers A, B, C above. Since 2026-11-04 (P11) tier C covers every function and data type of the CMSIS-DSP modules the firmware uses. Not tested: ST HAL, CMSIS core, the FreeRTOS kernel, `Firmware/Targets/**`, CubeMX code.
-- In scope since 2026-11-10 (P14 PWM, P15 SimpleMotion, P16 MyActuator, P17 MIDI incl. TinyUSB `class/midi`; plan `P14_P17_REMAINING_DRIVERS_PLAN.md`, not started): their feature macros stay off until each phase's T1. The TMC4671, ODrive and VESC drivers are in scope since 2026-11-03 (P10, `ffb_driver_tests` only). `TMCDebugBridge` is in scope since 2026-11-10 (P13, complete, `ffb_driver_tests` only, `TMCDEBUG` on there).
+- In scope since 2026-11-10 (P14 PWM, P15 SimpleMotion, P16 MyActuator, P17 MIDI incl. TinyUSB `class/midi`; plan `P14_P17_REMAINING_DRIVERS_PLAN.md`): P14, P15 and P16 are complete (their macros are on in `ffb_driver_tests` only); P17 is not started and `MIDI` stays off until its T1. The TMC4671, ODrive and VESC drivers are in scope since 2026-11-03 (P10, `ffb_driver_tests` only). `TMCDebugBridge` is in scope since 2026-11-10 (P13, complete, `ffb_driver_tests` only, `TMCDEBUG` on there).
 - **Known issue 1:** `effectsForces` out-of-bounds read aborts on GCC 16. Exclude only the case `requesting the forces of a not existing axis is rejected`.
 - **Known issue 2:** CMSIS-DSP `arm_spline_f32` overflow found by ASan. Skip only the two spline cases in sanitizer runs.
 - **Known issue 3:** the skipped case `command with an unknown id is rejected` (`test_command_execution.cpp:186`) stays skipped. `executeCommands` dereferences the command definition before the null check.
@@ -215,4 +225,4 @@ Fidelity entries for the driver peers are kept in the "Driver track" section of 
 
 - New tests, fakes, mocks and CMake changes in `Firmware/Tests/`, plus `baseline/test_cases.txt` and `tools/` (baseline checker, coverage script).
 - Updated `Firmware/Tests/README.md`: new executables, case directories, options, the exclusion variable, tools, vendor tiers, suite table, limitations and next steps.
-- Final report in `Tests/claude/plans/PROGRESS.md` or `Tests/REPORT.md`: measured coverage per module against the ladder, what is excluded and why, survivors, `NEEDS REVIEW` items, suspected firmware and vendor bugs, host-vs-target caveats, untestable code with refactor suggestions, and any CI changes I need to make myself.
+- Final report in `Tests/claude/plans/PROGRESS.md` and `Tests/claude/reports/PROJECT_SUMMARY.md`: measured coverage per module against the ladder, what is excluded and why, survivors, `NEEDS REVIEW` items, suspected firmware and vendor bugs, host-vs-target caveats, untestable code with refactor suggestions, and any CI changes I need to make myself.

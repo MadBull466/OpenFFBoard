@@ -1,6 +1,6 @@
 # Driver track D2: ODrive report (2026-11-03)
 
-Status: **D2 complete, approved by me 2026-11-04.** D3 (VESC) not started: it needs my explicit authorisation and the VESC CAN protocol spec (packet ids, scaling, buffer/CRC scheme).
+Status (historic report; D3 and P13-P16 were completed later, see `PROGRESS.md`): **D2 complete, approved by me 2026-11-04.** D3 (VESC) not started: it needs my explicit authorisation and the VESC CAN protocol spec (packet ids, scaling, buffer/CRC scheme).
 
 Details and the resume point: `Tests/claude/plans/PROGRESS.md` ("Driver track" section). Requirements, spec facts and all lead decisions (L1-L16): `Tests/claude/charters/driver/ODRIVE_REQUIREMENTS.md`. Bugs: `Tests/claude/reports/BUG_REPORT.md` (bugs 169-178).
 
