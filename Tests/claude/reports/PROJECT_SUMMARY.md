@@ -9,7 +9,7 @@ are in `Tests/claude/plans/PROGRESS.md` (the source of truth); all suspected bug
 > pushed to the fork. Current counts (GCC 16): `ffb_unit_tests` 654, `ffb_target_tests` 1832, `ffb_flash_tests` 159, `ffb_rtos_tests` 278, `ffb_usb_tests` 287,
 > `ffb_driver_tests` 1717, `ffb_dsp_tests` 2485 = 7,412 C++ cases (unit tests counted with the documented exclusion), 115 Python tests, ctest 11 of 11. Suspected firmware bugs are numbered up to 218,
 > vendor bugs up to V85, NEEDS REVIEW up to 262, open questions up to 52. Remaining out of scope: ST HAL, CMSIS core, FreeRTOS kernel, `Firmware/Targets/**`,
-> CubeMX code; MIDI is in scope but not started (P17). The authoritative numbers are in `Tests/claude/plans/PROGRESS.md` and `Tests/claude/plans/COVERAGE_AND_SCOPE.md`.
+> CubeMX code; MIDI is in scope, P17 T0 charter drafted and waiting for approval. The authoritative numbers are in `Tests/claude/plans/PROGRESS.md` and `Tests/claude/plans/COVERAGE_AND_SCOPE.md`.
 
 ## Result in one paragraph
 

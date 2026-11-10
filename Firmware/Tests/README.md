@@ -812,7 +812,7 @@ P13-P16: TMCDebugBridge, PWM, SimpleMotion, MyActuator; the final report of the 
   is first in the include path, so only this header is shadowed (`main.h` etc. come from `platform/target_f407`).
 * **Driver sources:** `FFBoard/UserExtensions/Src/TMC4671.cpp`, `TMC4671_configs.cpp`, `ODriveCAN.cpp` and `VescCAN.cpp`
   on top of the firmware and platform sources of `ffb_target_tests` (fake HAL SPI and CAN), and (P13) `TMCDebugBridge.cpp`
-  (its fixture is `support/TmcDebugFixture.h`: `TmcFixture` plus the CDC capture). `MotorPWM.cpp` (P14, `PWMDRIVER` on in this executable only; fixture `support/PwmFixture.h`) is compiled since P14, `MotorSimplemotion.cpp` (P15, `SIMPLEMOTION` on in this executable only with GCC; fixture `support/SmFixture.h`, fake device `fakes/FakeSmDevice.h` on `huart3` through the neutral `HostPlatform::UartPeer` hook; the host `xSemaphoreTake` polls the peer while a finite wait on the test thread cannot be satisfied) since P15. `RmdMotorCAN.cpp` (P16, `RMDCAN` on in this executable only, also with clang; fake motor `fakes/FakeRmdPeer.h` on the fake CAN, fixture `support/RmdFixture.h`, which parks every `Delay` of the RMD thread by setting the delay budget to 1 ms and measuring the clock jump) is compiled since P16. The MIDI sources are not compiled outside the `class/midi` TinyUSB driver of `ffb_usb_tests` yet (P17, charter not written).
+  (its fixture is `support/TmcDebugFixture.h`: `TmcFixture` plus the CDC capture). `MotorPWM.cpp` (P14, `PWMDRIVER` on in this executable only; fixture `support/PwmFixture.h`) is compiled since P14, `MotorSimplemotion.cpp` (P15, `SIMPLEMOTION` on in this executable only with GCC; fixture `support/SmFixture.h`, fake device `fakes/FakeSmDevice.h` on `huart3` through the neutral `HostPlatform::UartPeer` hook; the host `xSemaphoreTake` polls the peer while a finite wait on the test thread cannot be satisfied) since P15. `RmdMotorCAN.cpp` (P16, `RMDCAN` on in this executable only, also with clang; fake motor `fakes/FakeRmdPeer.h` on the fake CAN, fixture `support/RmdFixture.h`, which parks every `Delay` of the RMD thread by setting the delay budget to 1 ms and measuring the clock jump) is compiled since P16. The MIDI sources are not compiled outside the `class/midi` TinyUSB driver of `ffb_usb_tests` yet (P17, T0 charter drafted).
 * **Platform:** `platform/src/host_driver_timers.cpp` adds the fake TIM6 (`htim6`, as left by `MX_TIM6_Init`) and, since P14, the fake TIM1 with PWM output compare (`htim1`, strict `HAL_TIM_PWM_ConfigChannel` / `_Start` / `_Stop`, the board table `MotorPWM::timerConfig`; no counter, no shadow registers, see the file header), which the
   TMC4671 driver uses as its external encoder timer. It is reset by `HostTarget::reset()` through
   `HostTarget::addResetHook`; the other executables do not link it.
@@ -919,7 +919,7 @@ report tool `tools/run_all_tests.py` with synthetic doctest XML and tables (no t
 * The host is a 64 bit little endian machine with a different compiler backend. Stack usage, timing, alignment
   faults and float to integer conversions of out of range values are not covered.
 * No preemption. Race conditions between threads and interrupts can not be found.
-* Only the TMC4671, ODrive, VESC, PWM, SimpleMotion and MyActuator drivers and `TMCDebugBridge` are compiled (in `ffb_driver_tests` only); `MidiMain` / `MidiHandler` are not (P17 pending). `Axis`, the main classes and `SystemCommands` are only
+* Only the TMC4671, ODrive, VESC, PWM, SimpleMotion and MyActuator drivers and `TMCDebugBridge` are compiled (in `ffb_driver_tests` only); `MidiMain` / `MidiHandler` are not (P17: charter drafted, T1 pending). `Axis`, the main classes and `SystemCommands` are only
   compiled in `ffb_target_tests`.
 * Outside `ffb_usb_tests` the USB descriptors are not parsed; the report layouts are compared with constants in the
   tests. `ffb_usb_tests` parses the configuration descriptor during the enumeration (interfaces and endpoints only).
@@ -930,7 +930,7 @@ report tool `tools/run_all_tests.py` with synthetic doctest XML and tables (no t
 
 * **P17 (MIDI):** `MidiMain`, `MidiHandler` and the TinyUSB `class/midi` code are in scope since 2026-11-10 (macro `MIDI` in
   `ffb_usb_tests` only). Oracles supplied: the USB class definition for MIDI devices 1.0 (`midi10.pdf`) and the MIDI 1.0
-  detailed specification. Next is the T0 requirements charter; it has not been started (see "Next action" in
+  detailed specification. The T0 requirements charter `Tests/claude/charters/driver/MIDI_REQUIREMENTS.md` is drafted and waits for the owner's approval; T1 and T2 are not started (see "Next action" in
   `Tests/claude/plans/PROGRESS.md`).
 * Open questions (CI job, Windows / macOS verification, P11 to P16 decisions) are in `Tests/claude/reports/OPEN_QUESTIONS.md`;
   suspected bugs and NEEDS REVIEW items in `Tests/claude/reports/BUG_REPORT.md`.

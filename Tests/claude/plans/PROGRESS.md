@@ -6,7 +6,7 @@
 
 ## Current state
 
-- **Current phase:** P16 MyActuator complete (T0-T2 approved, committed and pushed 2026-11-10, `1d30019d`). P0-P11 and P13-P16 done and approved. **P17 MIDI is in scope but not started** (T0 charter not written, waiting for the owner's "start P17 T0").
+- **Current phase:** P17 MIDI T0: the requirements charter `Tests/claude/charters/driver/MIDI_REQUIREMENTS.md` is written (draft, committed, waiting for the owner's approval; started 2026-11-10 at the owner's request). P0-P11 and P13-P16 done and approved.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system"). Fork `MadBull466/OpenFFBoard` is at `1d30019d` (pushed 2026-11-10).
 - **Last updated:** 2026-11-10 (documentation review after P16; no source change)
 - **Measured on the P16 gate builds (2026-11-10, GCC 16):** `ffb_unit_tests` 654 passed / 4 skipped with the documented exclusion (baseline check OK, 340 new cases), `ffb_target_tests` 1832 (18 skipped), `ffb_flash_tests` 159, `ffb_rtos_tests` 278, `ffb_usb_tests` 287, `ffb_driver_tests` 1717 (9 skipped; 1701 run in the sanitizer build, 1494 with clang), `ffb_dsp_tests` 2485 (5 skipped), Python `claude/python` 115 tests; ctest 11 of 11 (default, sanitizer, clang, coverage), 10 of 10 with DSP off. Driver tier 3262 / 3484 lines (93.6 %).
@@ -15,11 +15,11 @@
 
 ## Next action
 
-**P17 MIDI T0 (not started).** When the owner says "start P17 T0": read the P17 section of `P14_P17_REMAINING_DRIVERS_PLAN.md`, `RMD_REQUIREMENTS.md` (charter shape), `MidiMain`, `MidiHandler`, TinyUSB `class/midi` and the `ffb_usb_tests` fixtures and fakes; write `Tests/claude/charters/driver/MIDI_REQUIREMENTS.md` (oracles: USB MIDI class definition 1.0 for packets, code index numbers, descriptors and requests; MIDI 1.0 detailed spec for message bytes; `characterization:` where both are silent; version decision USB-MIDI 1.0; fake plan for MIDI bulk endpoints; writer groups; owner questions from number 53); commit it as a draft and stop for approval before T1. The macro `MIDI` is turned on in `ffb_usb_tests` only, at T1.
+**P17 MIDI T0 is a draft waiting for the owner's approval.** Charter `Tests/claude/charters/driver/MIDI_REQUIREMENTS.md`: oracles (USB MIDI class definition 1.0 `midi10.pdf`, MIDI 1.0 detailed spec, hand derivations, `characterization:` where both are silent), requirements R1-R12 (identity and chooser, `MidiHandler::midiRx` decoding, `tud_midi_rx_cb`, `MidiMain` notes and synthesis, descriptors, class driver open / reset / requests, byte stream and packet API, end to end), defect candidates (firmware B-MIDI-1..6 reserved as bugs 219-224, vendor V86-V88, candidate B-MIDI-7), fake plan (feature header `platform/usb_midi`, recording TMC4671 double as a shadow header, fake `htim9`, `UsbHost::midiInterface()`, `MidiFixture`), writer groups MHD / MMN / MCD / MCS (about 270 cases), lead decisions L1-L6 (USB-MIDI 1.0 is the version; `MidiMain` in `ffb_usb_tests` with a driver double) and owner questions 53-61. The charter's important finding: `MidiMain` builds a `TMC_1`, so `MIDI` cannot simply be switched on in `ffb_usb_tests` (question 53).
 
-`Tests/shared/specs/midi10.pdf` (USB-MIDI 1.0 class definition) was briefly missing and is restored (2026-11-10); both P17 oracles are in place.
+After the owner approves T0: T1 (feature header, driver double, fake timer, host helper, `MidiFixture`, skeleton cases, gate, stop), then T2 (writers, reviewers, gate, docs, stop). Next numbers when T2 assigns them: firmware bug 219, vendor bug V86, NEEDS REVIEW 263, open question 62.
 
-Pending decisions: open questions 17-23 (P11) and 32-52 (P14-P16); the CLAUDE.md wording of tier C ("only the CMSIS-DSP functions the firmware calls", since P11 it is every function of the used modules) and of the P17 spec line (`USB MIDI v2_0.pdf`, now `midi10.pdf` and `MIDI_1.0_Detailed_Specification.pdf`) is the owner's file and has not been changed.
+Pending decisions: open questions 17-23 (P11), 32-52 (P14-P16) and 53-61 (P17); the CLAUDE.md wording of tier C ("only the CMSIS-DSP functions the firmware calls", since P11 it is every function of the used modules) and of the P17 spec line (`USB MIDI v2_0.pdf`, now `midi10.pdf` and `MIDI_1.0_Detailed_Specification.pdf`) is the owner's file and has not been changed.
 
 ## Phase checklist
 
@@ -44,7 +44,7 @@ Pending decisions: open questions 17-23 (P11) and 32-52 (P14-P16); the CLAUDE.md
 | P14 PWM driver | `ffb_driver_tests` | `MotorPWM.cpp` 100 % (191 / 191) | done | yes, 2026-11-10 | `ac6d66a6` (T0), `70bf9659` (T1), `c688687b` (T2) |
 | P15 SimpleMotion driver | `ffb_driver_tests` (not with clang) | `MotorSimplemotion.cpp` 98.0 % (294 / 300) | done | yes, 2026-11-10 | `cf3d341e` (T0), `ff86dd7e` (T1), `999872fa` (T2) |
 | P16 MyActuator RMD driver | `ffb_driver_tests` | `RmdMotorCAN.cpp` 100 % (231 / 231) | done | yes, 2026-11-10 | `6b2315e1` (T0), `70a7598b` (T1), `1d30019d` (T2) |
-| P17 MIDI (`MidiMain`, `MidiHandler`, TinyUSB `class/midi`) | `ffb_usb_tests` | not measured (`midi_device.c` 30 / 204 today) | in scope, not started | n/a | |
+| P17 MIDI (`MidiMain`, `MidiHandler`, TinyUSB `class/midi`) | `ffb_usb_tests` | not measured (`midi_device.c` 30 / 204 today) | T0 charter drafted 2026-11-10, waiting for approval | T0: no | see `git log` (T0 draft commit) |
 
 ## Decisions log
 
@@ -1664,6 +1664,15 @@ All open ones are also collected in `Tests/claude/reports/OPEN_QUESTIONS.md` (ke
 50. **P16 design points.** (a) In the passive default the status (0x9A, the only source of the error flags) is never requested, so motor errors (over temperature, over current) are never seen; (b) the firmware never sends 0x77 (brake release), which SP 2.19 requires for a motor with a brake; (c) the 0x94 handler mixes revolutions and degrees and is never requested; (d) `canid` changes only the host side id (the motor id is set with 0x79). Intended (charter: `characterization:` / NEEDS REVIEW)?
 51. **P16 `maxtorque` status (B-RMD-8, found in T2).** `command()` calls `handleGetSet` for `maxtorque` and ignores the returned status (`RmdMotorCAN.cpp:350-352`): an unsupported command type answers OK, every other RMD command answers ERR. Reachable only if the parser's flag check lets the type through. Defect (tests: `KNOWN_ISSUE`)?
 52. **P16 `ErrorStatus` with two overtemperature bits (B-RMD-4).** SP 2.14 has 0x0800 (component) and 0x1000 (motor) overtemperature, the public struct has one `overtemp` flag (bit 8) and no flag for 0x4000 (encoder data error, falls into `res2`). Should the struct get two flags and the missing one (tests: both bits are separate `KNOWN_ISSUE` cases of the single flag)?
+53. **P17 where `MidiMain` is tested.** `MidiMain` creates a `TMC_1` driver, so it cannot be built into `ffb_usb_tests` without the TMC4671 code. Proposal (lead L1): keep `MIDI` in `ffb_usb_tests` only and use a recording double of the TMC4671 interface (shadow header + `FakeTmcPhase`), the real driver stays in `ffb_driver_tests`. Option B: test `MidiMain` in `ffb_driver_tests` with the real TMC4671 and `FakeTmc4671`, which turns `MIDI` on in a second executable. Which one?
+54. **P17 note pitch.** `play()` computes `sinf(pi * counter * f)`, so the phase oscillates at half the note frequency (A4 plays at 220 Hz). Is that intended (an octave below on purpose, e.g. because the rotor force is rectified) or a defect (it should be `2 * pi`)? Also: the A440 note table is not in the supplied documents; confirm that note 69 is 440 Hz.
+55. **P17 pitch bend.** (a) The bend range is one octave (`2^(val / 8192)`); the MIDI 1.0 document leaves the sensitivity to the receiver (the usual default is two semitones). Intended? (b) A bend only affects the notes sounding at that moment, a later note ignores it (B-MIDI-2): defect (a bend is channel state) or intended?
+56. **P17 mode messages and pressure.** Control changes 124-127 do not clear the notes (the MIDI document says 123-127 also act as All Notes Off but a receiver may ignore them); channel pressure is dropped without any hook. Intended?
+57. **P17 cable number.** `midiRx` ignores the cable number: all cables are one instrument. Intended (the board has one MIDI port)?
+58. **P17 unparsed bytes and `sysexState`.** (B-MIDI-4) Single byte packets (CIN 0xF) with data bytes are decoded as events (note off for note 0); (B-MIDI-3) `sysexState` stays set after a SysEx that ends in byte 2 or 3. Defects (`KNOWN_ISSUE`) or acceptable (no host sends them, `sysexState` is not read anywhere)?
+59. **P17 `range` and `power`.** Both commands accept any 32 bit value; `range` above 32767 makes the float to `int16_t` conversion in `play` undefined (B-MIDI-5). Add a limit (defect) or document?
+60. **P17 input without a handler.** (B-MIDI-6) If MIDI packets arrive while no `MidiHandler` exists, the OUT endpoint is not armed again and the MIDI input stays dead after a handler appears. Only reachable in a configuration where the MIDI interface is enumerated without `MidiMain`; defect or out of scope?
+61. **P17 USB-MIDI descriptor details.** (a) Table 6-2 says wTotalLength covers the header and the jack / element descriptors, the worked example (Table B-6) and TinyUSB include the endpoint descriptors (0x41). The test uses 0x41; agree? (b) Vendor findings V86-V88 (real-time CIN, reserved CIN count, real-time inside SysEx) are reported, never fixed: nothing for you to decide unless you want them upstream.
 
 ## Resume instructions
 

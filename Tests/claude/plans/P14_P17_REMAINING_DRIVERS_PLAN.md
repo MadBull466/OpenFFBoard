@@ -1,6 +1,6 @@
-# P14-P17 plan: PWM (P14), SimpleMotion (P15), MyActuator (P16), MIDI (P17) (2026-11-10; P14, P15 and P16 complete and pushed, P17 not started)
+# P14-P17 plan: PWM (P14), SimpleMotion (P15), MyActuator (P16), MIDI (P17) (2026-11-10; P14, P15 and P16 complete and pushed, P17 T0 charter drafted and waiting for approval)
 
-Scope change (owner, 2026-11-10): these are now IN scope. Status 2026-11-10 (documentation review): P14, P15 and P16 are built, tested and approved; P17 (MIDI) is waiting for its T0 charter. `CLAUDE.md`, `AGENTS.md`, `TEST_PLAN.md` and `COVERAGE_AND_SCOPE.md` are updated; the feature headers are changed per phase (T1).
+Scope change (owner, 2026-11-10): these are now IN scope. Status 2026-11-10 (documentation review): P14, P15 and P16 are built, tested and approved; P17 (MIDI): T0 charter `Tests/claude/charters/driver/MIDI_REQUIREMENTS.md` drafted, waiting for approval. `CLAUDE.md`, `AGENTS.md`, `TEST_PLAN.md` and `COVERAGE_AND_SCOPE.md` are updated; the feature headers are changed per phase (T1).
 
 ## Units
 
