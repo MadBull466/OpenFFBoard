@@ -45,8 +45,8 @@ Headers of these modules: 392 / 413 lines (94.9 %).
 | `USB/tusb.c` | 96.4 % (160 / 166) |
 | `USB/class/midi/midi_device.c` (MIDI is out of scope, compiled only because `usbd.c` needs it) | 14.7 % (30 / 204) |
 
-### 1.4 Driver track (`ffb_driver_tests`, 938 cases, outside the ladder)
-`TMC4671.cpp` 89.8 % (1,731 / 1,928), `ODriveCAN.cpp` 97.8 % (263 / 269), `VescCAN.cpp` 95.7 % (382 / 399); driver tier 91.5 %. `TMC4671_configs.cpp` is part of the TMC4671 suite; no separate figure was recorded.
+### 1.4 Driver track (`ffb_driver_tests`, 1097 cases, outside the ladder)
+`TMC4671.cpp` 89.8 % (1,731 / 1,928), `ODriveCAN.cpp` 97.8 % (263 / 269), `VescCAN.cpp` 95.7 % (382 / 399), `TMCDebugBridge.cpp` 100 % (166 / 166, phase P13, TMCL frames on the CDC port against the supplied TMCL reference; the opcodes 143 / 146 / 148 are `characterization:` only); driver tier 92.0 % (2,542 / 2,762). `TMC4671_configs.cpp` is part of the TMC4671 suite; no separate figure was recorded.
 
 ### 1.5 CMSIS-DSP (tier C and P11)
 - Tier C, the 10 functions the firmware calls (100 %, 198 / 198 lines): `arm_sin_f32`, `arm_cos_f32`, `arm_biquad_cascade_df1_f32` and `_init_f32`, `arm_spline_interp_f32` and `_init_f32`, `arm_std_f32`, `arm_var_f32`, `arm_pid_init_f32`, `arm_pid_reset_f32`.
@@ -61,7 +61,7 @@ Headers of these modules: 392 / 413 lines (94.9 %).
 | PWM driver `MotorPWM.cpp` | Driver not selected (faked at the interface by `MockMotorDriver`) |
 | MyActuator driver `RmdMotorCAN.cpp` | same |
 | SimpleMotion driver `MotorSimplemotion.cpp` | same |
-| ~~`TMCDebugBridge.cpp`~~ | In scope since 2026-11-10 (owner's decision, phase P13, plan `Tests/claude/plans/P13_TMCDEBUGBRIDGE_PLAN.md`); not yet built into any executable, no tests yet; target `ffb_driver_tests` |
+| ~~`TMCDebugBridge.cpp`~~ | In scope since 2026-11-10 (owner's decision, phase P13, plan `Tests/claude/plans/P13_TMCDEBUGBRIDGE_PLAN.md`); built into `ffb_driver_tests` only (`TMCDEBUG` on there), see section 1.4 |
 | MIDI: `MidiMain.cpp`, `MidiHandler.cpp` (and `class/midi` in TinyUSB) | Not selected, feature macro kept off |
 | Other CMSIS-DSP modules: Matrix, Transform, Complex, Distance, Quaternion, SVM, Bayes, Window, rest of Support, Helium / Neon variants, `dsppp`, Python wrapper | Not used by the firmware |
 | Hardware access, flashing, real USB / CAN / serial, network | Never part of host tests |

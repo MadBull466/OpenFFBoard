@@ -16,7 +16,7 @@ The report (Markdown, stdout) separates:
   dsp        the in-scope CMSIS-DSP modules of ffb_dsp_tests (phase P11, Tests/claude/charters/dsp/CMSIS_DSP_REQUIREMENTS.md). Own section,
              built from the .gcda files of the CMake targets ffb_cmsis_dsp, ffb_cmsis_dsp_f16 and ffb_dsp_tests ONLY, so the
              numbers of tier C (the other executables) stay comparable. NOT part of the in-scope coverage ladder.
-  driver     the driver track (Tests/claude/plans/DRIVER_TEST_PLAN.md): TMC4671.cpp, TMC4671_configs.cpp, ODriveCAN.cpp, VescCAN.cpp.
+  driver     the driver track (Tests/claude/plans/DRIVER_TEST_PLAN.md): TMC4671.cpp, TMC4671_configs.cpp, ODriveCAN.cpp, VescCAN.cpp, TMCDebugBridge.cpp (P13).
              Own section; NOT part of the in-scope coverage ladder (its total is unchanged by the driver track)
 Firmware/Tests/, the remaining out-of-scope drivers, MIDI, the rest of Libraries/ and Targets/ are not reported.
 
@@ -51,9 +51,9 @@ COVERAGE_TARGET = 85.0  # % of in-scope lines without hardware-only code (Tests/
 DEFAULT_FIRMWARE_DIR = os.path.normpath(os.path.join(TOOLS_DIR, "..", ".."))
 
 # Driver and MIDI code that is out of scope (Tests/claude/plans/PROGRESS.md, "Out-of-scope driver files")
-OUT_OF_SCOPE = {"TMCDebugBridge", "MotorPWM", "RmdMotorCAN", "MotorSimplemotion", "MidiMain", "MidiHandler"}
+OUT_OF_SCOPE = {"MotorPWM", "RmdMotorCAN", "MotorSimplemotion", "MidiMain", "MidiHandler"}
 # The three drivers of the driver track (ffb_driver_tests): reported in their own tier, not in the ladder
-DRIVER_TRACK = {"TMC4671", "TMC4671_configs", "ODriveCAN", "VescCAN"}
+DRIVER_TRACK = {"TMC4671", "TMC4671_configs", "ODriveCAN", "VescCAN", "TMCDebugBridge"}  # TMCDebugBridge: P13 (in scope since 2026-11-10)
 # ffb_dsp_tests: the CMSIS-DSP sources are built by these CMake targets (object directories CMakeFiles/<target>.dir)
 DSP_TARGET_DIRS = ("/ffb_cmsis_dsp.dir/", "/ffb_cmsis_dsp_f16.dir/", "/ffb_dsp_tests.dir/")
 # In-scope CMSIS-DSP modules (CMakeLists.txt, ffb_dsp_tests): every arm_*.c of these directories, plus CommonTables

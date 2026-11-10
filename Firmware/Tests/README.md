@@ -280,7 +280,10 @@ Headers in `support/`:
 | Suites | Files | Tested firmware |
 |---|---|---|
 | `DriverSetup` | `test_driver_setup.cpp` | Skeleton (phase D0, P13): the feature macros of the executable (TMC4671, ODrive, VESC and, since P13, TMCDEBUG on; MIDI, RMDCAN, PWMDRIVER, SIMPLEMOTION off) |
-| `TMCDebugBridge setup` | `test_tmcdebug_setup.cpp` | P13 T1 skeleton: the `TmcDebugFixture` frame helper, construction on the fake TMC4671, identity, the non-TMCL frame path (more in T2) |
+| `TMCDebugBridge setup` | `test_tmcdebug_setup.cpp` | P13: the `TmcDebugFixture` frame helper, construction on the fake TMC4671, identity, the non-TMCL frame path |
+| `TMCDebugBridge commands` | `test_tmcdebug_commands.cpp` | P13: the text commands `reg`, `torque`, `pos`, `velocity`, `mode`, `openloopspeed`, `openloopspeedpwm` against the register traffic at the fake chip (56 cases) |
+| `TMCDebugBridge frames` | `test_tmcdebug_frames.cpp` | P13: TMCL binary frames on the CDC port: checksum, reply layout, GGP / GIO / version, silent drops as `KNOWN_ISSUE` (85 cases; specs `Tests/shared/specs/TMCL_reference.pdf` and the TOSV / LEV manuals) |
+| `TMCDebugBridge lifecycle` | `test_tmcdebug_lifecycle.cpp` | P13: constructor / destructor effects, limits, flash restore, chooser, `tmcpids` not applied (23 cases) |
 
 `ffb_usb_tests` (`claude/cases_usb/`):
 
@@ -786,7 +789,7 @@ descriptors and the TinyUSB callbacks of `global_callbacks.cpp`.
 ## `ffb_driver_tests`: the TMC4671, ODrive and VESC drivers (driver track)
 
 A sixth executable built by the same `CMakeLists.txt` and run by `ctest` (driver track, `Tests/claude/plans/DRIVER_TEST_PLAN.md`,
-phases D0-D3). It tests the real motor drivers against simulated peers, not their hardware (938 cases; final report
+phases D0-D3). It tests the real motor drivers against simulated peers, not their hardware (1097 cases incl. 167 of P13; final report
 `Tests/claude/reports/DRIVER_TRACK_REPORT.md`):
 
 * **Feature header:** `platform/target_f407_drivers/target_constants.h` is the `ffb_target_tests` header plus
