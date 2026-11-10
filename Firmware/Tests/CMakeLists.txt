@@ -658,7 +658,9 @@ endif()
 #  - C sources with -fexceptions: a resumable task parked in TinyUSB (e.g. the USBdevice thread) is unwound through the
 #    C frames of usbd.c when it is deleted.
 # Built on every host (no fixed addresses). MIDI: CFG_TUD_MIDI is 1 in the F407 tusb_config.h, so midi_device.c is
-# compiled (the usbd.c driver table needs it); the firmware's MIDI feature (MidiMain, MidiHandler) stays off.
+# compiled (the usbd.c driver table needs it). Since P17 the firmware's MIDI feature (MidiMain, MidiHandler) is on here
+# only: platform/usb_midi/target_constants.h defines MIDI, platform/usb_midi/TMC4671.h is the recording double of the
+# TMC4671 interface MidiMain uses (fakes/FakeTmcPhase), platform/src/host_midi_timer.cpp the fake TIM9.
 # ===========================================================================
 set(USB_DIR ${FFBOARD_DIR}/USB)
 set(USB_TINYUSB_SOURCES
@@ -673,6 +675,8 @@ set(USB_TINYUSB_SOURCES
 
 set(USB_FIRMWARE_SOURCES
 	${TARGET_FIRMWARE_SOURCES}
+	${FFBOARD_DIR}/UserExtensions/Src/MidiMain.cpp # P17, behind MIDI (platform/usb_midi/target_constants.h)
+	${FFBOARD_DIR}/Src/MidiHandler.cpp # P17, behind MIDI
 	${FFBOARD_DIR}/Src/ctickhook.cpp
 	${FFBOARD_DIR}/Src/ccondition_variable.cpp # Thread::Wait (CPP_FREERTOS_CONDITION_VARIABLES, F407 FreeRTOSConfig.h:187)
 )
@@ -682,6 +686,8 @@ list(REMOVE_ITEM USB_PLATFORM_SOURCES platform/src/host_usb.cpp)
 list(APPEND USB_PLATFORM_SOURCES
 	platform/src/host_dcd.cpp
 	platform/src/host_usb_osal.cpp
+	platform/src/host_midi_timer.cpp # P17: fake TIM9 (htim9 = TIM_USER), ffb_usb_tests only
+	fakes/FakeTmcPhase.cpp # P17: recording double of the TMC4671 interface MidiMain uses (platform/usb_midi/TMC4671.h)
 )
 
 file(GLOB USB_TEST_SOURCES CONFIGURE_DEPENDS
@@ -698,6 +704,7 @@ add_executable(ffb_usb_tests
 
 target_include_directories(ffb_usb_tests PRIVATE
 	platform/usb
+	platform/usb_midi # P17: target_constants.h (target_f407 plus MIDI) and the shadow TMC4671.h (recording double); before platform/target_f407 and the firmware directories
 	platform/target_f407
 	platform/include
 	support
@@ -735,6 +742,12 @@ if(USE_DSP)
 	target_include_directories(ffb_usb_tests PRIVATE ${DSP_DIR}/Include ${DSP_DIR}/PrivateInclude)
 	target_compile_definitions(ffb_usb_tests PRIVATE USE_DSP_FUNCTIONS ARM_MATH_LOOPUNROLL __GNUC_PYTHON__)
 endif()
+
+# P17: MidiMain.h includes "TMC4671.h". A quoted include is searched in the directory of the including file first, so
+# the real header (FFBoard/UserExtensions/Inc, same directory as MidiMain.h) would win over an include directory. The
+# recording double platform/usb_midi/TMC4671.h therefore has the include guard of the real header (TMC4671_H_) and is
+# force-included in every C++ source of this executable: the real header, when included later, is skipped.
+target_compile_options(ffb_usb_tests PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-include${CMAKE_CURRENT_SOURCE_DIR}/platform/usb_midi/TMC4671.h>)
 
 target_link_libraries(ffb_usb_tests PRIVATE Threads::Threads)
 

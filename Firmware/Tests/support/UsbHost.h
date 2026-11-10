@@ -352,6 +352,18 @@ public:
 		const Interface *h = findInterface(TUSB_CLASS_HID);
 		return h ? h->number : 0;
 	}
+	/**
+	 * P17: the MIDIStreaming interface (class AUDIO, subclass 3) of the parsed configuration with its bulk endpoints
+	 * (epOut / epIn, epOutSize / epInSize), or nullptr; the AudioControl interface is the one before it
+	 */
+	const Interface *midiStreamingInterface() const {
+		for (const Interface &i : interfaces) {
+			if (i.cls == TUSB_CLASS_AUDIO && i.subclass == 3) {
+				return &i;
+			}
+		}
+		return nullptr;
+	}
 
 	/** Parses configDescriptor into `interfaces` */
 	void parseConfiguration() {

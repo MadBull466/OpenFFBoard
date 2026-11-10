@@ -50,7 +50,7 @@ DEFAULT_EXCLUSIONS = os.path.join(TOOLS_DIR, "coverage_exclusions.txt")
 COVERAGE_TARGET = 85.0  # % of in-scope lines without hardware-only code (Tests/claude/plans/TEST_PLAN.md)
 DEFAULT_FIRMWARE_DIR = os.path.normpath(os.path.join(TOOLS_DIR, "..", ".."))
 
-# MIDI code: in scope since 2026-11-10 (P17) but not compiled yet; kept out of the ladder until its T1 (then it moves to the usb tier)
+# MIDI code: in scope since 2026-11-10 (P17), compiled in ffb_usb_tests since T1; kept out of the ladder until T2 decides its tier (usb)
 OUT_OF_SCOPE = {"MidiMain", "MidiHandler"}
 # The three drivers of the driver track (ffb_driver_tests): reported in their own tier, not in the ladder
 DRIVER_TRACK = {"TMC4671", "TMC4671_configs", "ODriveCAN", "VescCAN", "TMCDebugBridge", "MotorPWM", "MotorSimplemotion", "RmdMotorCAN"}  # TMCDebugBridge: P13, MotorPWM: P14, MotorSimplemotion: P15, RmdMotorCAN: P16 (in scope since 2026-11-10)

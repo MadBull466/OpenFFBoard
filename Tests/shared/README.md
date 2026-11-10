@@ -10,7 +10,7 @@
 | `VESC6_CAN_CommandsTelemetry.pdf`, `bldc-master/` (VESC firmware source 7.01) | VESC driver (P10 D3) |
 | `SimpleMotionV2-master/` (documentation and reference library; an oracle only, never copied into tests) | SimpleMotion driver (P15) |
 | `CAN_BUS_Motor_Motion_Protocol_V4.3.pdf` | MyActuator RMD driver (P16) |
-| `midi10.pdf` (USB Device Class Definition for MIDI Devices 1.0) and `MIDI_1.0_Detailed_Specification.pdf` | MIDI (P17, T0 charter drafted) |
+| `midi10.pdf` (USB Device Class Definition for MIDI Devices 1.0) and `MIDI_1.0_Detailed_Specification.pdf` | MIDI (P17, T0 approved, T1 built) |
 | `USB MIDI v2_0.pdf` | no longer needed: the firmware class is USB-MIDI 1.0 style (kept as supplied) |
 | `dm00031020-...stm32f405-...pdf` (RM0090), `DS_dm00037051.pdf` (datasheet), `es0182-...errata...pdf` | STM32F407 fakes (HAL, timers, flash, CAN, USB) |
 

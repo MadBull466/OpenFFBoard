@@ -6,7 +6,7 @@
 
 ## Current state
 
-- **Current phase:** P17 MIDI T0: the requirements charter `Tests/claude/charters/driver/MIDI_REQUIREMENTS.md` is written (draft, committed, waiting for the owner's approval; started 2026-11-10 at the owner's request). P0-P11 and P13-P16 done and approved.
+- **Current phase:** P17 MIDI T1 done (wiring, doubles, fixture, 12 skeleton cases; waiting for the owner's approval). T0 charter approved 2026-11-10 (commit `f21e631a`). P0-P11 and P13-P16 done and approved.
 - **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system"). Fork `MadBull466/OpenFFBoard` is at `1d30019d` (pushed 2026-11-10).
 - **Last updated:** 2026-11-10 (documentation review after P16; no source change)
 - **Measured on the P16 gate builds (2026-11-10, GCC 16):** `ffb_unit_tests` 654 passed / 4 skipped with the documented exclusion (baseline check OK, 340 new cases), `ffb_target_tests` 1832 (18 skipped), `ffb_flash_tests` 159, `ffb_rtos_tests` 278, `ffb_usb_tests` 287, `ffb_driver_tests` 1717 (9 skipped; 1701 run in the sanitizer build, 1494 with clang), `ffb_dsp_tests` 2485 (5 skipped), Python `claude/python` 115 tests; ctest 11 of 11 (default, sanitizer, clang, coverage), 10 of 10 with DSP off. Driver tier 3262 / 3484 lines (93.6 %).
@@ -15,11 +15,9 @@
 
 ## Next action
 
-**P17 MIDI T0 is a draft waiting for the owner's approval.** Charter `Tests/claude/charters/driver/MIDI_REQUIREMENTS.md`: oracles (USB MIDI class definition 1.0 `midi10.pdf`, MIDI 1.0 detailed spec, hand derivations, `characterization:` where both are silent), requirements R1-R12 (identity and chooser, `MidiHandler::midiRx` decoding, `tud_midi_rx_cb`, `MidiMain` notes and synthesis, descriptors, class driver open / reset / requests, byte stream and packet API, end to end), defect candidates (firmware B-MIDI-1..6 reserved as bugs 219-224, vendor V86-V88, candidate B-MIDI-7), fake plan (feature header `platform/usb_midi`, recording TMC4671 double as a shadow header, fake `htim9`, `UsbHost::midiInterface()`, `MidiFixture`), writer groups MHD / MMN / MCD / MCS (about 270 cases), lead decisions L1-L6 (USB-MIDI 1.0 is the version; `MidiMain` in `ffb_usb_tests` with a driver double) and owner questions 53-61. The charter's important finding: `MidiMain` builds a `TMC_1`, so `MIDI` cannot simply be switched on in `ffb_usb_tests` (question 53).
+**P17 MIDI T1 is built and gated; waiting for the owner's approval** (see "P17 T1 result" below). Then T2: writers MHD (`test_midi_handler.cpp`), MMN (`test_midi_main.cpp`), MCD (`test_midi_class.cpp`), MCS (`test_midi_stream.cpp`) from the work orders `Tests/claude/charters/driver/P17_WORK_ORDERS.md` (to be written at the start of T2), four reviewers with mutation checks, full gate, docs, stop. Next numbers when T2 assigns them: firmware bug 219, vendor bug V86, NEEDS REVIEW 263, open question 62. The open owner questions 53-61 can be answered at any time (53 is settled by the approval of T0: option A).
 
-After the owner approves T0: T1 (feature header, driver double, fake timer, host helper, `MidiFixture`, skeleton cases, gate, stop), then T2 (writers, reviewers, gate, docs, stop). Next numbers when T2 assigns them: firmware bug 219, vendor bug V86, NEEDS REVIEW 263, open question 62.
-
-Pending decisions: open questions 17-23 (P11), 32-52 (P14-P16) and 53-61 (P17); the CLAUDE.md wording of tier C ("only the CMSIS-DSP functions the firmware calls", since P11 it is every function of the used modules) and of the P17 spec line (`USB MIDI v2_0.pdf`, now `midi10.pdf` and `MIDI_1.0_Detailed_Specification.pdf`) is the owner's file and has not been changed.
+Pending decisions: open questions 17-23 (P11), 32-52 (P14-P16) and 54-61 (P17); the CLAUDE.md wording of tier C ("only the CMSIS-DSP functions the firmware calls", since P11 it is every function of the used modules) and of the P17 spec line (`USB MIDI v2_0.pdf`, now `midi10.pdf` and `MIDI_1.0_Detailed_Specification.pdf`) is the owner's file and has not been changed.
 
 ## Phase checklist
 
@@ -44,7 +42,7 @@ Pending decisions: open questions 17-23 (P11), 32-52 (P14-P16) and 53-61 (P17); 
 | P14 PWM driver | `ffb_driver_tests` | `MotorPWM.cpp` 100 % (191 / 191) | done | yes, 2026-11-10 | `ac6d66a6` (T0), `70bf9659` (T1), `c688687b` (T2) |
 | P15 SimpleMotion driver | `ffb_driver_tests` (not with clang) | `MotorSimplemotion.cpp` 98.0 % (294 / 300) | done | yes, 2026-11-10 | `cf3d341e` (T0), `ff86dd7e` (T1), `999872fa` (T2) |
 | P16 MyActuator RMD driver | `ffb_driver_tests` | `RmdMotorCAN.cpp` 100 % (231 / 231) | done | yes, 2026-11-10 | `6b2315e1` (T0), `70a7598b` (T1), `1d30019d` (T2) |
-| P17 MIDI (`MidiMain`, `MidiHandler`, TinyUSB `class/midi`) | `ffb_usb_tests` | not measured (`midi_device.c` 30 / 204 today) | T0 charter drafted 2026-11-10, waiting for approval | T0: no | see `git log` (T0 draft commit) |
+| P17 MIDI (`MidiMain`, `MidiHandler`, TinyUSB `class/midi`) | `ffb_usb_tests` | not measured (`midi_device.c` 30 / 204 today) | T0 approved, T1 built (waiting for approval) | T0: yes, 2026-11-10; T1: pending | `f21e631a` (T0) |
 
 ## Decisions log
 
@@ -1203,6 +1201,17 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 - **Gate (2026-11-10):** `ffb_driver_tests` 1717 cases (1468 + 249) default, DSP off and coverage build, 1701 run (24 skipped, incl. the `KNOWN_ISSUE_UB` case) in the sanitizer build, 1494 under clang (RMD is built there), 0 failed; ctest 11 of 11 default / san / clang / coverage, 10 of 10 DSP off; baseline OK (340, 0 failed); `flags.make` of the other executables identical to the P15 build. 17 `KNOWN_ISSUE` cases and 1 `KNOWN_ISSUE_UB` case.
 - **Coverage (gcc, gcov):** `RmdMotorCAN.cpp` 231 / 231 lines (100.0 %), 29 of 30 functions; driver tier 3262 / 3484 lines (93.6 %); `tools/coverage_report.py` now lists `RmdMotorCAN` in `DRIVER_TRACK` and no longer in `OUT_OF_SCOPE`.
 - **Not verified:** the target (ARM) behaviour, a real motor (see NEEDS REVIEW 262).
+
+## P17 T1 result (2026-11-10)
+
+- **Wiring:** `platform/usb_midi/target_constants.h` (F407 test header plus `MIDI`, first feature header in the include path of `ffb_usb_tests` only), `MidiMain.cpp` and `MidiHandler.cpp` in `USB_FIRMWARE_SOURCES`, `platform/src/host_midi_timer.cpp` (fake TIM9 = `TIM_USER`, initial state of `MX_TIM9_Init`) and `fakes/FakeTmcPhase.cpp` in `USB_PLATFORM_SOURCES`. `MIDI` is on nowhere else (`test_driver_setup.cpp:50` still passes).
+- **Driver double (lead decisions L1, L7):** `MidiMain.h` includes `TMC4671.h`; the real header exists only with `TMC4671DRIVER` (off). `platform/usb_midi/TMC4671.h` is a recording double of the used interface (`FakeTmcPhase`: calls with arguments in order, configurable `initialize()`, motor type, `hasPower`, `isSetUp`; fidelity header written). **An include directory cannot shadow it:** a quoted include in `MidiMain.h` finds the real header in its own directory first, so the double has the include guard of the real header (`TMC4671_H_`) and is force-included (`-include`, C++ sources of `ffb_usb_tests` only).
+- **Shim (L8):** `platform/usb_midi/cmsis_os2.h` provides `osDelay` (via the fake `vTaskDelay`, 1 kHz) for `MidiMain::update()`; the fake platform had no `cmsis_os2.h`.
+- **Helpers:** `UsbHost::midiStreamingInterface()` (additive edit of a shared support header), `support/MidiFixture.h` (`MidiFixture`, `MidiProbe`, `MidiMainFixture`, packet builders).
+- **Skeleton:** `claude/cases_usb/test_midi_setup.cpp`, 12 cases (all pass first run). Charter amendment: R6.2 treats `allowSlowSPI` as a field, not as a position in the call order.
+- **Gate (run by the lead):** `ffb_usb_tests` 299 cases (287 + 12), 0 failed (default, sanitizer, clang 23, DSP off, coverage); ctest 11 of 11 default / sanitizer / clang / coverage, DSP off 10 of 10; `check_baseline.py` OK (340 new cases, 0 failed) in all five; `ffb_driver_tests` 1717 / 1701 (san) / 1494 (clang), unchanged; `flags.make` and object counts of `ffb_unit_tests`, `ffb_target_tests`, `ffb_flash_tests`, `ffb_rtos_tests`, `ffb_driver_tests` and `ffb_dsp_tests` identical to `p16t2-default`; no compiler warning from the new files.
+- **Coverage (gcc, gcov, coverage build):** `midi_device.c` 131 / 204 lines (64.2 %, was 30 / 204) from the smoke cases; the ladder now counts `global_callbacks.cpp`'s MIDI lines (8011 of about 8099, 98.9 %). `MidiMain` and `MidiHandler` stay in `OUT_OF_SCOPE` of `coverage_report.py` until T2 (they are compiled now, but their tier is decided with the tests).
+- **Not done:** all T2 tests (R1-R12), the work orders, the reviewers, `coverage_report.py` tier for `MidiMain` / `MidiHandler`, `COVERAGE_AND_SCOPE.md` numbers for the MIDI files. Not committed yet.
 
 ## Suspected firmware bugs
 

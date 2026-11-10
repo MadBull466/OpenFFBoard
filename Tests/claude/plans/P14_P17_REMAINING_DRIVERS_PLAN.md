@@ -1,6 +1,6 @@
-# P14-P17 plan: PWM (P14), SimpleMotion (P15), MyActuator (P16), MIDI (P17) (2026-11-10; P14, P15 and P16 complete and pushed, P17 T0 charter drafted and waiting for approval)
+# P14-P17 plan: PWM (P14), SimpleMotion (P15), MyActuator (P16), MIDI (P17) (2026-11-10; P14, P15 and P16 complete and pushed, P17 T0 approved, T1 built and waiting for approval)
 
-Scope change (owner, 2026-11-10): these are now IN scope. Status 2026-11-10 (documentation review): P14, P15 and P16 are built, tested and approved; P17 (MIDI): T0 charter `Tests/claude/charters/driver/MIDI_REQUIREMENTS.md` drafted, waiting for approval. `CLAUDE.md`, `AGENTS.md`, `TEST_PLAN.md` and `COVERAGE_AND_SCOPE.md` are updated; the feature headers are changed per phase (T1).
+Scope change (owner, 2026-11-10): these are now IN scope. Status 2026-11-10 (documentation review): P14, P15 and P16 are built, tested and approved; P17 (MIDI): T0 charter `Tests/claude/charters/driver/MIDI_REQUIREMENTS.md` approved, T1 built (waiting for approval). `CLAUDE.md`, `AGENTS.md`, `TEST_PLAN.md` and `COVERAGE_AND_SCOPE.md` are updated; the feature headers are changed per phase (T1).
 
 ## Units
 
@@ -20,7 +20,7 @@ About 2,800 lines in total. The MIDI class is vendor code (report bugs, never fi
 - Specs (original state, superseded): when the plan was drafted there was no spec for the RMD (MyActuator) CAN protocol, the SimpleMotion protocol or the USB-MIDI class. All were supplied later (see decision 27 and the P17 oracles below). PWM needs no protocol spec, only the timer / RM0090 chapters already supplied.
 - Rule: never invent register maps, opcodes or frames. Without a spec, byte values are `characterization:` tests (as in P13) and the unit is not "specified".
 - Existing fakes: fake HAL SPI and CAN (used by the driver executable), UART fake (check the platform for `UARTPort`), fake dwc2 and CDC capture (tier B), `MockMotorDriver`, `MockEncoder`. Timer / PWM HAL may need a new strict fake (`fakes/`, with the fidelity header rules).
-- State now: `PWMDRIVER`, `SIMPLEMOTION` and `RMDCAN` are on in `ffb_driver_tests` only (`platform/target_f407_drivers/target_constants.h`); `MIDI` is still off everywhere and goes on in `ffb_usb_tests` only at P17 T1.
+- State now: `PWMDRIVER`, `SIMPLEMOTION` and `RMDCAN` are on in `ffb_driver_tests` only (`platform/target_f407_drivers/target_constants.h`); `MIDI` is on in `ffb_usb_tests` only (since P17 T1) and off everywhere else.
 
 ## Phases (each is its own phase, stop for the owner after each)
 

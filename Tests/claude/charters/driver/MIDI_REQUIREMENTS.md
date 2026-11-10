@@ -1,6 +1,6 @@
 # MIDI (`MidiMain`, `MidiHandler`, TinyUSB `class/midi`): requirements charter (phase P17, T0)
 
-Status: **T0 draft written 2026-11-10 by the lead (Sonnet 5.5), waiting for the owner's approval.** Nothing is built or tested yet; the macro `MIDI` is still off in every executable. Open owner questions start at number 53 (see the end).
+Status: **T0 approved by the owner 2026-11-10** ("Approve, start T1"; the lead's proposal L1 / question 53 option A is therefore the plan); drafted by the lead (Sonnet 5.5), committed as `f21e631a`. **T1 built 2026-11-10** (see "T1 amendments" at the end): the macro `MIDI` is on in `ffb_usb_tests` only. Open owner questions start at number 53 (see the end).
 
 Units under test (sources read by the lead on 2026-11-10):
 * `Firmware/FFBoard/UserExtensions/Src/MidiMain.cpp` (180 lines, `MM`) and `Inc/MidiMain.h` (78 lines), class `MidiMain : FFBoardMain, MidiHandler, TimerHandler`, class id `CLSID_MAIN_MIDI` (0xD), name "MIDI (TMC)", visibility debug, behind the macro `MIDI`; it plays notes by moving the phase of a TMC4671 (`TMC_1`) on the user timer `TIM_USER` (`htim9`).
@@ -100,7 +100,7 @@ Rules inherited from `CLAUDE.md` and the P13-P16 charters: fixture per test, sim
 | ID | Requirement | Oracle |
 |---|---|---|
 | R6.1 | Construction sets the user timer: `ARR` 100, `PSC = SystemCoreClock / 1000000 - 1`, `CR1` 1, then starts it with `HAL_TIM_Base_Start_IT`; the update interrupt reaches `timerElapsed` through `TimerHandler` | FW + RM0090 (TIM registers, via the fake) |
-| R6.2 | Construction calls the driver in this order: `setLimits`, `setEncoderType(NONE)`, `setPhiEtype(ext)`, `setUdUq(0, 0)`, `allowSlowSPI = false`, `initialize()`, `setPhiEtype(ext)`, `setMotionMode(uqudext, true)` | FW, `characterization:` (order) |
+| R6.2 | Construction calls the driver in this order: `setLimits`, `setEncoderType(NONE)`, `setPhiEtype(ext)`, `setUdUq(0, 0)`, `initialize()`, `setPhiEtype(ext)`, `setMotionMode(uqudext, true)`; `allowSlowSPI` is false afterwards (a field write, checked as a final value, not as a position in the call order) | FW, `characterization:` (order) |
 | R6.3 | `initialize()` failing and a motor type NONE pulse the error LED and construction continues | FW, plain |
 | R6.4 | `update()`: waits 500 ms; with power present and not set up it calls `initializeWithPower()` exactly once per call, otherwise nothing | FW, plain |
 | R6.5 | Commands `power` and `range`: get returns the value, set stores it (`power` 1, 2500, 0xFFFF; `range` 1, 0x3fff, 0x7fff) and the next tick uses it; an unknown command id is `NOT_FOUND` | FW, plain |
@@ -227,3 +227,14 @@ About 270 cases. Coverage targets: `MidiHandler.cpp` 100 %, `MidiMain.cpp` at le
 59. **P17 `range` and `power`.** Both commands accept any 32 bit value; `range` above 32767 makes the float to `int16_t` conversion in `play` undefined (B-MIDI-5). Add a limit (defect) or document?
 60. **P17 input without a handler.** (B-MIDI-6) If MIDI packets arrive while no `MidiHandler` exists, the OUT endpoint is not armed again and the MIDI input stays dead after a handler appears. Only reachable in a configuration where the MIDI interface is enumerated without `MidiMain`; defect or out of scope?
 61. **P17 USB-MIDI descriptor details.** (a) Table 6-2 says wTotalLength covers the header and the jack / element descriptors, the worked example (Table B-6) and TinyUSB include the endpoint descriptors (0x41). The test uses 0x41; agree? (b) Vendor findings V86-V88 (real-time CIN, reserved CIN count, real-time inside SysEx) are reported, never fixed: nothing for you to decide unless you want them upstream.
+
+## T1 amendments (2026-11-10, built by the lead)
+
+What was built (all under `Firmware/Tests/`, nothing under `FFBoard/` changed):
+* `platform/usb_midi/target_constants.h`: `platform/target_f407/target_constants.h` plus `MIDI` and `extern htim9`; first feature header in the include path of `ffb_usb_tests` only (the other executables are unchanged).
+* **The shadow header cannot work as an include directory.** A quoted `#include "TMC4671.h"` in `MidiMain.h` finds the real header in its own directory first. Fix (lead decision L7): `platform/usb_midi/TMC4671.h` carries the include guard `TMC4671_H_` of the real header and is force-included (`-include`, CMake, C++ sources of `ffb_usb_tests` only), so the real header is skipped. Recording double: `fakes/FakeTmcPhase.{h,cpp}` (fidelity header written).
+* `platform/usb_midi/cmsis_os2.h`: the one call `MidiMain.cpp` needs from CMSIS-RTOS2 (`osDelay`, via `vTaskDelay`, 1 kHz tick); the fake platform had no `cmsis_os2.h` (lead decision L8).
+* `platform/src/host_midi_timer.cpp`: fake TIM9 (`htim9`), initial state of `MX_TIM9_Init`, generic base-timer fake (`HostTarget::timerUpdate(&htim9)` raises one update event); `MidiMain.cpp` and `MidiHandler.cpp` in `USB_FIRMWARE_SOURCES`.
+* `support/UsbHost.h`: `midiStreamingInterface()` (additive); `support/MidiFixture.h`: `MidiProbe`, `MidiFixture` (`startMidi`, `startAndEnumerate`, `sendPackets`, `receivePackets`, packet builders `pkt`, `noteOnPkt`, `noteOffPkt`), `MidiMainFixture` (`createMidiMain`, `tick`).
+* `claude/cases_usb/test_midi_setup.cpp`: 12 skeleton cases (macro, driver double, `htim9`, enumeration with the MIDI configuration and endpoints 0x02 / 0x83, packet builders, handler registration, note on end to end, packet write, stream write, `MidiMain` construction, a note and the first tick, `update()` with the 500 ms delay).
+Charter change: R6.2 no longer puts `allowSlowSPI` into the call order (it is a field).

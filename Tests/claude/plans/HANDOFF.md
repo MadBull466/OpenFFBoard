@@ -14,8 +14,8 @@ A host-side (Linux/Windows, no hardware) unit-test suite for the OpenFFBoard fir
 | P10 driver track D0-D3 (TMC4671, ODrive, VESC) | done, approved 2026-11-04 |
 | P11 CMSIS-DSP (G1-G5) | done, approved and pushed 2026-11-10 |
 | P13 TMCDebugBridge, P14 PWM, P15 SimpleMotion, P16 MyActuator | done, approved, committed and pushed 2026-11-10 (`1d30019d` is the last) |
-| P17 MIDI (`MidiMain`, `MidiHandler`, TinyUSB `class/midi`, in `ffb_usb_tests`) | in scope; **T0 charter drafted 2026-11-10 (`Tests/claude/charters/driver/MIDI_REQUIREMENTS.md`), waiting for the owner's approval**; T1 and T2 not started |
-| Open questions | `Tests/claude/reports/OPEN_QUESTIONS.md` (pending 17-23, 32-61) |
+| P17 MIDI (`MidiMain`, `MidiHandler`, TinyUSB `class/midi`, in `ffb_usb_tests`) | in scope; T0 charter approved 2026-11-10 (`Tests/claude/charters/driver/MIDI_REQUIREMENTS.md`), **T1 built and gated (wiring, TMC4671 double, fake TIM9, `MidiFixture`, 12 skeleton cases), waiting for the owner's approval**; T2 not started |
+| Open questions | `Tests/claude/reports/OPEN_QUESTIONS.md` (pending 17-23, 32-52 and 54-61) |
 | Suspected bugs | `Tests/claude/reports/BUG_REPORT.md` (generated, do not hand-edit): firmware bugs up to 218, vendor bugs up to V85, NEEDS REVIEW up to 262 |
 
 Current counts (GCC 16, 2026-11-10): `ffb_unit_tests` 654 passed / 4 skipped, `ffb_target_tests` 1832, `ffb_flash_tests` 159, `ffb_rtos_tests` 278, `ffb_usb_tests` 287, `ffb_driver_tests` 1717, `ffb_dsp_tests` 2485, Python `claude/python` 115; ctest 11 of 11. The resume point and the exact numbers are in `Tests/claude/plans/PROGRESS.md` ("Current state", "Next action"); whole-project numbers in `Tests/claude/reports/PROJECT_SUMMARY.md`.
