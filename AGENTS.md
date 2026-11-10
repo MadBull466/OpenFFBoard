@@ -9,7 +9,7 @@ Mirror of the hard rules in `CLAUDE.md`. Read `Firmware/Tests/README.md` first.
   Prefer adding new files (your own fixtures and fakes under `codex/`) over editing shared ones; never edit `third_party/doctest.h` or the original baseline cases.
 
 ## Scope notes (mirror of `CLAUDE.md`)
-- Since 2026-11-10 `TMCDebugBridge` is in scope (Claude's phase P13; do not duplicate it under `codex/`). `TMCDEBUG` is on in `ffb_driver_tests` only. Still out of scope with their feature macros off in every executable: PWM, MyActuator and SimpleMotion drivers, `MidiMain`, `MidiHandler`.
+- Since 2026-11-10 `TMCDebugBridge` is in scope (Claude's phase P13; do not duplicate it under `codex/`). `TMCDEBUG` is on in `ffb_driver_tests` only. Since 2026-11-10 the PWM, SimpleMotion and MyActuator drivers and MIDI (`MidiMain`, `MidiHandler`, TinyUSB `class/midi`) are in scope as Claude's phases P14-P17 (do not duplicate them under `codex/`): PWM, SimpleMotion and MyActuator in `ffb_driver_tests`, MIDI in `ffb_usb_tests`, each feature macro on there only.
 
 ## Hard rules
 - `Firmware/` is read-only except `Firmware/Tests/` (your folder there). Never edit firmware, vendor code (`Firmware/Libraries/`, TinyUSB, `eeprom.c`) or `.github/`. Vendor bugs are reported, never fixed.

@@ -1,6 +1,6 @@
-# P14-P17 plan: PWM (P14), SimpleMotion (P15), MyActuator (P16), MIDI (P17) (2026-11-10, DRAFT, waiting for the owner's answers)
+# P14-P17 plan: PWM (P14), SimpleMotion (P15), MyActuator (P16), MIDI (P17) (2026-11-10, owner's answers to questions 27-31 recorded; P14 not started)
 
-Scope change (owner, 2026-11-10): these are now IN scope. Nothing is built or tested yet. `CLAUDE.md`, `AGENTS.md`, `TEST_PLAN.md`, `COVERAGE_AND_SCOPE.md` and the feature headers are NOT edited until the owner answers questions 27-31.
+Scope change (owner, 2026-11-10): these are now IN scope. Nothing is built or tested yet. `CLAUDE.md`, `AGENTS.md`, `TEST_PLAN.md` and `COVERAGE_AND_SCOPE.md` are updated; the feature headers are changed per phase (T1).
 
 ## Units
 
@@ -33,14 +33,14 @@ Inside each phase: T0 charter by the lead, T1 build wiring and fixture, T2 write
 
 Gate rule: the 318 baseline cases stay unchanged, the other executables get no new definitions unless the owner decides otherwise (question 28), no firmware source is edited, no `#ifdef` for tests.
 
-## Open questions for the owner (in `OPEN_QUESTIONS.md` as 27-31)
+## Owner's decisions (2026-11-10)
 
-27. **Specifications.** Please supply, or say "characterization only" for each: (a) RMD / MyActuator CAN protocol manual (the firmware's `RmdMotorCAN.cpp` uses its command bytes); (b) the SimpleMotion protocol / library documentation (frames, CRC, parameter ids, FBR enum); (c) USB MIDI class spec 1.0 and the MIDI 1.0 message table. PWM needs none.
-28. **Executables.** Proposal: PWM, SimpleMotion and RMD go into `ffb_driver_tests` (it already has the motor-driver fixtures, fake CAN, `MockEncoder`), MIDI (handler, main, class) goes into `ffb_usb_tests` (it has the fake dwc2). Or one new executable for all four?
-29. **`CLAUDE.md` and `AGENTS.md`.** They still say these are out of scope with their macros off. May I update both (scope lines, macros on in the chosen executables) and push, as in P13?
-30. **Order.** P14 PWM, P15 SimpleMotion, P16 MyActuator, P17 MIDI (owner set the phase split 2026-11-10); is the order right?
-31. **Fakes.** PWM needs a timer / PWM-output fake and SimpleMotion a UART fake with real framing behaviour if none exists. OK to add them under `fakes/` with the usual fidelity header?
+27. Spec: `CAN_BUS_Motor_Motion_Protocol_V4.3.pdf` supplied (copied to the git-ignored `Tests/shared/specs/`) for MyActuator (P16). No SimpleMotion (P15) or USB-MIDI (P17) spec supplied yet: stop and ask before those phases. PWM (P14) needs none.
+28. Executables as proposed: PWM, SimpleMotion, RMD in `ffb_driver_tests`; MIDI in `ffb_usb_tests`.
+29. `CLAUDE.md` and `AGENTS.md` updated.
+30. Order P14 PWM, P15 SimpleMotion, P16 MyActuator, P17 MIDI.
+31. New fakes (timer / PWM output, UART with framing if missing) approved, under `fakes/` with the fidelity header.
 
 ## Not decided yet
 
-Requirements, oracles, case counts and coverage targets. They come with each unit's charter (T0), after the answers above.
+Requirements, oracles, case counts and coverage targets. They come with each phase's charter (T0).

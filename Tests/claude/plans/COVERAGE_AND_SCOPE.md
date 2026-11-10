@@ -58,11 +58,11 @@ Headers of these modules: 392 / 413 lines (94.9 %).
 |---|---|
 | ST HAL, CMSIS core, FreeRTOS kernel | Vendor platform code, replaced by fakes |
 | `Firmware/Targets/F407VG`, `F407VG_DISCO`, `F411RE` (CubeMX code, startup, linker scripts, `main.c`, `freertos.c`, HAL init) | Generated / board specific |
-| PWM driver `MotorPWM.cpp` | Driver not selected (faked at the interface by `MockMotorDriver`) |
-| MyActuator driver `RmdMotorCAN.cpp` | same |
-| SimpleMotion driver `MotorSimplemotion.cpp` | same |
+| ~~`MotorPWM.cpp`~~ | In scope since 2026-11-10 (owner, phase P14, plan `Tests/claude/plans/P14_P17_REMAINING_DRIVERS_PLAN.md`); not started, macro still off until its T1 |
+| ~~`RmdMotorCAN.cpp`~~ | In scope since 2026-11-10 (owner, phase P16, plan `Tests/claude/plans/P14_P17_REMAINING_DRIVERS_PLAN.md`); not started, macro still off until its T1 |
+| ~~`MotorSimplemotion.cpp`~~ | In scope since 2026-11-10 (owner, phase P15, plan `Tests/claude/plans/P14_P17_REMAINING_DRIVERS_PLAN.md`); not started, macro still off until its T1 |
 | ~~`TMCDebugBridge.cpp`~~ | In scope since 2026-11-10 (owner's decision, phase P13, plan `Tests/claude/plans/P13_TMCDEBUGBRIDGE_PLAN.md`); built into `ffb_driver_tests` only (`TMCDEBUG` on there), see section 1.4 |
-| MIDI: `MidiMain.cpp`, `MidiHandler.cpp` (and `class/midi` in TinyUSB) | Not selected, feature macro kept off |
+| ~~MIDI: `MidiMain.cpp`, `MidiHandler.cpp` (and `class/midi` in TinyUSB)~~ | In scope since 2026-11-10 (owner, phase P17, same plan); not started, macro still off until its T1 |
 | Other CMSIS-DSP modules: Matrix, Transform, Complex, Distance, Quaternion, SVM, Bayes, Window, rest of Support, Helium / Neon variants, `dsppp`, Python wrapper | Not used by the firmware |
 | Hardware access, flashing, real USB / CAN / serial, network | Never part of host tests |
 | CI workflow (`.github/`) | Not edited; a proposal is open question 5 |
@@ -92,4 +92,4 @@ Headers of these modules: 392 / 413 lines (94.9 %).
 - Integration across modules (real driver inside `Axis`, end-to-end HID effect to bus frame, shared buses, board-wide save / restore) is not tested; it was proposed once and has not been approved.
 
 ## 4. Tests that exist but do not count as "coverage"
-The suspected bugs (firmware bugs numbered up to 193, vendor bugs V1-V85), 237 NEEDS REVIEW items and 23 open questions are in `Tests/claude/reports/BUG_REPORT.md`, `Tests/claude/plans/PROGRESS.md` and `Tests/claude/reports/OPEN_QUESTIONS.md`. A `KNOWN_ISSUE` test runs the line but asserts the intended behaviour, so those lines count as covered while the behaviour is still wrong.
+The suspected bugs (firmware bugs numbered up to 200, vendor bugs V1-V85), 243 NEEDS REVIEW items and 31 open questions (17-23 pending) are in `Tests/claude/reports/BUG_REPORT.md`, `Tests/claude/plans/PROGRESS.md` and `Tests/claude/reports/OPEN_QUESTIONS.md`. A `KNOWN_ISSUE` test runs the line but asserts the intended behaviour, so those lines count as covered while the behaviour is still wrong.

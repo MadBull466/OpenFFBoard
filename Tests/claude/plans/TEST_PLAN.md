@@ -205,7 +205,7 @@ Fidelity entries for the driver peers are kept in the "Driver track" section of 
 ## Scope and known issues (unchanged)
 
 - In scope: firmware outside `Firmware/Libraries/`, plus the vendor tiers A, B, C above. Since 2026-11-04 (P11) tier C covers every function and data type of the CMSIS-DSP modules the firmware uses. Not tested: ST HAL, CMSIS core, the FreeRTOS kernel, `Firmware/Targets/**`, CubeMX code.
-- Out of scope: the PWM, MyActuator and SimpleMotion drivers, `MidiMain`, `MidiHandler`; their feature macros stay off. The TMC4671, ODrive and VESC drivers are in scope since 2026-11-03 (P10, `ffb_driver_tests` only). `TMCDebugBridge` is in scope since 2026-11-10 (P13, complete, `ffb_driver_tests` only, `TMCDEBUG` on there).
+- In scope since 2026-11-10 (P14 PWM, P15 SimpleMotion, P16 MyActuator, P17 MIDI incl. TinyUSB `class/midi`; plan `P14_P17_REMAINING_DRIVERS_PLAN.md`, not started): their feature macros stay off until each phase's T1. The TMC4671, ODrive and VESC drivers are in scope since 2026-11-03 (P10, `ffb_driver_tests` only). `TMCDebugBridge` is in scope since 2026-11-10 (P13, complete, `ffb_driver_tests` only, `TMCDEBUG` on there).
 - **Known issue 1:** `effectsForces` out-of-bounds read aborts on GCC 16. Exclude only the case `requesting the forces of a not existing axis is rejected`.
 - **Known issue 2:** CMSIS-DSP `arm_spline_f32` overflow found by ASan. Skip only the two spline cases in sanitizer runs.
 - **Known issue 3:** the skipped case `command with an unknown id is rejected` (`test_command_execution.cpp:186`) stays skipped. `executeCommands` dereferences the command definition before the null check.
