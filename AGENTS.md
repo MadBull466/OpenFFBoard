@@ -8,6 +8,9 @@ Mirror of the hard rules in `CLAUDE.md`. Read `Firmware/Tests/README.md` first.
 - Shared, change only after asking the owner: `Firmware/Tests/{platform,support,mocks,fakes,tools,third_party,baseline,cases}`, `Firmware/Tests/CMakeLists.txt`, `CMakePresets.json`, `README.md`, `Tests/shared/`.
   Prefer adding new files (your own fixtures and fakes under `codex/`) over editing shared ones; never edit `third_party/doctest.h` or the original baseline cases.
 
+## Scope notes (mirror of `CLAUDE.md`)
+- Since 2026-11-10 `TMCDebugBridge` is in scope (Claude's phase P13; do not duplicate it under `codex/`). `TMCDEBUG` is on in `ffb_driver_tests` only. Still out of scope with their feature macros off in every executable: PWM, MyActuator and SimpleMotion drivers, `MidiMain`, `MidiHandler`.
+
 ## Hard rules
 - `Firmware/` is read-only except `Firmware/Tests/` (your folder there). Never edit firmware, vendor code (`Firmware/Libraries/`, TinyUSB, `eeprom.c`) or `.github/`. Vendor bugs are reported, never fixed.
 - No `#ifdef` for tests in firmware sources; use test doubles in your fakes.

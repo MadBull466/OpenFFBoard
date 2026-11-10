@@ -61,7 +61,7 @@ Headers of these modules: 392 / 413 lines (94.9 %).
 | PWM driver `MotorPWM.cpp` | Driver not selected (faked at the interface by `MockMotorDriver`) |
 | MyActuator driver `RmdMotorCAN.cpp` | same |
 | SimpleMotion driver `MotorSimplemotion.cpp` | same |
-| `TMCDebugBridge.cpp` | Not selected |
+| ~~`TMCDebugBridge.cpp`~~ | In scope since 2026-11-10 (owner's decision, phase P13, plan `Tests/claude/plans/P13_TMCDEBUGBRIDGE_PLAN.md`); not yet built into any executable, no tests yet; target `ffb_driver_tests` |
 | MIDI: `MidiMain.cpp`, `MidiHandler.cpp` (and `class/midi` in TinyUSB) | Not selected, feature macro kept off |
 | Other CMSIS-DSP modules: Matrix, Transform, Complex, Distance, Quaternion, SVM, Bayes, Window, rest of Support, Helium / Neon variants, `dsppp`, Python wrapper | Not used by the firmware |
 | Hardware access, flashing, real USB / CAN / serial, network | Never part of host tests |

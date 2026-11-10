@@ -31,8 +31,9 @@
   - Tier B: TinyUSB device code in `Firmware/FFBoard/USB/`, tested against a fake USB controller.
   - Tier C: only the CMSIS-DSP functions the firmware calls (biquad, spline, whatever `EffectsCalculator` and `Filters` use).
 - Not tested: ST HAL, CMSIS core, the FreeRTOS kernel, `Firmware/Targets/**` and CubeMX-generated code.
-- Driver track (added 2026-11-02): the driver code for **TMC4671, ODrive and VESC** is now IN scope, in that order, and is driven by `Tests/claude/plans/DRIVER_TEST_PLAN.md`. Only those three drivers.
-- Still out of scope (confirmed): PWM, MyActuator and SimpleMotion drivers, `TMCDebugBridge`, `MidiMain` and `MidiHandler`. Keep their feature macros off, in every executable.
+- Driver track (added 2026-11-02): the driver code for **TMC4671, ODrive and VESC** is now IN scope, in that order, and is driven by `Tests/claude/plans/DRIVER_TEST_PLAN.md`. Only those three drivers (plus `TMCDebugBridge`, see P13 below).
+- P13 (added 2026-11-10): `TMCDebugBridge` is now IN scope, driven by `Tests/claude/plans/P13_TMCDEBUGBRIDGE_PLAN.md`. Its feature macro `TMCDEBUG` is on in `ffb_driver_tests` only (off in every other executable). TMCL byte values (opcodes, reply frames) without a supplied specification are `characterization:` tests only (owner's decision 2026-11-10).
+- Still out of scope (confirmed): PWM, MyActuator and SimpleMotion drivers, `MidiMain` and `MidiHandler`. Keep their feature macros off, in every executable.
 - Fake the still-out-of-scope drivers at their interface (`MockMotorDriver`, `MockEncoder`). Test only the in-scope caller (correct calls, arguments, ordering, handling of return values and errors), never the driver internals.
 
 ## Test conventions (from `Firmware/Tests/README.md`)
