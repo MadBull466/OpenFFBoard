@@ -35,7 +35,7 @@ Gate rule: the 318 baseline cases stay unchanged, the other executables get no n
 
 ## Owner's decisions (2026-11-10)
 
-27. Spec: `CAN_BUS_Motor_Motion_Protocol_V4.3.pdf` supplied (copied to the git-ignored `Tests/shared/specs/`) for MyActuator (P16). No SimpleMotion (P15) or USB-MIDI (P17) spec supplied yet: stop and ask before those phases. PWM (P14) needs none.
+27. Spec: `CAN_BUS_Motor_Motion_Protocol_V4.3.pdf` supplied (copied to the git-ignored `Tests/shared/specs/`) for MyActuator (P16). Later the same day: SimpleMotion (P15) docs and reference library supplied in `Tests/shared/specs/SimpleMotionV2-master/` (added to `Tests/.gitignore`, never committed; the reference source is an oracle only, not copied into tests); USB-MIDI (P17) spec `USB MIDI v2_0.pdf` supplied. Caveat for P17: the firmware class (`midi.h`: header, in/out jacks, elements) looks like USB-MIDI 1.0, while the supplied spec is 2.0; to be settled in the P17 T0 charter (version differences are `characterization:` or an owner question). PWM (P14) needs none.
 28. Executables as proposed: PWM, SimpleMotion, RMD in `ffb_driver_tests`; MIDI in `ffb_usb_tests`.
 29. `CLAUDE.md` and `AGENTS.md` updated.
 30. Order P14 PWM, P15 SimpleMotion, P16 MyActuator, P17 MIDI.
