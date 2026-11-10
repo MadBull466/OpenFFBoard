@@ -50,7 +50,7 @@ Headers of these modules: 392 / 413 lines (94.9 %).
 
 ### 1.5 CMSIS-DSP (tier C and P11)
 - Tier C, the 10 functions the firmware calls (100 %, 198 / 198 lines): `arm_sin_f32`, `arm_cos_f32`, `arm_biquad_cascade_df1_f32` and `_init_f32`, `arm_spline_interp_f32` and `_init_f32`, `arm_std_f32`, `arm_var_f32`, `arm_pid_init_f32`, `arm_pid_reset_f32`.
-- P11 `ffb_dsp_tests` (1844 cases, 1 skipped, 0 failed; fresh gcov: Filtering 3243 / 3243 lines (52 / 52 functions with data), Statistics 1799 / 1799, FastMath 443 / 451, Controller 97 / 97, Interpolation 233 / 233, BasicMath helpers 62 / 62, 192 of 258 in-scope source files linked and measured, 66 without data): G1, G2 and G3 approved and committed; G4 (Filtering part 1: biquad df1 / df2T / stereo in f32 / f64 / f16 / q31 / q15 / fast / 32x64, FIR f32 / f64 / f16 / q31 / q15 / q7 / fast, decimation f32 / f64 / q31 / q15 / fast, interpolation f32 / q31 / q15, all inits) done and reviewed (4 reviewers, about 200 mutants, gaps closed), approval pending. Covers FastMath f32 / f64 / f16 / q31 / q15 (sin, cos, sqrt, divide, atan2, vlog, vexp, vinverse, recip_q15) and the helpers `arm_abs_q15/q31`, `arm_add_f32/f16`, plus the pattern-loader self-tests.
+- P11 `ffb_dsp_tests` (2485 cases, 5 skipped, 0 failed; fresh gcov: Filtering 7754 / 7754 lines (116 / 116 functions with data), Statistics 1799 / 1799, FastMath 443 / 451, Controller 97 / 97, Interpolation 233 / 233, BasicMath helpers 62 / 62, total 10388 / 10396 lines, 256 source files linked and measured, 2 without data): G1-G4 approved and committed; G5 (Filtering part 2: conv f32 / q31 / q15 / q7 with fast / opt variants, partial conv, correlate f32 / f64 / f16 / q31 / q15 / q7, Levinson-Durbin f32 / f16 / q31, LMS and norm-LMS f32 / q15 / q31 with `arm_recip_q31` / `arm_recip_q15`, FIR and IIR lattices, sparse FIR) done and reviewed (4 reviewers, about 230 mutants, gaps closed), approval pending. Coverage counts only the branches the host compiles: the `ARM_MATH_DSP` unrolled kernels of the conv / correlate family are not measured (PROGRESS NEEDS REVIEW 231). Covers FastMath f32 / f64 / f16 / q31 / q15 (sin, cos, sqrt, divide, atan2, vlog, vexp, vinverse, recip_q15) and the helpers `arm_abs_q15/q31`, `arm_add_f32/f16`, plus the pattern-loader self-tests.
 
 ## 2. Out of scope (decided by you)
 
@@ -69,8 +69,7 @@ Headers of these modules: 392 / 413 lines (94.9 %).
 
 ## 3. In scope but NOT (fully) covered
 
-### 3.1 Not yet tested (planned P11 group G5)
-- G5: Filtering part 2 (convolution, correlation, LMS, lattice, sparse FIR, Levinson-Durbin), plus `arm_recip_q31`.
+### 3.1 Not tested (P11 is complete after G5)
 - G1 deliberately untested: vlog of 0 / negative, q15 0/0, f64 sin / cos / sqrt (do not exist, ARM disables them), f16 sin / cos (do not exist).
 
 ### 3.2 Partly covered, lines left (firmware ladder, 88 lines of about 8,095)
