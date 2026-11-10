@@ -103,6 +103,14 @@ typedef struct {
 	__IO uint32_t CNT;
 	__IO uint32_t PSC;
 	__IO uint32_t ARR;
+	// P14 (PWM fake, host_driver_timers.cpp): appended so the layout of the fields above is unchanged
+	__IO uint32_t CCMR1; //!< OC1M (bits 4-6), OC1PE (bit 3), OC1FE (bit 2); channel 2 shifted by 8
+	__IO uint32_t CCMR2; //!< channels 3 and 4 like CCMR1
+	__IO uint32_t CCR1;
+	__IO uint32_t CCR2;
+	__IO uint32_t CCR3;
+	__IO uint32_t CCR4;
+	__IO uint32_t BDTR; //!< Bit 15 MOE: main output enable (advanced-control timers TIM1 / TIM8)
 } TIM_TypeDef;
 #define TIM_CR1_CEN 0x00000001U
 #define TIM_DIER_UIE 0x00000001U
@@ -131,12 +139,43 @@ typedef struct {
 	TIM_TypeDef *Instance;
 	TIM_Base_InitTypeDef Init;
 	__IO HAL_TIM_StateTypeDef State;
+	__IO uint8_t ChannelState[4]; //!< P14: HAL_TIM_ChannelStateTypeDef of channels 1-4 (0 RESET, 1 READY, 2 BUSY), only used by the PWM fake
 } TIM_HandleTypeDef;
 
 #define TIM_CHANNEL_1 0x00000000U
 #define TIM_CHANNEL_2 0x00000004U
 #define TIM_CHANNEL_3 0x00000008U
 #define TIM_CHANNEL_4 0x0000000CU
+
+// ---- PWM output compare (P14, fake: host_driver_timers.cpp, ffb_driver_tests only; values of stm32f4xx_hal_tim.h) ----
+typedef struct {
+	uint32_t OCMode;
+	uint32_t Pulse;
+	uint32_t OCPolarity;
+	uint32_t OCNPolarity;
+	uint32_t OCFastMode;
+	uint32_t OCIdleState;
+	uint32_t OCNIdleState;
+} TIM_OC_InitTypeDef;
+#define TIM_OCMODE_PWM1 0x00000060U
+#define TIM_OCMODE_PWM2 0x00000070U
+#define TIM_OCPOLARITY_HIGH 0x00000000U
+#define TIM_OCPOLARITY_LOW 0x00000002U
+#define TIM_OCNPOLARITY_HIGH 0x00000000U
+#define TIM_OCNPOLARITY_LOW 0x00000008U
+#define TIM_OCFAST_DISABLE 0x00000000U
+#define TIM_OCFAST_ENABLE 0x00000004U
+#define TIM_OCIDLESTATE_SET 0x00000100U
+#define TIM_OCIDLESTATE_RESET 0x00000000U
+#define TIM_OCNIDLESTATE_SET 0x00000200U
+#define TIM_OCNIDLESTATE_RESET 0x00000000U
+#define TIM_BDTR_MOE 0x00008000U
+#define TIM_CCMR1_OC1PE 0x00000008U
+HAL_StatusTypeDef HAL_TIM_PWM_ConfigChannel(TIM_HandleTypeDef *htim, const TIM_OC_InitTypeDef *sConfig, uint32_t Channel);
+HAL_StatusTypeDef HAL_TIM_PWM_Start(TIM_HandleTypeDef *htim, uint32_t Channel);
+HAL_StatusTypeDef HAL_TIM_PWM_Stop(TIM_HandleTypeDef *htim, uint32_t Channel);
+/** HAL_TIM_MspPostInit (main.c / stm32f4xx_hal_msp.c): pin alternate function set-up of the timer outputs. The fake only counts the calls */
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
 HAL_StatusTypeDef HAL_TIM_Base_Start(TIM_HandleTypeDef *htim);
 HAL_StatusTypeDef HAL_TIM_Base_Stop(TIM_HandleTypeDef *htim);
