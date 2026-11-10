@@ -1,6 +1,6 @@
 # MyActuator RMD driver (`RmdMotorCAN`): requirements charter (phase P16, T0)
 
-Status: **T0 approved by the owner 2026-11-10** ("approve and start T1"); drafted by the lead (Sonnet 5.5). T1 (wiring, fake, fixture, skeleton) built 2026-11-10, waiting for the owner's approval; T2 not started.
+Status: **T0 approved by the owner 2026-11-10** ("approve and start T1"); drafted by the lead (Sonnet 5.5). T1 approved and committed (`70a7598b`); T2 (256 cases, reviewed, gated) waiting for the owner's approval.
 
 Unit under test: `Firmware/FFBoard/UserExtensions/Src/RmdMotorCAN.cpp` (412 lines, `RS` below) and `Inc/RmdMotorCAN.h` (144 lines, `RH`), classes `RmdMotorCAN : MotorDriver, PersistentStorage, Encoder, CanHandler, CommandHandler, cpp_freertos::Thread` and the two instances `RmdMotorCAN1` / `RmdMotorCAN2`, behind the macro `RMDCAN`, class ids `CLSID_MOT_RMD1` / `CLSID_MOT_RMD2`, motor drivers 11 and 12 (`MotorDriver.cpp:50-53`; `Axis.cpp:68-70` id 11 in axis 1 only and `Axis.cpp:92-94` id 12 in axis 2 only).
 Executable: `ffb_driver_tests` (owner's decision, question 28). Plan: `Tests/claude/plans/P14_P17_REMAINING_DRIVERS_PLAN.md`. Tests: `Firmware/Tests/claude/cases/driver/test_rmd_*.cpp`, fixture `support/RmdFixture.h`, peer fake `fakes/FakeRmdPeer.{h,cpp}`.
@@ -66,7 +66,7 @@ Rules inherited from `CLAUDE.md` and the D1-D3 / P13-P15 charters: fixture per t
 | R4.1 | Passive mode, silent motor: nothing before 100 ms; then 0xB5 at 100 ms, `{0xB6, 0x92, 1, 0, 0, 0, 0, 0}` at 120 ms and again every 1170 ms (`20 + 150 + 1000`) while the motor does not answer | FW, `characterization:` (constants), plain for the frame contents |
 | R4.2 | A motor that answers every frame (reply 0xB5 and the cyclic 0x92 reports) makes `motorReady()` true at the end of the first cycle; the 0xB5 is not repeated while the motor stays available | FW + SP |
 | R4.3 | A motor that falls silent: `available` is cleared at the end of the next cycle, `motorReady()` false, `turn` silent, 0xB5 probes resume | FW |
-| R4.4 | Active request mode (`requestpos` 1): 0x9A is requested in every cycle, no 0xB6 enable is sent; switching to the passive mode sends `{0xB6, 0x92, 0, ...}` once and the next cycle re-enables cyclic reports; switching the other way sends the disable | FW + SP |
+| R4.4 | Active request mode (`requestpos` 1): 0x9A is requested in every cycle, no 0xB6 enable is sent; switching TO the request mode sends `{0xB6, 0x92, 0, ...}` once (disable cyclic reports); switching back to the passive mode sends nothing at once, the next cycle sends the enable (lead amendment, checked against `RS:305-320`) | FW + SP |
 | R4.5 | Setting the same `requestpos` value twice sends nothing | FW, plain |
 | R4.6 | The destructor stops the cyclic requests (the thread is deleted: no frame after destruction) | FW, plain |
 
@@ -88,7 +88,7 @@ Rules inherited from `CLAUDE.md` and the D1-D3 / P13-P15 charters: fixture per t
 | R6.2 | `setPos(p)` makes `getPos()` equal p (within one count of the float conversion) and later 0x92 replies are relative to it; `setPos` before any report | FW, plain |
 | R6.3 | Request mode: `getPos()` sends 0x92 when the last 0x92 reply is older than 10 ms (boundary 10 / 11 ms), not otherwise; passive mode never sends it | FW, `characterization:` (constant) |
 | R6.4 | 0xA1 reply in the passive mode does not change the position | FW, plain |
-| R6.5 | 0xA1 reply in the request mode: `lastPos = (lastPos + angle + interpolation) / 2` with the interpolation `speed (dps) * dt (s)` degrees: speed 500 dps, 10 ms after the previous reply, previous position 0, angle 0: position 2.5 degrees = 250 counts | HD (the averaging is the firmware's filter, the dimension of the interpolation term is the defect), **`KNOWN_ISSUE` B-RMD-6** (`speed / (1e6 * dt_us)` is about 5e-8 degrees instead of 5) |
+| R6.5 | 0xA1 reply in the request mode: `lastPos = (lastPos + angle + interpolation) / 2` with the interpolation `speed (dps) * dt (s)` degrees: speed 500 dps, 10 ms after the previous reply, previous position 0, angle 0: position 2.5 degrees = 250 counts | HD (the averaging is the firmware's filter, the dimension of the interpolation term is the defect), **`KNOWN_ISSUE` B-RMD-6** (`speed / (1e6 * dt_us)` is 500 / (1e6 * 10000) = 5e-11 degrees instead of 5) |
 | R6.6 | 0x94 reply: `characterization:` the formula `(lastPos / 360) + angle * 0.01` mixes revolutions and degrees (lastPos 720 degrees then single turn 100 degrees gives 102.0 instead of a position near 820); the driver never requests 0x94 | FW, `characterization:` (owner question 50), no test of intent |
 | R6.7 | Float resolution: positions above 2^24 counts (about 466 turns) lose counts | FW, informational (NEEDS REVIEW only) |
 
@@ -119,7 +119,7 @@ Rules inherited from `CLAUDE.md` and the D1-D3 / P13-P15 charters: fixture per t
 | R9.1 | `saveFlash()` writes: word 1 = `(nodeId - 1) & 0x1F | activerequests << 6` (instance 1: `ADR_RMD1_DATA1`, instance 2: `ADR_RMD2_DATA1`), word 2 = `maxTorque & 0x7FFF`, word 3 = the position offset reduced modulo 36000 as `uint16_t`; for id 1 / 32, request mode on / off, `maxtorque` 1 / 1000 / 32767 | HD |
 | R9.2 | `restoreFlash()` and the constructor restore id, request mode, torque and offset; a missing address leaves the default; the word's unused bits 5 and 7-15 are ignored | HD + FW |
 | R9.3 | A position offset above 32767 survives a save / restore round trip (SP unit: 36000 counts per turn, offsets up to 35999) | HD, **`KNOWN_ISSUE` B-RMD-5** (the offset is stored as `uint16_t` and restored as `int16_t`: 35000 comes back as -30536) |
-| R9.4 | Negative offsets (-1, -35999) round trip | HD |
+| R9.4 | Negative offsets -1 and -1234 round trip (HD); -35999 does not: it is below -32768, stored `uint16_t` 29537, restored `int16_t` +29537 | HD, -35999 is `KNOWN_ISSUE` B-RMD-5 (lead amendment) |
 | R9.5 | The two instances use their own addresses | FW, plain |
 
 ### R10: life cycle
@@ -139,7 +139,8 @@ Rules inherited from `CLAUDE.md` and the D1-D3 / P13-P15 charters: fixture per t
 5. B-RMD-5: position offset stored as `uint16_t`, restored as `int16_t` (R9.3), `KNOWN_ISSUE`.
 6. B-RMD-6: the interpolation term of the 0xA1 handler has the wrong dimension (R6.5), `KNOWN_ISSUE`; also the condition `ustime - lastTorqueStatusUpdate_us` is a truthiness test of a difference (informational).
 7. B-RMD-7: `curTemp` is `uint8_t`, the SP says int8_t (R5.4), `KNOWN_ISSUE`.
-8. Informational / `characterization:` (owner question 50): the passive default never requests status, so errors and over temperature are never seen (R7.4); no 0x77 brake release (R3.8); the 0x94 handler mixes units and is unreachable (R6.6); `canid set` only changes the host side id, the motor id is changed with 0x79 (SP section 4) and the firmware never sends it; `~RmdMotorCAN` stops the motor while its thread may still run; `getPos` is float based (R6.7).
+8. B-RMD-8 (found in T2, lead amendment): `maxtorque` discards the status of `handleGetSet` (`RS:350-352`), so a command of an unsupported type answers OK where every other RMD command answers ERR (R8.8, `KNOWN_ISSUE`; owner question 51; theoretical because the parser's flag check normally rejects the type first).
+9. Informational / `characterization:` (owner question 50): the passive default never requests status, so errors and over temperature are never seen (R7.4); no 0x77 brake release (R3.8); the 0x94 handler mixes units and is unreachable (R6.6); `canid set` only changes the host side id, the motor id is changed with 0x79 (SP section 4) and the firmware never sends it; `~RmdMotorCAN` stops the motor while its thread may still run; `getPos` is float based (R6.7).
 
 ## Fake: MyActuator RMD motor on the fake CAN (T1, owner approved question 31)
 

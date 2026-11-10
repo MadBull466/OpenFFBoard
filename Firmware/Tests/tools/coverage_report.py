@@ -51,9 +51,9 @@ COVERAGE_TARGET = 85.0  # % of in-scope lines without hardware-only code (Tests/
 DEFAULT_FIRMWARE_DIR = os.path.normpath(os.path.join(TOOLS_DIR, "..", ".."))
 
 # Driver and MIDI code that is out of scope (Tests/claude/plans/PROGRESS.md, "Out-of-scope driver files")
-OUT_OF_SCOPE = {"RmdMotorCAN", "MidiMain", "MidiHandler"}
+OUT_OF_SCOPE = {"MidiMain", "MidiHandler"}
 # The three drivers of the driver track (ffb_driver_tests): reported in their own tier, not in the ladder
-DRIVER_TRACK = {"TMC4671", "TMC4671_configs", "ODriveCAN", "VescCAN", "TMCDebugBridge", "MotorPWM", "MotorSimplemotion"}  # TMCDebugBridge: P13, MotorPWM: P14, MotorSimplemotion: P15 (in scope since 2026-11-10)
+DRIVER_TRACK = {"TMC4671", "TMC4671_configs", "ODriveCAN", "VescCAN", "TMCDebugBridge", "MotorPWM", "MotorSimplemotion", "RmdMotorCAN"}  # TMCDebugBridge: P13, MotorPWM: P14, MotorSimplemotion: P15, RmdMotorCAN: P16 (in scope since 2026-11-10)
 # ffb_dsp_tests: the CMSIS-DSP sources are built by these CMake targets (object directories CMakeFiles/<target>.dir)
 DSP_TARGET_DIRS = ("/ffb_cmsis_dsp.dir/", "/ffb_cmsis_dsp_f16.dir/", "/ffb_dsp_tests.dir/")
 # In-scope CMSIS-DSP modules (CMakeLists.txt, ffb_dsp_tests): every arm_*.c of these directories, plus CommonTables
