@@ -15,7 +15,7 @@ A host-side (Linux/Windows, no hardware) unit-test suite for the OpenFFBoard fir
 | P11 CMSIS-DSP (G1-G5) | done, approved and pushed 2026-11-10 |
 | P13 TMCDebugBridge, P14 PWM, P15 SimpleMotion, P16 MyActuator, P17 MIDI | done, approved, committed and pushed to the fork 2026-11-10 (`fe232b2d` is the last: P17 T2) |
 | P17 MIDI detail (`MidiMain`, `MidiHandler`, TinyUSB `class/midi`, in `ffb_usb_tests`) | T0 `f21e631a`, T1 `88980f93`, T2 `fe232b2d` (319 cases, four reviewers; `MidiHandler.cpp` 100 %, `MidiMain.cpp` 100 %, `midi_device.c` 98.5 %); charter `Tests/claude/charters/driver/MIDI_REQUIREMENTS.md`, work orders `P17_WORK_ORDERS.md` |
-| P18 32-bit build (`FFB_TESTS_32BIT`, bug 225) | T1-T4 approved and committed 2026-11-11 (not pushed); plan `Tests/claude/plans/P18_32BIT_BUILD_PLAN.md`, work order `Tests/claude/charters/P18_WORK_ORDERS.md` |
+| P18 32-bit build (`FFB_TESTS_32BIT`, bug 225) | T1-T4 approved, committed and pushed 2026-11-11 (`544b4162`); plan `Tests/claude/plans/P18_32BIT_BUILD_PLAN.md`, work order `Tests/claude/charters/P18_WORK_ORDERS.md` |
 | Open questions | `Tests/claude/reports/OPEN_QUESTIONS.md` (pending 17-23, 32-52, 54-61 and 64; 62 and 63 answered 2026-11-11) |
 | Suspected bugs | `Tests/claude/reports/BUG_REPORT.md` (generated, do not hand-edit): firmware bugs up to 225, vendor bugs up to V88, NEEDS REVIEW up to 280 |
 
@@ -23,7 +23,7 @@ Current counts (GCC 16, 2026-11-11): `ffb_unit_tests` 654 passed / 4 skipped, `f
 
 ### Where to continue
 
-The test plan P0-P17 is complete: every phase is approved, committed and pushed. P18 (32-bit build) is approved and committed (2026-11-11), not yet pushed. Otherwise nothing is waiting for a decision of yours except the open questions (17-23, 32-52, 54-61, 64 in `Tests/claude/reports/OPEN_QUESTIONS.md`) and the two stale lines of `CLAUDE.md` (tier C wording, `USB MIDI v2_0.pdf` spec line), which are the owner's file. New work starts only on the owner's request; if an open question is answered, update the affected tests, `PROGRESS.md`, `OPEN_QUESTIONS.md` and `BUG_REPORT.md` (run `make_bug_report.py`). Reusable pieces for a new phase: the charter and work-order shape of `MIDI_REQUIREMENTS.md` / `P17_WORK_ORDERS.md`, `support/RmdFixture.h` (threads with several `Delay` calls), `support/MidiFixture.h` and `platform/usb_midi/` (a recording double of a driver interface for a caller built into another executable).
+The test plan P0-P17 is complete: every phase is approved, committed and pushed. P18 (32-bit build) is approved, committed and pushed (`544b4162`, 2026-11-11). Otherwise nothing is waiting for a decision of yours except the open questions (17-23, 32-52, 54-61, 64 in `Tests/claude/reports/OPEN_QUESTIONS.md`) and the two stale lines of `CLAUDE.md` (tier C wording, `USB MIDI v2_0.pdf` spec line), which are the owner's file. New work starts only on the owner's request; if an open question is answered, update the affected tests, `PROGRESS.md`, `OPEN_QUESTIONS.md` and `BUG_REPORT.md` (run `make_bug_report.py`). Reusable pieces for a new phase: the charter and work-order shape of `MIDI_REQUIREMENTS.md` / `P17_WORK_ORDERS.md`, `support/RmdFixture.h` (threads with several `Delay` calls), `support/MidiFixture.h` and `platform/usb_midi/` (a recording double of a driver interface for a caller built into another executable).
 
 ## Rules you must follow (from the owner's `CLAUDE.md`, repeated here because they are strict)
 

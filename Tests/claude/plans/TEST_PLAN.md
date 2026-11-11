@@ -4,7 +4,7 @@ Keep every existing test in `Firmware/Tests/` and raise line coverage of the in-
 
 ## Where we are (updated 2026-11-10)
 
-- P0-P11 and P13-P17 are done, approved, committed and pushed to the fork (last commit `5c4658ae`, documentation after P17). P18 (32-bit build) is approved and committed (2026-11-11), not yet pushed. The resume point is `Tests/claude/plans/PROGRESS.md`.
+- P0-P11 and P13-P17 are done, approved, committed and pushed to the fork. P18 (32-bit build) is approved, committed and pushed too (`544b4162`, 2026-11-11). The resume point is `Tests/claude/plans/PROGRESS.md`.
 - Original starting point (2026-10-21, kept for the record): 318 test cases, 24 of 97 firmware source files compiled into the tests, in-scope line coverage measured in P0 at 2,136 of about 8,160 lines (26.2 %), mutation check 42 of 48.
 - Today (GCC 16): in-scope firmware coverage 98.9 % (8,171 of about 8,260 lines, 2026-11-10 gcov run after P17); `ffb_unit_tests` 654 / `ffb_target_tests` 1863 / `ffb_flash_tests` 159 / `ffb_rtos_tests` 278 / `ffb_usb_tests` 606 / `ffb_driver_tests` 1717 / `ffb_dsp_tests` 2485 cases, Python 125 tests, ctest 11 of 11 (2026-11-11, also in the 32-bit build). Per-file numbers: `Tests/claude/plans/COVERAGE_AND_SCOPE.md`.
 
@@ -190,7 +190,7 @@ Added 2026-11-10 (owner). Status: T0 (`Tests/claude/charters/driver/MIDI_REQUIRE
 
 ### P18: 32-bit build (`FFB_TESTS_32BIT`; all executables)
 
-Added 2026-11-11 (owner chose it from four proposals: integration tests, 32-bit build, ARM struct layout checks, fuzzing). Plan: `Tests/claude/plans/P18_32BIT_BUILD_PLAN.md`. The suite is built as ILP32 (`-m32 -msse2 -mfpmath=sse -funsigned-char`) so `size_t`, `long` and pointers have the target's size. T1 CMake option (5 `__int128` DSP files left out, owner's decision 62 B), T2 bug 225 tests (`test_serial_ffb_32bit.cpp`, 31 cases, markers `KNOWN_ISSUE_32BIT(_UB)`), T3 warning diff over all firmware compile commands (no further findings): approved 2026-11-11. T4 documentation approved; P18 committed 2026-11-11. Not covered: ARM's `uint32_t` type and struct alignment (separate ARM compile check, proposal only).
+Added 2026-11-11 (owner chose it from four proposals: integration tests, 32-bit build, ARM struct layout checks, fuzzing). Plan: `Tests/claude/plans/P18_32BIT_BUILD_PLAN.md`. The suite is built as ILP32 (`-m32 -msse2 -mfpmath=sse -funsigned-char`) so `size_t`, `long` and pointers have the target's size. T1 CMake option (5 `__int128` DSP files left out, owner's decision 62 B), T2 bug 225 tests (`test_serial_ffb_32bit.cpp`, 31 cases, markers `KNOWN_ISSUE_32BIT(_UB)`), T3 warning diff over all firmware compile commands (no further findings): approved 2026-11-11. T4 documentation approved; P18 committed and pushed 2026-11-11 (`544b4162`). Not covered: ARM's `uint32_t` type and struct alignment (separate ARM compile check, proposal only).
 
 ## Fake fidelity rules
 

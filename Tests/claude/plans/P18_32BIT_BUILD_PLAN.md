@@ -1,6 +1,6 @@
 # P18 plan: 32-bit build of the host test suite
 
-Status: **approved by the owner 2026-11-11 with option 62 B**; 63 as recommended (the two crashing cases are excluded only in the 32-bit build). Lead's choice within 62 B: only the 5 `__int128` files are left out of the 32-bit `ffb_dsp_tests`, the rest of the DSP suite is built and run. T1-T4 approved and committed 2026-11-11 (not pushed).
+Status: **approved by the owner 2026-11-11 with option 62 B**; 63 as recommended (the two crashing cases are excluded only in the 32-bit build). Lead's choice within 62 B: only the 5 `__int128` files are left out of the 32-bit `ffb_dsp_tests`, the rest of the DSP suite is built and run. T1-T4 approved, committed (`544b4162`) and pushed 2026-11-11.
 
 ## 1. Why
 

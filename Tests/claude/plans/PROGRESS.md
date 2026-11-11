@@ -6,8 +6,8 @@
 
 ## Current state
 
-- **Current phase:** P18 32-bit build (plan `Tests/claude/plans/P18_32BIT_BUILD_PLAN.md`, approved 2026-11-11 with option 62 B): T1 (CMake option), T2 (bug 225 tests), T3 (warning sweep) and T4 (documentation) approved and committed 2026-11-11 (one commit, not pushed). P0-P11 and P13-P17 done, approved, committed and pushed (P17: T0 `f21e631a`, T1 `88980f93`, T2 `fe232b2d`).
-- **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system"). Fork `MadBull466/OpenFFBoard` is at `5c4658ae` (pushed 2026-11-10).
+- **Current phase:** P18 32-bit build (plan `Tests/claude/plans/P18_32BIT_BUILD_PLAN.md`, approved 2026-11-11 with option 62 B): T1 (CMake option), T2 (bug 225 tests), T3 (warning sweep) and T4 (documentation) approved, committed and pushed 2026-11-11 (`544b4162`). P0-P11 and P13-P17 done, approved, committed and pushed (P17: T0 `f21e631a`, T1 `88980f93`, T2 `fe232b2d`).
+- **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system"). Fork `MadBull466/OpenFFBoard` is at `544b4162` (P18, pushed 2026-11-11) plus this documentation commit.
 - **Last updated:** 2026-11-11 (P18 T4)
 - **Measured on the P18 gate builds (2026-11-11, GCC 16, fresh `../ffb-test-build/p18t2f-<variant>`):**
   - `ffb_unit_tests` 654 passed / 4 skipped with the documented exclusion (baseline check OK in all six variants).
@@ -28,7 +28,7 @@
 
 ## Next action
 
-**None pending: P18 is approved and committed (2026-11-11), not pushed.** Push only on "push".
+**None pending: P18 is approved, committed and pushed (`544b4162`, 2026-11-11).**
 
 The remaining items are the owner's: open questions 17-23 (P11), 32-52 (P14-P16), 54-61 (P17) and 64 (P18: CLAUDE.md / AGENTS.md paragraph), and the two stale lines of `CLAUDE.md` (tier C wording: "only the CMSIS-DSP functions the firmware calls", since P11 it is every function of the used modules; the P17 spec line `USB MIDI v2_0.pdf`, now `midi10.pdf` and `MIDI_1.0_Detailed_Specification.pdf`), which is the owner's file and has not been changed. New work starts only on the owner's request. If an open question is answered: update the affected tests, `PROGRESS.md`, `OPEN_QUESTIONS.md`, run `make_bug_report.py`, regenerate the coverage numbers. Next numbers: firmware bug 226, vendor bug V89, NEEDS REVIEW 281, open question 65. Further proposals not started (each needs the owner's go-ahead): cross-module integration tests, ARM struct layout checks with `arm-none-eabi-gcc` (compile only), fuzzing of the input parsers with libFuzzer, CI (question 5).
 
@@ -56,7 +56,7 @@ The remaining items are the owner's: open questions 17-23 (P11), 32-52 (P14-P16)
 | P15 SimpleMotion driver | `ffb_driver_tests` (not with clang) | `MotorSimplemotion.cpp` 98.0 % (294 / 300) | done | yes, 2026-11-10 | `cf3d341e` (T0), `ff86dd7e` (T1), `999872fa` (T2) |
 | P16 MyActuator RMD driver | `ffb_driver_tests` | `RmdMotorCAN.cpp` 100 % (231 / 231) | done | yes, 2026-11-10 | `6b2315e1` (T0), `70a7598b` (T1), `1d30019d` (T2) |
 | P17 MIDI (`MidiMain`, `MidiHandler`, TinyUSB `class/midi`) | `ffb_usb_tests` | `MidiHandler.cpp` 100 % (64 / 64), `MidiMain.cpp` 100 % (97 / 97), `midi_device.c` 98.5 % (201 / 204) | done, approved | yes, 2026-11-10 | `f21e631a` (T0), `88980f93` (T1), `fe232b2d` (T2) |
-| P18 32-bit build (`FFB_TESTS_32BIT`, bug 225) | all (32-bit variant); new cases in `ffb_target_tests` | no coverage change (behaviour on ILP32) | done, approved | T1-T4: yes, 2026-11-11 | the P18 commit (2026-11-11) |
+| P18 32-bit build (`FFB_TESTS_32BIT`, bug 225) | all (32-bit variant); new cases in `ffb_target_tests` | no coverage change (behaviour on ILP32) | done, approved | T1-T4: yes, 2026-11-11 | `544b4162` |
 
 ## Decisions log
 
@@ -126,7 +126,7 @@ The remaining items are the owner's: open questions 17-23 (P11), 32-52 (P14-P16)
 | 2026-11-10 | P17 oracles supplied: `midi10.pdf` (USB MIDI class definition 1.0) and `MIDI_1.0_Detailed_Specification.pdf`; `USB MIDI v2_0.pdf` not needed (firmware class is USB-MIDI 1.0 style). Where the specs are silent: `characterization:`. P17 T0 not started | My supply of the documents |
 | 2026-11-11 | **P18 32-bit build approved** (plan `P18_32BIT_BUILD_PLAN.md`): option `FFB_TESTS_32BIT` (`-m32 -msse2 -mfpmath=sse -funsigned-char`, default OFF). **Question 62: option B**: the 5 `ffb_dsp_tests` files with `__int128` reference models are left out of 32-bit builds. **Question 63**: the 2 existing cases that abort on ILP32 (bug 225) stay unchanged and are excluded from ctest in 32-bit builds only (`FFB_TARGET_TESTS_EXCLUDE_32BIT`) | My decisions |
 | 2026-11-11 | P18 lead decisions (Opus 5.5): only the 5 files are left out (not all of `ffb_dsp_tests`); two markers in `support/KnownIssue32.h` (`KNOWN_ISSUE_32BIT` = should_fail on ILP32, `KNOWN_ISSUE_32BIT_UB` = skipped on ILP32; both plain on LP64); `run_all_tests.py` classifies them by the build's width; `offset` / `sat` / `coeff` get answers are not asserted as two replies (NEEDS REVIEW 129 stays open); the suggested fix of bug 225 is `adr >= 0 && adr < size` (a `size_t` cast is not a fix on ILP32) | Lead (Opus 5.5) |
-| 2026-11-11 | P18 T1, T2, T3 and T4 approved; P18 committed | My approvals |
+| 2026-11-11 | P18 T1, T2, T3 and T4 approved; P18 committed and pushed (`544b4162`) | My approvals |
 
 ## Environment
 
@@ -1265,7 +1265,7 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 - **Coverage (gcc, gcov):** `MidiHandler.cpp` 64 / 64 (100 %), `MidiMain.cpp` 97 / 97 (100 %), `midi_device.c` 201 / 204 (98.5 %); TinyUSB tier 1508 / 1572 (95.9 %); firmware ladder 8171 of about 8260 (98.9 %), `coverage_report.py` now counts `MidiMain` and `MidiHandler` in the ladder.
 - **Not verified:** the target (ARM) behaviour, a real USB host or MIDI device, the USB task / timer interrupt race (see NEEDS REVIEW 280).
 
-## P18 result (32-bit build, T1-T4 approved and committed 2026-11-11)
+## P18 result (32-bit build, T1-T4 approved, committed `544b4162` and pushed 2026-11-11)
 
 - **Scope:** the whole suite built as ILP32 code (`-DFFB_TESTS_32BIT=ON`, `-m32 -msse2 -mfpmath=sse -funsigned-char`) so that `size_t`, `long` and pointers are 4 bytes as on the STM32F407. Plan and per-step results: `Tests/claude/plans/P18_32BIT_BUILD_PLAN.md`; work order: `Tests/claude/charters/P18_WORK_ORDERS.md`.
 - **T1 (CMake):**
