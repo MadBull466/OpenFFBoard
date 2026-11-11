@@ -930,18 +930,26 @@ with the target's `stm32f4xx_hal_conf.h`, plus the host platform in `Code_Covera
   An access to a register without a model, a reserved offset or a write to a read-only register is a fault, and
   `HalFixture` fails the case. The bit-band alias 0x42000000 of 0x40000000-0x4007FFFF is modelled (RM0090 2.3.3; the
   HAL writes `SYSCFG_CMPCR` that way). Models (`HalPeripherals`, T1, RM0090 Rev 22): GPIOA..I, EXTI, SYSCFG, RCC
-  (storage), FLASH_ACR, DBGMCU, unique id. Core model (`HalCorePeripherals`, PM0214 Rev 10): NVIC (82 IRQs), SCB,
+  (behaviour since T2, see below), FLASH_ACR, DBGMCU, unique id. Core model (`HalCorePeripherals`, PM0214 Rev 10): NVIC (82 IRQs), SCB,
   SysTick, MPU. `hostCmsisNopHook` (`host_cmsis_gcc.h`) lets a test `longjmp` out of the endless loop after
   `NVIC_SystemReset`. The fixture resets every model to its RM0090 reset values before each case; the access log
   (`hostRegsLogAt`, `lastWritten`) shows the raw writes.
+* **RCC and PWR (T2, `HalClockPower`):** ready flags of HSI, HSE, PLL, PLLI2S, LSE and LSI follow the ON bits after a number of HAL
+  ticks (default 1) and are evaluated on every read, so a HAL polling loop sees them rise without a thread; SWS follows SW once the
+  source is ready; ON bits cannot be cleared while in use; PLLCFGR / PLLI2SCFGR ignore writes while the PLL is on; CIR, BDCR (DBP
+  protection, write-once RTCSEL, BDRST) and CSR; PWR_CR / PWR_CSR with VOSRDY, BRR, PVDO against `hostPwrSetVddMv`, SBF / WUF
+  through `hostPwrSetFlags`, PWRRST through APB1RSTR. Knobs: `hostRccSetStartupTicks`, `hostRccFail`, `hostRccStickyReady`,
+  `hostRccHseFailure`, `hostPwrFailVos`, `hostPwrFailBackupRegulator`, `hostPwrStickyBackupReady`, `hostFlashLatencyStuck`.
+  Time is the HAL tick, not real time: start-up times, jitter and the real clock frequencies are not modelled.
 * **CPU intrinsics:** `host_cmsis_gcc.h` is force-included and replaces `cmsis_gcc.h` (barriers, `__WFI`, exclusive monitor
   for `__LDREXW` / `__STREXW`, `__RBIT`, `__CLZ`).
 * **Tick:** a strong host `HAL_GetTick` runs one simulated 1 ms tick interrupt (the real `HAL_IncTick`) per call, so HAL
   polling loops see time pass without sleeping. Limit: the real `HAL_GetTick` is replaced. ctest `TIMEOUT` 120 s reports a
   loop that never ends.
-* **Test files (T1, 225 cases per executable):** `test_hal_gpio.cpp`, `test_hal_exti.cpp`, `test_hal_core.cpp`,
-  `test_hal_core_systick.cpp`, `test_hal_cortex.cpp`, `test_hal_t0_smoke.cpp`. `KNOWN_ISSUE` marks the vendor bugs V89 and V90;
-  `characterization:` cases are NEEDS REVIEW 281-287. Combined with sanitizers the HAL executables run (32-bit ASan), but
+* **Test files (T1 + T2, 527 cases per executable):** T1: `test_hal_gpio.cpp`, `test_hal_exti.cpp`, `test_hal_core.cpp`,
+  `test_hal_core_systick.cpp`, `test_hal_cortex.cpp`, `test_hal_t0_smoke.cpp`. T2: `test_hal_rcc_osc.cpp` (oscillators, PLL,
+  DeInit), `test_hal_rcc_clock.cpp` (ClockConfig, frequencies, MCO, CSS), `test_hal_rcc_ex.cpp` (RTC / I2S clocks, PLLI2S),
+  `test_hal_pwr.cpp` (PWR, PWR_Ex). `KNOWN_ISSUE` marks the vendor bugs V89-V93; `characterization:` cases are NEEDS REVIEW 281-299. Combined with sanitizers the HAL executables run (32-bit ASan), but
   the whole ctest does not: `ffb_flash_tests` cannot map 0x1FFF0000 there.
 * **DISCO:** both targets' HAL, CMSIS headers and `hal_conf` are byte-identical today; `hal_identity_f407vg_disco` fails as
   soon as they diverge, because the two executables share their test files.

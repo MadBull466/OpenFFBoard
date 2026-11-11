@@ -4,6 +4,7 @@
  */
 #include "HalPeripherals.h"
 
+#include "HalClockPower.h"
 #include "HalCorePeripherals.h"
 #include "HalRegisterSpace.h"
 
@@ -42,10 +43,13 @@ static uint32_t dbgIdcode;
 static uint32_t uidWords[3];
 static uint16_t flashSizeKib;
 
+static int latencyStuck;
 static uint32_t peek(uintptr_t a) { return hostRegsPeek(a); }
 static void poke(uintptr_t a, uint32_t v) { hostRegsPoke(a, v); }
 
 void hostPeriphResetState(void) {
+	latencyStuck = 0;
+	hostClockPowerResetState();
 	for (unsigned p = 0; p < HOST_GPIO_PORTS; ++p) {
 		for (unsigned i = 0; i < 16; ++i) extLevel[p][i] = HOST_PIN_FLOAT;
 		lockStep[p] = 0;
@@ -307,46 +311,28 @@ static void syscfgAfterWrite(uintptr_t a, uint32_t oldValue, uint32_t written) {
 static const HostRegModel syscfgModel = {"SYSCFG", SYSCFG_BASE_ADDR, 0x400u, NULL, syscfgKnown, NULL, syscfgBeforeWrite,
 										 syscfgAfterWrite};
 
-/* ---------------------------------------------------------------- RCC model (storage, T1 subset) */
-static int rccKnown(uintptr_t a) {
-	const uint32_t off = (uint32_t)(a - RCC_BASE_ADDR);
-	switch (off) {
-	case 0x00: case 0x04: case 0x08: case 0x0C: case 0x10: case 0x14: case 0x18: case 0x20: case 0x24:
-	case 0x30: case 0x34: case 0x38: case 0x40: case 0x44: case 0x50: case 0x54: case 0x58: case 0x60: case 0x64:
-	case 0x70: case 0x74: case 0x80: case 0x84: return 1;
-	default: return 0;
-	}
-}
-
-static void rccReset(void) { /* RM0090 7.3.1-7.3.23 */
-	poke(RCC_BASE_ADDR + 0x00u, 0x00000083u);
-	poke(RCC_BASE_ADDR + 0x04u, 0x24003010u);
-	poke(RCC_BASE_ADDR + 0x30u, 0x00100000u);
-	poke(RCC_BASE_ADDR + 0x50u, 0x7E6791FFu);
-	poke(RCC_BASE_ADDR + 0x54u, 0x000000F1u);
-	poke(RCC_BASE_ADDR + 0x58u, 0x00000001u);
-	poke(RCC_BASE_ADDR + 0x60u, 0x36FEC9FFu);
-	poke(RCC_BASE_ADDR + 0x64u, 0x00075F33u);
-	poke(RCC_BASE_ADDR + 0x74u, 0x0E000000u);
-	poke(RCC_BASE_ADDR + 0x84u, 0x20003000u);
-}
-
+/* ---------------------------------------------------------------- RCC model (T2: behaviour in HalClockPower.c) */
 static void rccAfterWrite(uintptr_t a, uint32_t oldValue, uint32_t written) {
-	(void)oldValue;
-	poke(a, written);
+	hostRccAfterWrite(a, oldValue, written);
 	if ((uint32_t)(a - RCC_BASE_ADDR) == RCC_AHB1ENR_OFF) extiSample(0);
 }
 
-static const HostRegModel rccModel = {"RCC", RCC_BASE_ADDR, 0x400u, rccReset, rccKnown, NULL, rccKnown, rccAfterWrite};
+static const HostRegModel rccModel = {"RCC", RCC_BASE_ADDR, 0x400u, hostRccReset, hostRccBeforeRead, NULL, hostRccKnown,
+									  rccAfterWrite};
 
 /* ---------------------------------------------------------------- FLASH interface (ACR only, T1) */
 static int flashKnown(uintptr_t a) { return a == FLASHIF_BASE_ADDR; }
+void hostFlashLatencyStuck(int stuck) { latencyStuck = stuck != 0; }
 static void storeAsWritten(uintptr_t a, uint32_t oldValue, uint32_t written) {
 	(void)oldValue;
 	poke(a, written);
 }
+static void flashAcrWrite(uintptr_t a, uint32_t oldValue, uint32_t written) {
+	/* RM0090 3.4 / 3.9.1: LATENCY[2:0] reads back the new value once effective; the knob keeps the old value. */
+	poke(a, latencyStuck ? ((written & ~7u) | (oldValue & 7u)) : written);
+}
 static const HostRegModel flashModel = {"FLASH interface (ACR)", FLASHIF_BASE_ADDR, 0x400u, NULL, flashKnown, NULL,
-										flashKnown, storeAsWritten};
+										flashKnown, flashAcrWrite};
 
 /* ---------------------------------------------------------------- DBGMCU */
 static int dbgBeforeRead(uintptr_t a) {
@@ -400,5 +386,6 @@ void hostPeriphRegisterAll(void) {
 	hostRegsAddModel(&flashModel);
 	hostRegsAddModel(&dbgModel);
 	hostRegsAddModel(&uidModel);
+	hostClockPowerRegister(); /* PWR, HalClockPower.h */
 	hostCoreRegister(); /* system control space, HalCorePeripherals.h */
 }

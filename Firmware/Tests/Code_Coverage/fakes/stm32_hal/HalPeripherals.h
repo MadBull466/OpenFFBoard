@@ -88,6 +88,8 @@ uint32_t hostGpioFloatingReads(void);
 void hostExtiSetLine(unsigned line, int level);
 uint32_t hostExtiEventCount(void);
 
+/* 1: writes to FLASH_ACR.LATENCY[2:0] keep the old value (the latency never reads back as written). */
+void hostFlashLatencyStuck(int stuck);
 void hostDbgSetIdcode(uint32_t idcode);
 void hostUidSet(uint32_t w0, uint32_t w1, uint32_t w2);
 void hostFlashSizeSet(uint16_t kib);

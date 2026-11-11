@@ -1,6 +1,6 @@
 # P12 plan: tests of the real ST HAL (Claude, fresh start)
 
-Status: **approved by the owner 2026-11-11.** T0 trial done, approved and committed 2026-11-11 (section "T0 result"). **T1 finished and gated 2026-11-11, uncommitted, waiting for the owner's "approve ... and commit"** (section "T1 result"; charter `Tests/Code_Coverage/claude/charters/hal/P12_T1_REQUIREMENTS.md`). All questions (65-69) answered 2026-11-11 (section 6); 66 revised to F407VG and F407VG_DISCO.
+Status: **approved by the owner 2026-11-11.** T0 trial done, approved and committed 2026-11-11 (section "T0 result"). T1 done, approved and committed locally 2026-11-11 (`f774247b`, not pushed; section "T1 result"). **T2 (RCC, PWR) finished and gated 2026-11-11, uncommitted, waiting for the owner's "approve ... and commit"** (section "T2 result"; charter `Tests/Code_Coverage/claude/charters/hal/P12_T2_REQUIREMENTS.md`). All questions (65-69) answered 2026-11-11 (section 6); 66 revised to F407VG and F407VG_DISCO.
 
 Owner's instruction (2026-11-11): "I want to start on P12 that was started by Codex. I want to start from the beginning for that Phase and not use any of their files."
 
@@ -70,6 +70,27 @@ HAL core, CORTEX, GPIO and EXTI of both targets. Charter G1-G14, E1-E10, H1-H10,
 - **Findings:** vendor V89 (`HAL_GPIO_DeInit` debug pins) and V90 (`HAL_Delay` near `HAL_MAX_DELAY` at 10 Hz); NEEDS REVIEW 281-287.
 - **Model decisions:** the clock gate of a peripheral is not modelled (RM0090 is silent); an EXTI edge sets PR only with IMR set (medium confidence); the lock becomes active at the first read after the third LCKR write; STK_CALIB reads 0xC0000000 (PM0214 contradicts itself); H9 oracle is the RM0090 reset bits per register.
 - **Limits:** the 32-bit sanitizer build cannot run `ffb_flash_tests` (the i386 ASan layout collides with its fixed mapping at 0x1FFF0000; not a P12 regression, the HAL executables run fine with sanitizers); not run with clang, MinGW, macOS or on ARM; peripheral timing and interrupts beyond the NVIC register model are not modelled.
+
+## T2 result (2026-11-11, gated, not yet committed)
+
+RCC / RCC_Ex and PWR / PWR_Ex of both targets (F405/407 branches that compile for the F407). Charter RC1-RC15, RX1-RX4, PW1-PW11. GCC 16, 32-bit, out of tree.
+
+- **Platform (lead):** `fakes/stm32_hal/HalClockPower.{h,c}` replaces the storage-only RCC model: oscillator and PLL ready flags driven by the HAL tick (default 1 tick, knobs for start-up time, never ready, ready flag that never clears), SWS follows SW once the source is ready, ON bits that cannot be cleared while in use, PLLCFGR / PLLI2SCFGR write protection, CIR flags with their interrupt enables, BDCR (DBP protection, RTCSEL write once, BDRST), CSR, HSE failure with CSS, and the PWR block (PWR_CR / PWR_CSR, VOSRDY, BRR, PVDO against a VDD knob, PWRRST through APB1RSTR). `HalPeripherals.c` got a FLASH_ACR latency-stuck knob. A lead probe of the firmware clock configuration (HSE 8 MHz, M 4, N 168, P 2) gave SYSCLK 168 MHz, PCLK1 42 MHz, PCLK2 84 MHz through the real HAL.
+- **Tests (`claude/cases_hal/`):** `test_hal_rcc_osc.cpp` 87, `test_hal_rcc_clock.cpp` 85, `test_hal_rcc_ex.cpp` 49, `test_hal_pwr.cpp` 81 (302 new): 527 cases in each executable, 0 failed; 14 expected-fail assertions inside the `KNOWN_ISSUE` cases (10 from T1, V91, V92, V93).
+- **Reviews:** two reviewers, 62 and 78 mutants. RCC: acceptable with fixes (rejected-call assertions that could not tell `HAL_ERROR` from `HAL_TIMEOUT`, timeouts without an upper bound, the SYSCLK type gate, `GetSysClockFreq` with SWS = 3); model fixes for CIR (xxRDYF needs xxRDYIE) and the CSS-off HSE failure. RCC_Ex / PWR: accepted with fixes (second `ConfigPVD` sequences, `DisableWakeUpPin` clobbering write, vacuous `DisableBkUpReg` case, running PLLI2S reconfiguration, RTCPRE field, `RCC_PERIPHCLK_PLLI2S`, CWUF / CSBF). All fixes landed; the fixes were not re-mutated. Survivors left: equivalent ones (`BDRST` release, `FLatency >=`), model protections the HAL never triggers (HSEON cleared in use, PLLCFGR written with the PLL on, RDYC, RTCSEL write-once and DBP gating of the model), a timeout constant without a measurable bound.
+- **Gate (lead-run, `../ffb-test-build/`):**
+
+  | Build | Result |
+  |---|---|
+  | `p12t1-gate` (32-bit + HAL) | ctest 14 / 14, `check_baseline.py` OK; `ffb_hal_tests` and `ffb_hal_tests_disco` 527 / 527, 3306 of 3320 assertions (14 expected) |
+  | `p12t1-default` (option off) | ctest 11 / 11, `check_baseline.py` OK |
+  | `p12t1-32san` (32-bit + HAL + sanitizers) | HAL executables 527 / 527 each, no sanitizer report; the full ctest still aborts in `ffb_flash_tests` (fixed mapping at 0x1FFF0000 against the i386 ASan layout, see T1) |
+  | no warning in the build logs | |
+
+- **Coverage (gcov, `p12t1-cov`, identical for both targets):** `stm32f4xx_hal_rcc.c` 230 / 240 (weak DeInit stub overridden by the Ex file, the weak CSS callback, two timeout branches, one error return, one `GetOscConfig` branch), `stm32f4xx_hal_rcc_ex.c` 112 / 128 (timeout branches of DeInit, the DBP wait timeout, the PLLI2S wait timeout, the `GetPeriphCLKFreq` default case), `stm32f4xx_hal_pwr.c` 83 / 85 (weak callback), `stm32f4xx_hal_pwr_ex.c` 33 / 33. With T1: 7 of 27 HAL files measured, 0 for the other 20 (T3 onwards).
+- **Findings:** vendor V91 (Sleep keeps the SysTick running, against the UM1725 note), V92 (`HAL_RCC_DeInit` clears LSION, against the UM1725 note), V93 (arguable: `HAL_RCC_ClockConfig` rejects a source that is not ready, UM1725 note says the switch happens when it is); NEEDS REVIEW 288-300.
+- **Charter changes:** PW7 (CWUF in Standby) corrected: neither UM1725 nor RM0090 requires it, RM0090 Table 31 makes "WUF cleared" an application precondition. The charter's PLLSAI / `SelectLSEMode` / over-drive items are not compiled for the F407 and are not tested.
+- **Limits:** clock speeds, jitter and start-up times are not modelled (ready flags follow the HAL tick); no RCC / PWR interrupts, no wake-up from Stop / Standby, no clock gating; not run with clang, MinGW, macOS or on ARM.
 
 ## 3. Design
 
