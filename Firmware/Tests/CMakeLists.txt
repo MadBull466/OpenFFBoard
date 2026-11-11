@@ -1198,7 +1198,9 @@ if(FFB_TESTS_REAL_HAL)
 			${tdir}/Drivers/CMSIS/Device/ST/STM32F4xx/Include ${tdir}/Drivers/CMSIS/Include)
 		add_library(${name}_hal OBJECT ${hal_sources})
 		add_executable(${name} ${FFB_HAL_TEST_SOURCES} $<TARGET_OBJECTS:${name}_hal>
-			${FFB_HAL_FAKE_DIR}/host_cmsis.c ${FFB_HAL_FAKE_DIR}/HalRegisterSpace.c ${FFB_HAL_FAKE_DIR}/HalHostSystem.c
+			${FFB_HAL_FAKE_DIR}/host_cmsis.c ${FFB_HAL_FAKE_DIR}/HalRegisterSpace.c ${FFB_HAL_FAKE_DIR}/HalPeripherals.c
+			${FFB_HAL_FAKE_DIR}/HalCorePeripherals.c
+			${FFB_HAL_FAKE_DIR}/HalHostSystem.c
 			Code_Coverage/support/test_main.cpp)
 		target_include_directories(${name} PRIVATE ${FFB_HAL_CASE_DIR} Code_Coverage/support Code_Coverage/third_party)
 		foreach(tgt ${name}_hal ${name})
@@ -1220,6 +1222,9 @@ if(FFB_TESTS_REAL_HAL)
 		endif()
 	endfunction()
 
+	# The trapping bus reads the page-fault code and EFLAGS from the i386 signal context (REG_ERR / REG_EFL): glibc
+	# declares them only with _GNU_SOURCE, which the force-included header would otherwise come too late for.
+	set_source_files_properties(${FFB_HAL_FAKE_DIR}/HalRegisterSpace.c PROPERTIES COMPILE_DEFINITIONS _GNU_SOURCE)
 	ffb_hal_test_executable(ffb_hal_tests F407VG)
 	ffb_hal_test_executable(ffb_hal_tests_disco F407VG_DISCO)
 	# The two executables share their test files: valid only while both targets compile the same HAL.

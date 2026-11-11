@@ -13,6 +13,7 @@ volatile uint32_t hostCmsisSevCount;
 volatile uint32_t hostCmsisFailNextStrex;
 volatile uint32_t hostCmsisStrexFailures;
 void (*volatile hostCmsisWaitHook)(void);
+void (*volatile hostCmsisNopHook)(void);
 
 static volatile void *monitorAddress; /* NULL = monitor closed */
 
@@ -25,6 +26,7 @@ void hostCmsisReset(void) {
 	hostCmsisFailNextStrex = 0U;
 	hostCmsisStrexFailures = 0U;
 	hostCmsisWaitHook = NULL;
+	hostCmsisNopHook = NULL;
 	monitorAddress = NULL;
 }
 

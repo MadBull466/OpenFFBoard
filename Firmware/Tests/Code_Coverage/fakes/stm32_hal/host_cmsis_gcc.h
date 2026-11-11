@@ -13,7 +13,8 @@
  *    (CMSIS 5, Drivers/CMSIS/Include/cmsis_gcc.h lines 40-117).
  *  - __DSB / __ISB / __DMB: a compiler memory barrier plus a counter (hostCmsisBarrierCount). On the single host
  *    thread there is no write buffer or pipeline to drain, so the counter is all a test can observe.
- *  - __NOP: counted (hostCmsisNopCount), no effect.
+ *  - __NOP: counted (hostCmsisNopCount), then hostCmsisNopHook is called if set. A test can leave an endless
+ *    `for(;;) __NOP();` (NVIC_SystemReset after the reset request) with longjmp from that hook.
  *  - __WFI / __WFE / __SEV: counted (hostCmsisWfiCount, ...), then hostCmsisWaitHook is called if set (a test can
  *    advance time or raise an event there). The core does not sleep.
  *  - __LDREXW / __LDREXH and __STREXW / __STREXH: a one-entry exclusive monitor (ARMv7-M Architecture Reference
@@ -110,12 +111,16 @@ extern volatile uint32_t hostCmsisSevCount;
 extern volatile uint32_t hostCmsisFailNextStrex; /* number of following store-exclusives that fail */
 extern volatile uint32_t hostCmsisStrexFailures; /* store-exclusives that returned 1 */
 extern void (*volatile hostCmsisWaitHook)(void); /* called after __WFI / __WFE when set */
+extern void (*volatile hostCmsisNopHook)(void);  /* called by __NOP when set */
 void hostCmsisReset(void);
 void hostCmsisWaited(void);
 void hostCmsisMonitorOpen(volatile void *addr);
 uint32_t hostCmsisMonitorClaim(volatile void *addr); /* 0 = store may proceed, 1 = store-exclusive fails */
 
-__STATIC_FORCEINLINE void __NOP(void) { hostCmsisNopCount++; }
+__STATIC_FORCEINLINE void __NOP(void) {
+	hostCmsisNopCount++;
+	if (hostCmsisNopHook != 0) hostCmsisNopHook();
+}
 __STATIC_FORCEINLINE void __DSB(void) { __COMPILER_BARRIER(); hostCmsisBarrierCount++; }
 __STATIC_FORCEINLINE void __ISB(void) { __COMPILER_BARRIER(); hostCmsisBarrierCount++; }
 __STATIC_FORCEINLINE void __DMB(void) { __COMPILER_BARRIER(); hostCmsisBarrierCount++; }

@@ -1,6 +1,6 @@
 # P12 plan: tests of the real ST HAL (Claude, fresh start)
 
-Status: **approved by the owner 2026-11-11.** T0 trial done, approved and committed 2026-11-11 (section "T0 result"). Next: T1. All questions (65-69) answered 2026-11-11 (section 6); 66 revised to F407VG and F407VG_DISCO.
+Status: **approved by the owner 2026-11-11.** T0 trial done, approved and committed 2026-11-11 (section "T0 result"). **T1 finished and gated 2026-11-11, uncommitted, waiting for the owner's "approve ... and commit"** (section "T1 result"; charter `Tests/Code_Coverage/claude/charters/hal/P12_T1_REQUIREMENTS.md`). All questions (65-69) answered 2026-11-11 (section 6); 66 revised to F407VG and F407VG_DISCO.
 
 Owner's instruction (2026-11-11): "I want to start on P12 that was started by Codex. I want to start from the beginning for that Phase and not use any of their files."
 
@@ -50,6 +50,26 @@ Lead only, no agents. GCC 16, out of tree.
 - **Limits found:**
   - The real `HAL_GetTick` (`return uwTick;`, `__weak`) is replaced and never runs. The firmware uses the real one; it replaces only `HAL_InitTick` (TIM-based time base in `Core/Src/stm32f4xx_hal_timebase_tim.c`).
   - `NVIC_SystemReset` ends in `for(;;) __NOP();`. A test that reaches it hangs until the ctest timeout, so T1 must treat it as hardware-only or give `__NOP` an escape hook.
+
+## T1 result (2026-11-11, gated, not yet committed)
+
+HAL core, CORTEX, GPIO and EXTI of both targets. Charter G1-G14, E1-E10, H1-H10, C1-C17. GCC 16, 32-bit, out of tree.
+
+- **Platform (lead):** `HalRegisterSpace` is now a per-access trapping bus (pages `PROT_NONE`, SIGSEGV, x86 single step, SIGTRAP runs the model; an access without a model is a fault that fails the case; access log; bit-band alias 0x42000000 of 0x40000000-0x4007FFFF, RM0090 2.3.3). `HalPeripherals`: GPIO (LCKR lock sequence), EXTI, SYSCFG, RCC (storage), FLASH_ACR, DBGMCU, unique id (RM0090 Rev 22). `HalCorePeripherals`: NVIC (82 IRQs), SCB, SysTick, MPU (PM0214 Rev 10). `hostCmsisNopHook` lets a test leave the endless loop after `NVIC_SystemReset`.
+- **Tests (`claude/cases_hal/`):** GPIO 63, EXTI 48, core 32, CORTEX 47 + 1, SysTick/core-tick 22 + 8, T0 smoke 6: 225 cases in each executable, 0 failed; 10 expected-fail assertions inside the `KNOWN_ISSUE` cases (V89: 3 cases, V90: 1 case).
+- **Reviews:** GPIO / EXTI / core: 53 of 61 mutants killed, 4 real gaps fixed (EXTICR nibbles, analog pull, IDCODE bits, port I, line 14); survivors equivalent or too long to run. CORTEX: verdict accept, 53 mutants, 4 real survivors (MPU Enable/DisableRegion RNR, InitTick subpriority, SEV before WFE) and 5 small gaps (`HAL_SYSTICK_Config(0)`, tick frequency 100 Hz, failed `SetTickFreq` leaves SysTick unchanged); all fixed afterwards. The fixes were not re-mutated.
+- **Gate (lead-run, `../ffb-test-build/`):**
+
+  | Build | Result |
+  |---|---|
+  | `p12t1-gate` (32-bit + HAL) | ctest 14 / 14, `check_baseline.py` OK; `ffb_hal_tests` and `ffb_hal_tests_disco` 225 / 225, 1951 of 1961 assertions (10 expected) |
+  | `p12t1-default` (option off) | ctest 11 / 11, `check_baseline.py` OK (run before the CORTEX test fixes, which only touch HAL test files) |
+  | `p12t1-32san` (32-bit + HAL + sanitizers) | HAL executables 225 / 225 each, no sanitizer report; the full ctest aborts in `ffb_flash_tests` (see limits) |
+
+- **Coverage (gcov, `p12t1-cov`, identical for both targets):** `stm32f4xx_hal.c` 98 / 100 (the replaced `HAL_GetTick`), `_gpio.c` 110 / 113 (`LockPin` HAL_ERROR path unreachable with a correct lock model, weak callback), `_exti.c` 98 / 98, `_cortex.c` 75 / 77 (weak callback): 381 / 388 lines per target.
+- **Findings:** vendor V89 (`HAL_GPIO_DeInit` debug pins) and V90 (`HAL_Delay` near `HAL_MAX_DELAY` at 10 Hz); NEEDS REVIEW 281-287.
+- **Model decisions:** the clock gate of a peripheral is not modelled (RM0090 is silent); an EXTI edge sets PR only with IMR set (medium confidence); the lock becomes active at the first read after the third LCKR write; STK_CALIB reads 0xC0000000 (PM0214 contradicts itself); H9 oracle is the RM0090 reset bits per register.
+- **Limits:** the 32-bit sanitizer build cannot run `ffb_flash_tests` (the i386 ASan layout collides with its fixed mapping at 0x1FFF0000; not a P12 regression, the HAL executables run fine with sanitizers); not run with clang, MinGW, macOS or on ARM; peripheral timing and interrupts beyond the NVIC register model are not modelled.
 
 ## 3. Design
 

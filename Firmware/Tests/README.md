@@ -188,7 +188,7 @@ python3 -B Code_Coverage/tools/run_all_tests.py --build-dir build [--out FILE] [
 | `python/` | `test_*.py`: stdlib `unittest` tests of the Python helper scripts; `helper_paths.py` (paths, loader). |
 | `Code_Coverage/mocks/` | Implementations of firmware class interfaces for tests (`Mock*.h`, see "Mocks and helpers"). |
 | `Code_Coverage/fakes/` | Headers replacing firmware headers in `ffb_unit_tests` only (currently only `Axis.h`). |
-| `Code_Coverage/fakes/stm32_hal/` | Host platform of the real ST HAL (P12): `host_cmsis_gcc.h` (force-included CPU intrinsics), `HalRegisterSpace` (register ranges mapped at their real addresses), `HalHostSystem` (CMSIS system globals, host `HAL_GetTick`). |
+| `Code_Coverage/fakes/stm32_hal/` | Host platform of the real ST HAL (P12): `host_cmsis_gcc.h` (force-included CPU intrinsics), `HalRegisterSpace` (register ranges mapped at their real addresses, access trapping, faults, access log), `HalPeripherals` (RM0090 register models), `HalHostSystem` (CMSIS system globals, host `HAL_GetTick`). |
 | `Code_Coverage/support/` | Fixtures and test control of the fakes, see the table below. |
 | `Code_Coverage/platform/include` | Fake `main.h` (HAL), FreeRTOS, CMSIS headers and the `target_constants.h` of the generic test "target" (`ffb_unit_tests`, `ffb_rtos_tests`). |
 | `Code_Coverage/platform/target_f407/` | F407 feature header (`target_constants.h` without drivers and MIDI), F407 fake `main.h`, `cmsis_os.h` and the fake HAL FLASH declarations `host_flash_hal.h`; first in the include path of `ffb_target_tests`, `ffb_flash_tests` and `ffb_usb_tests`. |
@@ -924,13 +924,25 @@ with the target's `stm32f4xx_hal_conf.h`, plus the host platform in `Code_Covera
 
 * **Why 32-bit only:** the HAL stores buffer addresses in `uint32_t` (DMA), exact only with `-m32`.
 * **Registers:** `HalRegisterSpace` maps RAM at the real addresses (RM0090 Table 1: 0x40000000, 0x50000000; 0xE000E000;
-  DBGMCU, unique id, option bytes) with `mmap(MAP_FIXED_NOREPLACE)`. The fixture zeroes it before every case. Peripheral
-  behaviour is added per peripheral stage; until then a register value after a HAL call is the HAL's write request.
+  DBGMCU, unique id, option bytes) with `mmap(MAP_FIXED_NOREPLACE)` and, while armed, traps every access: the pages
+  are `PROT_NONE`, the fault handler single-steps the access (x86 trap flag) and the register model of the address
+  applies the RM0090 behaviour (BSRR sets ODR and reads 0, PR is write-1-to-clear, the GPIO lock sequence, ...).
+  An access to a register without a model, a reserved offset or a write to a read-only register is a fault, and
+  `HalFixture` fails the case. The bit-band alias 0x42000000 of 0x40000000-0x4007FFFF is modelled (RM0090 2.3.3; the
+  HAL writes `SYSCFG_CMPCR` that way). Models (`HalPeripherals`, T1, RM0090 Rev 22): GPIOA..I, EXTI, SYSCFG, RCC
+  (storage), FLASH_ACR, DBGMCU, unique id. Core model (`HalCorePeripherals`, PM0214 Rev 10): NVIC (82 IRQs), SCB,
+  SysTick, MPU. `hostCmsisNopHook` (`host_cmsis_gcc.h`) lets a test `longjmp` out of the endless loop after
+  `NVIC_SystemReset`. The fixture resets every model to its RM0090 reset values before each case; the access log
+  (`hostRegsLogAt`, `lastWritten`) shows the raw writes.
 * **CPU intrinsics:** `host_cmsis_gcc.h` is force-included and replaces `cmsis_gcc.h` (barriers, `__WFI`, exclusive monitor
   for `__LDREXW` / `__STREXW`, `__RBIT`, `__CLZ`).
 * **Tick:** a strong host `HAL_GetTick` runs one simulated 1 ms tick interrupt (the real `HAL_IncTick`) per call, so HAL
   polling loops see time pass without sleeping. Limit: the real `HAL_GetTick` is replaced. ctest `TIMEOUT` 120 s reports a
   loop that never ends.
+* **Test files (T1, 225 cases per executable):** `test_hal_gpio.cpp`, `test_hal_exti.cpp`, `test_hal_core.cpp`,
+  `test_hal_core_systick.cpp`, `test_hal_cortex.cpp`, `test_hal_t0_smoke.cpp`. `KNOWN_ISSUE` marks the vendor bugs V89 and V90;
+  `characterization:` cases are NEEDS REVIEW 281-287. Combined with sanitizers the HAL executables run (32-bit ASan), but
+  the whole ctest does not: `ffb_flash_tests` cannot map 0x1FFF0000 there.
 * **DISCO:** both targets' HAL, CMSIS headers and `hal_conf` are byte-identical today; `hal_identity_f407vg_disco` fails as
   soon as they diverge, because the two executables share their test files.
 
