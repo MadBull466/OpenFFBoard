@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(P12Native32 LANGUAGES C CXX)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-get_filename_component(FW "${CMAKE_CURRENT_SOURCE_DIR}/../../../.." ABSOLUTE)
+get_filename_component(FW "${CMAKE_CURRENT_SOURCE_DIR}/../../../../.." ABSOLUTE)
 set(P12_DEVICE F407VG CACHE STRING "Target source/header set")
 if(NOT P12_DEVICE MATCHES "^(F407VG|F407VG_DISCO|F411RE)$")
     message(FATAL_ERROR "Unsupported P12_DEVICE: ${P12_DEVICE}")

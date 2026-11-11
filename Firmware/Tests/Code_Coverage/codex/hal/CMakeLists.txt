@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(CodexRealStHalTests LANGUAGES C CXX)
 
-get_filename_component(FW_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../.." ABSOLUTE)
+get_filename_component(FW_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../.." ABSOLUTE)
 set(P12_DEVICE "F407VG" CACHE STRING "Checked-in HAL/device configuration")
 set_property(CACHE P12_DEVICE PROPERTY STRINGS F407VG F407VG_DISCO F411RE)
 if(NOT P12_DEVICE MATCHES "^(F407VG|F407VG_DISCO|F411RE)$")

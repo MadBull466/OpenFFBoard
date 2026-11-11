@@ -48,7 +48,7 @@ import tempfile
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_EXCLUSIONS = os.path.join(TOOLS_DIR, "coverage_exclusions.txt")
 COVERAGE_TARGET = 85.0  # % of in-scope lines without hardware-only code (Tests/Code_Coverage/claude/plans/TEST_PLAN.md)
-DEFAULT_FIRMWARE_DIR = os.path.normpath(os.path.join(TOOLS_DIR, "..", ".."))
+DEFAULT_FIRMWARE_DIR = os.path.normpath(os.path.join(TOOLS_DIR, "..", "..", ".."))
 
 # MIDI code (MidiMain, MidiHandler): in scope since 2026-11-10 (P17), compiled and tested in ffb_usb_tests since T1/T2: counted in the ladder
 OUT_OF_SCOPE = set()  # P17: MidiMain and MidiHandler are in scope and tested in ffb_usb_tests (they count in the firmware ladder)

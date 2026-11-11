@@ -2,6 +2,7 @@
 
 Date: 2026-11-11.
 - P18 (32-bit build): re-measured on the P18 gate coverage build `p18t2f-cov`. The firmware ladder, TinyUSB tier B, the driver tier and DSP are unchanged by P18, which adds behaviour checks on ILP32 and no new lines.
+- After the `Code_Coverage` move (2026-11-11): everything re-measured on `cc-cov` (two runs, same result): ladder 8,172 of 8,260 (one line more than the 8,171 of P17 / P18, cause not investigated), tier B, tier C, driver tier and DSP unchanged.
 - P17 T2: the ladder, tier B and the driver tier were measured on `p17t2g-cov`.
 - The tier A and tier C percentages are from the 2026-11-09 gcov run.
 
@@ -13,7 +14,7 @@ Branch `add-test-suite`. Earlier sources:
 
 ## 1. Covered (in scope and tested)
 
-### 1.1 Firmware outside `Firmware/Libraries/` (coverage ladder): 8,171 of about 8,260 lines, 98.9 % (89 files, all compiled and tested; MidiMain and MidiHandler count since P17)
+### 1.1 Firmware outside `Firmware/Libraries/` (coverage ladder): 8,172 of about 8,260 lines, 98.9 % (89 files, all compiled and tested; MidiMain and MidiHandler count since P17)
 
 | Module | Files (`FFBoard/Src` or `UserExtensions/Src`) | Lines covered |
 |---|---|---|

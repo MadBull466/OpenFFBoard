@@ -15,7 +15,7 @@ A host-side (Linux/Windows, no hardware) unit-test suite for the OpenFFBoard fir
 | P11 CMSIS-DSP (G1-G5) | done, approved and pushed 2026-11-10 |
 | P13 TMCDebugBridge, P14 PWM, P15 SimpleMotion, P16 MyActuator, P17 MIDI | done, approved, committed and pushed to the fork 2026-11-10 (`fe232b2d` is the last: P17 T2) |
 | P17 MIDI detail (`MidiMain`, `MidiHandler`, TinyUSB `class/midi`, in `ffb_usb_tests`) | T0 `f21e631a`, T1 `88980f93`, T2 `fe232b2d` (319 cases, four reviewers; `MidiHandler.cpp` 100 %, `MidiMain.cpp` 100 %, `midi_device.c` 98.5 %); charter `Tests/Code_Coverage/claude/charters/driver/MIDI_REQUIREMENTS.md`, work orders `P17_WORK_ORDERS.md` |
-| P18 32-bit build (`FFB_TESTS_32BIT`, bug 225) | T1-T4 approved, committed and pushed 2026-11-11 (`544b4162`; question 64 docs `7bb1390a`); plan `Tests/Code_Coverage/claude/plans/P18_32BIT_BUILD_PLAN.md`, work order `Tests/Code_Coverage/claude/charters/P18_WORK_ORDERS.md` |
+| P18 32-bit build (`FFB_TESTS_32BIT`, bug 225) | T1-T4 approved, committed and pushed 2026-11-11 (`544b4162`; question 64 docs `7bb1390a`); on 2026-11-11 all test folders moved under `Code_Coverage/` (`590779a6`, path fixes after it); plan `Tests/Code_Coverage/claude/plans/P18_32BIT_BUILD_PLAN.md`, work order `Tests/Code_Coverage/claude/charters/P18_WORK_ORDERS.md` |
 | Open questions | `Tests/Code_Coverage/claude/reports/OPEN_QUESTIONS.md` (pending 17-23, 32-52, 54-61 and 64; 62 and 63 answered 2026-11-11) |
 | Suspected bugs | `Tests/Code_Coverage/claude/reports/BUG_REPORT.md` (generated, do not hand-edit): firmware bugs up to 225, vendor bugs up to V88, NEEDS REVIEW up to 280 |
 
