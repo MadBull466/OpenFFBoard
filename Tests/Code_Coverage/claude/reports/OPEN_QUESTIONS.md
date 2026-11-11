@@ -1,4 +1,4 @@
-# Open questions for me (collected 2026-11-04, last synced with `PROGRESS.md` 2026-11-11: questions 1-64; 62, 63 and 64 answered 2026-11-11)
+# Open questions for me (collected 2026-11-04, last synced with `PROGRESS.md` 2026-11-11: questions 1-69; 62, 63 and 64 answered 2026-11-11; 65-69 added 2026-11-11; 65-69 answered 2026-11-11)
 
 All questions still waiting for my answer, in one place. The numbers match "Open questions for me" in `Tests/Code_Coverage/claude/plans/PROGRESS.md` (the source; answered ones are struck through there). The roughly 165 smaller "is this intended?" items about firmware behaviour are the NEEDS REVIEW list in `Tests/Code_Coverage/claude/reports/BUG_REPORT.md` (open questions section) and are not repeated here.
 
@@ -95,3 +95,11 @@ All questions still waiting for my answer, in one place. The numbers match "Open
 ## P18 (32-bit build)
 
 64. ~~**CLAUDE.md and AGENTS.md for P18.**~~ **Answered 2026-11-11: yes, both updated** (`CLAUDE.md`: "Test conventions" and "Known issues"; `AGENTS.md`: scope notes). Original question: Both describe the gate and the known issues but not the 32-bit variant: the option `-DFFB_TESTS_32BIT=ON`, the 32-bit-only ctest exclusion of the 2 bug 225 cases (`FFB_TARGET_TESTS_EXCLUDE_32BIT`), the markers `KNOWN_ISSUE_32BIT` / `KNOWN_ISSUE_32BIT_UB`, and the 5 DSP files left out of 32-bit builds. These are my files: shall Claude add a short paragraph (proposal: under "Known issues" and "Test conventions")?
+
+## P12 (real ST HAL, plan `Tests/Code_Coverage/claude/plans/P12_ST_HAL_PLAN.md`)
+
+65. ~~**P12 scope in `CLAUDE.md` / `AGENTS.md`.**~~ **Answered 2026-11-11: yes, both updated** (`CLAUDE.md`: tier D line, "Not tested" line narrowed, P12 bullet; `AGENTS.md`: scope note). Both list the ST HAL and `Firmware/Targets/**` as not tested. Shall Claude add a P12 line (F407VG ST HAL in scope, `ffb_hal_tests`, 32-bit build only; CMSIS core and CubeMX code stay out)?
+66. ~~**P12 targets.**~~ **Answered 2026-11-11: F407VG only; revised the same day: F407VG and F407VG_DISCO** (F411RE out). Recommendation: F407VG only (HAL sources identical in all three targets; F411RE only lacks `stm32f4xx_hal_can.c` and uses another device header). Alternative: also build against `STM32F411xE`.
+67. ~~**P12 HAL user manual UM1725.**~~ **Answered 2026-11-11: supplied** as `um1725-description-of-stm32f4-hal-and-lowlayer-drivers-stmicroelectronics.pdf` (UM1725 Rev 8, 22-Mar-2023, 2,227 pages); ST's V1.8.3 source supplied too (`Tests/Code_Coverage/shared/specs/stm32f4xx-hal-driver-1.8.3/`, byte-identical to the checked-in HAL). Please supply it under `Tests/Code_Coverage/shared/specs/`. Without it, HAL API expectations not derivable from RM0090 are `characterization:` and NEEDS REVIEW.
+68. ~~**P12 `assert_param`.**~~ **Answered 2026-11-11: keep it off** (as the firmware ships). Recommendation: test with `USE_FULL_ASSERT` off, as the firmware ships; a second build with it on is optional.
+69. ~~**P12 Linux-only executable.**~~ **Answered 2026-11-11: accepted; run it in the 32-bit build.** `ffb_hal_tests` needs `-m32` and fixed-address `mmap`, so it cannot run on MinGW, macOS or the 64-bit build. Accept it behind a default-OFF option?
