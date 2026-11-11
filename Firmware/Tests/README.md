@@ -105,6 +105,7 @@ forensic tool, not the normal verification gate.
 | `FFB_TESTS_USE_DSP` | `AUTO` | Build with `USE_DSP_FUNCTIONS` and CMSIS-DSP like the hardware targets. `AUTO` enables it if the `Firmware/Libraries/CMSIS-DSP` submodule is checked out. With `OFF` the fallback math of the firmware is tested. Both variants must pass. |
 | `FFB_TESTS_SANITIZE` | `OFF` | Address and undefined behaviour sanitizers (Linux/macOS). |
 | `FFB_TESTS_32BIT` | `OFF` | Build every executable as 32-bit (ILP32) code like the STM32F407: `-m32 -msse2 -mfpmath=sse -funsigned-char` (P18).<br>Needs gcc or clang with 32-bit multilib on Linux; configure stops with a message otherwise (MSVC, macOS).<br>Adds the ctest exclusion `FFB_TARGET_TESTS_EXCLUDE_32BIT` (bug 225) and leaves out the 5 `ffb_dsp_tests` files whose reference models need `__int128`.<br>i386 is not ARM: `uint32_t` is `unsigned int` (newlib: `unsigned long`), and `int64_t` / `double` struct members are 4-byte aligned (ARM: 8). |
+| `FFB_TESTS_REAL_HAL` | `OFF` | Build `ffb_hal_tests` (F407VG) and `ffb_hal_tests_disco` (F407VG_DISCO): the real ST HAL compiled unchanged (P12).<br>Needs `FFB_TESTS_32BIT=ON` on Linux; configure stops with a message otherwise. Also adds the ctest `hal_identity_f407vg_disco`. |
 | `FFB_TESTS_EXCLUDE` | the `effectsForces` case | Test cases `ctest` excludes (`--test-case-exclude`). Only cases that abort the whole run because of a suspected defect belong here. |
 | `FFB_TESTS_EXCLUDE_SANITIZE` | the 2 spline cases | Additionally excluded in sanitizer builds with CMSIS-DSP (the address sanitizer reports an over-read inside `arm_spline_f32`). |
 | `FFB_TARGET_TESTS_EXCLUDE`, `FFB_FLASH_TESTS_EXCLUDE`, `FFB_RTOS_TESTS_EXCLUDE`, `FFB_USB_TESTS_EXCLUDE` and the `..._SANITIZE` variants | empty | The same for the other executables (see their sections). |
@@ -180,12 +181,14 @@ python3 -B Code_Coverage/tools/run_all_tests.py --build-dir build [--out FILE] [
 | `Code_Coverage/claude/cases_usb/test_*.cpp` | Test cases of `ffb_usb_tests` (TinyUSB device stack on the fake USB device controller). |
 | `Code_Coverage/claude/cases/driver/test_*.cpp` | Test cases of `ffb_driver_tests` (TMC4671, ODrive, VESC, TMCDebugBridge, PWM, SimpleMotion, MyActuator drivers; not picked up by `ffb_unit_tests`, whose glob is not recursive). |
 | `Code_Coverage/claude/cases_dsp/test_dsp_*.cpp` | Test cases of `ffb_dsp_tests` (CMSIS-DSP modules against ARM's reference patterns). |
+| `Code_Coverage/claude/cases_hal/` | Test cases of `ffb_hal_tests` / `ffb_hal_tests_disco` (`test_hal_*.cpp`, `HalFixture.h`) and the F407VG / DISCO identity check `check_hal_identity.cmake` (P12). |
 | (`Tests/Code_Coverage/claude/charters/dsp/`) | Requirement charter of the CMSIS-DSP track (`CMSIS_DSP_REQUIREMENTS.md`); documents live under `Tests/`, not here. |
 | (`Tests/Code_Coverage/claude/charters/driver/`) | Requirement charters and work orders of the driver track and P13-P17 (`<name>_REQUIREMENTS.md`, `P1x_WORK_ORDERS.md`). |
 | `specs/` | Local copies of vendor specifications for the driver track. Ignored by git (`.gitignore`), never committed. |
 | `python/` | `test_*.py`: stdlib `unittest` tests of the Python helper scripts; `helper_paths.py` (paths, loader). |
 | `Code_Coverage/mocks/` | Implementations of firmware class interfaces for tests (`Mock*.h`, see "Mocks and helpers"). |
 | `Code_Coverage/fakes/` | Headers replacing firmware headers in `ffb_unit_tests` only (currently only `Axis.h`). |
+| `Code_Coverage/fakes/stm32_hal/` | Host platform of the real ST HAL (P12): `host_cmsis_gcc.h` (force-included CPU intrinsics), `HalRegisterSpace` (register ranges mapped at their real addresses), `HalHostSystem` (CMSIS system globals, host `HAL_GetTick`). |
 | `Code_Coverage/support/` | Fixtures and test control of the fakes, see the table below. |
 | `Code_Coverage/platform/include` | Fake `main.h` (HAL), FreeRTOS, CMSIS headers and the `target_constants.h` of the generic test "target" (`ffb_unit_tests`, `ffb_rtos_tests`). |
 | `Code_Coverage/platform/target_f407/` | F407 feature header (`target_constants.h` without drivers and MIDI), F407 fake `main.h`, `cmsis_os.h` and the fake HAL FLASH declarations `host_flash_hal.h`; first in the include path of `ffb_target_tests`, `ffb_flash_tests` and `ffb_usb_tests`. |
@@ -911,6 +914,25 @@ source is compiled into it.
   branches the portable flags select: the `ARM_MATH_DSP` unrolled kernels of the conv / correlate family are not run
   (PROGRESS NEEDS REVIEW 231). Tests that run the kernels on state, scratch or output buffers use exact-size heap
   allocations, because `GuardedBuffer` keeps its guard words in the same allocation and ASan cannot see small overruns.
+
+## `ffb_hal_tests` / `ffb_hal_tests_disco`: the real ST HAL (phase P12)
+
+Built only with `-DFFB_TESTS_32BIT=ON -DFFB_TESTS_REAL_HAL=ON` on Linux (plan `Tests/Code_Coverage/claude/plans/P12_ST_HAL_PLAN.md`).
+Each executable compiles the 27 unchanged HAL files of its target (`Firmware/Targets/<target>/Drivers/STM32F4xx_HAL_Driver/Src`)
+with the target's `stm32f4xx_hal_conf.h`, plus the host platform in `Code_Coverage/fakes/stm32_hal/` and the shared test files in
+`Code_Coverage/claude/cases_hal/`. No firmware source and no file of `platform/` is linked.
+
+* **Why 32-bit only:** the HAL stores buffer addresses in `uint32_t` (DMA), exact only with `-m32`.
+* **Registers:** `HalRegisterSpace` maps RAM at the real addresses (RM0090 Table 1: 0x40000000, 0x50000000; 0xE000E000;
+  DBGMCU, unique id, option bytes) with `mmap(MAP_FIXED_NOREPLACE)`. The fixture zeroes it before every case. Peripheral
+  behaviour is added per peripheral stage; until then a register value after a HAL call is the HAL's write request.
+* **CPU intrinsics:** `host_cmsis_gcc.h` is force-included and replaces `cmsis_gcc.h` (barriers, `__WFI`, exclusive monitor
+  for `__LDREXW` / `__STREXW`, `__RBIT`, `__CLZ`).
+* **Tick:** a strong host `HAL_GetTick` runs one simulated 1 ms tick interrupt (the real `HAL_IncTick`) per call, so HAL
+  polling loops see time pass without sleeping. Limit: the real `HAL_GetTick` is replaced. ctest `TIMEOUT` 120 s reports a
+  loop that never ends.
+* **DISCO:** both targets' HAL, CMSIS headers and `hal_conf` are byte-identical today; `hal_identity_f407vg_disco` fails as
+  soon as they diverge, because the two executables share their test files.
 
 ## Python helper tests
 

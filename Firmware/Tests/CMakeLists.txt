@@ -1172,3 +1172,57 @@ if(FFB_TESTS_ST_HAL)
             --build "${CMAKE_CURRENT_BINARY_DIR}/p12-hal-native32")
     set_tests_properties(codex_st_hal PROPERTIES TIMEOUT 300)
 endif()
+
+# ===========================================================================
+# ffb_hal_tests / ffb_hal_tests_disco (phase P12, Tests/Code_Coverage/claude/plans/P12_ST_HAL_PLAN.md): the real ST HAL of
+# the F407VG and F407VG_DISCO targets, compiled unchanged with each target's stm32f4xx_hal_conf.h, against the host
+# register space, CPU intrinsics and tick in Code_Coverage/fakes/stm32_hal/. Tests in Code_Coverage/claude/cases_hal/.
+# 32-bit Linux only: the HAL stores buffer addresses in uint32_t (exact only with -m32) and the register space is mapped
+# at the real addresses with mmap. Independent of Codex's FFB_TESTS_ST_HAL gate (above), which it does not use.
+# ===========================================================================
+option(FFB_TESTS_REAL_HAL "Build ffb_hal_tests / ffb_hal_tests_disco: the real ST HAL of F407VG and F407VG_DISCO (needs FFB_TESTS_32BIT on Linux)" OFF)
+if(FFB_TESTS_REAL_HAL)
+	if(NOT FFB_TESTS_32BIT OR NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+		message(FATAL_ERROR "FFB_TESTS_REAL_HAL needs FFB_TESTS_32BIT=ON on Linux (the HAL casts pointers to uint32_t; registers are mapped with mmap)")
+	endif()
+	set(FFB_HAL_FAKE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/fakes/stm32_hal)
+	set(FFB_HAL_CASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/claude/cases_hal)
+	file(GLOB FFB_HAL_TEST_SOURCES CONFIGURE_DEPENDS ${FFB_HAL_CASE_DIR}/test_hal_*.cpp)
+
+	# One executable per target: the target's HAL sources (an OBJECT library, so the strong host HAL_GetTick always
+	# overrides the HAL's __weak one) plus the host fakes and the shared test files.
+	function(ffb_hal_test_executable name target)
+		set(tdir ${FW_DIR}/Targets/${target})
+		file(GLOB hal_sources ${tdir}/Drivers/STM32F4xx_HAL_Driver/Src/*.c)
+		set(hal_includes ${FFB_HAL_FAKE_DIR} ${tdir}/Core/Inc ${tdir}/Drivers/STM32F4xx_HAL_Driver/Inc
+			${tdir}/Drivers/CMSIS/Device/ST/STM32F4xx/Include ${tdir}/Drivers/CMSIS/Include)
+		add_library(${name}_hal OBJECT ${hal_sources})
+		add_executable(${name} ${FFB_HAL_TEST_SOURCES} $<TARGET_OBJECTS:${name}_hal>
+			${FFB_HAL_FAKE_DIR}/host_cmsis.c ${FFB_HAL_FAKE_DIR}/HalRegisterSpace.c ${FFB_HAL_FAKE_DIR}/HalHostSystem.c
+			Code_Coverage/support/test_main.cpp)
+		target_include_directories(${name} PRIVATE ${FFB_HAL_CASE_DIR} Code_Coverage/support Code_Coverage/third_party)
+		foreach(tgt ${name}_hal ${name})
+			target_include_directories(${tgt} PRIVATE ${hal_includes})
+			target_compile_definitions(${tgt} PRIVATE STM32F407xx USE_HAL_DRIVER)
+			target_compile_options(${tgt} PRIVATE -include ${FFB_HAL_FAKE_DIR}/host_cmsis_gcc.h -Wall $<$<COMPILE_LANGUAGE:CXX>:-Wno-volatile>)
+			if(FFB_TESTS_SANITIZE)
+				target_compile_definitions(${tgt} PRIVATE HOSTTEST_SANITIZERS)
+				target_compile_options(${tgt} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined)
+			endif()
+		endforeach()
+		if(FFB_TESTS_SANITIZE)
+			target_link_options(${name} PRIVATE -fsanitize=address,undefined)
+		endif()
+		add_test(NAME ${name} COMMAND ${name})
+		set_tests_properties(${name} PROPERTIES TIMEOUT 120) # a HAL polling loop that never ends is reported as a hang
+		if(TARGET test_report)
+			add_dependencies(test_report ${name})
+		endif()
+	endfunction()
+
+	ffb_hal_test_executable(ffb_hal_tests F407VG)
+	ffb_hal_test_executable(ffb_hal_tests_disco F407VG_DISCO)
+	# The two executables share their test files: valid only while both targets compile the same HAL.
+	add_test(NAME hal_identity_f407vg_disco COMMAND ${CMAKE_COMMAND} -DFW_DIR=${FW_DIR} -P ${FFB_HAL_CASE_DIR}/check_hal_identity.cmake)
+	message(STATUS "OpenFFBoard tests: ffb_hal_tests (F407VG) and ffb_hal_tests_disco (F407VG_DISCO) built with the real ST HAL")
+endif()

@@ -62,7 +62,7 @@ Headers of these modules: 392 / 413 lines (94.9 %).
 
 | Area | Why |
 |---|---|
-| ~~ST HAL~~ (F407VG and F407VG_DISCO copies) | In scope since 2026-11-11 (owner, phase P12, plan `Tests/Code_Coverage/claude/plans/P12_ST_HAL_PLAN.md`): new tier D, executables `ffb_hal_tests` and `ffb_hal_tests_disco`, 32-bit Linux build only, `USE_FULL_ASSERT` off; nothing measured yet (plan stage) |
+| ~~ST HAL~~ (F407VG and F407VG_DISCO copies) | In scope since 2026-11-11 (owner, phase P12, plan `Tests/Code_Coverage/claude/plans/P12_ST_HAL_PLAN.md`): new tier D, executables `ffb_hal_tests` and `ffb_hal_tests_disco`, 32-bit Linux build only, `USE_FULL_ASSERT` off. T0 (2026-11-11): all 27 files compile and link unchanged for both targets, 6 smoke cases per executable; coverage not measured yet (tier D starts with T1) |
 | CMSIS core, FreeRTOS kernel | Vendor platform code, replaced by fakes |
 | `Firmware/Targets/F407VG`, `F407VG_DISCO`, `F411RE` (CubeMX code, startup, linker scripts, `main.c`, `freertos.c`, HAL init; the F411RE HAL copy) | Generated / board specific; the F411RE HAL copy is identical to F407VG's except it has no CAN file, owner chose F407VG and F407VG_DISCO (question 66) |
 | ~~`MotorPWM.cpp`~~ | In scope since 2026-11-10 (owner, phase P14); built into `ffb_driver_tests` only (`PWMDRIVER` on there), see section 1.4 |

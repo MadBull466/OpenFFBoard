@@ -1,6 +1,6 @@
 # P12 plan: tests of the real ST HAL (Claude, fresh start)
 
-Status: **approved by the owner 2026-11-11** (plan only; nothing built yet). Next: T0 trial. All questions (65-69) answered 2026-11-11 (section 6); 66 revised to F407VG and F407VG_DISCO.
+Status: **approved by the owner 2026-11-11.** T0 trial done, approved and committed 2026-11-11 (section "T0 result"). Next: T1. All questions (65-69) answered 2026-11-11 (section 6); 66 revised to F407VG and F407VG_DISCO.
 
 Owner's instruction (2026-11-11): "I want to start on P12 that was started by Codex. I want to start from the beginning for that Phase and not use any of their files."
 
@@ -18,6 +18,38 @@ Every executable so far replaces the ST HAL with fakes (`platform/`, `fakes/`), 
 - Upstream check (2026-11-11): all 27 checked-in `Src/*.c` files are byte-identical to ST's V1.8.3 release supplied in `Tests/Code_Coverage/shared/specs/stm32f4xx-hal-driver-1.8.3/` (`cmp`, 27 of 27).
 - Enabled modules (F407VG `hal_conf`): HAL core, ADC, CAN, I2C, IWDG, SPI, TIM, UART, PCD, GPIO, EXTI, DMA, RCC, FLASH, PWR, CORTEX. `USE_FULL_ASSERT` is off in the firmware, so `assert_param` checks are dead code on target.
 - Not under test: CMSIS core (`core_cm4.h` inline functions are used, not tested), CubeMX-generated `Core/Src`, startup and linker files, the FreeRTOS kernel.
+
+## T0 result (2026-11-11, approved and committed)
+
+Lead only, no agents. GCC 16, out of tree.
+
+- **Compile trial:** all 27 F407VG HAL files compile unchanged as 32-bit code. Only 4 needed a host replacement for the ARM CPU instructions: `stm32f4xx_hal_cortex.c` and `stm32f4xx_hal_flash.c` (`isb` / `dsb`), `stm32f4xx_hal_pwr.c` (`wfi` / `wfe` / `sev`), `stm32f4xx_hal_uart.c` (`__LDREXW` / `__STREXW` in the `ATOMIC_SET_BIT` macro of `stm32f4xx.h`). The other 23 needed nothing. No warnings from the HAL, its fakes or its tests.
+- **New files:**
+  - `Firmware/Tests/Code_Coverage/fakes/stm32_hal/`:
+    - `host_cmsis_gcc.h` / `host_cmsis.c`: force-included; defines the guard of `cmsis_gcc.h`, so the real header is skipped. Provides barriers, `__NOP`, `__WFI` / `__WFE` / `__SEV` (counted, wait hook), an exclusive monitor for `__LDREXW` / `__STREXW` / `...H` (failure injection) and `__RBIT` / `__CLZ`. Interrupt-mask intrinsics are left undefined on purpose: no HAL file uses them.
+    - `HalRegisterSpace.h` / `.c`: `mmap(MAP_FIXED_NOREPLACE)` of 0x40000000 (+512 KiB), 0x50000000 (+388 KiB), 0xE000E000, 0xE0042000, 0x1FFF7000 and 0x1FFFC000 (RM0090 Table 1, core_cm4.h). Zeroed before every case. Plain RAM: no peripheral behaviour yet.
+    - `HalHostSystem.h` / `.c`: `SystemCoreClock` (reset 16 MHz, RM0090 7.2.2), `AHBPrescTable` / `APBPrescTable` (derived from the RCC_CFGR field encodings, RM0090 7.3.3), and a strong `HAL_GetTick` that runs one simulated 1 ms tick interrupt (the real `HAL_IncTick`) per call. The tick step can be replaced or stopped by a test.
+  - `Firmware/Tests/Code_Coverage/claude/cases_hal/`:
+    - `HalFixture.h`: resets the registers, intrinsics, system globals and the HAL tick globals.
+    - `test_hal_t0_smoke.cpp`: 6 cases (block addresses; `HAL_GPIO_WritePin` SET / RESET to BSRR; `HAL_GPIO_ReadPin` SET / RESET from IDR; `HAL_Delay` minimum delay).
+    - `check_hal_identity.cmake`: compares the F407VG and DISCO HAL, CMSIS and `hal_conf` files; 110 files today.
+- **CMake:** option `FFB_TESTS_REAL_HAL` (default OFF). It stops at configure time unless `FFB_TESTS_32BIT=ON` on Linux (checked). The HAL is an OBJECT library per target, so the strong `HAL_GetTick` always wins over the `__weak` one. Two executables come from the same test files. ctest entries `ffb_hal_tests`, `ffb_hal_tests_disco` (TIMEOUT 120 s) and `hal_identity_f407vg_disco`.
+- **Gate:**
+
+  | Build (`../ffb-test-build/`) | ctest | `check_baseline.py` | HAL executables |
+  |---|---|---|---|
+  | `p12t0-32hal` (`-DFFB_TESTS_32BIT=ON -DFFB_TESTS_REAL_HAL=ON`) | 14 / 14 passed | OK (340 new unit cases, 0 failed) | `ffb_hal_tests` 6 / 6, `ffb_hal_tests_disco` 6 / 6 (18 assertions each) |
+  | `p12t0-default` (option off) | 11 / 11 passed | OK (340 new unit cases, 0 failed) | not built |
+  | `p12t0-32san-hal` (32-bit + sanitizers, HAL targets only) | not run as ctest | not run | 6 / 6 each, no sanitizer report |
+
+- **Mutation spot-check** (scratch copy `../ffb-test-build/audit/p12t0`, repo untouched): 8 of 8 mutants killed.
+  - HAL code: `WritePin` SET writes the BR half; RESET writes the BS half; `ReadPin` inverted; `ReadPin` reads ODR; `HAL_Delay` returns 4 ms early.
+  - Identity check: one DISCO HAL file changed; DISCO `hal_conf` HSE changed; DISCO CAN file missing.
+  - The unchanged copy still passes the identity check.
+- **Not done in T0:** no register reset values and no peripheral behaviour (T1 onwards); no coverage measured (tier D starts at T1); `run_all_tests.py` and `coverage_report.py` do not list the HAL executables yet (T9); not run with clang.
+- **Limits found:**
+  - The real `HAL_GetTick` (`return uwTick;`, `__weak`) is replaced and never runs. The firmware uses the real one; it replaces only `HAL_InitTick` (TIM-based time base in `Core/Src/stm32f4xx_hal_timebase_tim.c`).
+  - `NVIC_SystemReset` ends in `for(;;) __NOP();`. A test that reaches it hangs until the ctest timeout, so T1 must treat it as hardware-only or give `__NOP` an escape hook.
 
 ## 3. Design
 
