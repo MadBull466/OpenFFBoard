@@ -181,7 +181,7 @@ python3 -B tools/run_all_tests.py --build-dir build [--out FILE] [--timeout S]  
 | `claude/cases/driver/test_*.cpp` | Test cases of `ffb_driver_tests` (TMC4671, ODrive, VESC, TMCDebugBridge, PWM, SimpleMotion, MyActuator drivers; not picked up by `ffb_unit_tests`, whose glob is not recursive). |
 | `claude/cases_dsp/test_dsp_*.cpp` | Test cases of `ffb_dsp_tests` (CMSIS-DSP modules against ARM's reference patterns). |
 | (`Tests/claude/charters/dsp/`) | Requirement charter of the CMSIS-DSP track (`CMSIS_DSP_REQUIREMENTS.md`); documents live under `Tests/`, not here. |
-| (`Tests/claude/charters/driver/`) | Requirement charters and work orders of the driver track and P13-P16 (`<name>_REQUIREMENTS.md`, `P1x_WORK_ORDERS.md`). |
+| (`Tests/claude/charters/driver/`) | Requirement charters and work orders of the driver track and P13-P17 (`<name>_REQUIREMENTS.md`, `P1x_WORK_ORDERS.md`). |
 | `specs/` | Local copies of vendor specifications for the driver track. Ignored by git (`.gitignore`), never committed. |
 | `python/` | `test_*.py`: stdlib `unittest` tests of the Python helper scripts; `helper_paths.py` (paths, loader). |
 | `mocks/` | Implementations of firmware class interfaces for tests (`Mock*.h`, see "Mocks and helpers"). |
