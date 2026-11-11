@@ -4,7 +4,7 @@ Keep every existing test in `Firmware/Tests/` and raise line coverage of the in-
 
 ## Where we are (updated 2026-11-10)
 
-- P0-P11 and P13-P17 are done, approved, committed and pushed to the fork. P18 (32-bit build) is approved, committed and pushed too (`544b4162`, 2026-11-11). The resume point is `Tests/claude/plans/PROGRESS.md`.
+- P0-P11 and P13-P17 are done, approved, committed and pushed to the fork. P18 (32-bit build) is approved, committed and pushed too (`544b4162`, 2026-11-11); question 64 (P18 paragraph in `CLAUDE.md` / `AGENTS.md`) is pushed as `7bb1390a`. The resume point is `Tests/claude/plans/PROGRESS.md`.
 - Original starting point (2026-10-21, kept for the record): 318 test cases, 24 of 97 firmware source files compiled into the tests, in-scope line coverage measured in P0 at 2,136 of about 8,160 lines (26.2 %), mutation check 42 of 48.
 - Today (GCC 16): in-scope firmware coverage 98.9 % (8,171 of about 8,260 lines, 2026-11-10 gcov run after P17); `ffb_unit_tests` 654 / `ffb_target_tests` 1863 / `ffb_flash_tests` 159 / `ffb_rtos_tests` 278 / `ffb_usb_tests` 606 / `ffb_driver_tests` 1717 / `ffb_dsp_tests` 2485 cases, Python 125 tests, ctest 11 of 11 (2026-11-11, also in the 32-bit build). Per-file numbers: `Tests/claude/plans/COVERAGE_AND_SCOPE.md`.
 

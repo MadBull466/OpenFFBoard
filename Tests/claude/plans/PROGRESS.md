@@ -7,8 +7,8 @@
 ## Current state
 
 - **Current phase:** P18 32-bit build (plan `Tests/claude/plans/P18_32BIT_BUILD_PLAN.md`, approved 2026-11-11 with option 62 B): T1 (CMake option), T2 (bug 225 tests), T3 (warning sweep) and T4 (documentation) approved, committed and pushed 2026-11-11 (`544b4162`). P0-P11 and P13-P17 done, approved, committed and pushed (P17: T0 `f21e631a`, T1 `88980f93`, T2 `fe232b2d`).
-- **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system"). Fork `MadBull466/OpenFFBoard` is at `544b4162` (P18, pushed 2026-11-11) plus this documentation commit.
-- **Last updated:** 2026-11-11 (P18 T4)
+- **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system"). Fork `MadBull466/OpenFFBoard` is at `7bb1390a` (P18 `544b4162`, its docs `2e24ad89`, question 64 docs `7bb1390a`; all pushed 2026-11-11).
+- **Last updated:** 2026-11-11 (P18 T4; question 64; documentation review)
 - **Measured on the P18 gate builds (2026-11-11, GCC 16, fresh `../ffb-test-build/p18t2f-<variant>`):**
   - `ffb_unit_tests` 654 passed / 4 skipped with the documented exclusion (baseline check OK in all six variants).
   - `ffb_target_tests` 1863 (18 skipped; 1747 sanitizer, 1863 clang).
@@ -28,9 +28,9 @@
 
 ## Next action
 
-**None pending: P18 is approved, committed and pushed (`544b4162`, 2026-11-11).**
+**None pending: P18 is approved, committed and pushed (`544b4162`), and question 64 is answered and pushed (`7bb1390a`), 2026-11-11.**
 
-The remaining items are the owner's: open questions 17-23 (P11), 32-52 (P14-P16), 54-61 (P17) (64 answered 2026-11-11: the P18 paragraph is in `CLAUDE.md` and `AGENTS.md`), and the two stale lines of `CLAUDE.md` (tier C wording: "only the CMSIS-DSP functions the firmware calls", since P11 it is every function of the used modules; the P17 spec line `USB MIDI v2_0.pdf`, now `midi10.pdf` and `MIDI_1.0_Detailed_Specification.pdf`), which is the owner's file and has not been changed. New work starts only on the owner's request. If an open question is answered: update the affected tests, `PROGRESS.md`, `OPEN_QUESTIONS.md`, run `make_bug_report.py`, regenerate the coverage numbers. Next numbers: firmware bug 226, vendor bug V89, NEEDS REVIEW 281, open question 65. Further proposals not started (each needs the owner's go-ahead): cross-module integration tests, ARM struct layout checks with `arm-none-eabi-gcc` (compile only), fuzzing of the input parsers with libFuzzer, CI (question 5).
+The remaining items are the owner's: open questions 17-23 (P11), 32-52 (P14-P16), 54-61 (P17) and the two stale lines of `CLAUDE.md` (tier C wording: "only the CMSIS-DSP functions the firmware calls", since P11 it is every function of the used modules; the P17 spec line `USB MIDI v2_0.pdf`, now `midi10.pdf` and `MIDI_1.0_Detailed_Specification.pdf`), which is the owner's file and has not been changed. New work starts only on the owner's request. If an open question is answered: update the affected tests, `PROGRESS.md`, `OPEN_QUESTIONS.md`, run `make_bug_report.py`, regenerate the coverage numbers. Next numbers: firmware bug 226, vendor bug V89, NEEDS REVIEW 281, open question 65. Further proposals not started (each needs the owner's go-ahead): cross-module integration tests, ARM struct layout checks with `arm-none-eabi-gcc` (compile only), fuzzing of the input parsers with libFuzzer, CI (question 5).
 
 ## Phase checklist
 

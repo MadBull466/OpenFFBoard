@@ -5,7 +5,7 @@ Branch `add-test-suite`, from the baseline commit `a5418ff5` ("Initial unit test
 are in `Tests/claude/plans/PROGRESS.md` (the source of truth); all suspected bugs and open questions are in `Tests/claude/reports/BUG_REPORT.md`.
 
 > **Update 2026-11-11 (P18).** This summary was written at P9 and is kept as the P9 record; the tables below are updated where they
-> are plain counts. Since then P10 (TMC4671, ODrive, VESC), P11 (CMSIS-DSP), P13-P16 (TMCDebugBridge, PWM, SimpleMotion, MyActuator) were added, approved and
+> are plain counts. The "Open questions for you" list below is the P9 list; the current list is `Tests/claude/reports/OPEN_QUESTIONS.md`. Since then P10 (TMC4671, ODrive, VESC), P11 (CMSIS-DSP), P13-P16 (TMCDebugBridge, PWM, SimpleMotion, MyActuator) were added, approved and
 > pushed to the fork. Current counts (GCC 16): `ffb_unit_tests` 654, `ffb_target_tests` 1863, `ffb_flash_tests` 159, `ffb_rtos_tests` 278, `ffb_usb_tests` 606,
 > `ffb_driver_tests` 1717, `ffb_dsp_tests` 2485 = 7,762 C++ cases (unit tests counted with the documented exclusion), 125 Python tests, ctest 11 of 11. Suspected firmware bugs are numbered up to 225,
 > vendor bugs up to V88, NEEDS REVIEW up to 280, open questions up to 64. Remaining out of scope: ST HAL, CMSIS core, FreeRTOS kernel, `Firmware/Targets/**`,
@@ -77,7 +77,7 @@ and "Related bugs"). Highlights:
 
 1. **CI:** no GitHub Actions workflow runs these tests. A minimal job is proposed (open question 5); I did not touch `.github/`.
 2. **CLAUDE.md / TEST_PLAN.md wording:** both still give the original `ffb_unit_tests` result as "316 passed, 2 skipped"; the executable now
-   gives 646/0/4 on GCC 16, with the 316/2 baseline subset checked by `check_baseline.py` (open question 8).
+   gives 654/0/4 on GCC 16, with the 316/2 baseline subset checked by `check_baseline.py` (open question 8).
 3. **USB HID PID 1.01 specification:** give the spec file path to have the `HidFFB` characterization tests checked against it (optional).
 4. **The 145 NEEDS REVIEW questions** in `Tests/claude/reports/BUG_REPORT.md`: each answer decides whether a behaviour becomes a bug.
 
