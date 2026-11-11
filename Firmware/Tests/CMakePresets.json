@@ -6,7 +6,7 @@
 			"name": "host",
 			"displayName": "Host tests",
 			"description": "Native build. CMSIS-DSP is used if the submodule is checked out",
-			"binaryDir": "${sourceDir}/build"
+			"binaryDir": "${sourceDir}/Code_Coverage/build"
 		},
 		{
 			"name": "host-mingw",
@@ -17,13 +17,13 @@
 		{
 			"name": "host-nodsp",
 			"displayName": "Host tests without CMSIS-DSP",
-			"binaryDir": "${sourceDir}/build-nodsp",
+			"binaryDir": "${sourceDir}/Code_Coverage/build-nodsp",
 			"cacheVariables": { "FFB_TESTS_USE_DSP": "OFF" }
 		},
 		{
 			"name": "host-sanitize",
 			"displayName": "Host tests with address and undefined behaviour sanitizers",
-			"binaryDir": "${sourceDir}/build-sanitize",
+			"binaryDir": "${sourceDir}/Code_Coverage/build-sanitize",
 			"cacheVariables": { "FFB_TESTS_SANITIZE": "ON" }
 		}
 	],

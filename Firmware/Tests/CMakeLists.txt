@@ -3,9 +3,9 @@
 # Builds the hardware independent firmware sources with the native compiler of the
 # development machine and links them against a fake platform layer (HAL, FreeRTOS, TinyUSB).
 #
-#   cmake -S Firmware/Tests -B Firmware/Tests/build
-#   cmake --build Firmware/Tests/build
-#   ctest --test-dir Firmware/Tests/build --output-on-failure
+#   cmake -S Firmware/Tests -B Firmware/Tests/Code_Coverage/build
+#   cmake --build Firmware/Tests/Code_Coverage/build
+#   ctest --test-dir Firmware/Tests/Code_Coverage/build --output-on-failure
 #
 # See README.md in this directory.
 cmake_minimum_required(VERSION 3.16)
@@ -28,7 +28,7 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 	set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-# 32-bit build (P18, Tests/claude/plans/P18_32BIT_BUILD_PLAN.md). The target is ILP32: size_t, long and pointers are
+# 32-bit build (P18, Tests/Code_Coverage/claude/plans/P18_32BIT_BUILD_PLAN.md). The target is ILP32: size_t, long and pointers are
 # 4 bytes. -m32 makes the host ILP32 as well, so comparisons and arithmetic that mix int64_t with size_t behave like
 # on the target. -msse2 -mfpmath=sse: IEEE single precision floats like the Cortex-M4F FPU (x87 would use extended
 # precision). -funsigned-char: char is unsigned on ARM. Not modelled: uint32_t is unsigned int here but unsigned long
@@ -58,7 +58,7 @@ set(FFBOARD_DIR ${FW_DIR}/FFBoard)
 # ---------------------------------------------------------------------------
 # Firmware sources under test. These are the unmodified firmware files.
 # Add a file here to make it available to the tests. If it needs something from
-# the hardware extend the fake platform in platform/ instead of changing the source.
+# the hardware extend the fake platform in Code_Coverage/platform/ instead of changing the source.
 # ---------------------------------------------------------------------------
 set(FIRMWARE_SOURCES
 	# Command system
@@ -92,30 +92,30 @@ set(FIRMWARE_SOURCES
 )
 
 set(PLATFORM_SOURCES
-	platform/src/host_freertos.cpp
-	platform/src/host_platform.cpp
-	platform/src/host_usb.cpp
-	platform/src/host_stubs.cpp
+	Code_Coverage/platform/src/host_freertos.cpp
+	Code_Coverage/platform/src/host_platform.cpp
+	Code_Coverage/platform/src/host_usb.cpp
+	Code_Coverage/platform/src/host_stubs.cpp
 )
 
-# Every test_*.cpp in cases/, claude/cases/ and codex/cases/ (not recursive, so
-# claude/cases/driver is not included) is picked up automatically
-file(GLOB TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cases/test_*.cpp ${CMAKE_CURRENT_SOURCE_DIR}/claude/cases/test_*.cpp ${CMAKE_CURRENT_SOURCE_DIR}/codex/cases/test_*.cpp)
+# Every test_*.cpp in Code_Coverage/cases/, Code_Coverage/claude/cases/ and Code_Coverage/codex/cases/ (not recursive, so
+# Code_Coverage/claude/cases/driver is not included) is picked up automatically
+file(GLOB TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/cases/test_*.cpp ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/claude/cases/test_*.cpp ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/codex/cases/test_*.cpp)
 
 add_executable(ffb_unit_tests
 	${FIRMWARE_SOURCES}
 	${PLATFORM_SOURCES}
 	${TEST_SOURCES}
-	support/test_main.cpp
+	Code_Coverage/support/test_main.cpp
 )
 
 # Order matters: test doubles and the fake platform shadow firmware and target headers.
 target_include_directories(ffb_unit_tests PRIVATE
-	fakes
-	platform/include
-	support
-	mocks
-	third_party
+	Code_Coverage/fakes
+	Code_Coverage/platform/include
+	Code_Coverage/support
+	Code_Coverage/mocks
+	Code_Coverage/third_party
 	${FFBOARD_DIR}/Inc
 	${FFBOARD_DIR}/UserExtensions/Inc
 	${FFBOARD_DIR}/USB
@@ -177,7 +177,7 @@ if(FFB_TESTS_SANITIZE)
 endif()
 
 # Test cases excluded from ctest runs (doctest --test-case-exclude). Each entry is a suspected defect
-# that aborts the run instead of failing a single test. Keep this list in sync with Tests/claude/plans/PROGRESS.md.
+# that aborts the run instead of failing a single test. Keep this list in sync with Tests/Code_Coverage/claude/plans/PROGRESS.md.
 #  - effectsForces reads current[MAX_AXIS] out of bounds. libstdc++ assertions (GCC 16, -O0) abort the run.
 set(FFB_TESTS_EXCLUDE
 	"requesting the forces of a not existing axis is rejected"
@@ -185,7 +185,7 @@ set(FFB_TESTS_EXCLUDE
 #  - CMSIS-DSP arm_spline_f32 reads one element past its input. Only reported by the address sanitizer,
 #    so these are only excluded in sanitizer builds with CMSIS-DSP.
 #    NOTE: "reconstruction of a step ..." currently passes without a sanitizer report (GCC 16 and clang 23,
-#    checked 2026-11-02). It stays excluded on purpose (my decision); tools/run_all_tests.py highlights it under
+#    checked 2026-11-02). It stays excluded on purpose (my decision); Code_Coverage/tools/run_all_tests.py highlights it under
 #    ATTENTION in the report of sanitizer builds.
 set(FFB_TESTS_EXCLUDE_SANITIZE
 	"reconstruction of a constant signal is constant"
@@ -197,7 +197,7 @@ if(FFB_TESTS_SANITIZE AND USE_DSP)
 	list(APPEND FFB_TESTS_EXCLUDED ${FFB_TESTS_EXCLUDE_SANITIZE})
 endif()
 list(JOIN FFB_TESTS_EXCLUDED "," FFB_TESTS_EXCLUDED_ARG)
-# Read by tools/check_baseline.py --build-dir
+# Read by Code_Coverage/tools/check_baseline.py --build-dir
 set(FFB_TESTS_EXCLUDED_ARG "${FFB_TESTS_EXCLUDED_ARG}" CACHE INTERNAL "Test cases excluded from ctest (doctest filter)")
 message(STATUS "OpenFFBoard tests: excluded from ctest: ${FFB_TESTS_EXCLUDED_ARG}")
 
@@ -208,7 +208,7 @@ else()
 	add_test(NAME ffb_unit_tests COMMAND ffb_unit_tests)
 endif()
 
-# Every baseline test case (baseline/test_cases.txt) must still exist with its expected result
+# Every baseline test case (Code_Coverage/baseline/test_cases.txt) must still exist with its expected result
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
 	if(FFB_TESTS_SANITIZE)
@@ -217,7 +217,7 @@ if(Python3_Interpreter_FOUND)
 		set(FFB_TESTS_BASELINE_SANITIZE off)
 	endif()
 	add_test(NAME ffb_unit_tests_baseline
-		COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_baseline.py
+		COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/tools/check_baseline.py
 			--exe $<TARGET_FILE:ffb_unit_tests>
 			"--exclude-list=${FFB_TESTS_EXCLUDED_ARG}"
 			--sanitize=${FFB_TESTS_BASELINE_SANITIZE})
@@ -284,7 +284,7 @@ set(TARGET_FIRMWARE_SOURCES
 	${FFBOARD_DIR}/UserExtensions/Src/usb_hid_2ffb_desc.c
 	${FFBOARD_DIR}/UserExtensions/Src/usb_hid_gamepad.c
 	# System: startup, interrupt callbacks, voltage sensing, status LEDs (P4).
-	# cppmain.cpp is compiled through platform/src/host_cppmain.cpp (TARGET_PLATFORM_SOURCES): it defines malloc() and
+	# cppmain.cpp is compiled through Code_Coverage/platform/src/host_cppmain.cpp (TARGET_PLATFORM_SOURCES): it defines malloc() and
 	# free(), which the wrapper renames (see there).
 	${FFBOARD_DIR}/Src/global_callbacks.cpp
 	${FFBOARD_DIR}/Src/voltagesense.cpp
@@ -298,25 +298,25 @@ set(TARGET_FIRMWARE_SOURCES
 # the main.c callbacks. host_target_bus.cpp: fake HAL SPI (F4) and I2C (F5). host_target_can.cpp: fake HAL CAN (F8). Every HAL function the compiled sources
 # call has a fake; paths a fake does not model are recorded in HostTarget::state().unmodelledHalCalls.
 set(TARGET_PLATFORM_SOURCES
-	platform/src/host_freertos.cpp
-	platform/src/host_platform.cpp
-	platform/src/host_usb.cpp
-	platform/src/host_target.cpp
-	platform/src/host_target_config.cpp
-	platform/src/host_target_system.cpp
-	platform/src/host_target_bus.cpp
-	platform/src/host_target_can.cpp
-	platform/src/host_cppmain.cpp
+	Code_Coverage/platform/src/host_freertos.cpp
+	Code_Coverage/platform/src/host_platform.cpp
+	Code_Coverage/platform/src/host_usb.cpp
+	Code_Coverage/platform/src/host_target.cpp
+	Code_Coverage/platform/src/host_target_config.cpp
+	Code_Coverage/platform/src/host_target_system.cpp
+	Code_Coverage/platform/src/host_target_bus.cpp
+	Code_Coverage/platform/src/host_target_can.cpp
+	Code_Coverage/platform/src/host_cppmain.cpp
 )
 
-# Configure-time guard for platform/src/host_cppmain.cpp: every #include of cppmain.cpp must be in the wrapper's
+# Configure-time guard for Code_Coverage/platform/src/host_cppmain.cpp: every #include of cppmain.cpp must be in the wrapper's
 # pre-include list (the lines before "End of the pre-include list"). Otherwise the malloc/free rename of the wrapper
 # would apply to a newly included header.
 file(STRINGS ${FFBOARD_DIR}/Src/cppmain.cpp FFB_CPPMAIN_INCLUDES REGEX "^[ \t]*#[ \t]*include")
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/platform/src/host_cppmain.cpp FFB_CPPMAIN_WRAPPER)
+file(READ ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/platform/src/host_cppmain.cpp FFB_CPPMAIN_WRAPPER)
 string(FIND "${FFB_CPPMAIN_WRAPPER}" "// End of the pre-include list" FFB_CPPMAIN_WRAPPER_END)
 if(FFB_CPPMAIN_WRAPPER_END LESS 0)
-	message(FATAL_ERROR "platform/src/host_cppmain.cpp: marker '// End of the pre-include list' not found")
+	message(FATAL_ERROR "Code_Coverage/platform/src/host_cppmain.cpp: marker '// End of the pre-include list' not found")
 endif()
 string(SUBSTRING "${FFB_CPPMAIN_WRAPPER}" 0 ${FFB_CPPMAIN_WRAPPER_END} FFB_CPPMAIN_WRAPPER_HEAD)
 string(REGEX MATCHALL "#[ \t]*include[ \t]*[\"<][^\">]+[\">]" FFB_CPPMAIN_WRAPPER_INCLUDES "${FFB_CPPMAIN_WRAPPER_HEAD}")
@@ -326,7 +326,7 @@ foreach(inc IN LISTS FFB_CPPMAIN_INCLUDES)
 	string(REGEX REPLACE "[ \t]" "" inc "${inc}")
 	if(NOT inc IN_LIST FFB_CPPMAIN_WRAPPER_INCLUDES)
 		message(FATAL_ERROR "FFBoard/Src/cppmain.cpp has '${inc}', which is missing in the pre-include list of "
-			"Firmware/Tests/platform/src/host_cppmain.cpp. Add it there (before the malloc/free rename).")
+			"Firmware/Tests/Code_Coverage/platform/src/host_cppmain.cpp. Add it there (before the malloc/free rename).")
 	endif()
 endforeach()
 
@@ -337,7 +337,7 @@ set_property(SOURCE ${FFBOARD_DIR}/Src/ledEffects.cpp APPEND PROPERTY COMPILE_DE
 	pulseSysLed=hosttest_real_pulseSysLed pulseErrLed=hosttest_real_pulseErrLed pulseClipLed=hosttest_real_pulseClipLed
 	setSysLed=hosttest_real_setSysLed setErrLed=hosttest_real_setErrLed setClipLed=hosttest_real_setClipLed)
 
-# Axis.cpp: target include order and compile workarounds (no firmware change allowed, see Tests/claude/plans/PROGRESS.md F14):
+# Axis.cpp: target include order and compile workarounds (no firmware change allowed, see Tests/Code_Coverage/claude/plans/PROGRESS.md F14):
 #  - -include math.h (both DSP variants): on the shipped targets (arm-none-eabi-g++, TMC4671DRIVER on) Axis.cpp gets
 #    <math.h> transitively via TMC4671.h -> SPI.h:17. The libstdc++ math.h wrapper does `using std::abs;`, so
 #    abs(float) in Axis.cpp (setExpo, updateHandsOffState) calls the float overload. ffb_target_tests has the
@@ -350,24 +350,24 @@ set_property(SOURCE ${FFBOARD_DIR}/Src/Axis.cpp APPEND PROPERTY COMPILE_OPTIONS 
 set_property(SOURCE ${FFBOARD_DIR}/Src/Axis.cpp APPEND PROPERTY COMPILE_OPTIONS $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-c++11-narrowing>)
 
 file(GLOB TARGET_TEST_SOURCES CONFIGURE_DEPENDS
-	${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_target/test_*.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/codex/cases_target/test_*.cpp)
+	${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/claude/cases_target/test_*.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/codex/cases_target/test_*.cpp)
 
 add_executable(ffb_target_tests
 	${TARGET_FIRMWARE_SOURCES}
 	${TARGET_PLATFORM_SOURCES}
 	${TARGET_TEST_SOURCES}
-	support/test_main.cpp
+	Code_Coverage/support/test_main.cpp
 )
 
-# Order matters: the F407 feature header (platform/target_f407) shadows the one of ffb_unit_tests in
-# platform/include. No fakes/ directory: the real Axis.h is used.
+# Order matters: the F407 feature header (Code_Coverage/platform/target_f407) shadows the one of ffb_unit_tests in
+# Code_Coverage/platform/include. No Code_Coverage/fakes/ directory: the real Axis.h is used.
 target_include_directories(ffb_target_tests PRIVATE
-	platform/target_f407
-	platform/include
-	support
-	mocks
-	third_party
+	Code_Coverage/platform/target_f407
+	Code_Coverage/platform/include
+	Code_Coverage/support
+	Code_Coverage/mocks
+	Code_Coverage/third_party
 	${FFBOARD_DIR}/Inc
 	${FFBOARD_DIR}/UserExtensions/Inc
 	${FFBOARD_DIR}/USB
@@ -380,7 +380,7 @@ target_include_directories(ffb_target_tests PRIVATE
 
 # HOSTTEST_REAL_CPPMAIN: host_platform.cpp leaves out its micros() / refreshWatchdog() / getRunTimeCounterValue() /
 #   Error_Handler() fakes (real cppmain.cpp, main.c model in host_target_system.cpp) and keeps the TIM7 counter of the
-#   HAL tick in step with the simulated time; platform/include/task.h routes taskYIELD() to a hook (cppmain loop).
+#   HAL tick in step with the simulated time; Code_Coverage/platform/include/task.h routes taskYIELD() to a hook (cppmain loop).
 # HOSTTEST_REAL_LED_EFFECTS: host_platform.cpp leaves out its LED fake (real ledEffects.cpp, see above).
 # HOSTTEST_TARGET_OTP: host_platform.cpp leaves out its OTP_Write / OTP_Read stubs; host_target_system.cpp models them
 #   like flash_helpers.cpp on an in-memory OTP area (SystemCommands "signature").
@@ -418,8 +418,8 @@ if(MINGW OR APPLE)
 	# SystemCommands.cpp uses struct mallinfo / mallinfo() from <malloc.h>, which mingw-w64 does not declare and the
 	# macOS SDK does not have: shim header (#include_next if a <malloc.h> exists) and a stub returning zeros.
 	# Unverified (no MinGW or macOS toolchain available). Not used on Linux (glibc declares both).
-	target_include_directories(ffb_target_tests BEFORE PRIVATE platform/mingw)
-	target_sources(ffb_target_tests PRIVATE platform/mingw/host_mallinfo.cpp)
+	target_include_directories(ffb_target_tests BEFORE PRIVATE Code_Coverage/platform/mingw)
+	target_sources(ffb_target_tests PRIVATE Code_Coverage/platform/mingw/host_mallinfo.cpp)
 endif()
 
 if(FFB_TESTS_SANITIZE)
@@ -461,9 +461,9 @@ endif()
 # eeprom_addresses.c) and PersistentStorage on a fake HAL FLASH with NOR semantics (P3).
 #
 # ffb_unit_tests and ffb_target_tests above are not changed by this section. Feature set: the F407 test header
-# (platform/target_f407/target_constants.h: USE_EEPROM_EMULATION, EEPROM_START_ADDRESS 0x08004000).
-#  - HOSTTEST_FLASH_HAL: platform/target_f407/main.h includes host_flash_hal.h (FLASH HAL declarations, FLASH_OTP_BASE,
-#    so constants.h defines OTPMEMORY like on the F407). Implementation: platform/src/host_flash.cpp.
+# (Code_Coverage/platform/target_f407/target_constants.h: USE_EEPROM_EMULATION, EEPROM_START_ADDRESS 0x08004000).
+#  - HOSTTEST_FLASH_HAL: Code_Coverage/platform/target_f407/main.h includes host_flash_hal.h (FLASH HAL declarations, FLASH_OTP_BASE,
+#    so constants.h defines OTPMEMORY like on the F407). Implementation: Code_Coverage/platform/src/host_flash.cpp.
 #  - HOSTTEST_REAL_FLASH_HELPERS: host_platform.cpp leaves out its map-backed Flash_* replacement.
 # The fake flash memory is mapped at the target addresses (0x08000000 and 0x1FFF0000, 64 KiB each) when the
 # executable starts, see host_flash.cpp.
@@ -486,26 +486,26 @@ set(FLASH_FIRMWARE_SOURCES
 )
 
 set(FLASH_PLATFORM_SOURCES
-	platform/src/host_freertos.cpp
-	platform/src/host_platform.cpp
-	platform/src/host_flash.cpp
+	Code_Coverage/platform/src/host_freertos.cpp
+	Code_Coverage/platform/src/host_platform.cpp
+	Code_Coverage/platform/src/host_flash.cpp
 )
 
-file(GLOB FLASH_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_flash/test_*.cpp)
+file(GLOB FLASH_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/claude/cases_flash/test_*.cpp)
 
 add_executable(ffb_flash_tests
 	${FLASH_FIRMWARE_SOURCES}
 	${FLASH_PLATFORM_SOURCES}
 	${FLASH_TEST_SOURCES}
-	support/test_main.cpp
+	Code_Coverage/support/test_main.cpp
 )
 
 target_include_directories(ffb_flash_tests PRIVATE
-	platform/target_f407
-	platform/include
-	support
-	mocks
-	third_party
+	Code_Coverage/platform/target_f407
+	Code_Coverage/platform/include
+	Code_Coverage/support
+	Code_Coverage/mocks
+	Code_Coverage/third_party
 	${FFBOARD_DIR}/Inc
 	${FFBOARD_DIR}/UserExtensions/Inc
 	${FFBOARD_DIR}/USB
@@ -517,7 +517,7 @@ target_include_directories(ffb_flash_tests PRIVATE
 )
 
 target_compile_definitions(ffb_flash_tests PRIVATE HOSTTEST HOSTTEST_FLASH_HAL HOSTTEST_REAL_FLASH_HELPERS)
-# Header parsed at run time by claude/cases_flash/test_eeprom_addresses.cpp (consistency of VirtAddVarTab with the ADR_ constants)
+# Header parsed at run time by Code_Coverage/claude/cases_flash/test_eeprom_addresses.cpp (consistency of VirtAddVarTab with the ADR_ constants)
 get_filename_component(FFB_EEPROM_ADDRESSES_HEADER ${FFBOARD_DIR}/UserExtensions/Inc/eeprom_addresses.h ABSOLUTE)
 target_compile_definitions(ffb_flash_tests PRIVATE FFB_EEPROM_ADDRESSES_H="${FFB_EEPROM_ADDRESSES_HEADER}")
 
@@ -559,14 +559,14 @@ endif() # NOT APPLE (ffb_flash_tests)
 # counting semaphores, critical sections, scheduler suspension, tick hook, RTOS heap, create-failure injection.
 #
 # ffb_unit_tests, ffb_target_tests and ffb_flash_tests above are not changed by this section.
-#  - HOSTTEST_RTOS_EXT: host_freertos.cpp includes platform/src/host_freertos_ext.inc (the F11 fakes, replacing its
+#  - HOSTTEST_RTOS_EXT: host_freertos.cpp includes Code_Coverage/platform/src/host_freertos_ext.inc (the F11 fakes, replacing its
 #    semaphore / notification / heap / task creation functions), host_platform.cpp runs one SysTick per simulated ms,
-#    the fake FreeRTOS headers in platform/include declare the queue / timer / event group API and the F407 switches
+#    the fake FreeRTOS headers in Code_Coverage/platform/include declare the queue / timer / event group API and the F407 switches
 #    the wrappers evaluate (FreeRTOSConfig.h: static allocation, trace facility, xTimerPendFunctionCall, condition
 #    variables; the tick hook is on although the F407 has configUSE_TICK_HOOK 0).
-#  - cmem_pool.cpp is compiled through platform/src/host_cmem_pool.cpp (its malloc() goes to pvPortMalloc like on the
+#  - cmem_pool.cpp is compiled through Code_Coverage/platform/src/host_cmem_pool.cpp (its malloc() goes to pvPortMalloc like on the
 #    target, cppmain.cpp:138).
-# Feature header: the generic test header of platform/include (the wrappers use no feature macro). No CMSIS-DSP.
+# Feature header: the generic test header of Code_Coverage/platform/include (the wrappers use no feature macro). No CMSIS-DSP.
 # Built on every host (no fixed addresses, unlike ffb_flash_tests).
 # ===========================================================================
 set(RTOS_FIRMWARE_SOURCES
@@ -588,18 +588,18 @@ set(RTOS_FIRMWARE_SOURCES
 )
 
 set(RTOS_PLATFORM_SOURCES
-	platform/src/host_freertos.cpp
-	platform/src/host_platform.cpp
-	platform/src/host_cmem_pool.cpp
+	Code_Coverage/platform/src/host_freertos.cpp
+	Code_Coverage/platform/src/host_platform.cpp
+	Code_Coverage/platform/src/host_cmem_pool.cpp
 )
 
-# Configure-time guard for platform/src/host_cmem_pool.cpp (like host_cppmain.cpp above): every #include of
+# Configure-time guard for Code_Coverage/platform/src/host_cmem_pool.cpp (like host_cppmain.cpp above): every #include of
 # cmem_pool.cpp must be in the wrapper's pre-include list, otherwise the malloc macro would reach a header.
 file(STRINGS ${FFBOARD_DIR}/Src/cmem_pool.cpp FFB_CMEM_POOL_INCLUDES REGEX "^[ \t]*#[ \t]*include")
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/platform/src/host_cmem_pool.cpp FFB_CMEM_POOL_WRAPPER)
+file(READ ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/platform/src/host_cmem_pool.cpp FFB_CMEM_POOL_WRAPPER)
 string(FIND "${FFB_CMEM_POOL_WRAPPER}" "// End of the pre-include list" FFB_CMEM_POOL_WRAPPER_END)
 if(FFB_CMEM_POOL_WRAPPER_END LESS 0)
-	message(FATAL_ERROR "platform/src/host_cmem_pool.cpp: marker '// End of the pre-include list' not found")
+	message(FATAL_ERROR "Code_Coverage/platform/src/host_cmem_pool.cpp: marker '// End of the pre-include list' not found")
 endif()
 string(SUBSTRING "${FFB_CMEM_POOL_WRAPPER}" 0 ${FFB_CMEM_POOL_WRAPPER_END} FFB_CMEM_POOL_WRAPPER_HEAD)
 string(REGEX MATCHALL "#[ \t]*include[ \t]*[\"<][^\">]+[\">]" FFB_CMEM_POOL_WRAPPER_INCLUDES "${FFB_CMEM_POOL_WRAPPER_HEAD}")
@@ -609,27 +609,27 @@ foreach(inc IN LISTS FFB_CMEM_POOL_INCLUDES)
 	string(REGEX REPLACE "[ \t]" "" inc "${inc}")
 	if(NOT inc IN_LIST FFB_CMEM_POOL_WRAPPER_INCLUDES)
 		message(FATAL_ERROR "FFBoard/Src/cmem_pool.cpp has '${inc}', which is missing in the pre-include list of "
-			"Firmware/Tests/platform/src/host_cmem_pool.cpp. Add it there (before the malloc macro).")
+			"Firmware/Tests/Code_Coverage/platform/src/host_cmem_pool.cpp. Add it there (before the malloc macro).")
 	endif()
 endforeach()
 
 file(GLOB RTOS_TEST_SOURCES CONFIGURE_DEPENDS
-	${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_rtos/test_*.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/codex/cases_rtos/test_*.cpp)
+	${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/claude/cases_rtos/test_*.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/codex/cases_rtos/test_*.cpp)
 
 add_executable(ffb_rtos_tests
 	${RTOS_FIRMWARE_SOURCES}
 	${RTOS_PLATFORM_SOURCES}
 	${RTOS_TEST_SOURCES}
-	support/test_main.cpp
+	Code_Coverage/support/test_main.cpp
 )
 
 # The USB directories only for the headers host_platform.cpp / UART.cpp include (no USB code is compiled)
 target_include_directories(ffb_rtos_tests PRIVATE
-	platform/include
-	support
-	mocks
-	third_party
+	Code_Coverage/platform/include
+	Code_Coverage/support
+	Code_Coverage/mocks
+	Code_Coverage/third_party
 	${FFBOARD_DIR}/Inc
 	${FFBOARD_DIR}/UserExtensions/Inc
 	${FFBOARD_DIR}/USB
@@ -684,9 +684,9 @@ endif()
 #    them) plus ctickhook.cpp (vApplicationTickHook, called by the SysTick of the fake API F11) and
 #    ccondition_variable.cpp (Thread::Wait with the F407 switches of the fake API).
 #  - Platform: the platform sources of ffb_target_tests without host_usb.cpp (the recording TinyUSB fake), plus
-#    host_dcd.cpp (fake device controller, support/HostDcd.h) and host_usb_osal.cpp.
-#  - platform/usb is the first include directory: its tusb_config.h includes the real F407 tusb_config.h
-#    (FFB_F407_TUSB_CONFIG_H) and points CFG_TUSB_OS_INC_PATH at platform/usb/hosttest_osal/ (what osal_freertos.h
+#    host_dcd.cpp (fake device controller, Code_Coverage/support/HostDcd.h) and host_usb_osal.cpp.
+#  - Code_Coverage/platform/usb is the first include directory: its tusb_config.h includes the real F407 tusb_config.h
+#    (FFB_F407_TUSB_CONFIG_H) and points CFG_TUSB_OS_INC_PATH at Code_Coverage/platform/usb/hosttest_osal/ (what osal_freertos.h
 #    needs on top of the fake FreeRTOS API: static creation, xQueueReset on a semaphore).
 #  - HOSTTEST_RTOS_EXT: the fake FreeRTOS API F11 (queues for TinyUSB's event queue, see ffb_rtos_tests).
 #  - HOSTTEST_REAL_TINYUSB: host_target.cpp leaves out its models of tusb_rhport_init / tud_task_ext / tud_speed_get.
@@ -694,8 +694,8 @@ endif()
 #    C frames of usbd.c when it is deleted.
 # Built on every host (no fixed addresses). MIDI: CFG_TUD_MIDI is 1 in the F407 tusb_config.h, so midi_device.c is
 # compiled (the usbd.c driver table needs it). Since P17 the firmware's MIDI feature (MidiMain, MidiHandler) is on here
-# only: platform/usb_midi/target_constants.h defines MIDI, platform/usb_midi/TMC4671.h is the recording double of the
-# TMC4671 interface MidiMain uses (fakes/FakeTmcPhase), platform/src/host_midi_timer.cpp the fake TIM9.
+# only: Code_Coverage/platform/usb_midi/target_constants.h defines MIDI, Code_Coverage/platform/usb_midi/TMC4671.h is the recording double of the
+# TMC4671 interface MidiMain uses (Code_Coverage/fakes/FakeTmcPhase), Code_Coverage/platform/src/host_midi_timer.cpp the fake TIM9.
 # ===========================================================================
 set(USB_DIR ${FFBOARD_DIR}/USB)
 set(USB_TINYUSB_SOURCES
@@ -710,28 +710,28 @@ set(USB_TINYUSB_SOURCES
 
 set(USB_FIRMWARE_SOURCES
 	${TARGET_FIRMWARE_SOURCES}
-	${FFBOARD_DIR}/UserExtensions/Src/MidiMain.cpp # P17, behind MIDI (platform/usb_midi/target_constants.h)
+	${FFBOARD_DIR}/UserExtensions/Src/MidiMain.cpp # P17, behind MIDI (Code_Coverage/platform/usb_midi/target_constants.h)
 	${FFBOARD_DIR}/Src/MidiHandler.cpp # P17, behind MIDI
 	${FFBOARD_DIR}/Src/ctickhook.cpp
 	${FFBOARD_DIR}/Src/ccondition_variable.cpp # Thread::Wait (CPP_FREERTOS_CONDITION_VARIABLES, F407 FreeRTOSConfig.h:187)
 )
 
 set(USB_PLATFORM_SOURCES ${TARGET_PLATFORM_SOURCES})
-list(REMOVE_ITEM USB_PLATFORM_SOURCES platform/src/host_usb.cpp)
+list(REMOVE_ITEM USB_PLATFORM_SOURCES Code_Coverage/platform/src/host_usb.cpp)
 list(APPEND USB_PLATFORM_SOURCES
-	platform/src/host_dcd.cpp
-	platform/src/host_usb_osal.cpp
-	platform/src/host_midi_timer.cpp # P17: fake TIM9 (htim9 = TIM_USER), ffb_usb_tests only
-	fakes/FakeTmcPhase.cpp # P17: recording double of the TMC4671 interface MidiMain uses (platform/usb_midi/TMC4671.h)
+	Code_Coverage/platform/src/host_dcd.cpp
+	Code_Coverage/platform/src/host_usb_osal.cpp
+	Code_Coverage/platform/src/host_midi_timer.cpp # P17: fake TIM9 (htim9 = TIM_USER), ffb_usb_tests only
+	Code_Coverage/fakes/FakeTmcPhase.cpp # P17: recording double of the TMC4671 interface MidiMain uses (Code_Coverage/platform/usb_midi/TMC4671.h)
 )
 
-# FFB_USB_TEST_FILTER (developer aid for parallel test writing, like FFB_DRIVER_TEST_FILTER): glob of the claude/cases_usb
+# FFB_USB_TEST_FILTER (developer aid for parallel test writing, like FFB_DRIVER_TEST_FILTER): glob of the Code_Coverage/claude/cases_usb
 # test files to compile, e.g. "test_midi_handler.cpp". The MIDI skeleton is always compiled. Default: all.
-set(FFB_USB_TEST_FILTER "test_*.cpp" CACHE STRING "Glob of the claude/cases_usb test files compiled into ffb_usb_tests")
+set(FFB_USB_TEST_FILTER "test_*.cpp" CACHE STRING "Glob of the Code_Coverage/claude/cases_usb test files compiled into ffb_usb_tests")
 file(GLOB USB_TEST_SOURCES CONFIGURE_DEPENDS
-	${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_usb/${FFB_USB_TEST_FILTER}
-	${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_usb/test_midi_setup.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/codex/cases_usb/test_*.cpp)
+	${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/claude/cases_usb/${FFB_USB_TEST_FILTER}
+	${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/claude/cases_usb/test_midi_setup.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/codex/cases_usb/test_*.cpp)
 list(REMOVE_DUPLICATES USB_TEST_SOURCES)
 
 add_executable(ffb_usb_tests
@@ -739,17 +739,17 @@ add_executable(ffb_usb_tests
 	${USB_FIRMWARE_SOURCES}
 	${USB_PLATFORM_SOURCES}
 	${USB_TEST_SOURCES}
-	support/test_main.cpp
+	Code_Coverage/support/test_main.cpp
 )
 
 target_include_directories(ffb_usb_tests PRIVATE
-	platform/usb
-	platform/usb_midi # P17: target_constants.h (target_f407 plus MIDI) and the shadow TMC4671.h (recording double); before platform/target_f407 and the firmware directories
-	platform/target_f407
-	platform/include
-	support
-	mocks
-	third_party
+	Code_Coverage/platform/usb
+	Code_Coverage/platform/usb_midi # P17: target_constants.h (target_f407 plus MIDI) and the shadow TMC4671.h (recording double); before Code_Coverage/platform/target_f407 and the firmware directories
+	Code_Coverage/platform/target_f407
+	Code_Coverage/platform/include
+	Code_Coverage/support
+	Code_Coverage/mocks
+	Code_Coverage/third_party
 	${FFBOARD_DIR}/Inc
 	${FFBOARD_DIR}/UserExtensions/Inc
 	${USB_DIR}
@@ -785,9 +785,9 @@ endif()
 
 # P17: MidiMain.h includes "TMC4671.h". A quoted include is searched in the directory of the including file first, so
 # the real header (FFBoard/UserExtensions/Inc, same directory as MidiMain.h) would win over an include directory. The
-# recording double platform/usb_midi/TMC4671.h therefore has the include guard of the real header (TMC4671_H_) and is
+# recording double Code_Coverage/platform/usb_midi/TMC4671.h therefore has the include guard of the real header (TMC4671_H_) and is
 # force-included in every C++ source of this executable: the real header, when included later, is skipped.
-target_compile_options(ffb_usb_tests PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-include${CMAKE_CURRENT_SOURCE_DIR}/platform/usb_midi/TMC4671.h>)
+target_compile_options(ffb_usb_tests PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-include${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/platform/usb_midi/TMC4671.h>)
 
 target_link_libraries(ffb_usb_tests PRIVATE Threads::Threads)
 
@@ -796,8 +796,8 @@ target_compile_options(ffb_usb_tests PRIVATE -Wall $<$<COMPILE_LANGUAGE:CXX>:-Wn
 if(MINGW)
 	target_compile_options(ffb_usb_tests PRIVATE -mno-ms-bitfields)
 	target_link_options(ffb_usb_tests PRIVATE -static)
-	target_include_directories(ffb_usb_tests BEFORE PRIVATE platform/mingw)
-	target_sources(ffb_usb_tests PRIVATE platform/mingw/host_mallinfo.cpp)
+	target_include_directories(ffb_usb_tests BEFORE PRIVATE Code_Coverage/platform/mingw)
+	target_sources(ffb_usb_tests PRIVATE Code_Coverage/platform/mingw/host_mallinfo.cpp)
 endif()
 
 if(FFB_TESTS_SANITIZE)
@@ -823,15 +823,15 @@ else()
 endif()
 
 # ===========================================================================
-# ffb_driver_tests (driver track, Tests/claude/plans/DRIVER_TEST_PLAN.md): the real TMC4671, ODrive and VESC drivers on the
-# fake HAL SPI / CAN of ffb_target_tests. Feature header platform/target_f407_drivers/target_constants.h = the
+# ffb_driver_tests (driver track, Tests/Code_Coverage/claude/plans/DRIVER_TEST_PLAN.md): the real TMC4671, ODrive and VESC drivers on the
+# fake HAL SPI / CAN of ffb_target_tests. Feature header Code_Coverage/platform/target_f407_drivers/target_constants.h = the
 # ffb_target_tests header + TMC4671DRIVER, ODRIVE, VESC, (P13) TMCDEBUG (P14) PWMDRIVER, (P15) SIMPLEMOTION and (P16) RMDCAN (MIDI stays off until P17).
 #
 # The executables above are not changed by this section (their compile commands are identical). The firmware and
 # platform sources of ffb_target_tests are compiled again for this executable (they include target_constants.h).
-# platform/target_f407_drivers is the first include directory: it shadows only target_constants.h (main.h,
-# cmsis_os.h etc. still come from platform/target_f407). platform/src/host_driver_timers.cpp: fake TIM6 (htim6).
-# Test cases: claude/cases/driver/test_*.cpp (not picked up by ffb_unit_tests, whose glob is not recursive).
+# Code_Coverage/platform/target_f407_drivers is the first include directory: it shadows only target_constants.h (main.h,
+# cmsis_os.h etc. still come from Code_Coverage/platform/target_f407). Code_Coverage/platform/src/host_driver_timers.cpp: fake TIM6 (htim6).
+# Test cases: Code_Coverage/claude/cases/driver/test_*.cpp (not picked up by ffb_unit_tests, whose glob is not recursive).
 # ===========================================================================
 set(DRIVER_FIRMWARE_SOURCES
 	${TARGET_FIRMWARE_SOURCES}
@@ -839,15 +839,15 @@ set(DRIVER_FIRMWARE_SOURCES
 	${FFBOARD_DIR}/UserExtensions/Src/TMC4671_configs.cpp
 	${FFBOARD_DIR}/UserExtensions/Src/ODriveCAN.cpp
 	${FFBOARD_DIR}/UserExtensions/Src/VescCAN.cpp
-	${FFBOARD_DIR}/UserExtensions/Src/TMCDebugBridge.cpp # P13, behind TMCDEBUG (platform/target_f407_drivers/target_constants.h)
-	${FFBOARD_DIR}/UserExtensions/Src/RmdMotorCAN.cpp # P16, behind RMDCAN (same header); fake motor fakes/FakeRmdPeer.cpp
-	${FFBOARD_DIR}/UserExtensions/Src/MotorPWM.cpp # P14, behind PWMDRIVER (same header); fake TIM1 in platform/src/host_driver_timers.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/TMCDebugBridge.cpp # P13, behind TMCDEBUG (Code_Coverage/platform/target_f407_drivers/target_constants.h)
+	${FFBOARD_DIR}/UserExtensions/Src/RmdMotorCAN.cpp # P16, behind RMDCAN (same header); fake motor Code_Coverage/fakes/FakeRmdPeer.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/MotorPWM.cpp # P14, behind PWMDRIVER (same header); fake TIM1 in Code_Coverage/platform/src/host_driver_timers.cpp
 )
-# P15: MotorSimplemotion.cpp, behind SIMPLEMOTION (same header); fake device fakes/FakeSmDevice.cpp on huart3. The executable is
+# P15: MotorSimplemotion.cpp, behind SIMPLEMOTION (same header); fake device Code_Coverage/fakes/FakeSmDevice.cpp on huart3. The executable is
 # compiled with -funsigned-char (like the target: charter L4). MotorSimplemotion.h:175 and :222 initialise variable length
 # arrays (`uint8_t buf[n] = {0}`), a GCC extension: clang rejects it ("variable-sized object may not be initialized", an error
 # without a suppressing flag), so with clang the driver is not built, SIMPLEMOTION stays off (HOSTTEST_NO_SIMPLEMOTION, see
-# platform/target_f407_drivers/target_constants.h) and the test_sm_*.cpp files are left out. The firmware is not edited.
+# Code_Coverage/platform/target_f407_drivers/target_constants.h) and the test_sm_*.cpp files are left out. The firmware is not edited.
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 	set(FFB_SIMPLEMOTION_BUILT OFF)
 	message(STATUS "OpenFFBoard tests: MotorSimplemotion not built (clang rejects its variable length array initialisers)")
@@ -860,15 +860,15 @@ endif()
 # as Axis.cpp above (F14); the value is in range, the firmware source is not changed.
 set_property(SOURCE ${FFBOARD_DIR}/UserExtensions/Src/TMC4671.cpp APPEND PROPERTY COMPILE_OPTIONS
 	$<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-c++11-narrowing>)
-set(DRIVER_PLATFORM_SOURCES ${TARGET_PLATFORM_SOURCES} platform/src/host_driver_timers.cpp fakes/FakeTmc4671.cpp fakes/FakeOdrivePeer.cpp fakes/FakeVescPeer.cpp fakes/FakeSmDevice.cpp fakes/FakeRmdPeer.cpp)
+set(DRIVER_PLATFORM_SOURCES ${TARGET_PLATFORM_SOURCES} Code_Coverage/platform/src/host_driver_timers.cpp Code_Coverage/fakes/FakeTmc4671.cpp Code_Coverage/fakes/FakeOdrivePeer.cpp Code_Coverage/fakes/FakeVescPeer.cpp Code_Coverage/fakes/FakeSmDevice.cpp Code_Coverage/fakes/FakeRmdPeer.cpp)
 # FFB_DRIVER_TEST_FILTER (developer aid for parallel test writing): glob of the driver test files to compile, e.g.
 # "test_tmc4671_init*.cpp". The setup and fake self-tests are always compiled. Default: all driver tests.
-set(FFB_DRIVER_TEST_FILTER "test_*.cpp" CACHE STRING "Glob of the claude/cases/driver test files compiled into ffb_driver_tests")
+set(FFB_DRIVER_TEST_FILTER "test_*.cpp" CACHE STRING "Glob of the Code_Coverage/claude/cases/driver test files compiled into ffb_driver_tests")
 file(GLOB DRIVER_TEST_SOURCES CONFIGURE_DEPENDS
-	${CMAKE_CURRENT_SOURCE_DIR}/claude/cases/driver/${FFB_DRIVER_TEST_FILTER}
-	${CMAKE_CURRENT_SOURCE_DIR}/claude/cases/driver/test_driver_setup.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/claude/cases/driver/test_tmc4671_fake.cpp)
-file(GLOB CODEX_DRIVER_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/codex/cases/driver/test_*.cpp)
+	${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/claude/cases/driver/${FFB_DRIVER_TEST_FILTER}
+	${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/claude/cases/driver/test_driver_setup.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/claude/cases/driver/test_tmc4671_fake.cpp)
+file(GLOB CODEX_DRIVER_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/codex/cases/driver/test_*.cpp)
 list(APPEND DRIVER_TEST_SOURCES ${CODEX_DRIVER_TEST_SOURCES})
 list(REMOVE_DUPLICATES DRIVER_TEST_SOURCES)
 if(NOT FFB_SIMPLEMOTION_BUILT)
@@ -879,16 +879,16 @@ add_executable(ffb_driver_tests
 	${DRIVER_FIRMWARE_SOURCES}
 	${DRIVER_PLATFORM_SOURCES}
 	${DRIVER_TEST_SOURCES}
-	support/test_main.cpp
+	Code_Coverage/support/test_main.cpp
 )
 
 target_include_directories(ffb_driver_tests PRIVATE
-	platform/target_f407_drivers
-	platform/target_f407
-	platform/include
-	support
-	mocks
-	third_party
+	Code_Coverage/platform/target_f407_drivers
+	Code_Coverage/platform/target_f407
+	Code_Coverage/platform/include
+	Code_Coverage/support
+	Code_Coverage/mocks
+	Code_Coverage/third_party
 	${FFBOARD_DIR}/Inc
 	${FFBOARD_DIR}/UserExtensions/Inc
 	${FFBOARD_DIR}/USB
@@ -933,8 +933,8 @@ if(MINGW)
 endif()
 if(MINGW OR APPLE)
 	# See ffb_target_tests: mallinfo shim. Unverified (no MinGW or macOS toolchain available).
-	target_include_directories(ffb_driver_tests BEFORE PRIVATE platform/mingw)
-	target_sources(ffb_driver_tests PRIVATE platform/mingw/host_mallinfo.cpp)
+	target_include_directories(ffb_driver_tests BEFORE PRIVATE Code_Coverage/platform/mingw)
+	target_sources(ffb_driver_tests PRIVATE Code_Coverage/platform/mingw/host_mallinfo.cpp)
 endif()
 
 if(FFB_TESTS_SANITIZE)
@@ -960,7 +960,7 @@ else()
 endif()
 
 # ===========================================================================
-# ffb_dsp_tests (phase P11, Tests/claude/plans/TEST_PLAN.md and Tests/claude/charters/dsp/CMSIS_DSP_REQUIREMENTS.md): the in-scope CMSIS-DSP modules
+# ffb_dsp_tests (phase P11, Tests/Code_Coverage/claude/plans/TEST_PLAN.md and Tests/Code_Coverage/claude/charters/dsp/CMSIS_DSP_REQUIREMENTS.md): the in-scope CMSIS-DSP modules
 # (FastMath, Controller, Interpolation, Statistics, Filtering, CommonTables and the 4 BasicMath helpers arm_abs_q15,
 # arm_abs_q31, arm_add_f32, arm_add_f16) of ALL data types, tested against ARM's reference patterns
 # (Libraries/CMSIS-DSP/Testing/Patterns, read at run time, nothing copied) and independent definitions.
@@ -973,9 +973,9 @@ endif()
 #   ffb_cmsis_dsp_f16   the *_f16.c sources, only if the compiler has _Float16 (see FFB_DSP_HAS_F16)
 # f16 (lead decision L2): CMSIS-DSP defines float16_t as __fp16 and compiles the f16 code only if the compiler announces
 # __ARM_FP16_FORMAT_IEEE. On the host (x86) neither exists, so the f16 sources and the test files named
-# claude/cases_dsp/test_dsp_*_f16.cpp get -D__ARM_FP16_FORMAT_IEEE=1 -D__fp16=_Float16 (no source edited). Without _Float16
+# Code_Coverage/claude/cases_dsp/test_dsp_*_f16.cpp get -D__ARM_FP16_FORMAT_IEEE=1 -D__fp16=_Float16 (no source edited). Without _Float16
 # (e.g. an old MinGW) the f16 library and the f16 test files are not built; FFB_DSP_HAS_F16 is 0 for the tests.
-# Test files: claude/cases_dsp/test_dsp_*.cpp. FFB_DSP_TEST_FILTER (developer aid for parallel test writing): glob of the
+# Test files: Code_Coverage/claude/cases_dsp/test_dsp_*.cpp. FFB_DSP_TEST_FILTER (developer aid for parallel test writing): glob of the
 # files to compile, e.g. "test_dsp_fastmath*.cpp". The loader self-tests (test_dsp_patterns.cpp) are always compiled.
 # Only built if USE_DSP is on and the submodule contains Testing/Patterns.
 # ===========================================================================
@@ -1034,10 +1034,10 @@ if(USE_DSP AND EXISTS ${FFB_DSP_PATTERN_ROOT}/FastMath AND EXISTS ${DSP_DIR}/Sou
 		target_compile_definitions(ffb_cmsis_dsp_f16 PRIVATE ${FFB_DSP_F16_DEFS})
 	endif()
 
-	set(FFB_DSP_TEST_FILTER "test_dsp_*.cpp" CACHE STRING "Glob of the claude/cases_dsp test files compiled into ffb_dsp_tests")
+	set(FFB_DSP_TEST_FILTER "test_dsp_*.cpp" CACHE STRING "Glob of the Code_Coverage/claude/cases_dsp test files compiled into ffb_dsp_tests")
 	file(GLOB DSP_TEST_SOURCES CONFIGURE_DEPENDS
-		${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_dsp/${FFB_DSP_TEST_FILTER}
-		${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_dsp/test_dsp_patterns.cpp)
+		${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/claude/cases_dsp/${FFB_DSP_TEST_FILTER}
+		${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/claude/cases_dsp/test_dsp_patterns.cpp)
 	list(REMOVE_DUPLICATES DSP_TEST_SOURCES)
 	# f16 test files: test_dsp_*_f16.cpp (compiled with the f16 definitions, dropped without _Float16)
 	set(DSP_TEST_F16_SOURCES ${DSP_TEST_SOURCES})
@@ -1052,13 +1052,13 @@ if(USE_DSP AND EXISTS ${FFB_DSP_PATTERN_ROOT}/FastMath AND EXISTS ${DSP_DIR}/Sou
 	if(FFB_TESTS_32BIT)
 		set(FFB_DSP_TESTS_NOT_32BIT test_dsp_filt_fir_q.cpp test_dsp_filt_lattice.cpp test_dsp_filt_lms.cpp
 			test_dsp_filt_sparse.cpp test_dsp_stats_q31.cpp)
-		list(TRANSFORM FFB_DSP_TESTS_NOT_32BIT PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_dsp/)
+		list(TRANSFORM FFB_DSP_TESTS_NOT_32BIT PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/claude/cases_dsp/)
 		list(REMOVE_ITEM DSP_TEST_SOURCES ${FFB_DSP_TESTS_NOT_32BIT})
 		message(STATUS "OpenFFBoard tests: ffb_dsp_tests: 5 test files with __int128 reference models left out of the 32-bit build")
 	endif()
 
-	add_executable(ffb_dsp_tests ${DSP_TEST_SOURCES} support/DspPatterns.cpp support/test_main.cpp)
-	target_include_directories(ffb_dsp_tests PRIVATE support third_party ${DSP_DIR}/Include ${DSP_DIR}/PrivateInclude)
+	add_executable(ffb_dsp_tests ${DSP_TEST_SOURCES} Code_Coverage/support/DspPatterns.cpp Code_Coverage/support/test_main.cpp)
+	target_include_directories(ffb_dsp_tests PRIVATE Code_Coverage/support Code_Coverage/third_party ${DSP_DIR}/Include ${DSP_DIR}/PrivateInclude)
 	get_filename_component(FFB_CMSIS_PATTERN_DIR "${FFB_DSP_PATTERN_ROOT}" ABSOLUTE)
 	file(TO_CMAKE_PATH "${FFB_CMSIS_PATTERN_DIR}" FFB_CMSIS_PATTERN_DIR)
 	target_compile_definitions(ffb_dsp_tests PRIVATE
@@ -1109,24 +1109,24 @@ endif()
 
 # ===========================================================================
 # python_helper_tests: stdlib unittest smoke tests of the Python helper scripts (P9): Firmware/scripts/generate_memory.py
-# and FFBoard/USB/portable/synopsys/dwc2/dwc2_info.py, in claude/python/test_*.py. Only when Python 3 is found (like the
+# and FFBoard/USB/portable/synopsys/dwc2/dwc2_info.py, in Code_Coverage/claude/python/test_*.py. Only when Python 3 is found (like the
 # baseline check). -B and PYTHONDONTWRITEBYTECODE: no __pycache__ is written into the repository; the scripts' outputs
 # go to temporary directories created by the tests. Runs in the build directory.
 # ===========================================================================
 if(Python3_Interpreter_FOUND)
 	add_test(NAME python_helper_tests
 		COMMAND ${Python3_EXECUTABLE} -B -m unittest discover -v
-			-s ${CMAKE_CURRENT_SOURCE_DIR}/claude/python -t ${CMAKE_CURRENT_SOURCE_DIR}/claude/python -p "test_*.py"
+			-s ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/claude/python -t ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/claude/python -p "test_*.py"
 		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 	set_tests_properties(python_helper_tests PROPERTIES ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
 	add_test(NAME codex_python_tests
-		COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/codex/python/run_suite.py
-			--start ${CMAKE_CURRENT_SOURCE_DIR}/codex/python
+		COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/codex/python/run_suite.py
+			--start ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/codex/python
 		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 	set_tests_properties(codex_python_tests PROPERTIES ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
 	# Run only the safe negative probe; verify its exact first assertion rather than invert any failure.
 	add_test(NAME codex_usb_setup_guard
-		COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/codex/python/check_usb_guard.py
+		COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/codex/python/check_usb_guard.py
 			--exe $<TARGET_FILE:ffb_usb_tests>
 			--output ${CMAKE_CURRENT_BINARY_DIR}/codex-usb-guard)
 	set_tests_properties(codex_usb_setup_guard PROPERTIES ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
@@ -1135,7 +1135,7 @@ else()
 endif()
 
 # ===========================================================================
-# test_report: full report of every test case (tools/run_all_tests.py). Not part of ctest. Runs every test case of
+# test_report: full report of every test case (Code_Coverage/tools/run_all_tests.py). Not part of ctest. Runs every test case of
 # every test executable of this build directory and the Python helper tests, nothing skipped (skip-decorated cases run
 # one by one with --no-skip, crashing cases are isolated), and writes test_report.log (passed / failed / bugged) into
 # the build directory. A failed test is reported as failed and the run carries on with the next test case; the target
@@ -1146,7 +1146,7 @@ endif()
 if(Python3_Interpreter_FOUND)
 	add_custom_target(test_report
 		COMMAND ${CMAKE_COMMAND} -E env PYTHONDONTWRITEBYTECODE=1
-			${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/tools/run_all_tests.py
+			${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/tools/run_all_tests.py
 			--build-dir ${CMAKE_CURRENT_BINARY_DIR} --out ${CMAKE_CURRENT_BINARY_DIR}/test_report.log --exit-zero
 		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 		COMMENT "Running every test case (report: ${CMAKE_CURRENT_BINARY_DIR}/test_report.log)"
@@ -1168,7 +1168,7 @@ if(FFB_TESTS_ST_HAL)
     find_package(Python3 COMPONENTS Interpreter REQUIRED)
     add_test(NAME codex_st_hal
         COMMAND "${Python3_EXECUTABLE}" -B
-            "${CMAKE_CURRENT_SOURCE_DIR}/codex/hal/native32/verify_native.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/codex/hal/native32/verify_native.py"
             --build "${CMAKE_CURRENT_BINARY_DIR}/p12-hal-native32")
     set_tests_properties(codex_st_hal PROPERTIES TIMEOUT 300)
 endif()

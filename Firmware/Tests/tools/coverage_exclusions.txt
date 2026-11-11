@@ -1,9 +1,0 @@
-# Hardware-only code: not tested on the host and left out of the coverage numbers (tools/coverage_report.py).
-#
-# Only code whose behaviour can only be observed on the board belongs here: register and clock setup,
-# busy waits on peripheral flags, interrupt priority and timing, electrical behaviour.
-# Code that calls the HAL with logic around it (decisions, arguments, ordering, error handling) is NOT
-# hardware-only: it is tested against the fakes. Unreachable or defensive code is NOT listed here either.
-#
-# Every entry is reviewed in the phase that adds it and recorded in Tests/claude/plans/PROGRESS.md.
-# Format: <path relative to Firmware/>:<first>-<last> <reason>    or    <path>:* <reason>

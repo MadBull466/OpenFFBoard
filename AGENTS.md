@@ -3,9 +3,9 @@
 Mirror of the hard rules in `CLAUDE.md`. Read `Firmware/Tests/README.md` first.
 
 ## Your folders
-- Test cases and your own fakes: `Firmware/Tests/codex/`. Documents (plan, progress, reports): `Tests/codex/`.
-- Claude's work is in `Firmware/Tests/claude/` and `Tests/claude/`: read it, do not edit it.
-- Shared, change only after asking the owner: `Firmware/Tests/{platform,support,mocks,fakes,tools,third_party,baseline,cases}`, `Firmware/Tests/CMakeLists.txt`, `CMakePresets.json`, `README.md`, `Tests/shared/`.
+- Test cases and your own fakes: `Firmware/Tests/Code_Coverage/codex/`. Documents (plan, progress, reports): `Tests/Code_Coverage/codex/`.
+- Claude's work is in `Firmware/Tests/Code_Coverage/claude/` and `Tests/Code_Coverage/claude/`: read it, do not edit it.
+- Shared, change only after asking the owner: `Firmware/Tests/Code_Coverage/{platform,support,mocks,fakes,tools,third_party,baseline,cases}`, `Firmware/Tests/CMakeLists.txt`, `CMakePresets.json`, `README.md`, `Tests/Code_Coverage/shared/`.
   Prefer adding new files (your own fixtures and fakes under `codex/`) over editing shared ones; never edit `third_party/doctest.h` or the original baseline cases.
 
 ## Scope notes (mirror of `CLAUDE.md`)
@@ -17,7 +17,7 @@ Mirror of the hard rules in `CLAUDE.md`. Read `Firmware/Tests/README.md` first.
 - No `#ifdef` for tests in firmware sources; use test doubles in your fakes.
 - doctest only; Python tests use stdlib `unittest`. Do not install or download anything. Ask before adding a dependency.
 - Build out of tree in `../ffb-test-build/<variant>` (never inside the repo). Never sleep in tests: use the simulated time.
-- Specs are in `Tests/shared/specs/` (git-ignored, never commit or download them, never invent register maps or frames).
+- Specs are in `Tests/Code_Coverage/shared/specs/` (git-ignored, never commit or download them, never invent register maps or frames).
 - Test conventions: fixtures, public interfaces, one behaviour per test, statement names; `characterization:` and `KNOWN_ISSUE*` markers as in `CLAUDE.md`. The original 318 baseline cases must keep passing (`tools/check_baseline.py`).
 - Git: branch `add-test-suite`; commit with a one-off identity `git -c user.name="<your name>" -c user.email= commit ...` (email empty, never write the owner's email anywhere); push only to the owner's fork `https://github.com/MadBull466/OpenFFBoard` and only when the owner asks, by URL; never to `origin`, never force, never add a remote or change git config.
-- Keep `Tests/COVERAGE_AND_SCOPE.md`-style bookkeeping for your work in `Tests/codex/`.
+- Keep `Tests/COVERAGE_AND_SCOPE.md`-style bookkeeping for your work in `Tests/Code_Coverage/codex/`.

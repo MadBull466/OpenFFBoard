@@ -1,0 +1,29 @@
+# P5/P6 closeout input and bus regressions
+
+2026-11-06. Owned implementation: `Firmware/Tests/Code_Coverage/codex/cases_target/test_closeout_inputs_buses.cpp`. Eight permanent cases, including four expected-failure cases. Public interfaces, TargetFixture resets, simulated actor completion; no firmware, Claude, vendor, baseline or shared files edited. Integration uses the existing approved Codex target glob.
+
+| Closeout observation | Resolution and limits |
+|---|---|
+| CDX-011 ADS threshold masking | New resumable caller invokes `setThresh`; the independent completion actor finishes any pending transfers and resumes the caller without requiring an interrupt implementation. Both registers are observed independently. The first current failure is the low threshold `register16(2) == 0x1000`, not a pending-transfer prerequisite. An ordinary serialized public-write positive control establishes both distinct endpoints. Existing bug 66 remains marked KNOWN_ISSUE. |
+| P5 exact shifter destination | New bug 71 KNOWN_ISSUE requires CS2 to select exactly index 1, reserves index 2 for another device, and checks its unchanged ownership and inactive level. Checks also require index 1 reserved and index 0 released. Current first failure is exact selected index. Original protected case unchanged. |
+| P5 ADS helper caller buffer | New ordinary case verifies the exact two object bytes at the caller's requested destination and adjacent guard words. Byte observation avoids host endian assumptions. This is narrow helper delivery coverage; it does not duplicate source conversion tests. |
+| P6 SPI recovery beyond release | Ordinary timeout retry proves a second blocking exchange delivers A6/39 and transmits distinct 53/C7 bytes. An ordinary control proves exchanges in blocking/IT/DMA modes. Two bug 86 KNOWN_ISSUE cases demand real subsequent byte delivery after DMA start error or IT HAL_BUSY. Same device/configuration avoids incidental reinitialization from a configuration change. Retry runs in a resumable caller, so stuck ownership is observed as unchanged receive bytes rather than causing a main-thread kernel fault. |
+| P6 BiSS exact deadline | Resolved as an explicit model boundary, not certified timing. `EncoderBissC::getPosAbs` requests `waitForUpdateSem.Take(waitThresh)` after age exceeds `waitThresh` (currently 2 ms). Non-EXT target HostRtos documents and implements finite semaphore timeout on the next activation with no elapsed simulated time (`HostRtos.h`, `host_freertos.cpp`). The original case therefore proves fallback after a model timeout; it cannot prove no return before the exact deadline. A 1/2 ms test driven solely by activations would give false confidence. No scheduler rewrite or misleading elapsed-time test added. Actual deadline behavior, kernel execution and hardware response timing remain unverified. |
+
+SPI additions cover the representative duplex API in all three modes; they do not claim independent coverage of all nine wrapper combinations. Existing ordinary tests already cover transfer dispatch/bytes and release across the full matrix. The two failed-start scenarios are chosen from the documented model: DMA stream start failure leaves a busy handle; IT calls can reject that busy handle. No unsupported IT failure injection or external hardware is invented.
+
+## Verification and discrimination
+
+Scratch directory: `/home/ben/Documents/OpenFFBoard/testing/ffb-test-build/codex-closeout-inputs`. New case object is compiled with the baseline target compile command and linked as an additional object against immutable `codex-baseline-default` objects. Copied alternatives replace only their matching ADS/SPI object, never baseline objects. XML, compile and link logs are durable there. The verification script and command manifest are preserved beside the logs.
+
+| Variant | Result for suite `CodexCloseoutInputsBuses` | Meaning |
+|---|---|---|
+| `control.xml` | 8 cases passed; 4 ordinary and 4 expected failures | ADS low register, exact shifter CS and both SPI retry-byte assertions are the first failures of their respective marked cases. No setup/HAL-model failure occurs first. |
+| `ads-serialized.xml` | 7 passed / 1 failed, exit 1 | Existing copied P5M1 valid blocking-write repair delivers both 1000/2000 registers and completes caller; the new ADS marker is exposed as obsolete. |
+| `ads-wrong.xml` | 8 passed, exit 0, ADS still expected-fails | Blocking alternative deliberately writes the high value to the low register. First ADS failure remains actual low-register value; it is distinguished from valid serialized repair. |
+| `spi-release-only.xml` | 8 passed, exit 0, both SPI cases expected-fail | Copied SPI alternative releases ownership on failed start but leaves busy HAL state. Retrying still fails byte delivery; release alone is insufficient. |
+| `spi-recover.xml` | 6 passed / 2 failed, exit 1 | Copied SPI alternative reinitializes the HAL and releases the device on each tested failed start. Both retries deliver bytes; their old issue markers become obsolete. |
+
+The copied recovery alternatives are experimental controls, not proposed production changes. Their failures above are deliberate doctest `should_fail` obsolescence signals. No skipped crash or forced UB case was executed. Baseline checker, against the unchanged baseline executable: 318 identities, 317 checked, one documented UB case excluded, result OK; 646 passed / 0 failed / 4 skipped. Root integration and full affected variants remain coordinator-owned and are reported in the overall closeout status.
+
+Sensor register/frame conventions retain the previously reviewed local-source attribution; no independent sensor specification was supplied or downloaded. The host model establishes buffer/register observations and cooperative sequential execution, not electrical timing, DMA lifetime or arbitrary interrupt interleaving.
