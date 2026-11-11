@@ -1,4 +1,4 @@
-# Open questions for me (collected 2026-11-04, last synced with `PROGRESS.md` 2026-11-11: questions 1-64; 62 and 63 answered 2026-11-11)
+# Open questions for me (collected 2026-11-04, last synced with `PROGRESS.md` 2026-11-11: questions 1-64; 62, 63 and 64 answered 2026-11-11)
 
 All questions still waiting for my answer, in one place. The numbers match "Open questions for me" in `Tests/claude/plans/PROGRESS.md` (the source; answered ones are struck through there). The roughly 165 smaller "is this intended?" items about firmware behaviour are the NEEDS REVIEW list in `Tests/claude/reports/BUG_REPORT.md` (open questions section) and are not repeated here.
 
@@ -94,4 +94,4 @@ All questions still waiting for my answer, in one place. The numbers match "Open
 
 ## P18 (32-bit build)
 
-64. **CLAUDE.md and AGENTS.md for P18.** Both describe the gate and the known issues but not the 32-bit variant: the option `-DFFB_TESTS_32BIT=ON`, the 32-bit-only ctest exclusion of the 2 bug 225 cases (`FFB_TARGET_TESTS_EXCLUDE_32BIT`), the markers `KNOWN_ISSUE_32BIT` / `KNOWN_ISSUE_32BIT_UB`, and the 5 DSP files left out of 32-bit builds. These are my files: shall Claude add a short paragraph (proposal: under "Known issues" and "Test conventions")?
+64. ~~**CLAUDE.md and AGENTS.md for P18.**~~ **Answered 2026-11-11: yes, both updated** (`CLAUDE.md`: "Test conventions" and "Known issues"; `AGENTS.md`: scope notes). Original question: Both describe the gate and the known issues but not the 32-bit variant: the option `-DFFB_TESTS_32BIT=ON`, the 32-bit-only ctest exclusion of the 2 bug 225 cases (`FFB_TARGET_TESTS_EXCLUDE_32BIT`), the markers `KNOWN_ISSUE_32BIT` / `KNOWN_ISSUE_32BIT_UB`, and the 5 DSP files left out of 32-bit builds. These are my files: shall Claude add a short paragraph (proposal: under "Known issues" and "Test conventions")?

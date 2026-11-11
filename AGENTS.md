@@ -10,6 +10,7 @@ Mirror of the hard rules in `CLAUDE.md`. Read `Firmware/Tests/README.md` first.
 
 ## Scope notes (mirror of `CLAUDE.md`)
 - Since 2026-11-10 `TMCDebugBridge` is in scope (Claude's phase P13; do not duplicate it under `codex/`). `TMCDEBUG` is on in `ffb_driver_tests` only. Since 2026-11-10 the PWM, SimpleMotion and MyActuator drivers and MIDI (`MidiMain`, `MidiHandler`, TinyUSB `class/midi`) are in scope as Claude's phases P14-P17 (do not duplicate them under `codex/`): PWM, SimpleMotion and MyActuator in `ffb_driver_tests`, MIDI in `ffb_usb_tests`, each feature macro on there only.
+- Since 2026-11-11 (Claude's phase P18) `-DFFB_TESTS_32BIT=ON` (default OFF, Linux gcc / clang with 32-bit multilib only) builds the suite as 32-bit code like the target. In that build the two SerialFFB cases in `FFB_TARGET_TESTS_EXCLUDE_32BIT` are excluded from ctest (bug 225: `int64_t` address compared with `size_t`, out-of-bounds access on 32 bit) and 5 `__int128` DSP test files are left out of `ffb_dsp_tests`. Defects that exist only with a 32-bit `size_t` use `KNOWN_ISSUE_32BIT` / `KNOWN_ISSUE_32BIT_UB` (`support/KnownIssue32.h`): plain on the 64-bit host, should_fail / skipped on 32 bit. If your tests touch such code, keep them green in both widths.
 
 ## Hard rules
 - `Firmware/` is read-only except `Firmware/Tests/` (your folder there). Never edit firmware, vendor code (`Firmware/Libraries/`, TinyUSB, `eeprom.c`) or `.github/`. Vendor bugs are reported, never fixed.

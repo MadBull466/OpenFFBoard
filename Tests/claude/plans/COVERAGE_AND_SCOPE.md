@@ -106,4 +106,4 @@ Headers of these modules: 392 / 413 lines (94.9 %).
 - Integration across modules (real driver inside `Axis`, end-to-end HID effect to bus frame, shared buses, board-wide save / restore) is not tested; it was proposed once and has not been approved.
 
 ## 4. Tests that exist but do not count as "coverage"
-The suspected bugs (firmware bugs numbered up to 225, vendor bugs V1-V88), NEEDS REVIEW numbers up to 280 and open questions up to 64 (17-23, 32-52, 54-61 and 64 pending) are in `Tests/claude/reports/BUG_REPORT.md`, `Tests/claude/plans/PROGRESS.md` and `Tests/claude/reports/OPEN_QUESTIONS.md`. A `KNOWN_ISSUE` test runs the line but asserts the intended behaviour, so those lines count as covered while the behaviour is still wrong.
+The suspected bugs (firmware bugs numbered up to 225, vendor bugs V1-V88), NEEDS REVIEW numbers up to 280 and open questions up to 64 (17-23, 32-52 and 54-61 pending) are in `Tests/claude/reports/BUG_REPORT.md`, `Tests/claude/plans/PROGRESS.md` and `Tests/claude/reports/OPEN_QUESTIONS.md`. A `KNOWN_ISSUE` test runs the line but asserts the intended behaviour, so those lines count as covered while the behaviour is still wrong.

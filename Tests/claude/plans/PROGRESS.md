@@ -18,7 +18,7 @@
   - **32-bit build (`-DFFB_TESTS_32BIT=ON`):** unit 654, target 1843 (38 skipped, 2 excluded), flash 159, rtos 278, usb 606, driver 1717, dsp 1871 (6 files with `__int128` reference models contribute no cases).
   - ctest 11 of 11 (default, sanitizer, clang, coverage, 32-bit), 10 of 10 with DSP off.
   - Coverage unchanged by P18 (fresh gcov on `p18t2f-cov`): firmware ladder 8171 of about 8260 lines (98.9 %), TinyUSB tier B 1508 / 1572 (95.9 %), driver tier 3262 / 3484 (93.6 %), DSP 10388 / 10396.
-- **Counters:** next firmware bug number 226, vendor bug V89, NEEDS REVIEW 281, open question 65. Open owner decisions: 17-23, 32-52, 54-61, 64 (62 and 63 answered 2026-11-11).
+- **Counters:** next firmware bug number 226, vendor bug V89, NEEDS REVIEW 281, open question 65. Open owner decisions: 17-23, 32-52, 54-61 (62, 63 and 64 answered 2026-11-11).
 - **Last session summary (2026-11-11):**
   - The owner asked what else should be tested. I proposed four additions: cross-module integration tests, a 32-bit build, ARM struct layout checks, and fuzzing. The owner chose the 32-bit build (P18).
   - A trial `-m32` build found **bug 225**: `SerialFFB` checks the `int64_t` command address against `size_t`. That comparison is signed on the 32-bit target, so a negative address reads or writes outside the effects array. Everything else behaved identically on 32-bit.
@@ -30,7 +30,7 @@
 
 **None pending: P18 is approved, committed and pushed (`544b4162`, 2026-11-11).**
 
-The remaining items are the owner's: open questions 17-23 (P11), 32-52 (P14-P16), 54-61 (P17) and 64 (P18: CLAUDE.md / AGENTS.md paragraph), and the two stale lines of `CLAUDE.md` (tier C wording: "only the CMSIS-DSP functions the firmware calls", since P11 it is every function of the used modules; the P17 spec line `USB MIDI v2_0.pdf`, now `midi10.pdf` and `MIDI_1.0_Detailed_Specification.pdf`), which is the owner's file and has not been changed. New work starts only on the owner's request. If an open question is answered: update the affected tests, `PROGRESS.md`, `OPEN_QUESTIONS.md`, run `make_bug_report.py`, regenerate the coverage numbers. Next numbers: firmware bug 226, vendor bug V89, NEEDS REVIEW 281, open question 65. Further proposals not started (each needs the owner's go-ahead): cross-module integration tests, ARM struct layout checks with `arm-none-eabi-gcc` (compile only), fuzzing of the input parsers with libFuzzer, CI (question 5).
+The remaining items are the owner's: open questions 17-23 (P11), 32-52 (P14-P16), 54-61 (P17) (64 answered 2026-11-11: the P18 paragraph is in `CLAUDE.md` and `AGENTS.md`), and the two stale lines of `CLAUDE.md` (tier C wording: "only the CMSIS-DSP functions the firmware calls", since P11 it is every function of the used modules; the P17 spec line `USB MIDI v2_0.pdf`, now `midi10.pdf` and `MIDI_1.0_Detailed_Specification.pdf`), which is the owner's file and has not been changed. New work starts only on the owner's request. If an open question is answered: update the affected tests, `PROGRESS.md`, `OPEN_QUESTIONS.md`, run `make_bug_report.py`, regenerate the coverage numbers. Next numbers: firmware bug 226, vendor bug V89, NEEDS REVIEW 281, open question 65. Further proposals not started (each needs the owner's go-ahead): cross-module integration tests, ARM struct layout checks with `arm-none-eabi-gcc` (compile only), fuzzing of the input parsers with libFuzzer, CI (question 5).
 
 ## Phase checklist
 
@@ -127,6 +127,7 @@ The remaining items are the owner's: open questions 17-23 (P11), 32-52 (P14-P16)
 | 2026-11-11 | **P18 32-bit build approved** (plan `P18_32BIT_BUILD_PLAN.md`): option `FFB_TESTS_32BIT` (`-m32 -msse2 -mfpmath=sse -funsigned-char`, default OFF). **Question 62: option B**: the 5 `ffb_dsp_tests` files with `__int128` reference models are left out of 32-bit builds. **Question 63**: the 2 existing cases that abort on ILP32 (bug 225) stay unchanged and are excluded from ctest in 32-bit builds only (`FFB_TARGET_TESTS_EXCLUDE_32BIT`) | My decisions |
 | 2026-11-11 | P18 lead decisions (Opus 5.5): only the 5 files are left out (not all of `ffb_dsp_tests`); two markers in `support/KnownIssue32.h` (`KNOWN_ISSUE_32BIT` = should_fail on ILP32, `KNOWN_ISSUE_32BIT_UB` = skipped on ILP32; both plain on LP64); `run_all_tests.py` classifies them by the build's width; `offset` / `sat` / `coeff` get answers are not asserted as two replies (NEEDS REVIEW 129 stays open); the suggested fix of bug 225 is `adr >= 0 && adr < size` (a `size_t` cast is not a fix on ILP32) | Lead (Opus 5.5) |
 | 2026-11-11 | P18 T1, T2, T3 and T4 approved; P18 committed and pushed (`544b4162`) | My approvals |
+| 2026-11-11 | **Question 64: yes.** Claude adds the P18 paragraph to `CLAUDE.md` ("Test conventions": `KNOWN_ISSUE_32BIT` markers; "Known issues": 32-bit option, the 32-bit ctest exclusion, the 5 DSP files left out) and to `AGENTS.md` (scope notes) | My decisions |
 
 ## Environment
 
@@ -1771,7 +1772,7 @@ All open ones are also collected in `Tests/claude/reports/OPEN_QUESTIONS.md` (ke
 61. **P17 USB-MIDI descriptor details.** (a) Table 6-2 says wTotalLength covers the header and the jack / element descriptors, the worked example (Table B-6) and TinyUSB include the endpoint descriptors (0x41). The test uses 0x41; agree? (b) Vendor findings V86-V88 (real-time CIN, reserved CIN count, real-time inside SysEx) are reported, never fixed: nothing for you to decide unless you want them upstream.
 62. ~~**P18 `ffb_dsp_tests` on 32 bit.**~~ **Answered 2026-11-11: option B.** Five test files compute reference values with `__int128`, which i386 gcc / clang lack; they are left out of 32-bit builds (option A, a portable 128-bit helper, was not chosen).
 63. ~~**P18 bug 225 in the existing cases.**~~ **Answered 2026-11-11 (recommended option):** the two existing `mag` / `state` rejection cases stay unchanged and are excluded from ctest in 32-bit builds only (`FFB_TARGET_TESTS_EXCLUDE_32BIT`).
-64. **P18 CLAUDE.md and AGENTS.md.** Both describe the gate and the known issues but not the 32-bit variant (option, the 32-bit-only ctest exclusion of the 2 bug 225 cases, the `KNOWN_ISSUE_32BIT(_UB)` markers, the 5 DSP files left out). These are the owner's files: may I add a short paragraph (under "Known issues" and "Test conventions")?
+64. ~~**P18 CLAUDE.md and AGENTS.md.**~~ **Answered 2026-11-11: yes.** `CLAUDE.md` has a `KNOWN_ISSUE_32BIT` bullet under "Test conventions" and a "32-bit build (P18) and bug 225" bullet under "Known issues"; `AGENTS.md` has a P18 scope note. Original question: Both describe the gate and the known issues but not the 32-bit variant (option, the 32-bit-only ctest exclusion of the 2 bug 225 cases, the `KNOWN_ISSUE_32BIT(_UB)` markers, the 5 DSP files left out). These are the owner's files: may I add a short paragraph (under "Known issues" and "Test conventions")?
 
 ## Resume instructions
 
