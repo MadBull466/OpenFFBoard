@@ -1,6 +1,11 @@
 # Coverage and scope: what is covered, what is out of scope, what is not covered
 
-Date: 2026-11-10 (P17 T2: the firmware ladder, TinyUSB tier B and driver tier were re-measured on the P17 gate coverage build `p17t2g-cov`; the tier A, tier C and DSP percentages are from the 2026-11-09 gcov run and were not changed by P14-P17), branch `add-test-suite`. Earlier sources:
+Date: 2026-11-11.
+- P18 (32-bit build): re-measured on the P18 gate coverage build `p18t2f-cov`. The firmware ladder, TinyUSB tier B, the driver tier and DSP are unchanged by P18, which adds behaviour checks on ILP32 and no new lines.
+- P17 T2: the ladder, tier B and the driver tier were measured on `p17t2g-cov`.
+- The tier A and tier C percentages are from the 2026-11-09 gcov run.
+
+Branch `add-test-suite`. Earlier sources:
 - Firmware, tier A/B/C: the gcov report of the P9 final build (2026-11-02), `Tests/claude/reports/PROJECT_SUMMARY.md`, `Tests/claude/plans/PROGRESS.md`.
 - Drivers: `Tests/claude/reports/DRIVER_TRACK_REPORT.md` (2026-11-04).
 - CMSIS-DSP P11: G1 files measured with gcov on 2026-11-09 after the G1 review (FastMath 443 / 451 lines, BasicMath helpers 62 / 62).
@@ -85,12 +90,20 @@ Headers of these modules: 392 / 413 lines (94.9 %).
 - Driver behaviour that needs real hardware: timing at the real SPI / CAN clocks, electrical effects, real device firmware versions other than the supplied specs (see `Tests/claude/reports/DRIVER_TRACK_REPORT.md`).
 
 ### 3.5 Behaviour the host cannot show
-- Host is 64-bit, the target is 32-bit ARM with a single-precision FPU: type sizes, FMA, out-of-range float to int, signed shifts. The CMSIS-DSP tests run the portable C path, not the Cortex-M intrinsic (`ARM_MATH_DSP`) path: the unrolled kernels of the conv / correlate family (conv, correlate and partial conv in f32 / f16 / q31 / q15 / q7) are therefore neither run nor counted in the DSP coverage numbers. Reviewer scratch builds with that branch forced show defects the suite cannot see (PROGRESS V71, V75, V76; NEEDS REVIEW 231, 237; open question 22), and the host's emulation of the SIMD intrinsics (`dsp/none.h`) is itself not faithful (V74, V77).
+- Host is 64-bit, the target is 32-bit ARM with a single-precision FPU: type sizes, FMA, out-of-range float to int, signed shifts.
+- **32-bit build (P18, `-DFFB_TESTS_32BIT=ON`)** runs every executable as ILP32 code (i386, SSE floats, unsigned `char`).
+  - What it shows: comparisons and arithmetic that depend on the size of `size_t`, `long` and pointers behave as on the target. It found bug 225: a negative `SerialFFB` effect address passes the `int64_t < size_t` check on 32 bit and is used as an array index.
+  - Results: case and assertion counts are otherwise identical to the 64-bit build. A warning diff over all 586 firmware compile commands found no other width-dependent behaviour.
+  - What it does not show:
+    - ARM's `uint32_t` is `unsigned long` (i386: `unsigned int`).
+    - ARM aligns `int64_t` / `double` struct members to 8 (i386: 4), so struct layouts are not proven by it.
+    - Overflow of `size_t` / `long` arithmetic that no warning flags.
+  - 6 DSP test files with `__int128` reference models have no cases on 32 bit (owner's decision 62 B). The CMSIS-DSP tests run the portable C path, not the Cortex-M intrinsic (`ARM_MATH_DSP`) path: the unrolled kernels of the conv / correlate family (conv, correlate and partial conv in f32 / f16 / q31 / q15 / q7) are therefore neither run nor counted in the DSP coverage numbers. Reviewer scratch builds with that branch forced show defects the suite cannot see (PROGRESS V71, V75, V76; NEEDS REVIEW 231, 237; open question 22), and the host's emulation of the SIMD intrinsics (`dsp/none.h`) is itself not faithful (V74, V77).
 - Real-time behaviour: preemption, interrupt latency, priorities (the fake RTOS is cooperative with simulated time).
 - Not shown by the host, MIDI (P17): the data race between the USB task and the `TIM_USER` interrupt on the `notes` vectors, a real USB host or MIDI device, the exact 100 microsecond timer period (one update event per call), high speed endpoints.
-- Skipped by default: the crash `command with an unknown id is rejected`; the `effectsForces` out-of-range case (excluded); two spline cases in sanitizer builds; the heap-corrupting VESC cases (B-V5); the `KNOWN_ISSUE_UB_HIDDEN`, `KNOWN_ISSUE_UB` and crash DSP cases in sanitizer builds (about 400 of 2485 `ffb_dsp_tests` cases skipped).
-- Windows / MinGW and macOS: prepared in CMake, not verified here. `ffb_flash_tests` is skipped on macOS.
+- Skipped by default: in 32-bit builds the 18 `KNOWN_ISSUE_32BIT_UB` cases of bug 225 and the 2 existing `SerialFFB` cases it aborts (ctest exclusion `FFB_TARGET_TESTS_EXCLUDE_32BIT`); the crash `command with an unknown id is rejected`; the `effectsForces` out-of-range case (excluded); two spline cases in sanitizer builds; the heap-corrupting VESC cases (B-V5); the `KNOWN_ISSUE_UB_HIDDEN`, `KNOWN_ISSUE_UB` and crash DSP cases in sanitizer builds (about 400 of 2485 `ffb_dsp_tests` cases skipped).
+- Windows / MinGW and macOS: prepared in CMake, not verified here. `ffb_flash_tests` is skipped on macOS. The 32-bit option refuses macOS and MSVC; a 32-bit MinGW build was not tried.
 - Integration across modules (real driver inside `Axis`, end-to-end HID effect to bus frame, shared buses, board-wide save / restore) is not tested; it was proposed once and has not been approved.
 
 ## 4. Tests that exist but do not count as "coverage"
-The suspected bugs (firmware bugs numbered up to 224, vendor bugs V1-V88), NEEDS REVIEW numbers up to 280 and open questions up to 61 (17-23, 32-52 and 54-61 pending) are in `Tests/claude/reports/BUG_REPORT.md`, `Tests/claude/plans/PROGRESS.md` and `Tests/claude/reports/OPEN_QUESTIONS.md`. A `KNOWN_ISSUE` test runs the line but asserts the intended behaviour, so those lines count as covered while the behaviour is still wrong.
+The suspected bugs (firmware bugs numbered up to 225, vendor bugs V1-V88), NEEDS REVIEW numbers up to 280 and open questions up to 64 (17-23, 32-52, 54-61 and 64 pending) are in `Tests/claude/reports/BUG_REPORT.md`, `Tests/claude/plans/PROGRESS.md` and `Tests/claude/reports/OPEN_QUESTIONS.md`. A `KNOWN_ISSUE` test runs the line but asserts the intended behaviour, so those lines count as covered while the behaviour is still wrong.

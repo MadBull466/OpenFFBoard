@@ -19,7 +19,9 @@ Classification:
           a suspected defect (CMake FFB_*_EXCLUDE lists) that fails; in a sanitizer build a DELETES_FFBHIDMAIN case that
           fails (bug 24); Python @expectedFailure that fails.
   Failed  any other failure, and a known bug that unexpectedly passes ("fixed? remove the marker").
-  Passed  everything else. "characterization:" cases also appear under "Open questions".
+  Passed  everything else. "characterization:" cases also appear under "Open questions". A KNOWN_ISSUE_32BIT(_UB)
+          case (support/KnownIssue32.h) is a plain test in a 64-bit build (passed / failed) and a known bug in a
+          32-bit build (FFB_TESTS_32BIT).
 
 The report is written to <build-dir>/test_report.log by default. Exit status 0 when Failed is 0, 1 otherwise,
 2 on usage errors. Standard library only; nothing is written into the repository.
@@ -61,6 +63,7 @@ EXCLUDE_VARS = {
 }
 KNOWN_PREFIX = "KNOWN ISSUE"
 UB_HIDDEN_PREFIX = "KNOWN ISSUE (undefined behaviour, intended result on the host)"
+ILP32_PREFIX = "KNOWN ISSUE (32-bit size_t only"  # support/KnownIssue32.h
 DELETES_MAIN_MARKER = "DELETES_FFBHIDMAIN"
 DELETES_MAIN_BUG = "24"  # HID_GamepadReport_base without a virtual destructor (README, AxisFixture.h)
 BASELINE_KNOWN_ISSUES_NR = "NR 3"  # NEEDS REVIEW 3: the known issues of the original suite (no number of their own)
@@ -291,6 +294,10 @@ class Result:
 		return self.description.startswith(UB_HIDDEN_PREFIX)
 
 	@property
+	def ilp32_only(self):
+		return self.description.startswith(ILP32_PREFIX)
+
+	@property
 	def characterization(self):
 		return self.name.lower().startswith("characterization:")
 
@@ -321,13 +328,19 @@ def result_from_run(exe, run):
 	return r
 
 
-def classify(r, sanitize=False):
+def classify(r, sanitize=False, ilp32=False):
 	"""Sets r.category (passed / failed / bugged) and r.note. See the module docstring for the rules."""
 	failed = r.outcome in ("failed", "crash", "timeout", "expected_failure")
 	if r.outcome == "skipped":
 		r.category, r.note = FAILED, "skipped (nothing may be skipped)"
 	elif r.outcome == "unexpected_success":
 		r.category, r.note = FAILED, NOT_FIXED_NOTE
+	elif r.ilp32_only and not ilp32:
+		# the defect needs a 32-bit size_t: in a 64-bit build the intended result is expected (a plain test)
+		if failed:
+			r.category, r.note = FAILED, "32-bit only known issue fails in a 64-bit build (a 64-bit build must pass it)"
+		else:
+			r.category, r.note = PASSED, "32-bit only known issue, passes in this 64-bit build as intended"
 	elif r.ub_hidden:
 		r.category = BUGGED
 		if failed:
@@ -1033,8 +1046,11 @@ def build_config(build_dir):
 	excludes = {"ffb_unit_tests": [e for e in cache.get("FFB_TESTS_EXCLUDED_ARG", "").split(",") if e.strip()]}
 	for exe, (always, san) in EXCLUDE_VARS.items():
 		excludes[exe] = cmake_list(cache.get(always, "")) + (cmake_list(cache.get(san, "")) if sanitize else [])
+	if check_baseline.cmake_bool(cache.get("FFB_TESTS_32BIT", "OFF")):
+		excludes["ffb_target_tests"] += cmake_list(cache.get("FFB_TARGET_TESTS_EXCLUDE_32BIT", ""))
 	return {
 		"sanitize": sanitize, "dsp": dsp, "compiler": compiler,
+		"ilp32": check_baseline.cmake_bool(cache.get("FFB_TESTS_32BIT", "OFF")),
 		"build_type": cache.get("CMAKE_BUILD_TYPE", "") or "(none)",
 		"generator": cache.get("CMAKE_GENERATOR", "?"), "excludes": excludes,
 	}
@@ -1240,7 +1256,7 @@ def main(argv=None):
 
 	for r in results:
 		annotate_numbers(r, progress, baseline_known)
-		classify(r, config["sanitize"])
+		classify(r, config["sanitize"], config["ilp32"])
 		annotate_files(r, progress, index)
 	text, c = render_report(results, problems, config, build_dir, exes_run, progress, started, time.monotonic() - t0)
 	with open(out_path, "w", encoding="utf-8", newline="\n") as f:

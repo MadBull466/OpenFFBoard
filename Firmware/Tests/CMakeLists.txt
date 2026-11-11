@@ -15,6 +15,7 @@ project(OpenFFBoardHostTests LANGUAGES C CXX)
 set(FFB_TESTS_USE_DSP "AUTO" CACHE STRING "Build the firmware with USE_DSP_FUNCTIONS and CMSIS-DSP like the hardware targets (ON, OFF, AUTO)")
 set_property(CACHE FFB_TESTS_USE_DSP PROPERTY STRINGS AUTO ON OFF)
 option(FFB_TESTS_SANITIZE "Build with address and undefined behaviour sanitizers (gcc/clang on linux/macOS)" OFF)
+option(FFB_TESTS_32BIT "Build every test executable as 32-bit (i386) code like the 32-bit target (gcc/clang with multilib on linux)" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -25,6 +26,30 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 	set(CMAKE_BUILD_TYPE Debug)
+endif()
+
+# 32-bit build (P18, Tests/claude/plans/P18_32BIT_BUILD_PLAN.md). The target is ILP32: size_t, long and pointers are
+# 4 bytes. -m32 makes the host ILP32 as well, so comparisons and arithmetic that mix int64_t with size_t behave like
+# on the target. -msse2 -mfpmath=sse: IEEE single precision floats like the Cortex-M4F FPU (x87 would use extended
+# precision). -funsigned-char: char is unsigned on ARM. Not modelled: uint32_t is unsigned int here but unsigned long
+# in ARM newlib; i386 aligns int64_t / double struct members to 4 bytes, ARM AAPCS to 8 (struct layouts differ).
+if(FFB_TESTS_32BIT)
+	if(MSVC OR APPLE OR NOT CMAKE_C_COMPILER_ID MATCHES "GNU|Clang" OR NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+		message(FATAL_ERROR "FFB_TESTS_32BIT needs gcc or clang on a host with 32-bit (i386) support (not MSVC, not macOS)")
+	endif()
+	set(FFB_TESTS_32BIT_FLAGS -m32 -msse2 -mfpmath=sse -funsigned-char)
+	include(CheckCXXSourceCompiles)
+	set(CMAKE_REQUIRED_FLAGS "-m32")
+	set(CMAKE_REQUIRED_LINK_OPTIONS "-m32")
+	check_cxx_source_compiles("#include <cstddef>\nstatic_assert(sizeof(std::size_t) == 4, \"\");\nint main() { return 0; }" FFB_TESTS_HAS_M32)
+	unset(CMAKE_REQUIRED_FLAGS)
+	unset(CMAKE_REQUIRED_LINK_OPTIONS)
+	if(NOT FFB_TESTS_HAS_M32)
+		message(FATAL_ERROR "FFB_TESTS_32BIT: the compiler cannot build and link -m32 programs (32-bit multilib missing)")
+	endif()
+	add_compile_options(${FFB_TESTS_32BIT_FLAGS})
+	add_link_options(-m32)
+	message(STATUS "OpenFFBoard tests: 32-bit build (${FFB_TESTS_32BIT_FLAGS})")
 endif()
 
 set(FW_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..)
@@ -409,9 +434,19 @@ set(FFB_TARGET_TESTS_EXCLUDE "" CACHE STRING "Test cases of ffb_target_tests exc
 # Additionally excluded in sanitizer builds (like FFB_TESTS_EXCLUDE_SANITIZE). Cases deleting an FFBHIDMain skip
 # themselves with DELETES_FFBHIDMAIN and need no entry here.
 set(FFB_TARGET_TESTS_EXCLUDE_SANITIZE "" CACHE STRING "Test cases of ffb_target_tests additionally excluded from ctest in sanitizer builds (list)")
+# Additionally excluded in 32-bit builds (FFB_TESTS_32BIT). Bug 225: ParsedCommand::adr is int64_t and SerialFFB checks
+# it with `cmd.adr < effects.size()`. With a 32-bit size_t that comparison is signed, so address -1 passes and
+# effects[-1] is accessed; libstdc++ assertions abort the run. On the 64-bit host -1 is rejected and both cases pass.
+set(FFB_TARGET_TESTS_EXCLUDE_32BIT
+	"mag rejects reading an address beyond the effects"
+	"state rejects an address beyond the effects"
+	CACHE STRING "Test cases of ffb_target_tests additionally excluded from ctest in 32-bit builds (list)")
 set(FFB_TARGET_TESTS_EXCLUDED ${FFB_TARGET_TESTS_EXCLUDE})
 if(FFB_TESTS_SANITIZE)
 	list(APPEND FFB_TARGET_TESTS_EXCLUDED ${FFB_TARGET_TESTS_EXCLUDE_SANITIZE})
+endif()
+if(FFB_TESTS_32BIT)
+	list(APPEND FFB_TARGET_TESTS_EXCLUDED ${FFB_TARGET_TESTS_EXCLUDE_32BIT})
 endif()
 list(JOIN FFB_TARGET_TESTS_EXCLUDED "," FFB_TARGET_TESTS_EXCLUDED_ARG)
 message(STATUS "OpenFFBoard tests: ffb_target_tests excluded from ctest: ${FFB_TARGET_TESTS_EXCLUDED_ARG}")
@@ -1009,6 +1044,17 @@ if(USE_DSP AND EXISTS ${FFB_DSP_PATTERN_ROOT}/FastMath AND EXISTS ${DSP_DIR}/Sou
 	list(FILTER DSP_TEST_F16_SOURCES INCLUDE REGEX "_f16\\.cpp$")
 	if(NOT FFB_DSP_HAS_F16)
 		list(REMOVE_ITEM DSP_TEST_SOURCES ${DSP_TEST_F16_SOURCES})
+	endif()
+	# 32-bit builds: these test files compute their reference values with __int128, which i386 gcc/clang do not
+	# provide. They are left out (owner's decision 2026-11-11, open question 62 option B); the rest is built.
+	# test_dsp_filt_conv_q31.cpp needs __int128 too but guards itself (#if defined(__SIZEOF_INT128__)), so it is
+	# compiled and contributes no cases on 32 bit.
+	if(FFB_TESTS_32BIT)
+		set(FFB_DSP_TESTS_NOT_32BIT test_dsp_filt_fir_q.cpp test_dsp_filt_lattice.cpp test_dsp_filt_lms.cpp
+			test_dsp_filt_sparse.cpp test_dsp_stats_q31.cpp)
+		list(TRANSFORM FFB_DSP_TESTS_NOT_32BIT PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/claude/cases_dsp/)
+		list(REMOVE_ITEM DSP_TEST_SOURCES ${FFB_DSP_TESTS_NOT_32BIT})
+		message(STATUS "OpenFFBoard tests: ffb_dsp_tests: 5 test files with __int128 reference models left out of the 32-bit build")
 	endif()
 
 	add_executable(ffb_dsp_tests ${DSP_TEST_SOURCES} support/DspPatterns.cpp support/test_main.cpp)

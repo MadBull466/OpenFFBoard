@@ -6,7 +6,7 @@ Written 2026-11-04 by Claude (Opus 5.5) for the project owner (GitHub `MadBull46
 
 A host-side (Linux/Windows, no hardware) unit-test suite for the OpenFFBoard firmware (STM32F407, C/C++), built with doctest 2.4.11 and CMake in `Firmware/Tests/`. It started from upstream's `feature/host-unit-tests` (commit `a5418ff5`, 318 baseline cases, kept unchanged) and was extended in phases P0-P11. The firmware itself was never changed. Everything is on branch `add-test-suite`.
 
-## State at handoff (updated 2026-11-10 by the documentation review; written first 2026-11-04)
+## State at handoff (updated 2026-11-11 for P18; written first 2026-11-04)
 
 | Item | State |
 |---|---|
@@ -15,14 +15,15 @@ A host-side (Linux/Windows, no hardware) unit-test suite for the OpenFFBoard fir
 | P11 CMSIS-DSP (G1-G5) | done, approved and pushed 2026-11-10 |
 | P13 TMCDebugBridge, P14 PWM, P15 SimpleMotion, P16 MyActuator, P17 MIDI | done, approved, committed and pushed to the fork 2026-11-10 (`fe232b2d` is the last: P17 T2) |
 | P17 MIDI detail (`MidiMain`, `MidiHandler`, TinyUSB `class/midi`, in `ffb_usb_tests`) | T0 `f21e631a`, T1 `88980f93`, T2 `fe232b2d` (319 cases, four reviewers; `MidiHandler.cpp` 100 %, `MidiMain.cpp` 100 %, `midi_device.c` 98.5 %); charter `Tests/claude/charters/driver/MIDI_REQUIREMENTS.md`, work orders `P17_WORK_ORDERS.md` |
-| Open questions | `Tests/claude/reports/OPEN_QUESTIONS.md` (pending 17-23, 32-52 and 54-61) |
-| Suspected bugs | `Tests/claude/reports/BUG_REPORT.md` (generated, do not hand-edit): firmware bugs up to 224, vendor bugs up to V88, NEEDS REVIEW up to 280 |
+| P18 32-bit build (`FFB_TESTS_32BIT`, bug 225) | T1-T4 approved and committed 2026-11-11 (not pushed); plan `Tests/claude/plans/P18_32BIT_BUILD_PLAN.md`, work order `Tests/claude/charters/P18_WORK_ORDERS.md` |
+| Open questions | `Tests/claude/reports/OPEN_QUESTIONS.md` (pending 17-23, 32-52, 54-61 and 64; 62 and 63 answered 2026-11-11) |
+| Suspected bugs | `Tests/claude/reports/BUG_REPORT.md` (generated, do not hand-edit): firmware bugs up to 225, vendor bugs up to V88, NEEDS REVIEW up to 280 |
 
-Current counts (GCC 16, 2026-11-10): `ffb_unit_tests` 654 passed / 4 skipped, `ffb_target_tests` 1832, `ffb_flash_tests` 159, `ffb_rtos_tests` 278, `ffb_usb_tests` 606, `ffb_driver_tests` 1717, `ffb_dsp_tests` 2485, Python `claude/python` 115; ctest 11 of 11. The resume point and the exact numbers are in `Tests/claude/plans/PROGRESS.md` ("Current state", "Next action"); whole-project numbers in `Tests/claude/reports/PROJECT_SUMMARY.md`.
+Current counts (GCC 16, 2026-11-11): `ffb_unit_tests` 654 passed / 4 skipped, `ffb_target_tests` 1863, `ffb_flash_tests` 159, `ffb_rtos_tests` 278, `ffb_usb_tests` 606, `ffb_driver_tests` 1717, `ffb_dsp_tests` 2485, Python `claude/python` 125; ctest 11 of 11 (also in the 32-bit build, where `ffb_target_tests` runs 1843 and `ffb_dsp_tests` 1871). The resume point and the exact numbers are in `Tests/claude/plans/PROGRESS.md` ("Current state", "Next action"); whole-project numbers in `Tests/claude/reports/PROJECT_SUMMARY.md`.
 
 ### Where to continue
 
-The test plan P0-P17 is complete: every phase is approved, committed and pushed. Nothing is waiting for a decision of yours except the open questions (17-23, 32-52, 54-61 in `Tests/claude/reports/OPEN_QUESTIONS.md`) and the two stale lines of `CLAUDE.md` (tier C wording, `USB MIDI v2_0.pdf` spec line), which are the owner's file. New work starts only on the owner's request; if an open question is answered, update the affected tests, `PROGRESS.md`, `OPEN_QUESTIONS.md` and `BUG_REPORT.md` (run `make_bug_report.py`). Reusable pieces for a new phase: the charter and work-order shape of `MIDI_REQUIREMENTS.md` / `P17_WORK_ORDERS.md`, `support/RmdFixture.h` (threads with several `Delay` calls), `support/MidiFixture.h` and `platform/usb_midi/` (a recording double of a driver interface for a caller built into another executable).
+The test plan P0-P17 is complete: every phase is approved, committed and pushed. P18 (32-bit build) is approved and committed (2026-11-11), not yet pushed. Otherwise nothing is waiting for a decision of yours except the open questions (17-23, 32-52, 54-61, 64 in `Tests/claude/reports/OPEN_QUESTIONS.md`) and the two stale lines of `CLAUDE.md` (tier C wording, `USB MIDI v2_0.pdf` spec line), which are the owner's file. New work starts only on the owner's request; if an open question is answered, update the affected tests, `PROGRESS.md`, `OPEN_QUESTIONS.md` and `BUG_REPORT.md` (run `make_bug_report.py`). Reusable pieces for a new phase: the charter and work-order shape of `MIDI_REQUIREMENTS.md` / `P17_WORK_ORDERS.md`, `support/RmdFixture.h` (threads with several `Delay` calls), `support/MidiFixture.h` and `platform/usb_midi/` (a recording double of a driver interface for a caller built into another executable).
 
 ## Rules you must follow (from the owner's `CLAUDE.md`, repeated here because they are strict)
 
@@ -33,7 +34,7 @@ The test plan P0-P17 is complete: every phase is approved, committed and pushed.
 5. Expected values come from a spec, vendor documentation or a hand derivation written in a comment. Never copy the value the firmware currently produces into an assertion unless the test is named `characterization: ...` and has a NEEDS REVIEW entry.
 6. Test conventions (full text in `Firmware/Tests/README.md`): use a fixture; test through public interfaces; one behaviour per test; the name is a statement that is true if the test passes; never sleep (advance simulated time); `KNOWN_ISSUE("...")` describes the INTENDED behaviour and fails today because of a suspected defect (the first failing assertion must be the defect), `KNOWN_ISSUE_UB` is the same for undefined behaviour and is skipped in sanitizer builds; never write a test that expects a suspected buggy result without a marker.
 7. Keep the 318 baseline case names (`Firmware/Tests/baseline/test_cases.txt`); never edit existing test files, add new ones; after every CMake or test change rebuild and run `tools/check_baseline.py`.
-8. Host is 64-bit, target is 32-bit ARM with a single-precision FPU: flag any test whose result could differ on target (type sizes, packing, endianness, float/double promotion, integer overflow, signed shifts, out-of-range float-to-int).
+8. Host is 64-bit, target is 32-bit ARM with a single-precision FPU: flag any test whose result could differ on target (type sizes, packing, endianness, float/double promotion, integer overflow, signed shifts, out-of-range float-to-int). The 32-bit variant (`-DFFB_TESTS_32BIT=ON`, P18) runs the suite as ILP32; a defect that exists only with a 32-bit `size_t` uses `KNOWN_ISSUE_32BIT` / `KNOWN_ISSUE_32BIT_UB` (`support/KnownIssue32.h`).
 9. Out of scope (confirmed): ST HAL, CMSIS core, FreeRTOS kernel, `Firmware/Targets/**`, CubeMX code. Since 2026-11-10 the PWM, SimpleMotion and MyActuator drivers, `TMCDebugBridge` and MIDI are in scope (each feature macro is on in one executable only). Fake any driver that is not built into the executable under test at its interface.
 10. Stop at the end of every phase or module group and wait for the owner's approval. Do not start the next one without it.
 

@@ -6,16 +6,31 @@
 
 ## Current state
 
-- **Current phase:** P17 MIDI complete (T0 `f21e631a`, T1 `88980f93`, T2 `fe232b2d`, all approved, committed and pushed 2026-11-10). P0-P11 and P13-P17 done and approved; the plan P0-P17 is complete.
-- **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system"). Fork `MadBull466/OpenFFBoard` is at `fe232b2d` (pushed 2026-11-10).
-- **Last updated:** 2026-11-10 (after the P17 push; documentation update)
-- **Measured on the P17 gate builds (2026-11-10, GCC 16):** `ffb_unit_tests` 654 passed / 4 skipped with the documented exclusion (baseline check OK, 340 new cases), `ffb_target_tests` 1832 (18 skipped), `ffb_flash_tests` 159, `ffb_rtos_tests` 278, `ffb_usb_tests` 606 (604 run in the sanitizer build, 606 with clang), `ffb_driver_tests` 1717 (9 skipped; 1701 sanitizer, 1494 clang), `ffb_dsp_tests` 2485 (5 skipped), Python `claude/python` 115 tests; ctest 11 of 11 (default, sanitizer, clang, coverage), 10 of 10 with DSP off. Firmware ladder 8171 of about 8260 lines (98.9 %), TinyUSB tier B 1508 / 1572 (95.9 %), driver tier 3262 / 3484 (93.6 %).
-- **Counters:** next firmware bug number 225, vendor bug V89, NEEDS REVIEW 281, open question 62. Open owner decisions: 17-23, 32-52, 54-61.
-- **Last session summary (2026-11-10):** P17 MIDI T0, T1 (committed) and T2 (four writers, four reviewers with mutation checks, full gate; committed and pushed) were done: 319 new cases in `ffb_usb_tests`, findings 219-224 and V86-V88, NEEDS REVIEW 263-280. Earlier the same day: P13 TMCDebugBridge, P14 PWM, P15 SimpleMotion and P16 MyActuator were written, reviewed with mutation checks, gated, committed and pushed (P16: 256 cases, findings 211-218, `RmdMotorCAN.cpp` 231 / 231 lines). The owner supplied the P17 oracles (`midi10.pdf`, which is the USB Device Class Definition for MIDI Devices 1.0, and `MIDI_1.0_Detailed_Specification.pdf`); the earlier `USB MIDI v2_0.pdf` is no longer needed because the firmware class is USB-MIDI 1.0 style. This session reviewed all documentation for stale numbers and status and corrected them.
+- **Current phase:** P18 32-bit build (plan `Tests/claude/plans/P18_32BIT_BUILD_PLAN.md`, approved 2026-11-11 with option 62 B): T1 (CMake option), T2 (bug 225 tests), T3 (warning sweep) and T4 (documentation) approved and committed 2026-11-11 (one commit, not pushed). P0-P11 and P13-P17 done, approved, committed and pushed (P17: T0 `f21e631a`, T1 `88980f93`, T2 `fe232b2d`).
+- **Branch:** add-test-suite (base commit `a5418ff5`, "Initial unit test system"). Fork `MadBull466/OpenFFBoard` is at `5c4658ae` (pushed 2026-11-10).
+- **Last updated:** 2026-11-11 (P18 T4)
+- **Measured on the P18 gate builds (2026-11-11, GCC 16, fresh `../ffb-test-build/p18t2f-<variant>`):**
+  - `ffb_unit_tests` 654 passed / 4 skipped with the documented exclusion (baseline check OK in all six variants).
+  - `ffb_target_tests` 1863 (18 skipped; 1747 sanitizer, 1863 clang).
+  - `ffb_flash_tests` 159. `ffb_rtos_tests` 278.
+  - `ffb_usb_tests` 606 (604 run in the sanitizer build). `ffb_driver_tests` 1717 (9 skipped; 1701 sanitizer, 1494 clang).
+  - `ffb_dsp_tests` 2485 (5 skipped). Python `claude/python` 125 tests.
+  - **32-bit build (`-DFFB_TESTS_32BIT=ON`):** unit 654, target 1843 (38 skipped, 2 excluded), flash 159, rtos 278, usb 606, driver 1717, dsp 1871 (6 files with `__int128` reference models contribute no cases).
+  - ctest 11 of 11 (default, sanitizer, clang, coverage, 32-bit), 10 of 10 with DSP off.
+  - Coverage unchanged by P18 (fresh gcov on `p18t2f-cov`): firmware ladder 8171 of about 8260 lines (98.9 %), TinyUSB tier B 1508 / 1572 (95.9 %), driver tier 3262 / 3484 (93.6 %), DSP 10388 / 10396.
+- **Counters:** next firmware bug number 226, vendor bug V89, NEEDS REVIEW 281, open question 65. Open owner decisions: 17-23, 32-52, 54-61, 64 (62 and 63 answered 2026-11-11).
+- **Last session summary (2026-11-11):**
+  - The owner asked what else should be tested. I proposed four additions: cross-module integration tests, a 32-bit build, ARM struct layout checks, and fuzzing. The owner chose the 32-bit build (P18).
+  - A trial `-m32` build found **bug 225**: `SerialFFB` checks the `int64_t` command address against `size_t`. That comparison is signed on the 32-bit target, so a negative address reads or writes outside the effects array. Everything else behaved identically on 32-bit.
+  - T1 added the `FFB_TESTS_32BIT` option. T2 added 31 cases (`test_serial_ffb_32bit.cpp`), the markers `KNOWN_ISSUE_32BIT` / `KNOWN_ISSUE_32BIT_UB`, and `run_all_tests.py` support (one writer, one reviewer, 42 mutants). T3's warning diff over 586 compile commands found no further width-dependent behaviour.
+  - Lead from 2026-11-11: Opus 5.5.
+- **Earlier session summary (2026-11-10):** P17 MIDI T0, T1 (committed) and T2 (four writers, four reviewers with mutation checks, full gate; committed and pushed) were done: 319 new cases in `ffb_usb_tests`, findings 219-224 and V86-V88, NEEDS REVIEW 263-280. Earlier the same day: P13 TMCDebugBridge, P14 PWM, P15 SimpleMotion and P16 MyActuator were written, reviewed with mutation checks, gated, committed and pushed (P16: 256 cases, findings 211-218, `RmdMotorCAN.cpp` 231 / 231 lines). The owner supplied the P17 oracles (`midi10.pdf`, which is the USB Device Class Definition for MIDI Devices 1.0, and `MIDI_1.0_Detailed_Specification.pdf`); the earlier `USB MIDI v2_0.pdf` is no longer needed because the firmware class is USB-MIDI 1.0 style. This session reviewed all documentation for stale numbers and status and corrected them.
 
 ## Next action
 
-**None pending: the plan P0-P17 is complete and pushed.** The remaining items are the owner's: open questions 17-23 (P11), 32-52 (P14-P16) and 54-61 (P17), and the two stale lines of `CLAUDE.md` (tier C wording: "only the CMSIS-DSP functions the firmware calls", since P11 it is every function of the used modules; the P17 spec line `USB MIDI v2_0.pdf`, now `midi10.pdf` and `MIDI_1.0_Detailed_Specification.pdf`), which is the owner's file and has not been changed. New work starts only on the owner's request. If an open question is answered: update the affected tests, `PROGRESS.md`, `OPEN_QUESTIONS.md`, run `make_bug_report.py`, regenerate the coverage numbers. Next numbers: firmware bug 225, vendor bug V89, NEEDS REVIEW 281, open question 62.
+**None pending: P18 is approved and committed (2026-11-11), not pushed.** Push only on "push".
+
+The remaining items are the owner's: open questions 17-23 (P11), 32-52 (P14-P16), 54-61 (P17) and 64 (P18: CLAUDE.md / AGENTS.md paragraph), and the two stale lines of `CLAUDE.md` (tier C wording: "only the CMSIS-DSP functions the firmware calls", since P11 it is every function of the used modules; the P17 spec line `USB MIDI v2_0.pdf`, now `midi10.pdf` and `MIDI_1.0_Detailed_Specification.pdf`), which is the owner's file and has not been changed. New work starts only on the owner's request. If an open question is answered: update the affected tests, `PROGRESS.md`, `OPEN_QUESTIONS.md`, run `make_bug_report.py`, regenerate the coverage numbers. Next numbers: firmware bug 226, vendor bug V89, NEEDS REVIEW 281, open question 65. Further proposals not started (each needs the owner's go-ahead): cross-module integration tests, ARM struct layout checks with `arm-none-eabi-gcc` (compile only), fuzzing of the input parsers with libFuzzer, CI (question 5).
 
 ## Phase checklist
 
@@ -41,6 +56,7 @@
 | P15 SimpleMotion driver | `ffb_driver_tests` (not with clang) | `MotorSimplemotion.cpp` 98.0 % (294 / 300) | done | yes, 2026-11-10 | `cf3d341e` (T0), `ff86dd7e` (T1), `999872fa` (T2) |
 | P16 MyActuator RMD driver | `ffb_driver_tests` | `RmdMotorCAN.cpp` 100 % (231 / 231) | done | yes, 2026-11-10 | `6b2315e1` (T0), `70a7598b` (T1), `1d30019d` (T2) |
 | P17 MIDI (`MidiMain`, `MidiHandler`, TinyUSB `class/midi`) | `ffb_usb_tests` | `MidiHandler.cpp` 100 % (64 / 64), `MidiMain.cpp` 100 % (97 / 97), `midi_device.c` 98.5 % (201 / 204) | done, approved | yes, 2026-11-10 | `f21e631a` (T0), `88980f93` (T1), `fe232b2d` (T2) |
+| P18 32-bit build (`FFB_TESTS_32BIT`, bug 225) | all (32-bit variant); new cases in `ffb_target_tests` | no coverage change (behaviour on ILP32) | done, approved | T1-T4: yes, 2026-11-11 | the P18 commit (2026-11-11) |
 
 ## Decisions log
 
@@ -108,6 +124,9 @@
 | 2026-11-10 | **P14-P17 in scope:** PWM, SimpleMotion, MyActuator (executable `ffb_driver_tests`), MIDI (`ffb_usb_tests`); order P14, P15, P16, P17; new fakes under `fakes/` with the fidelity header; CLAUDE.md and AGENTS.md updated; stop after every phase | My decisions (questions 27-31) |
 | 2026-11-10 | P14, P15, P16 approved and pushed to the fork (`c688687b`, `999872fa`, `1d30019d`). P16 lead amendments: R4.4 (disable on switching TO request mode), -35999 does not round trip, B-RMD-6 magnitude 5e-11, B-RMD-8 added | My approvals; lead (Sonnet 5.5) decisions |
 | 2026-11-10 | P17 oracles supplied: `midi10.pdf` (USB MIDI class definition 1.0) and `MIDI_1.0_Detailed_Specification.pdf`; `USB MIDI v2_0.pdf` not needed (firmware class is USB-MIDI 1.0 style). Where the specs are silent: `characterization:`. P17 T0 not started | My supply of the documents |
+| 2026-11-11 | **P18 32-bit build approved** (plan `P18_32BIT_BUILD_PLAN.md`): option `FFB_TESTS_32BIT` (`-m32 -msse2 -mfpmath=sse -funsigned-char`, default OFF). **Question 62: option B**: the 5 `ffb_dsp_tests` files with `__int128` reference models are left out of 32-bit builds. **Question 63**: the 2 existing cases that abort on ILP32 (bug 225) stay unchanged and are excluded from ctest in 32-bit builds only (`FFB_TARGET_TESTS_EXCLUDE_32BIT`) | My decisions |
+| 2026-11-11 | P18 lead decisions (Opus 5.5): only the 5 files are left out (not all of `ffb_dsp_tests`); two markers in `support/KnownIssue32.h` (`KNOWN_ISSUE_32BIT` = should_fail on ILP32, `KNOWN_ISSUE_32BIT_UB` = skipped on ILP32; both plain on LP64); `run_all_tests.py` classifies them by the build's width; `offset` / `sat` / `coeff` get answers are not asserted as two replies (NEEDS REVIEW 129 stays open); the suggested fix of bug 225 is `adr >= 0 && adr < size` (a `size_t` cast is not a fix on ILP32) | Lead (Opus 5.5) |
+| 2026-11-11 | P18 T1, T2, T3 and T4 approved; P18 committed | My approvals |
 
 ## Environment
 
@@ -117,16 +136,22 @@ All commands run from the repo root (`OpenFFBoard/`). They are plain POSIX comma
 - Test framework: doctest 2.4.11 (`Firmware/Tests/third_party/doctest.h`, do not edit)
 - Test source location: `Firmware/Tests/` (documented in `Firmware/Tests/README.md`; README requires CMake >= 3.16, C++20, MinGW-w64 on Windows)
 - CMSIS-DSP submodule: checked out, so the default build has `USE_DSP_FUNCTIONS=ON` (`FFB_TESTS_USE_DSP=AUTO`)
-- Build directory (out-of-tree): `../ffb-test-build/<variant>` (variants: `default`, `nodsp`, `san`, `nodsp-san`, `clang23`, `clang23-san`, `cov`, `preset-host-sanitize`). `../ffb-test-build/clang` is a broken leftover (configure failed); delete it by hand
+- Build directory (out-of-tree): `../ffb-test-build/<variant>` (variants: `default`, `nodsp`, `san`, `nodsp-san`, `clang23`, `clang23-san`, `cov`, `m32`, `preset-host-sanitize`). `../ffb-test-build/clang` is a broken leftover (configure failed); delete it by hand
 - Configure: `cmake -S Firmware/Tests -B ../ffb-test-build/default`
   - no DSP: add `-DFFB_TESTS_USE_DSP=OFF`
   - ASan+UBSan: add `-DFFB_TESTS_SANITIZE=ON`
+  - 32-bit (P18): add `-DFFB_TESTS_32BIT=ON`. This needs gcc or clang with 32-bit multilib on Linux; configure stops with a message otherwise (MSVC, macOS). It builds every executable with `-m32 -msse2 -mfpmath=sse -funsigned-char`. Its effects:
+    - extra ctest exclusion `FFB_TARGET_TESTS_EXCLUDE_32BIT` (2 cases, bug 225);
+    - the 5 `__int128` DSP test files are left out;
+    - `KNOWN_ISSUE_32BIT(_UB)` cases fail as expected or are skipped.
+
+    Verified on this host (GCC 16).
   - clang: add `-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++`
   - coverage: add `-DCMAKE_C_FLAGS=--coverage -DCMAKE_CXX_FLAGS=--coverage -DCMAKE_EXE_LINKER_FLAGS=--coverage`
 - Build: `cmake --build ../ffb-test-build/default -j"$(nproc)"`
 - Run (with exclusion): `../ffb-test-build/default/ffb_unit_tests --test-case-exclude="requesting the forces of a not existing axis is rejected"` (`-tce=` is the short form)
 - Sanitizer run: `../ffb-test-build/san/ffb_unit_tests --test-case-exclude="requesting the forces of a not existing axis is rejected,reconstruction of a constant signal is constant,reconstruction of a step never leaves the range of the input values and reaches the target"`
-- `ctest`: `ctest --test-dir ../ffb-test-build/default --output-on-failure`. Runs 8 tests (`ffb_driver_tests` (P10 driver track, `FFB_DRIVER_TESTS_EXCLUDE`, `FFB_DRIVER_TESTS_EXCLUDE_SANITIZE`), `ffb_flash_tests` (P3), `ffb_rtos_tests` (P8, exclusion lists `FFB_RTOS_TESTS_EXCLUDE`, `FFB_RTOS_TESTS_EXCLUDE_SANITIZE`), `ffb_usb_tests` (P9, `FFB_USB_TESTS_EXCLUDE`, `FFB_USB_TESTS_EXCLUDE_SANITIZE`) and `python_helper_tests` (P9, only when Python 3 is found) besides the 3 below): `ffb_unit_tests` with the exclusions (F1/F1b, cache lists `FFB_TESTS_EXCLUDE` and `FFB_TESTS_EXCLUDE_SANITIZE`, printed at configure time: `OpenFFBoard tests: excluded from ctest: ...`), `ffb_unit_tests_baseline` (the baseline check) and `ffb_target_tests` (P2, cases in `claude/cases_target/`, own exclusion lists `FFB_TARGET_TESTS_EXCLUDE` and (sanitizer builds only) `FFB_TARGET_TESTS_EXCLUDE_SANITIZE`, both default empty, printed as `OpenFFBoard tests: ffb_target_tests excluded from ctest: ...`)
+- `ctest`: `ctest --test-dir ../ffb-test-build/default --output-on-failure`. Runs 8 tests (`ffb_driver_tests` (P10 driver track, `FFB_DRIVER_TESTS_EXCLUDE`, `FFB_DRIVER_TESTS_EXCLUDE_SANITIZE`), `ffb_flash_tests` (P3), `ffb_rtos_tests` (P8, exclusion lists `FFB_RTOS_TESTS_EXCLUDE`, `FFB_RTOS_TESTS_EXCLUDE_SANITIZE`), `ffb_usb_tests` (P9, `FFB_USB_TESTS_EXCLUDE`, `FFB_USB_TESTS_EXCLUDE_SANITIZE`) and `python_helper_tests` (P9, only when Python 3 is found) besides the 3 below): `ffb_unit_tests` with the exclusions (F1/F1b, cache lists `FFB_TESTS_EXCLUDE` and `FFB_TESTS_EXCLUDE_SANITIZE`, printed at configure time: `OpenFFBoard tests: excluded from ctest: ...`), `ffb_unit_tests_baseline` (the baseline check) and `ffb_target_tests` (P2, cases in `claude/cases_target/`, own exclusion lists `FFB_TARGET_TESTS_EXCLUDE` and (sanitizer builds only) `FFB_TARGET_TESTS_EXCLUDE_SANITIZE`, both default empty, and (32-bit builds only, P18) `FFB_TARGET_TESTS_EXCLUDE_32BIT` with the 2 bug 225 cases, printed as `OpenFFBoard tests: ffb_target_tests excluded from ctest: ...`)
 - Run `ffb_target_tests` directly: `../ffb-test-build/default/ffb_target_tests` (no exclusion needed; in sanitizer builds the cases marked `DELETES_FFBHIDMAIN` skip themselves)
 - Baseline check (gate step 2): `python3 -B Firmware/Tests/tools/check_baseline.py --build-dir ../ffb-test-build/<variant>` (reads exclusions and sanitizer flag from `CMakeCache.txt`; exit 0 ok, 1 changed/missing, 2 crash). `--print-current` prints the current classification
 - Presets: `CMakePresets.json` puts build dirs inside `Firmware/Tests/`. To use a preset out-of-tree: `cd Firmware/Tests && cmake --preset host-sanitize -B ../../../ffb-test-build/preset-host-sanitize`, then `cmake --build ../../../ffb-test-build/preset-host-sanitize -j"$(nproc)"`, then `ctest --test-dir <that dir>` (not `ctest --preset`, which uses the in-tree dir)
@@ -1240,6 +1265,28 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 - **Coverage (gcc, gcov):** `MidiHandler.cpp` 64 / 64 (100 %), `MidiMain.cpp` 97 / 97 (100 %), `midi_device.c` 201 / 204 (98.5 %); TinyUSB tier 1508 / 1572 (95.9 %); firmware ladder 8171 of about 8260 (98.9 %), `coverage_report.py` now counts `MidiMain` and `MidiHandler` in the ladder.
 - **Not verified:** the target (ARM) behaviour, a real USB host or MIDI device, the USB task / timer interrupt race (see NEEDS REVIEW 280).
 
+## P18 result (32-bit build, T1-T4 approved and committed 2026-11-11)
+
+- **Scope:** the whole suite built as ILP32 code (`-DFFB_TESTS_32BIT=ON`, `-m32 -msse2 -mfpmath=sse -funsigned-char`) so that `size_t`, `long` and pointers are 4 bytes as on the STM32F407. Plan and per-step results: `Tests/claude/plans/P18_32BIT_BUILD_PLAN.md`; work order: `Tests/claude/charters/P18_WORK_ORDERS.md`.
+- **T1 (CMake):**
+  - The option fails at configure time without 32-bit multilib, with MSVC or on macOS.
+  - New ctest exclusion list `FFB_TARGET_TESTS_EXCLUDE_32BIT`.
+  - 5 `__int128` DSP test files are left out (question 62 B); `test_dsp_filt_conv_q31.cpp` guards itself.
+  - `run_all_tests.py` reads the 32-bit list.
+  - Result: in the 32-bit build every executable gives the same case and assertion counts as the 64-bit build, except the 2 aborting cases of bug 225. 64-bit `ffb_dsp_tests` with the same 6 files excluded is 1871 cases, identical to the 32-bit build.
+- **T2 (tests):**
+  - `claude/cases_target/test_serial_ffb_32bit.cpp`, suite `SerialFFB32`, 31 cases: 18 `KNOWN_ISSUE_32BIT_UB`, 1 `KNOWN_ISSUE_32BIT`, 12 plain (2^32 addresses, 39 / 40 boundaries, positive controls).
+  - Markers in `support/KnownIssue32.h`. `run_all_tests.py` classifies them by the build's width; tests in `claude/python/test_run_all_tests_ilp32.py` (10).
+  - Writer and fresh reviewer: Sonnet 5.5. 42 mutants plus 5 lead re-checks; gaps F1, F2, F4, F5 and the survivor M31 were closed.
+  - Accepted weakness: on ILP32 a mutant `setEffectState` guard `>` aborts inside the should_fail `state` case, which doctest counts as "failed as expected" before ending the run. `run_all_tests.py` shows it.
+- **T3 (warning sweep):**
+  - Method: all 586 firmware compile commands, recompiled for LP64 and ILP32 with `-Wsign-compare` and `-Wconversion -Wsign-conversion -Wshift-overflow=2 -Woverflow`, warnings diffed.
+  - Only bug 225 changes behaviour. The rest are host artefacts (`size_t` narrowing that is a no-op on ILP32, integer-to-pointer casts of flash addresses, `%llx`) and an equivalent vendor shift (`arm_vlog_q31.c:118`).
+  - Not covered by the method: unwarned `size_t` / `long` overflow, and struct layout.
+- **New finding:** firmware bug 225.
+- **Gate (2026-11-11):** ctest 11 of 11 in m32, default, sanitizer, clang and coverage; 10 of 10 DSP off; `check_baseline.py` OK in all six. Counts under "Current state". Coverage unchanged.
+- **Not verified:** ARM itself. i386 differs in `uint32_t` (`unsigned int` versus `unsigned long` in newlib) and in the alignment of `int64_t` / `double` struct members (4 versus 8). Windows / macOS: the option refuses macOS; MinGW 32-bit is not tried.
+
 ## Suspected firmware bugs
 
 | # | Module | Location | Description | Evidence |
@@ -1551,6 +1598,7 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 | 222 | MidiHandler: CIN ignored | `MidiHandler.cpp:24-31` | The code index number is never looked at: the single byte packets of an unparsed stream (CIN 0xF, UM Table 4-1 Note 2: `0F 90 00 00`) are decoded as events (a `noteOff(0, 0, 0)` for the status byte). Owner question 58 | KNOWN_ISSUE (B-MIDI-4) |
 | 223 | MidiMain: `range` and `power` unchecked | `MidiMain.cpp:102, 116, 160-165` | Both commands accept any 32 bit value: `range` above 32767 makes `(int16_t)(sine * movementrange)` an out of range float to int conversion (undefined; x86 keeps the low 16 bits), `power` above 32767 reaches `setUdUq(int16_t, ...)` as a negative voltage (wrap-around, defined). Owner question 59 | KNOWN_ISSUE_UB + KNOWN_ISSUE (B-MIDI-5) |
 | 224 | global_callbacks / MIDI class: no handler | `global_callbacks.cpp:355`, `midi_device.c:93-113` | While no `MidiHandler` exists `tud_midi_rx_cb` returns without reading: the first packet leaves 60 free RX FIFO bytes, `_prep_out_transaction` arms the OUT endpoint only with 64 free, so the endpoint NAKs for ever, also after a handler is created. Confirmed by experiment in T2. Owner question 60 | KNOWN_ISSUE (B-MIDI-6) |
+| 225 | SerialFFB: negative effect address on 32 bit | `SerialFFB.cpp:157, 164, 179, 186, 193, 201, 208, 220, 227, 234` (`cmd.adr < effects.size()`), `CommandHandler.h:70` (`int64_t adr`) | The command address is `int64_t`, the guard compares it with `size_t`. On the 64-bit host (LP64) the comparison is unsigned and every negative address is rejected; on the 32-bit target (ILP32) `size_t` is converted to `int64_t`, the comparison is signed and any negative address passes: `effects[adr]` is read (`mag`, `state`, `type` get and every get) and written (`period`, `duration`, `deadzone`, `offset`, `sat`, `coeff`, `axisgain` set) outside the array; `state` set truncates to `uint8_t` first and answers OK instead of ERR. Reachable on shipped firmware with `FFBHIDEXT` (F407VG, F407VG_DISCO, F411RE): serial `fxm.0.period=5?-1`, HID command report with addr all ones, CAN. Found by the P18 32-bit build. Suggested fix: `cmd.adr >= 0 && cmd.adr < (int64_t)effects.size()` (a `(size_t)` cast is not a fix on ILP32: 2^32 becomes slot 0) | `test_serial_ffb_32bit.cpp`: 18 `KNOWN_ISSUE_32BIT_UB` (skipped on ILP32, abort with `--no-skip`), 1 `KNOWN_ISSUE_32BIT` (`state` set); the existing `mag` / `state` rejection cases are excluded in 32-bit builds (`FFB_TARGET_TESTS_EXCLUDE_32BIT`) |
 
 ## Untestable code and refactor suggestions
 
@@ -1597,6 +1645,8 @@ New tests that describe unclear behaviour use the `characterization:` name prefi
 | CAN fake | Frames are acknowledged at once (`canSetTxAutoComplete`) and a mailbox is aborted at once even mid-transmission; on the target more than 3 frames per burst fail (bug 110) and an aborted mailbox finishes its current attempt. RDHR bytes beyond the DLC are not guaranteed on the target: tests that expose all 8 data bytes use 8-byte frames | CanBridge, CANInputMain, CANPort_2B cases |
 | CANInputMain | `digitalBuffer` (64 bit) shared between FFBMAIN and the command thread can tear on the 32-bit target (NR 139) | none |
 | SerialFFB | `% 0` (bug 125): SIGFPE on the host, `x % 0 = x` on the Cortex-M4 then infinite slope and saturating VCVT (likely full-scale torque); null Biquad (bug 124): SIGSEGV on the host, vector-table read and ~2^32-stage loop on the target | skipped crash cases |
+| SerialFFB | `int64_t` address compared with `size_t` (bug 225): unsigned on the LP64 host (negative rejected), signed on the ILP32 target (negative accepted, out of bounds) | `test_serial_ffb_32bit.cpp` (`KNOWN_ISSUE_32BIT(_UB)`), 2 cases excluded in 32-bit builds |
+| all (P18 32-bit build) | `-DFFB_TESTS_32BIT=ON` gives ILP32 like the target (`size_t`, `long`, pointers 4 bytes; SSE single precision; unsigned `char`). Not modelled by i386: `uint32_t` / `int32_t` are `unsigned int` / `int` (ARM newlib: `unsigned long` / `long`: overloads and `printf` formats differ, the i386 `-Wformat` warnings are not target bugs); `int64_t` / `double` struct members are 4-byte aligned (ARM AAPCS: 8), so struct layouts are not proven; double is hardware on the host, software on the target | 32-bit variant; struct layout needs the separate ARM compile check (proposal, not started) |
 
 ## Review outcomes (Phase 3)
 
@@ -1660,6 +1710,7 @@ All open ones are also collected in `Tests/claude/reports/OPEN_QUESTIONS.md` (ke
    - matrix `opts: ["", "-DFFB_TESTS_USE_DSP=OFF", "-DFFB_TESTS_SANITIZE=ON"]`, each running `cmake -S Firmware/Tests -B build ${{ matrix.opts }} && cmake --build build -j && ctest --test-dir build --output-on-failure` (ctest already applies the documented exclusions and the baseline check);
    - MinGW as a separate optional job later: unverified (mallinfo shim, `VirtualAlloc` at 0x08000000, weak symbols).
    - Caveat: the runner's GCC (13) is untested here; no C++23 or GCC-14-only library use was found, so the risk is low.
+   - Addition (P18, 2026-11-11): a 32-bit job is the same job with `-DFFB_TESTS_32BIT=ON` and a step `sudo apt-get install -y gcc-multilib g++-multilib` before configure (Ubuntu runners have no 32-bit libraries by default). Not verified on a runner.
 6. **Second checkout:** `Testing2/OpenFFBoard` (branch `feature/host-unit-tests`) holds untracked copies of the v2 files and none of the add-test-suite work. Work continues only in `testing/OpenFFBoard` unless you say otherwise.
 7. ~~macOS / Windows for `ffb_flash_tests`~~: answered 2026-10-24, skip `ffb_flash_tests` on macOS (done in CMake). Windows (`VirtualAlloc` at the fixed address) is still untested. macOS for the other executables: `ffb_target_tests` needs the `mallinfo` shim there too (added in the final wrap-up; unverified, no macOS toolchain here).
 8. **CLAUDE.md and TEST_PLAN.md gate wording** (final review FR1): both still say `ffb_unit_tests` gives "316 passed, 2 skipped". The executable now gives 646/0/4 on GCC 16 (san 643/0/7, nodsp-san 645/0/5); the 316/2 baseline subset is checked by `check_baseline.py`. These are your files: shall I update the wording?
@@ -1718,6 +1769,9 @@ All open ones are also collected in `Tests/claude/reports/OPEN_QUESTIONS.md` (ke
 59. **P17 `range` and `power`.** Both commands accept any 32 bit value; `range` above 32767 makes the float to `int16_t` conversion in `play` undefined (B-MIDI-5). Add a limit (defect) or document?
 60. **P17 input without a handler.** (B-MIDI-6) If MIDI packets arrive while no `MidiHandler` exists, the OUT endpoint is not armed again and the MIDI input stays dead after a handler appears. Only reachable in a configuration where the MIDI interface is enumerated without `MidiMain`; defect or out of scope?
 61. **P17 USB-MIDI descriptor details.** (a) Table 6-2 says wTotalLength covers the header and the jack / element descriptors, the worked example (Table B-6) and TinyUSB include the endpoint descriptors (0x41). The test uses 0x41; agree? (b) Vendor findings V86-V88 (real-time CIN, reserved CIN count, real-time inside SysEx) are reported, never fixed: nothing for you to decide unless you want them upstream.
+62. ~~**P18 `ffb_dsp_tests` on 32 bit.**~~ **Answered 2026-11-11: option B.** Five test files compute reference values with `__int128`, which i386 gcc / clang lack; they are left out of 32-bit builds (option A, a portable 128-bit helper, was not chosen).
+63. ~~**P18 bug 225 in the existing cases.**~~ **Answered 2026-11-11 (recommended option):** the two existing `mag` / `state` rejection cases stay unchanged and are excluded from ctest in 32-bit builds only (`FFB_TARGET_TESTS_EXCLUDE_32BIT`).
+64. **P18 CLAUDE.md and AGENTS.md.** Both describe the gate and the known issues but not the 32-bit variant (option, the 32-bit-only ctest exclusion of the 2 bug 225 cases, the `KNOWN_ISSUE_32BIT(_UB)` markers, the 5 DSP files left out). These are the owner's files: may I add a short paragraph (under "Known issues" and "Test conventions")?
 
 ## Resume instructions
 

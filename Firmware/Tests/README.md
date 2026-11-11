@@ -104,6 +104,7 @@ forensic tool, not the normal verification gate.
 |---|---|---|
 | `FFB_TESTS_USE_DSP` | `AUTO` | Build with `USE_DSP_FUNCTIONS` and CMSIS-DSP like the hardware targets. `AUTO` enables it if the `Firmware/Libraries/CMSIS-DSP` submodule is checked out. With `OFF` the fallback math of the firmware is tested. Both variants must pass. |
 | `FFB_TESTS_SANITIZE` | `OFF` | Address and undefined behaviour sanitizers (Linux/macOS). |
+| `FFB_TESTS_32BIT` | `OFF` | Build every executable as 32-bit (ILP32) code like the STM32F407: `-m32 -msse2 -mfpmath=sse -funsigned-char` (P18).<br>Needs gcc or clang with 32-bit multilib on Linux; configure stops with a message otherwise (MSVC, macOS).<br>Adds the ctest exclusion `FFB_TARGET_TESTS_EXCLUDE_32BIT` (bug 225) and leaves out the 5 `ffb_dsp_tests` files whose reference models need `__int128`.<br>i386 is not ARM: `uint32_t` is `unsigned int` (newlib: `unsigned long`), and `int64_t` / `double` struct members are 4-byte aligned (ARM: 8). |
 | `FFB_TESTS_EXCLUDE` | the `effectsForces` case | Test cases `ctest` excludes (`--test-case-exclude`). Only cases that abort the whole run because of a suspected defect belong here. |
 | `FFB_TESTS_EXCLUDE_SANITIZE` | the 2 spline cases | Additionally excluded in sanitizer builds with CMSIS-DSP (the address sanitizer reports an over-read inside `arm_spline_f32`). |
 | `FFB_TARGET_TESTS_EXCLUDE`, `FFB_FLASH_TESTS_EXCLUDE`, `FFB_RTOS_TESTS_EXCLUDE`, `FFB_USB_TESTS_EXCLUDE` and the `..._SANITIZE` variants | empty | The same for the other executables (see their sections). |
@@ -152,7 +153,8 @@ python3 -B tools/run_all_tests.py --build-dir build [--out FILE] [--timeout S]  
   recorded as crashed / timed out and the run continues after it (`--first`).
 * **Passed / Failed / Bugged.** *Bugged*: a known-bug case (`KNOWN_ISSUE`, `KNOWN_ISSUE_UB`, skipped crash case,
   Python `@expectedFailure`) that fails as expected (assertion, crash or timeout); a `KNOWN_ISSUE_UB_HIDDEN` case
-  ("UB, passes on the host"); a case of the ctest exclusion list that fails; in sanitizer builds a
+  ("UB, passes on the host"); a `KNOWN_ISSUE_32BIT(_UB)` case in a 32-bit build (in a 64-bit build it is a plain
+  test: Passed or Failed); a case of the ctest exclusion list that fails; in sanitizer builds a
   `DELETES_FFBHIDMAIN` case that fails (bug 24). *Failed*: every other failure, and a known bug that passes now
   ("fixed? remove the marker"). *Passed*: the rest; `characterization:` cases are also listed as open questions.
 * **Log** (`<build-dir>/test_report.log`): date, commit, build configuration, the summary (Passed, Failed, Bugged,
@@ -208,6 +210,7 @@ Headers in `support/`:
 | Header | Executable | Content |
 |---|---|---|
 | `TestHelpers.h` | all | `KNOWN_ISSUE`, `KNOWN_ISSUE_UB`, `KNOWN_ISSUE_UB_HIDDEN`, `finishesWithin`, small helpers. |
+| `KnownIssue32.h` | all | `KNOWN_ISSUE_32BIT`, `KNOWN_ISSUE_32BIT_UB`: defects that exist only with a 32-bit `size_t` (P18). |
 | `HostPlatform.h` | all | Simulated time (`advanceMs`), interrupt context, LEDs, UART, flash map of `ffb_unit_tests`. |
 | `HostRtos.h` | all | Fake FreeRTOS kernel: thread registry, `runUntilBlocked` / `runUntilIdle`, resumable tasks, kernel faults, heap counters. |
 | `HostUsb.h` | `ffb_unit_tests`, `ffb_target_tests` | Recording TinyUSB fake (`platform/src/host_usb.cpp`): CDC data, HID reports. |
@@ -388,6 +391,11 @@ Rules:
   asserts the intended result and passes in normal builds, and is skipped in sanitizer builds. The defect is only
   visible on a sanitizer build run with `--no-skip`. Its description starts with "KNOWN ISSUE", so the inventory below
   lists it.
+  `KNOWN_ISSUE_32BIT` and `KNOWN_ISSUE_32BIT_UB` (`support/KnownIssue32.h`, P18) are for defects that exist only when
+  `size_t` is 32 bits, as on the target (e.g. an `int64_t` compared with `size_t`). In a 64-bit build the case is a
+  plain test of the intended result. In a 32-bit build (`FFB_TESTS_32BIT`) `KNOWN_ISSUE_32BIT` is `should_fail`
+  (the first failing assertion must be the defect), and `KNOWN_ISSUE_32BIT_UB` is skipped, because the undefined
+  behaviour aborts the run.
 * **Skipped crash:** a test of a suspected defect that would terminate the whole run (segmentation fault, abort by
   `_GLIBCXX_ASSERTIONS`, floating point exception) is written like a `KNOWN_ISSUE` test but marked
   `doctest::description("KNOWN ISSUE (crash): ...") * doctest::skip()`: it is reported as skipped in every build. Run
@@ -923,7 +931,9 @@ report tool `tools/run_all_tests.py` with synthetic doctest XML and tables (no t
 ## Limitations
 
 * The host is a 64 bit little endian machine with a different compiler backend. Stack usage, timing, alignment
-  faults and float to integer conversions of out of range values are not covered.
+  faults and float to integer conversions of out of range values are not covered. The 32-bit variant
+  (`FFB_TESTS_32BIT`) covers the size of `size_t`, `long` and pointers, but not ARM's `uint32_t` type or its struct
+  alignment.
 * No preemption. Race conditions between threads and interrupts can not be found.
 * Only the TMC4671, ODrive, VESC, PWM, SimpleMotion and MyActuator drivers and `TMCDebugBridge` are compiled (in `ffb_driver_tests` only); `MidiMain` / `MidiHandler` are compiled and tested in `ffb_usb_tests` only (P17). `Axis`, the main classes and `SystemCommands` are only
   compiled in `ffb_target_tests`.
@@ -936,7 +946,9 @@ report tool `tools/run_all_tests.py` with synthetic doctest XML and tables (no t
 
 * **P17 (MIDI):** `MidiMain`, `MidiHandler` and the TinyUSB `class/midi` code are in scope since 2026-11-10 (macro `MIDI` in
   `ffb_usb_tests` only); the tests are done (see the suite table). Oracles supplied: the USB class definition for MIDI devices 1.0 (`midi10.pdf`) and the MIDI 1.0
-  detailed specification. T0 (charter `Tests/claude/charters/driver/MIDI_REQUIREMENTS.md`), T1 (wiring, doubles, fixture) and T2 (319 cases, four reviewers, gate) are done, approved and pushed (`fe232b2d`); P17 is the last phase of the plan. What remains is the owner's decisions, see "Next action" in
+  detailed specification. T0 (charter `Tests/claude/charters/driver/MIDI_REQUIREMENTS.md`), T1 (wiring, doubles, fixture) and T2 (319 cases, four reviewers, gate) are done, approved and pushed (`fe232b2d`).
+* **P18 (32-bit build):** option `FFB_TESTS_32BIT` and the bug 225 cases (`claude/cases_target/test_serial_ffb_32bit.cpp`).
+  Plan: `Tests/claude/plans/P18_32BIT_BUILD_PLAN.md`. What remains is the owner's decisions, see "Next action" in
   `Tests/claude/plans/PROGRESS.md`.
 * Open questions (CI job, Windows / macOS verification, P11 to P16 decisions) are in `Tests/claude/reports/OPEN_QUESTIONS.md`;
   suspected bugs and NEEDS REVIEW items in `Tests/claude/reports/BUG_REPORT.md`.
