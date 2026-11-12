@@ -1199,7 +1199,7 @@ if(FFB_TESTS_REAL_HAL)
 		add_library(${name}_hal OBJECT ${hal_sources})
 		add_executable(${name} ${FFB_HAL_TEST_SOURCES} $<TARGET_OBJECTS:${name}_hal>
 			${FFB_HAL_FAKE_DIR}/host_cmsis.c ${FFB_HAL_FAKE_DIR}/HalRegisterSpace.c ${FFB_HAL_FAKE_DIR}/HalPeripherals.c
-			${FFB_HAL_FAKE_DIR}/HalCorePeripherals.c ${FFB_HAL_FAKE_DIR}/HalClockPower.c
+			${FFB_HAL_FAKE_DIR}/HalCorePeripherals.c ${FFB_HAL_FAKE_DIR}/HalClockPower.c ${FFB_HAL_FAKE_DIR}/HalDma.c
 			${FFB_HAL_FAKE_DIR}/HalHostSystem.c
 			Code_Coverage/support/test_main.cpp)
 		target_include_directories(${name} PRIVATE ${FFB_HAL_CASE_DIR} Code_Coverage/support Code_Coverage/third_party)

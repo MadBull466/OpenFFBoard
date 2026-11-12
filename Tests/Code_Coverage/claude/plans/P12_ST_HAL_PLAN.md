@@ -1,6 +1,6 @@
 # P12 plan: tests of the real ST HAL (Claude, fresh start)
 
-Status: **approved by the owner 2026-11-11.** T0 trial done, approved and committed 2026-11-11 (section "T0 result"). T1 done, approved and committed locally 2026-11-11 (`f774247b`, not pushed; section "T1 result"). **T2 (RCC, PWR) finished and gated 2026-11-11, uncommitted, waiting for the owner's "approve ... and commit"** (section "T2 result"; charter `Tests/Code_Coverage/claude/charters/hal/P12_T2_REQUIREMENTS.md`). All questions (65-69) answered 2026-11-11 (section 6); 66 revised to F407VG and F407VG_DISCO.
+Status: **approved by the owner 2026-11-11.** T0 trial done, approved and committed 2026-11-11 (section "T0 result"). T1 (`f774247b`) and T2 (`f22d81f3`) done, approved and committed locally 2026-11-11, not pushed (sections "T1 result", "T2 result"). **T3 (DMA) finished and gated 2026-11-11, uncommitted, waiting for the owner's "approve ... and commit"** (section "T3 result"; charter `Tests/Code_Coverage/claude/charters/hal/P12_T3_REQUIREMENTS.md`). All questions (65-69) answered 2026-11-11 (section 6); 66 revised to F407VG and F407VG_DISCO.
 
 Owner's instruction (2026-11-11): "I want to start on P12 that was started by Codex. I want to start from the beginning for that Phase and not use any of their files."
 
@@ -91,6 +91,27 @@ RCC / RCC_Ex and PWR / PWR_Ex of both targets (F405/407 branches that compile fo
 - **Findings:** vendor V91 (Sleep keeps the SysTick running, against the UM1725 note), V92 (`HAL_RCC_DeInit` clears LSION, against the UM1725 note), V93 (arguable: `HAL_RCC_ClockConfig` rejects a source that is not ready, UM1725 note says the switch happens when it is); NEEDS REVIEW 288-300.
 - **Charter changes:** PW7 (CWUF in Standby) corrected: neither UM1725 nor RM0090 requires it, RM0090 Table 31 makes "WUF cleared" an application precondition. The charter's PLLSAI / `SelectLSEMode` / over-drive items are not compiled for the F407 and are not tested.
 - **Limits:** clock speeds, jitter and start-up times are not modelled (ready flags follow the HAL tick); no RCC / PWR interrupts, no wake-up from Stop / Standby, no clock gating; not run with clang, MinGW, macOS or on ARM.
+
+## T3 result (2026-11-11, gated, not yet committed)
+
+DMA / DMA_Ex of both targets. Charter DI1-DI9, DS1-DS9, DQ1-DQ8, DX1-DX2, DC1-DC4 (added after gcov showed the callback registration API is compiled unconditionally in this HAL version). GCC 16, 32-bit, out of tree.
+
+- **Platform (lead):** `fakes/stm32_hal/HalDma.{h,c}`: DMA1 and DMA2 (LISR / HISR / LIFCR / HIFCR, eight streams each) with RM0090 10.5 write protection while EN = 1 (counter `hostDmaProtectedWrites`), the forced bits at EN = 1, the double-buffer M0AR / M1AR rule with TEIF, the FIFO / burst rule of Table 49, TCIF on a software stop (10.3.13, 10.3.14), knobs for a stop delay, a stream whose EN never clears, and a completion after N status reads, and hooks that stand in for the transfer engine (`hostDmaRaise`, `hostDmaComplete`, `hostDmaStepItems`). No data is moved. A lead probe (`HAL_DMA_Init`, `Start`, `PollForTransfer` through the model) passed; the DMA reset state was first not wired into the fixture reset (found by a writer, fixed).
+- **Tests (`claude/cases_hal/`):** `test_hal_dma_init.cpp` 47, `test_hal_dma_xfer.cpp` 97, `test_hal_dma_irq.cpp` 64 (208 new): 735 cases in each executable, 0 failed; 23 expected-fail assertions inside the `KNOWN_ISSUE` cases (14 before T3, V94, V95, V96).
+- **Review:** one reviewer, about 100 mutants of the DMA HAL files and the model: accepted with fixes (a characterization case that pinned the V94 behaviour as correct, the V95 assertion order, the new defect V96, plain cases for return codes UM1725 does not give, a vacuous DI5 case, and about ten surviving mutants: `DBM` kept by a plain Start, flag clearing in `MultiBufferStart_IT`, NULL callbacks, the transfer-error wait of the IRQ handler, flag and enable side effects of poll and abort). All fixes landed; they were not re-mutated. Model fidelity checked against RM0090 (flag layout, mask `0x0F7D0F7D`, `SxCR` writable mask `0x0FEFFFFF`, `SxFCR` 0x21, Table 49: 23 allowed and 25 forbidden combinations).
+- **Gate (lead-run, `../ffb-test-build/`):**
+
+  | Build | Result |
+  |---|---|
+  | `p12t1-gate` (32-bit + HAL) | ctest 14 / 14, `check_baseline.py` OK; `ffb_hal_tests` and `ffb_hal_tests_disco` 735 / 735, 12163 of 12186 assertions (23 expected) |
+  | `p12t1-default` (option off) | ctest 11 / 11, `check_baseline.py` OK |
+  | `p12t1-32san` (32-bit + HAL + sanitizers) | HAL executables 735 / 735 each, no sanitizer report; the full ctest still aborts in `ffb_flash_tests` (see T1) |
+  | no warning in the build logs | |
+
+- **Coverage (gcov, `p12t1-cov`, identical for both targets):** `stm32f4xx_hal_dma.c` 355 / 361 (the three unreachable `default:` branches of the static helpers), `stm32f4xx_hal_dma_ex.c` 55 / 55. With T1 and T2: 9 of 27 HAL files measured.
+- **Findings:** vendor V94 (DeInit does not wait for EN = 0), V95 (poll timeout leaves the stream enabled; weaker, UM1725 gives no state), V96 (`HAL_DMAEx_MultiBufferStart` keeps the lock on `HAL_BUSY`); NEEDS REVIEW 301-306.
+- **Charter changes:** DS2 (`Start_IT` does not set FEIE; neither oracle requires it), DS7 (FE / DME during polling do not end it; only TE does, RM0090 10.3.18), DQ7 (`Abort_IT` has no timeout; completion is the TCIF raised by the stop), DI7 (DeInit has no timeout; no `HAL_TIMEOUT` expected) are characterized, not asserted as the charter draft said; the callback registration API is compiled (group DC).
+- **Limits:** no data movement, request timing, FIFO fill level, bus errors or interrupt delivery; the 3 tick stop delay behind V94 is an assumption; not run with clang, MinGW, macOS or on ARM.
 
 ## 3. Design
 

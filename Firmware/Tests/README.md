@@ -941,15 +941,22 @@ with the target's `stm32f4xx_hal_conf.h`, plus the host platform in `Code_Covera
   through `hostPwrSetFlags`, PWRRST through APB1RSTR. Knobs: `hostRccSetStartupTicks`, `hostRccFail`, `hostRccStickyReady`,
   `hostRccHseFailure`, `hostPwrFailVos`, `hostPwrFailBackupRegulator`, `hostPwrStickyBackupReady`, `hostFlashLatencyStuck`.
   Time is the HAL tick, not real time: start-up times, jitter and the real clock frequencies are not modelled.
+* **DMA (T3, `HalDma`):** DMA1 and DMA2 with the RM0090 10.5 registers, the write protection while EN = 1 (ignored writes are counted:
+  `hostDmaProtectedWrites`), forced bits at enable, the double-buffer address rules, the FIFO / burst rule (Table 49) and TCIF on a
+  software stop. No data is moved: the tests stand in for the transfer engine with `hostDmaRaise`, `hostDmaComplete` and
+  `hostDmaStepItems`; knobs `hostDmaSetDisableDelay`, `hostDmaStickEnabled`, `hostDmaCompleteAfterReads`. Interrupts are not delivered:
+  the tests call `HAL_DMA_IRQHandler`.
 * **CPU intrinsics:** `host_cmsis_gcc.h` is force-included and replaces `cmsis_gcc.h` (barriers, `__WFI`, exclusive monitor
   for `__LDREXW` / `__STREXW`, `__RBIT`, `__CLZ`).
 * **Tick:** a strong host `HAL_GetTick` runs one simulated 1 ms tick interrupt (the real `HAL_IncTick`) per call, so HAL
   polling loops see time pass without sleeping. Limit: the real `HAL_GetTick` is replaced. ctest `TIMEOUT` 120 s reports a
   loop that never ends.
-* **Test files (T1 + T2, 527 cases per executable):** T1: `test_hal_gpio.cpp`, `test_hal_exti.cpp`, `test_hal_core.cpp`,
+* **Test files (T1 + T2 + T3, 735 cases per executable):** T1: `test_hal_gpio.cpp`, `test_hal_exti.cpp`, `test_hal_core.cpp`,
   `test_hal_core_systick.cpp`, `test_hal_cortex.cpp`, `test_hal_t0_smoke.cpp`. T2: `test_hal_rcc_osc.cpp` (oscillators, PLL,
   DeInit), `test_hal_rcc_clock.cpp` (ClockConfig, frequencies, MCO, CSS), `test_hal_rcc_ex.cpp` (RTC / I2S clocks, PLLI2S),
-  `test_hal_pwr.cpp` (PWR, PWR_Ex). `KNOWN_ISSUE` marks the vendor bugs V89-V93; `characterization:` cases are NEEDS REVIEW 281-299. Combined with sanitizers the HAL executables run (32-bit ASan), but
+  `test_hal_pwr.cpp` (PWR, PWR_Ex). T3: `test_hal_dma_init.cpp` (Init / DeInit / state), `test_hal_dma_xfer.cpp` (Start, Abort, Poll,
+  DMAEx), `test_hal_dma_irq.cpp` (IRQ handler, callback registration). `KNOWN_ISSUE` marks the vendor bugs V89-V96;
+  `characterization:` cases are NEEDS REVIEW 281-306. Combined with sanitizers the HAL executables run (32-bit ASan), but
   the whole ctest does not: `ffb_flash_tests` cannot map 0x1FFF0000 there.
 * **DISCO:** both targets' HAL, CMSIS headers and `hal_conf` are byte-identical today; `hal_identity_f407vg_disco` fails as
   soon as they diverge, because the two executables share their test files.
