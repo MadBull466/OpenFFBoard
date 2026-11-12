@@ -51,7 +51,7 @@ Lead only, no agents. GCC 16, out of tree.
   - The real `HAL_GetTick` (`return uwTick;`, `__weak`) is replaced and never runs. The firmware uses the real one; it replaces only `HAL_InitTick` (TIM-based time base in `Core/Src/stm32f4xx_hal_timebase_tim.c`).
   - `NVIC_SystemReset` ends in `for(;;) __NOP();`. A test that reaches it hangs until the ctest timeout, so T1 must treat it as hardware-only or give `__NOP` an escape hook.
 
-## T1 result (2026-11-11, gated, not yet committed)
+## T1 result (2026-11-11, gated, committed locally)
 
 HAL core, CORTEX, GPIO and EXTI of both targets. Charter G1-G14, E1-E10, H1-H10, C1-C17. GCC 16, 32-bit, out of tree.
 
@@ -71,7 +71,7 @@ HAL core, CORTEX, GPIO and EXTI of both targets. Charter G1-G14, E1-E10, H1-H10,
 - **Model decisions:** the clock gate of a peripheral is not modelled (RM0090 is silent); an EXTI edge sets PR only with IMR set (medium confidence); the lock becomes active at the first read after the third LCKR write; STK_CALIB reads 0xC0000000 (PM0214 contradicts itself); H9 oracle is the RM0090 reset bits per register.
 - **Limits:** the 32-bit sanitizer build cannot run `ffb_flash_tests` (the i386 ASan layout collides with its fixed mapping at 0x1FFF0000; not a P12 regression, the HAL executables run fine with sanitizers); not run with clang, MinGW, macOS or on ARM; peripheral timing and interrupts beyond the NVIC register model are not modelled.
 
-## T2 result (2026-11-11, gated, not yet committed)
+## T2 result (2026-11-11, gated, committed locally)
 
 RCC / RCC_Ex and PWR / PWR_Ex of both targets (F405/407 branches that compile for the F407). Charter RC1-RC15, RX1-RX4, PW1-PW11. GCC 16, 32-bit, out of tree.
 
@@ -92,7 +92,7 @@ RCC / RCC_Ex and PWR / PWR_Ex of both targets (F405/407 branches that compile fo
 - **Charter changes:** PW7 (CWUF in Standby) corrected: neither UM1725 nor RM0090 requires it, RM0090 Table 31 makes "WUF cleared" an application precondition. The charter's PLLSAI / `SelectLSEMode` / over-drive items are not compiled for the F407 and are not tested.
 - **Limits:** clock speeds, jitter and start-up times are not modelled (ready flags follow the HAL tick); no RCC / PWR interrupts, no wake-up from Stop / Standby, no clock gating; not run with clang, MinGW, macOS or on ARM.
 
-## T3 result (2026-11-11, gated, not yet committed)
+## T3 result (2026-11-11, gated, committed locally)
 
 DMA / DMA_Ex of both targets. Charter DI1-DI9, DS1-DS9, DQ1-DQ8, DX1-DX2, DC1-DC4 (added after gcov showed the callback registration API is compiled unconditionally in this HAL version). GCC 16, 32-bit, out of tree.
 
@@ -134,7 +134,7 @@ SPI (`stm32f4xx_hal_spi.c`) of both targets; T4 was split by the lead into T4a S
 - **Charter changes:** SI7 (Register / UnRegister callbacks) is compiled out (`USE_HAL_SPI_REGISTER_CALLBACKS` 0: a `static_assert` records it); SD6 (16-bit size conversion) does not exist in this HAL version (NDTR = `Size`, characterization); the interrupt-mode `HAL_SPI_Abort` / `Abort_IT` success path is untestable on this host (a memory-only wait for the abort ISR); the CRC polynomial is not written (`USE_SPI_CRC` 0).
 - **Limits:** no bit order / clock phase / NSS on the wire, no CRC, I2S or interrupt delivery; frame time and the slave BSY (never set) are model assumptions; not run with clang, MinGW, macOS or on ARM.
 
-## T4b result (2026-11-12, gated, not yet committed)
+## T4b result (2026-11-12, gated, committed locally `3bf7980f`)
 
 UART (`stm32f4xx_hal_uart.c`) of both targets. Charter UI, UM, UP, UQ, UD, UA. GCC 16, 32-bit, out of tree.
 
@@ -155,7 +155,7 @@ UART (`stm32f4xx_hal_uart.c`) of both targets. Charter UI, UM, UP, UQ, UD, UA. G
 - **Charter changes:** UA1 (no flush of DR, error code only in `Abort` / `Abort_IT`) amended after the writer; UI7 (Register / UnRegister callbacks) compiled out (`USE_HAL_UART_REGISTER_CALLBACKS` 0); UM3 follows RM0090 30.3.6 for a non-matching address.
 - **Limits:** no flow control, synchronous / smartcard / IrDA, LIN break detection or interrupt delivery; frame time, IDLE rule and the address-mark MSB with parity are model assumptions; not run with clang, MinGW, macOS or on ARM.
 
-## T4c result (2026-11-12, gated, not yet committed)
+## T4c result (2026-11-12, gated, committed locally `9ba9d9c6`)
 
 I2C (`stm32f4xx_hal_i2c.c`) of both targets. `stm32f4xx_hal_i2c_ex.c` is compiled out: its body needs `I2C_FLTR_ANOFF` and `I2C_FLTR_DNF`, which the F407 CMSIS header does not define (RM0090 27.6.10: I2C_FLTR is F42x / F43x only); offset 0x24 is reserved in the model. Charter II, IP, IS, IT, IQ, ID. GCC 16, 32-bit, out of tree.
 
@@ -175,6 +175,27 @@ I2C (`stm32f4xx_hal_i2c.c`) of both targets. `stm32f4xx_hal_i2c_ex.c` is compile
 - **Findings:** vendor V106 (BERR in controller mode aborts the IT transfer, ES0182 2.10.1), V107 (arguable: `Mem_Write_IT` 16-bit address loses the low byte when BTF is set after the high byte), V108 (Size 1 LAST_FRAME after FIRST_AND_NEXT_FRAME never completes), V109 (Size 1 slave transmit frame started while the controller waits never reports completion), V110 (NULL pointer write in `I2C_ITError`, a crash, not testable). `BUG_REPORT.md` regenerated.
 - **Charter changes:** I2C_Ex scope note (compiled out); register callbacks compiled out (`USE_HAL_I2C_REGISTER_CALLBACKS` 0); IP7 checked through the bus log (the model has no register-write trace).
 - **Limits:** no wire timing, PEC, SMBus, noise filters, DMA EOT_1 / LAST NACK; byte time is a model parameter (default 0 = software slower than a byte); the model decisions listed in NEEDS REVIEW 326; not run with clang, MinGW, macOS or on ARM.
+
+## T5 result (2026-11-12, gated, committed locally)
+
+CAN (`stm32f4xx_hal_can.c`) of both targets (identical files). Charter CI, CF, CT, CQ. GCC 16, 32-bit, out of tree.
+
+- **Platform (lead):** `fakes/stm32_hal/HalCan.{h,c}`: CAN1 and CAN2 (RM0090 chapter 32): MCR / MSR / TSR / RF0R / RF1R / IER / ESR / BTR with masks, reset values and write protection (BTR only in init, filter registers only with FINIT or inactive banks, a pending mailbox), INAK / SLAK handshakes with a sync time, three transmit mailboxes (TME / CODE / LOW, request, abort, result flags, priority by identifier or order, NART, loop back, outcome queue), two receive FIFOs of three with FMP / FULL / FOVR / RFLM / RFOM, the 28 filter banks (scale, mode, FIFO, activation, CAN2SB split, FMI numbering and priority), error flags and counters injected by the test, the four interrupt request lines, `hostCanSetPollReads` for the counter loop of `HAL_CAN_WakeUp`. Test support `CanTestSupport.h`, `test_hal_can_support.cpp`, lead probe `test_hal_can_probe.cpp` (2 cases). Model decision found by the probe: INAK follows INRQ and SLAK follows SLEEP independently (the HAL's Init sets INRQ while SLEEP is still 1).
+- **Tests (`claude/cases_hal/`):** `test_hal_can_init.cpp` 110, `_filter` 77, `_txrx` 110, `_irq` 85, probe 2 (384 new): 2434 cases in each executable, 0 failed; 71 expected-fail assertions inside the `KNOWN_ISSUE` cases (V89-V109, V111).
+- **Review:** one reviewer, 361 mutants of `stm32f4xx_hal_can.c`: 342 killed, 6 invalid (duplicate `case` labels), 13 survivors (4 equivalent, 9 pointing at 6 real gaps). All gaps addressed by resuming the writers (+9 cases: re-Init clearing of NART / TTCM / ABOM / AWUM / RFLM / TXFP, restarted wait before SLAK, fill level with stored frames, only one mailbox free, BOF / EPV / EWG with the flag clear); cases that rest on return codes or error bits the documents do not state were renamed `characterization:`. The fixes were not re-mutated. The reviewer confirmed the `KNOWN_ISSUE` case against RM0090.
+- **Gate (lead-run, `../ffb-test-build/`):**
+
+  | Build | Result |
+  |---|---|
+  | `p12t1-gate` (32-bit + HAL) | ctest 14 / 14, `check_baseline.py` OK; `ffb_hal_tests` and `ffb_hal_tests_disco` 2434 / 2434, 58894 of 58965 assertions (71 expected); identical across repeated runs |
+  | `p12t1-default` (option off) | ctest 11 / 11, `check_baseline.py` OK |
+  | `p12t1-32san` (32-bit + HAL + sanitizers) | HAL executables 2434 / 2434 each, no sanitizer report; the full ctest still aborts in `ffb_flash_tests` (see T1) |
+  | no warning in the build logs | |
+
+- **Coverage (gcov, `p12t1-cov`, identical for both targets):** `stm32f4xx_hal_can.c` 388 / 418 lines (92.82 %). Uncovered: the weak callback bodies (replaced by the test callbacks) and comment banners; every other line is executed (the register-callback code is compiled out and not counted).
+- **Findings:** vendor V111 (`HAL_CAN_AbortTxRequest` sets each ABRQ bit with a read-modify-write of TSR, whose RQCP / TXOK / ALST / TERR bits are rc_w1, so the write-back clears the flags of earlier aborts; aborting three mailboxes in one call leaves one abort callback). Not promoted to a bug (arguable, documents ambiguous): the 16-bit filter field naming of UM1725 versus the HAL's FiR1 / FiR2 packing (NEEDS REVIEW 328). `BUG_REPORT.md` regenerated.
+- **Charter changes:** register callbacks compiled out (`USE_HAL_CAN_REGISTER_CALLBACKS` 0); the INAK / SLAK independence (NEEDS REVIEW 327).
+- **Limits:** no bit timing, bus-off recovery, error counter evolution, interrupt delivery; arbitration order and the FMI numbering across instances are model decisions (Medium); not run with clang, MinGW, macOS or on ARM.
 
 ## 3. Design
 
