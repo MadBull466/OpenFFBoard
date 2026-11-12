@@ -1,6 +1,6 @@
 # P12 plan: tests of the real ST HAL (Claude, fresh start)
 
-Status: **approved by the owner 2026-11-11.** T0 trial done, approved and committed 2026-11-11 (section "T0 result"). T1 (`f774247b`) and T2 (`f22d81f3`) done, approved and committed locally 2026-11-11, not pushed (sections "T1 result", "T2 result"). **T3 (DMA) finished and gated 2026-11-11, uncommitted, waiting for the owner's "approve ... and commit"** (section "T3 result"; charter `Tests/Code_Coverage/claude/charters/hal/P12_T3_REQUIREMENTS.md`). All questions (65-69) answered 2026-11-11 (section 6); 66 revised to F407VG and F407VG_DISCO.
+Status: **approved by the owner 2026-11-11.** T0 trial done, approved and committed 2026-11-11 (section "T0 result"). T1-T3 (`f774247b`, `f22d81f3`, `29c3cae1`) done, approved and committed locally 2026-11-11, not pushed (sections "T1 result" to "T3 result"). T4 is split into T4a SPI, T4b UART, T4c I2C / I2C_Ex. **T4a (SPI) finished and gated 2026-11-12, uncommitted, waiting for the owner's "approve ... and commit"** (section "T4a result"; charter `Tests/Code_Coverage/claude/charters/hal/P12_T4A_REQUIREMENTS.md`). All questions (65-69) answered 2026-11-11 (section 6); 66 revised to F407VG and F407VG_DISCO.
 
 Owner's instruction (2026-11-11): "I want to start on P12 that was started by Codex. I want to start from the beginning for that Phase and not use any of their files."
 
@@ -112,6 +112,27 @@ DMA / DMA_Ex of both targets. Charter DI1-DI9, DS1-DS9, DQ1-DQ8, DX1-DX2, DC1-DC
 - **Findings:** vendor V94 (DeInit does not wait for EN = 0), V95 (poll timeout leaves the stream enabled; weaker, UM1725 gives no state), V96 (`HAL_DMAEx_MultiBufferStart` keeps the lock on `HAL_BUSY`); NEEDS REVIEW 301-306.
 - **Charter changes:** DS2 (`Start_IT` does not set FEIE; neither oracle requires it), DS7 (FE / DME during polling do not end it; only TE does, RM0090 10.3.18), DQ7 (`Abort_IT` has no timeout; completion is the TCIF raised by the stop), DI7 (DeInit has no timeout; no `HAL_TIMEOUT` expected) are characterized, not asserted as the charter draft said; the callback registration API is compiled (group DC).
 - **Limits:** no data movement, request timing, FIFO fill level, bus errors or interrupt delivery; the 3 tick stop delay behind V94 is an assumption; not run with clang, MinGW, macOS or on ARM.
+
+## T4a result (2026-11-12, gated, not yet committed)
+
+SPI (`stm32f4xx_hal_spi.c`) of both targets; T4 was split by the lead into T4a SPI, T4b UART, T4c I2C / I2C_Ex (about 15,000 lines of HAL). Charter SI, SP, SQ, SD. GCC 16, 32-bit, out of tree. The owner paused the stage once ("pause") and resumed it ("Continue, this was a mistake"); no work was lost (the writers were resumed from their transcripts).
+
+- **Platform (lead):** `fakes/stm32_hal/HalSpi.{h,c}`: SPI1 to SPI3 in SPI mode (RM0090 chapter 28): CR1 / CR2 / SR / DR / CRCPR / I2S registers with their masks and reset values, a frame engine (a frame takes N HAL ticks; TXE, RXNE, BSY, OVR with the RM0090 28.3.10 sequence, MODF sequence, free-running receive for RXONLY and BIDI receive, BSY low in 1-line receive), a peer queue / idle word / loopback / silent bus, slave frames, counters of a restricted CR1 change with SPE = 1 and of a disable while BSY. `test_hal_spi_support.cpp` + `SpiTestSupport.h` hold the strong SPI callbacks and `SpiFixture`. A lead probe (Init + 3 byte TransmitReceive) passed.
+- **Tests (`claude/cases_hal/`):** `test_hal_spi_init.cpp` 43, `test_hal_spi_poll.cpp` 67, `test_hal_spi_irq.cpp` 66, `test_hal_spi_dma.cpp` 55 (231 new): 966 cases in each executable, 0 failed; 48 expected-fail assertions inside the `KNOWN_ISSUE` cases (V89-V96 as before, V97-V101 new).
+- **Review:** one reviewer, 224 mutants (205 HAL, 19 model): conditional pass; every `KNOWN_ISSUE` fails on its defect. Fixed afterwards: a false positive in the polling argument checks (a free-running master made the call time out instead of the argument check), model BSY in 1-line receive and after MODF, a model self-test (11 cases), timeout upper bounds, ERRIE in the enable masks, abort in interrupt mode (SQ6, charter gap), 1-line interrupt and DMA cases, a `KNOWN_ISSUE` for the failed DMA start (V101). The fixes were not re-mutated. Left as the owner's decision: the receive-only master clocks one extra frame before SPE is cleared (NEEDS REVIEW 308).
+- **Gate (lead-run, `../ffb-test-build/`):**
+
+  | Build | Result |
+  |---|---|
+  | `p12t1-gate` (32-bit + HAL) | ctest 14 / 14, `check_baseline.py` OK; `ffb_hal_tests` and `ffb_hal_tests_disco` 966 / 966, 23764 of 23812 assertions (48 expected); identical across repeated runs |
+  | `p12t1-default` (option off) | ctest 11 / 11, `check_baseline.py` OK |
+  | `p12t1-32san` (32-bit + HAL + sanitizers) | HAL executables 966 / 966 each, no sanitizer report; the full ctest still aborts in `ffb_flash_tests` (see T1) |
+  | no warning in the build logs | |
+
+- **Coverage (gcov, `p12t1-cov`, identical for both targets):** `stm32f4xx_hal_spi.c` 807 / 898 lines (89.87 %). Uncovered: the weak callbacks (22 lines, replaced by the test callbacks), the timeout branches of counted loops without a tick read (`SPI_CloseTx_ISR`, `SPI_EndRxTransaction`, the abort ISR waits), a few error branches of the DMA callbacks. With T1 to T3: 10 of 27 HAL files measured.
+- **Findings:** vendor V97 (a rejected 2-line master `Receive` / `Receive_IT` / `Receive_DMA` leaves BUSY_RX), V98 (`TransmitReceive_DMA` reports no Tx stream error), V99 (two error callbacks for one DMA overrun), V100 (arguable: polling `Transmit` ignores MODF), V101 (arguable: failed DMA start leaves BUSY_TX); NEEDS REVIEW 307-312.
+- **Charter changes:** SI7 (Register / UnRegister callbacks) is compiled out (`USE_HAL_SPI_REGISTER_CALLBACKS` 0: a `static_assert` records it); SD6 (16-bit size conversion) does not exist in this HAL version (NDTR = `Size`, characterization); the interrupt-mode `HAL_SPI_Abort` / `Abort_IT` success path is untestable on this host (a memory-only wait for the abort ISR); the CRC polynomial is not written (`USE_SPI_CRC` 0).
+- **Limits:** no bit order / clock phase / NSS on the wire, no CRC, I2S or interrupt delivery; frame time and the slave BSY (never set) are model assumptions; not run with clang, MinGW, macOS or on ARM.
 
 ## 3. Design
 

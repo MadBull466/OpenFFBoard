@@ -8,7 +8,7 @@ are in `Tests/Code_Coverage/claude/plans/PROGRESS.md` (the source of truth); all
 > are plain counts. The "Open questions for you" list below is the P9 list; the current list is `Tests/Code_Coverage/claude/reports/OPEN_QUESTIONS.md`. Since then P10 (TMC4671, ODrive, VESC), P11 (CMSIS-DSP), P13-P16 (TMCDebugBridge, PWM, SimpleMotion, MyActuator) were added, approved and
 > pushed to the fork. Current counts (GCC 16): `ffb_unit_tests` 654, `ffb_target_tests` 1863, `ffb_flash_tests` 159, `ffb_rtos_tests` 278, `ffb_usb_tests` 606,
 > `ffb_driver_tests` 1717, `ffb_dsp_tests` 2485 = 7,762 C++ cases (unit tests counted with the documented exclusion), 125 Python tests, ctest 11 of 11. Suspected firmware bugs are numbered up to 225,
-> vendor bugs up to V96, NEEDS REVIEW up to 306, open questions up to 64. Remaining out of scope: ST HAL, CMSIS core, FreeRTOS kernel, `Firmware/Targets/**`,
+> vendor bugs up to V101, NEEDS REVIEW up to 312, open questions up to 64. Remaining out of scope: ST HAL, CMSIS core, FreeRTOS kernel, `Firmware/Targets/**`,
 > CubeMX code; MIDI (P17) is done: 319 cases in `ffb_usb_tests` (606 in total), approved and pushed (`fe232b2d`). P18 (2026-11-11, pushed, `544b4162`) adds a 32-bit build variant (`-DFFB_TESTS_32BIT=ON`), which found bug 225 (31 new cases in `ffb_target_tests`). The authoritative numbers are in `Tests/Code_Coverage/claude/plans/PROGRESS.md` and `Tests/Code_Coverage/claude/plans/COVERAGE_AND_SCOPE.md`.
 
 ## Result in one paragraph
