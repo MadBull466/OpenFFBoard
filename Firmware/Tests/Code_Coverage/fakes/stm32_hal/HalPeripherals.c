@@ -9,6 +9,7 @@
 #include "HalDma.h"
 #include "HalSpi.h"
 #include "HalUart.h"
+#include "HalI2c.h"
 #include "HalRegisterSpace.h"
 
 /* ---------------------------------------------------------------- addresses (RM0090 Table 1) */
@@ -56,6 +57,7 @@ void hostPeriphResetState(void) {
 	hostDmaResetState();
 	hostSpiResetState();
 	hostUartResetState();
+	hostI2cResetState();
 	for (unsigned p = 0; p < HOST_GPIO_PORTS; ++p) {
 		for (unsigned i = 0; i < 16; ++i) extLevel[p][i] = HOST_PIN_FLOAT;
 		lockStep[p] = 0;
@@ -396,5 +398,6 @@ void hostPeriphRegisterAll(void) {
 	hostDmaRegister(); /* DMA1, DMA2, HalDma.h */
 	hostSpiRegister(); /* SPI1-SPI3, HalSpi.h */
 	hostUartRegister(); /* USART1-3, UART4-5, USART6, HalUart.h */
+	hostI2cRegister(); /* I2C1-I2C3, HalI2c.h */
 	hostCoreRegister(); /* system control space, HalCorePeripherals.h */
 }

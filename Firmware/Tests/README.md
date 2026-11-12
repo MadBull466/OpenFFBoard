@@ -952,18 +952,31 @@ with the target's `stm32f4xx_hal_conf.h`, plus the host platform in `Code_Covera
   `hostSpiPeerSilent`), slave frames (`hostSpiSlaveFrame`), `hostSpiRaiseModf` / `hostSpiRaiseFre`, the transmitted words (`hostSpiTxAt`) and the counters
   `hostSpiConfigWhileEnabled` / `hostSpiDisabledBusy` (RM0090 28.5.1 / 28.3.8 rules the HAL should keep). CRC, I2S, bit order, NSS and interrupt delivery are
   not modelled; the DMA modes use the DMA model of T3 and the tests stand in for the DMA engine.
+* **UART (T4b, `HalUart`):** USART1-3, UART4, UART5 and USART6 in asynchronous mode (RM0090 chapter 30): SR / DR / BRR / CR1-CR3 / GTPR with their masks and reset values (UART4 / UART5
+  without the CK, CTS / RTS, smartcard and NACK bits), a transmitter with TDR and shift register (frames of `hostUartSetFrameTicks` ticks, TXE / TC with the RM0090 30.6.1 clear sequences, parity
+  generation, 8 / 9 bit words, SBK break), a receiver fed by a peer queue (`hostUartRxPush`) or immediately (`hostUartRxNow`, `hostUartRxBreak`) with RXNE / ORE / PE / FE / NF and the
+  "read SR then DR" clearing, `hostUartIdleLine` (IDLE, mute-mode wake-up), mute mode with idle-line and address-mark wake-up, `hostUartTxStuck` for timeouts, `hostUartSetPollReads` so a `HAL_MAX_DELAY` loop
+  sees time pass, the line log (`hostUartTxAt`) and the counters `hostUartConfigWhileEnabled` / `hostUartDisabledBusy`. Flow control, synchronous / smartcard / IrDA, LIN break detection and
+  interrupt delivery are not modelled; the DMA modes use the DMA model of T3. `FFB_HAL_TEST_ONLY` (development option, empty by default) builds only the named `test_hal_*.cpp` files.
+* **I2C (T4c, `HalI2c`):** I2C1-I2C3 (RM0090 chapter 27; the F407 has no I2C_FLTR, so `stm32f4xx_hal_i2c_ex.c` is compiled out): CR1 / CR2 / OAR1 / OAR2 / DR / SR1 / SR2 / CCR / TRISE with their masks and the flag clear sequences, a controller engine
+  (START / repeated START / STOP, 7 and 10-bit addresses, TXE / RXNE / BTF with clock stretching, ACK / POS, NACK, AF) with peer devices (`hostI2cDeviceAdd`, ...Queue, ...NackDataAt) and a bus log (`hostI2cLogAt`), a target engine driven by
+  an external controller (`hostI2cExtStart` / `Write` / `ReadByte` / `Stop`), error injection (`hostI2cRaiseSr1`, `hostI2cArbitrationLost`, `hostI2cStuck`, `hostI2cBusBusy`), `hostI2cSetByteTicks`, interrupt request lines
+  (`hostI2cEventPending` / `ErrorPending`, served by `i2cRunIrqs`) and a tick-script helper for blocking target calls. PEC, SMBus, wire timing and DMA EOT_1 are not modelled; the DMA modes use the DMA model of T3.
 * **CPU intrinsics:** `host_cmsis_gcc.h` is force-included and replaces `cmsis_gcc.h` (barriers, `__WFI`, exclusive monitor
   for `__LDREXW` / `__STREXW`, `__RBIT`, `__CLZ`).
 * **Tick:** a strong host `HAL_GetTick` runs one simulated 1 ms tick interrupt (the real `HAL_IncTick`) per call, so HAL
   polling loops see time pass without sleeping. Limit: the real `HAL_GetTick` is replaced. ctest `TIMEOUT` 120 s reports a
   loop that never ends.
-* **Test files (T1 - T4a, 966 cases per executable):** T1: `test_hal_gpio.cpp`, `test_hal_exti.cpp`, `test_hal_core.cpp`,
+* **Test files (T1 - T4c, 2050 cases per executable):** T1: `test_hal_gpio.cpp`, `test_hal_exti.cpp`, `test_hal_core.cpp`,
   `test_hal_core_systick.cpp`, `test_hal_cortex.cpp`, `test_hal_t0_smoke.cpp`. T2: `test_hal_rcc_osc.cpp` (oscillators, PLL,
   DeInit), `test_hal_rcc_clock.cpp` (ClockConfig, frequencies, MCO, CSS), `test_hal_rcc_ex.cpp` (RTC / I2S clocks, PLLI2S),
   `test_hal_pwr.cpp` (PWR, PWR_Ex). T3: `test_hal_dma_init.cpp` (Init / DeInit / state), `test_hal_dma_xfer.cpp` (Start, Abort, Poll,
   DMAEx), `test_hal_dma_irq.cpp` (IRQ handler, callback registration). T4a (SPI): `test_hal_spi_init.cpp`, `test_hal_spi_poll.cpp`,
-  `test_hal_spi_irq.cpp`, `test_hal_spi_dma.cpp` and the shared callbacks `test_hal_spi_support.cpp` (`SpiTestSupport.h`). `KNOWN_ISSUE` marks the
-  vendor bugs V89-V101; `characterization:` cases are NEEDS REVIEW 281-312. Combined with sanitizers the HAL executables run (32-bit ASan), but
+  `test_hal_spi_irq.cpp`, `test_hal_spi_dma.cpp` and the shared callbacks `test_hal_spi_support.cpp` (`SpiTestSupport.h`). T4b (UART): `test_hal_uart_init.cpp`,
+  `test_hal_uart_modes.cpp`, `test_hal_uart_poll.cpp`, `test_hal_uart_irq.cpp`, `test_hal_uart_dma.cpp`, `test_hal_uart_abort.cpp` and the shared callbacks `test_hal_uart_support.cpp`
+  (`UartTestSupport.h`). T4c (I2C): `test_hal_i2c_init.cpp`, `_poll`, `_slave`, `_irq`, `_seq`, `_dma`, the lead probe `test_hal_i2c_probe.cpp` and the shared callbacks `test_hal_i2c_support.cpp`
+  (`I2cTestSupport.h`). `KNOWN_ISSUE` marks the
+  vendor bugs V89-V109; `characterization:` cases are NEEDS REVIEW 281-326. Combined with sanitizers the HAL executables run (32-bit ASan), but
   the whole ctest does not: `ffb_flash_tests` cannot map 0x1FFF0000 there.
 * **DISCO:** both targets' HAL, CMSIS headers and `hal_conf` are byte-identical today; `hal_identity_f407vg_disco` fails as
   soon as they diverge, because the two executables share their test files.

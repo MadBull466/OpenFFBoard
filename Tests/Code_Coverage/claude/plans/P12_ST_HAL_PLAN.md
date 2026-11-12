@@ -1,6 +1,6 @@
 # P12 plan: tests of the real ST HAL (Claude, fresh start)
 
-Status: **approved by the owner 2026-11-11.** T0 trial done, approved and committed 2026-11-11 (section "T0 result"). T1-T3 (`f774247b`, `f22d81f3`, `29c3cae1`) done, approved and committed locally 2026-11-11, not pushed (sections "T1 result" to "T3 result"). T4 is split into T4a SPI, T4b UART, T4c I2C / I2C_Ex. **T4a (SPI) finished and gated 2026-11-12, uncommitted, waiting for the owner's "approve ... and commit"** (section "T4a result"; charter `Tests/Code_Coverage/claude/charters/hal/P12_T4A_REQUIREMENTS.md`). All questions (65-69) answered 2026-11-11 (section 6); 66 revised to F407VG and F407VG_DISCO.
+Status: **approved by the owner 2026-11-11.** T0 trial done, approved and committed 2026-11-11 (section "T0 result"). T1-T3 (`f774247b`, `f22d81f3`, `29c3cae1`) done, approved and committed locally 2026-11-11, not pushed (sections "T1 result" to "T3 result"). T4 is split into T4a SPI, T4b UART, T4c I2C / I2C_Ex. **T4a (SPI) done, approved and committed locally 2026-11-12 (`538b2ba0`, section "T4a result"). T4b (UART) finished and gated 2026-11-12, uncommitted, waiting for the owner's "approve ... and commit"** (section "T4b result"; charter `Tests/Code_Coverage/claude/charters/hal/P12_T4B_REQUIREMENTS.md`). All questions (65-69) answered 2026-11-11 (section 6); 66 revised to F407VG and F407VG_DISCO.
 
 Owner's instruction (2026-11-11): "I want to start on P12 that was started by Codex. I want to start from the beginning for that Phase and not use any of their files."
 
@@ -113,7 +113,7 @@ DMA / DMA_Ex of both targets. Charter DI1-DI9, DS1-DS9, DQ1-DQ8, DX1-DX2, DC1-DC
 - **Charter changes:** DS2 (`Start_IT` does not set FEIE; neither oracle requires it), DS7 (FE / DME during polling do not end it; only TE does, RM0090 10.3.18), DQ7 (`Abort_IT` has no timeout; completion is the TCIF raised by the stop), DI7 (DeInit has no timeout; no `HAL_TIMEOUT` expected) are characterized, not asserted as the charter draft said; the callback registration API is compiled (group DC).
 - **Limits:** no data movement, request timing, FIFO fill level, bus errors or interrupt delivery; the 3 tick stop delay behind V94 is an assumption; not run with clang, MinGW, macOS or on ARM.
 
-## T4a result (2026-11-12, gated, not yet committed)
+## T4a result (2026-11-12, approved and committed locally `538b2ba0`)
 
 SPI (`stm32f4xx_hal_spi.c`) of both targets; T4 was split by the lead into T4a SPI, T4b UART, T4c I2C / I2C_Ex (about 15,000 lines of HAL). Charter SI, SP, SQ, SD. GCC 16, 32-bit, out of tree. The owner paused the stage once ("pause") and resumed it ("Continue, this was a mistake"); no work was lost (the writers were resumed from their transcripts).
 
@@ -133,6 +133,48 @@ SPI (`stm32f4xx_hal_spi.c`) of both targets; T4 was split by the lead into T4a S
 - **Findings:** vendor V97 (a rejected 2-line master `Receive` / `Receive_IT` / `Receive_DMA` leaves BUSY_RX), V98 (`TransmitReceive_DMA` reports no Tx stream error), V99 (two error callbacks for one DMA overrun), V100 (arguable: polling `Transmit` ignores MODF), V101 (arguable: failed DMA start leaves BUSY_TX); NEEDS REVIEW 307-312.
 - **Charter changes:** SI7 (Register / UnRegister callbacks) is compiled out (`USE_HAL_SPI_REGISTER_CALLBACKS` 0: a `static_assert` records it); SD6 (16-bit size conversion) does not exist in this HAL version (NDTR = `Size`, characterization); the interrupt-mode `HAL_SPI_Abort` / `Abort_IT` success path is untestable on this host (a memory-only wait for the abort ISR); the CRC polynomial is not written (`USE_SPI_CRC` 0).
 - **Limits:** no bit order / clock phase / NSS on the wire, no CRC, I2S or interrupt delivery; frame time and the slave BSY (never set) are model assumptions; not run with clang, MinGW, macOS or on ARM.
+
+## T4b result (2026-11-12, gated, not yet committed)
+
+UART (`stm32f4xx_hal_uart.c`) of both targets. Charter UI, UM, UP, UQ, UD, UA. GCC 16, 32-bit, out of tree.
+
+- **Platform (lead):** `fakes/stm32_hal/HalUart.{h,c}`: USART1-3, UART4, UART5, USART6 in asynchronous mode (RM0090 chapter 30): SR / DR / BRR / CR1-CR3 / GTPR with masks and reset values (UART4 / UART5 without the unavailable bits), TDR + shift register transmitter with the 30.6.1 TC / TXE clear sequences, parity generation and checking, 8 / 9 bit words, break, receiver with RXNE / ORE / PE / FE / NF and the "read SR then DR" clearing, IDLE, mute mode (idle-line and address-mark wake-up), a peer queue, `hostUartTxStuck`, `hostUartSetPollReads` (virtual time for `HAL_MAX_DELAY` loops), counters of a configuration change with UE = 1 and a disable of UE while a frame is in flight. `test_hal_uart_support.cpp` + `UartTestSupport.h` hold the strong UART callbacks (`UartFixture`). New development option `FFB_HAL_TEST_ONLY` (CMake, empty by default) lets parallel writers build only their files.
+- **Tests (`claude/cases_hal/`):** `test_hal_uart_init.cpp` 91, `_modes` 60, `_poll` 66, `_irq` 83, `_dma` 69, `_abort` 87 (456 new): 1422 cases in each executable, 0 failed; 61 expected-fail assertions inside the `KNOWN_ISSUE` cases (V89-V101 as before, V102-V105 new: 13 assertions in 10 cases).
+- **Review:** one reviewer, 1135 mutants (1115 HAL source, 20 BRR macros): 976 killed, 37 survivors judged equivalent, 119 real gaps in all six files. Fixed afterwards by resuming the writers (+49 cases): TCIE / TXEIE pending at abort, the `&&` conditions of DMAPause / `UART_DMAError`, ORE not affecting a polling Transmit, large and wrapping tick values in the timeout cases, BUSY_RX observed, RxEventType / ReceptionType after Init, DeInit, IDLE and DMA completion, Init with UE = 1 and a locked handle, stale ErrorCode / abort callbacks, cases that could not fail were removed or strengthened. The fixes were not re-mutated. Model fixes: NACK masked on UART4 / UART5, the non-matching address enters mute mode, header wording of the configuration counter (the M / PCE / PS / STOP restriction is a stricter model choice, RM0090 states it only for BRR). Table numbers corrected (baud rate tables are RM0090 134-137).
+- **Gate (lead-run, `../ffb-test-build/`):**
+
+  | Build | Result |
+  |---|---|
+  | `p12t1-gate` (32-bit + HAL) | ctest 14 / 14, `check_baseline.py` OK; `ffb_hal_tests` and `ffb_hal_tests_disco` 1422 / 1422, 35879 of 35940 assertions (61 expected); identical across repeated runs |
+  | `p12t1-default` (option off) | ctest 11 / 11, `check_baseline.py` OK |
+  | `p12t1-32san` (32-bit + HAL + sanitizers) | HAL executables 1422 / 1422 each, no sanitizer report; the full ctest still aborts in `ffb_flash_tests` (see T1) |
+  | no warning in the build logs | |
+
+- **Coverage (gcov, `p12t1-cov`, identical for both targets):** `stm32f4xx_hal_uart.c` 763 / 788 lines (96.83 %). Uncovered: the weak callbacks (replaced by the test callbacks), `status = HAL_ERROR` of `ReceiveToIdle_IT` / `_DMA` after an interrupt between two statements, the IDLE clear at the last frame of `UART_Receive_IT` (already cleared by the DR read), `HAL_UART_Register*` (compiled out). With T1 to T4a: 11 of 27 HAL files measured.
+- **Findings:** vendor V102 (BRR rounding: the macros truncate USARTDIV before rounding, 42 MHz / 115200 gives 0x16C where the nearest is 0x16D; the 12 MHz / 38400 tie is an arguable add-on), V103 (arguable: an overrun during polling `Receive` returns `HAL_TIMEOUT`), V104 (arguable: `DMAStop` after `DMAPause` does nothing), V105 (arguable, low: `Abort_IT` calls `AbortCplt` twice in a contrived case); NEEDS REVIEW 313-319.
+- **Charter changes:** UA1 (no flush of DR, error code only in `Abort` / `Abort_IT`) amended after the writer; UI7 (Register / UnRegister callbacks) compiled out (`USE_HAL_UART_REGISTER_CALLBACKS` 0); UM3 follows RM0090 30.3.6 for a non-matching address.
+- **Limits:** no flow control, synchronous / smartcard / IrDA, LIN break detection or interrupt delivery; frame time, IDLE rule and the address-mark MSB with parity are model assumptions; not run with clang, MinGW, macOS or on ARM.
+
+## T4c result (2026-11-12, gated, not yet committed)
+
+I2C (`stm32f4xx_hal_i2c.c`) of both targets. `stm32f4xx_hal_i2c_ex.c` is compiled out: its body needs `I2C_FLTR_ANOFF` and `I2C_FLTR_DNF`, which the F407 CMSIS header does not define (RM0090 27.6.10: I2C_FLTR is F42x / F43x only); offset 0x24 is reserved in the model. Charter II, IP, IS, IT, IQ, ID. GCC 16, 32-bit, out of tree.
+
+- **Platform (lead):** `fakes/stm32_hal/HalI2c.{h,c}`: I2C1-I2C3 (RM0090 chapter 27): CR1 / CR2 / OAR1 / OAR2 / DR / SR1 / SR2 / CCR / TRISE with masks, reset values and the SR1-then-SR2 / SR1-then-DR / SR1-then-CR1 clear sequences, a controller engine (START, repeated START, STOP, 7 / 10-bit address phase, transmitter and receiver pipelines with TXE / RXNE / BTF stretching, ACK / POS, NACK, AF), peer devices and a bus log (the oracle for the controller side), a target engine driven by an external controller (`hostI2cExt*`), error injection, interrupt request lines (Table 124) and `hostI2cPoll`. Test support: `I2cTestSupport.h`, `test_hal_i2c_support.cpp` (callbacks, `i2cRunIrqs`, tick-script helper), lead probe `test_hal_i2c_probe.cpp` (4 cases). Model fixes during the stage after writers' findings: 10-bit TRA, repeated start keeps the device, a DR byte is dropped when START / STOP is pending, data is held until ADDR is cleared (EV6).
+- **Tests (`claude/cases_hal/`):** `test_hal_i2c_init.cpp` 102, `_poll` 108, `_slave` 77, `_irq` 149, `_seq` 102, `_dma` 86, probe 4 (628 new): 2050 cases in each executable, 0 failed; 70 expected-fail assertions inside the `KNOWN_ISSUE` cases (V89-V109).
+- **Review:** one reviewer, 502 mutants of `stm32f4xx_hal_i2c.c`: 419 killed, 83 survivors (about 34 equivalent, about 49 real gaps, worst `I2C_RequestMemoryWrite` 1 / 6). All gaps addressed by resuming the writers (+50 cases: memory-address nacks, deterministic timeout boundaries, post-condition checks of `pBuffPtr` / `XferCount` / `XferOptions` / `PreviousState`, POS clear in every DMA call, 10-bit DMA, abort and completion post-conditions); the fixes were not re-mutated. The reviewer confirmed the `KNOWN_ISSUE` cases against the spec text; V_I2C_Q1 was withdrawn into a `characterization:` case (no sentence promises its completion callback).
+- **Gate (lead-run, `../ffb-test-build/`):**
+
+  | Build | Result |
+  |---|---|
+  | `p12t1-gate` (32-bit + HAL) | ctest 14 / 14, `check_baseline.py` OK; `ffb_hal_tests` and `ffb_hal_tests_disco` 2050 / 2050, 55276 of 55346 assertions (70 expected); identical across repeated runs |
+  | `p12t1-default` (option off) | ctest 11 / 11, `check_baseline.py` OK |
+  | `p12t1-32san` (32-bit + HAL + sanitizers) | HAL executables 2050 / 2050 each, no sanitizer report; the full ctest still aborts in `ffb_flash_tests` (see T1) |
+  | no warning in the build logs | |
+
+- **Coverage (gcov, `p12t1-cov`, identical for both targets):** `stm32f4xx_hal_i2c.c` 2092 / 2153 lines (97.17 %). Uncovered: the weak callbacks, the BTF branches of the blocking slave calls and the "TXE wait with AF" branches (no hook between two register reads), `I2C_Flush_DR` in the blocking path, the SB timeout after the 10-bit read restart, `I2C_MemoryTransmit_TXE_BTF` lines that no caller can reach.
+- **Findings:** vendor V106 (BERR in controller mode aborts the IT transfer, ES0182 2.10.1), V107 (arguable: `Mem_Write_IT` 16-bit address loses the low byte when BTF is set after the high byte), V108 (Size 1 LAST_FRAME after FIRST_AND_NEXT_FRAME never completes), V109 (Size 1 slave transmit frame started while the controller waits never reports completion), V110 (NULL pointer write in `I2C_ITError`, a crash, not testable). `BUG_REPORT.md` regenerated.
+- **Charter changes:** I2C_Ex scope note (compiled out); register callbacks compiled out (`USE_HAL_I2C_REGISTER_CALLBACKS` 0); IP7 checked through the bus log (the model has no register-write trace).
+- **Limits:** no wire timing, PEC, SMBus, noise filters, DMA EOT_1 / LAST NACK; byte time is a model parameter (default 0 = software slower than a byte); the model decisions listed in NEEDS REVIEW 326; not run with clang, MinGW, macOS or on ARM.
 
 ## 3. Design
 
