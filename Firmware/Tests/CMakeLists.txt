@@ -1188,6 +1188,14 @@ if(FFB_TESTS_REAL_HAL)
 	set(FFB_HAL_FAKE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/fakes/stm32_hal)
 	set(FFB_HAL_CASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/claude/cases_hal)
 	file(GLOB FFB_HAL_TEST_SOURCES CONFIGURE_DEPENDS ${FFB_HAL_CASE_DIR}/test_hal_*.cpp)
+	# Development only (parallel test writers): a semicolon list of test file names (without path) replaces the glob; empty = all files.
+	set(FFB_HAL_TEST_ONLY "" CACHE STRING "Development only: build only these test_hal_*.cpp files (semicolon list of names)")
+	if(FFB_HAL_TEST_ONLY)
+		set(FFB_HAL_TEST_SOURCES "")
+		foreach(f ${FFB_HAL_TEST_ONLY})
+			list(APPEND FFB_HAL_TEST_SOURCES ${FFB_HAL_CASE_DIR}/${f})
+		endforeach()
+	endif()
 
 	# One executable per target: the target's HAL sources (an OBJECT library, so the strong host HAL_GetTick always
 	# overrides the HAL's __weak one) plus the host fakes and the shared test files.
@@ -1199,7 +1207,7 @@ if(FFB_TESTS_REAL_HAL)
 		add_library(${name}_hal OBJECT ${hal_sources})
 		add_executable(${name} ${FFB_HAL_TEST_SOURCES} $<TARGET_OBJECTS:${name}_hal>
 			${FFB_HAL_FAKE_DIR}/host_cmsis.c ${FFB_HAL_FAKE_DIR}/HalRegisterSpace.c ${FFB_HAL_FAKE_DIR}/HalPeripherals.c
-			${FFB_HAL_FAKE_DIR}/HalCorePeripherals.c ${FFB_HAL_FAKE_DIR}/HalClockPower.c ${FFB_HAL_FAKE_DIR}/HalDma.c ${FFB_HAL_FAKE_DIR}/HalSpi.c
+			${FFB_HAL_FAKE_DIR}/HalCorePeripherals.c ${FFB_HAL_FAKE_DIR}/HalClockPower.c ${FFB_HAL_FAKE_DIR}/HalDma.c ${FFB_HAL_FAKE_DIR}/HalSpi.c ${FFB_HAL_FAKE_DIR}/HalUart.c
 			${FFB_HAL_FAKE_DIR}/HalHostSystem.c
 			Code_Coverage/support/test_main.cpp)
 		target_include_directories(${name} PRIVATE ${FFB_HAL_CASE_DIR} Code_Coverage/support Code_Coverage/third_party)
