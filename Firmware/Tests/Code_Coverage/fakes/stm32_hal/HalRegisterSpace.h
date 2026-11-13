@@ -12,6 +12,7 @@
  *  - 0x50000000-0x50060FFF: AHB2 (USB OTG FS 0x50000000-0x5003FFFF ... RNG 0x50060800-0x50060BFF).
  *  - 0xE000E000-0xE000EFFF: Cortex-M4 system control space (SysTick, NVIC, SCB).
  *  - 0xE0042000-0xE0042FFF: DBGMCU (RM0090 section 38.16).
+ *  - 0x08000000-0x080FFFFF: main flash memory, 1 MB (RM0090 Table 5; P12 T7: writes are handled by HalFlash.c; reads are plain host reads while armed: no model, no log).
  *  - 0x1FFF7000-0x1FFF7FFF: unique device id 0x1FFF7A10 and flash size 0x1FFF7A22 (RM0090 sections 39.1, 39.2).
  *  - 0x1FFFC000-0x1FFFCFFF: option bytes (RM0090 section 3.7, Table 5: 0x1FFFC000-0x1FFFC00F).
  *  - 0x42000000-0x42FFFFFF: bit-band alias of 0x40000000-0x4007FFFF (RM0090 2.3.3; the HAL writes some single bits
@@ -31,8 +32,8 @@
  * fault was recorded. A fault outside the mapped ranges is passed on to the previous SIGSEGV handler (doctest).
  *
  * DOES NOT MODEL
- *  - The access width (byte / half-word / word): every access is handled as an access to its aligned word.
- *  - Bus faults, access timing, the SRAM bit-band region, flash memory (0x08000000), SRAM, FSMC.
+ *  - The access width (byte / half-word / word): every access is handled as an access to its aligned word (hostRegsLastAccessBytes gives the width of a store).
+ *  - Bus faults, access timing, the SRAM bit-band region, SRAM, FSMC.
  *  - What a peripheral does with its clock off: RM0090 does not say; models only count such accesses.
  *
  * CONFIDENCE: High for the addresses and the trapping (every access is seen); per model see HalPeripherals.h.
@@ -93,6 +94,14 @@ int hostRegsArmed(void);
 /* Raw word access that bypasses trapping and models (set-up, assertions, models). Works armed or not. */
 uint32_t hostRegsPeek(uintptr_t addr);
 void hostRegsPoke(uintptr_t addr, uint32_t value);
+
+/* Inside a model's beforeWrite / afterWrite: the exact address and the width in bytes (1, 2 or 4) of the store being handled, decoded
+ * from the faulting x86 instruction (the models otherwise see the aligned word). Added for the flash model of P12 T7. */
+uintptr_t hostRegsLastAccessAddr(void);
+unsigned hostRegsLastAccessBytes(void);
+
+/* For a model that changes main flash memory in bulk (an erase): on = 1 makes the 1 MB writable, 0 read only again (no-op while disarmed). */
+void hostRegsFlashWritable(int on);
 
 /* Faults. hostRegsAddFault may be called from models (fixed buffers). */
 void hostRegsAddFault(const char *what, uintptr_t addr, uint32_t value);

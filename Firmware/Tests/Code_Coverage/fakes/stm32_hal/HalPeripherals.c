@@ -13,6 +13,8 @@
 #include "HalCan.h"
 #include "HalTim.h"
 #include "HalAdc.h"
+#include "HalFlash.h"
+#include "HalIwdg.h"
 #include "HalRegisterSpace.h"
 
 /* ---------------------------------------------------------------- addresses (RM0090 Table 1) */
@@ -64,6 +66,8 @@ void hostPeriphResetState(void) {
 	hostCanResetState();
 	hostTimResetState();
 	hostAdcResetState();
+	hostFlashResetState();
+	hostIwdgResetState();
 	for (unsigned p = 0; p < HOST_GPIO_PORTS; ++p) {
 		for (unsigned i = 0; i < 16; ++i) extLevel[p][i] = HOST_PIN_FLOAT;
 		lockStep[p] = 0;
@@ -335,18 +339,12 @@ static const HostRegModel rccModel = {"RCC", RCC_BASE_ADDR, 0x400u, hostRccReset
 									  rccAfterWrite};
 
 /* ---------------------------------------------------------------- FLASH interface (ACR only, T1) */
-static int flashKnown(uintptr_t a) { return a == FLASHIF_BASE_ADDR; }
 void hostFlashLatencyStuck(int stuck) { latencyStuck = stuck != 0; }
+int hostFlashLatencyIsStuck(void) { return latencyStuck; } /* used by HalFlash.c (the ACR latency knob) */
 static void storeAsWritten(uintptr_t a, uint32_t oldValue, uint32_t written) {
 	(void)oldValue;
 	poke(a, written);
 }
-static void flashAcrWrite(uintptr_t a, uint32_t oldValue, uint32_t written) {
-	/* RM0090 3.4 / 3.9.1: LATENCY[2:0] reads back the new value once effective; the knob keeps the old value. */
-	poke(a, latencyStuck ? ((written & ~7u) | (oldValue & 7u)) : written);
-}
-static const HostRegModel flashModel = {"FLASH interface (ACR)", FLASHIF_BASE_ADDR, 0x400u, NULL, flashKnown, NULL,
-										flashKnown, flashAcrWrite};
 
 /* ---------------------------------------------------------------- DBGMCU */
 static int dbgBeforeRead(uintptr_t a) {
@@ -397,7 +395,8 @@ void hostPeriphRegisterAll(void) {
 	hostRegsAddModel(&extiModel);
 	hostRegsAddModel(&syscfgModel);
 	hostRegsAddModel(&rccModel);
-	hostRegsAddModel(&flashModel);
+	hostFlashRegister(); /* FLASH interface, flash memory and OTP, HalFlash.h */
+	hostIwdgRegister(); /* IWDG, HalIwdg.h */
 	hostRegsAddModel(&dbgModel);
 	hostRegsAddModel(&uidModel);
 	hostClockPowerRegister(); /* PWR, HalClockPower.h */

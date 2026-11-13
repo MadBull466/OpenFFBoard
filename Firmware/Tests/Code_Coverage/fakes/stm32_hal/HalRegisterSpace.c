@@ -35,6 +35,7 @@ typedef struct {
 static const RegRange ranges[] = {
 	{0x40000000u, 0x00080000u}, /* APB1, APB2, AHB1 */
 	{0x50000000u, 0x00061000u}, /* AHB2: USB OTG FS ... RNG */
+	{0x08000000u, 0x00100000u}, /* main flash memory 1 MB (P12 T7, HalFlash.c) */
 	{0xE000E000u, 0x00001000u}, /* system control space */
 	{0xE0042000u, 0x00001000u}, /* DBGMCU */
 	{0x1FFF7000u, 0x00001000u}, /* unique id, flash size */
@@ -62,11 +63,32 @@ static volatile int inStep;   /* between SIGSEGV and SIGTRAP */
 static volatile int inHandler;
 static struct {
 	uintptr_t addr;
+	uintptr_t rawAddr; /* exact (unaligned) address of the access */
+	int flash;         /* the access is a store into main flash: its page(s) are unprotected for the step */
+	uintptr_t flashPage;
+	unsigned bytes;    /* access width decoded from the faulting x86 instruction (1, 2 or 4; 4 when unknown) */
 	uint32_t oldValue;
 	int write;
 	int reject;
 	const HostRegModel *model;
 } step;
+
+uintptr_t hostRegsLastAccessAddr(void) { return step.rawAddr; }
+unsigned hostRegsLastAccessBytes(void) { return step.bytes; }
+
+/* Width of the store at EIP: operand size prefix 0x66 = 16 bit; MOV / ALU / group 1 byte forms = 8 bit; else 32 bit. */
+static unsigned decodeStoreWidth(const unsigned char *p) {
+	unsigned w = 4;
+	for (int n = 0; n < 4; ++n, ++p) {
+		if (*p == 0x66) w = 2;
+		else if (*p == 0xF0 || *p == 0x2E || *p == 0x36 || *p == 0x3E || *p == 0x26 || *p == 0x64 || *p == 0x65 || *p == 0xF2 || *p == 0xF3) continue;
+		else break;
+	}
+	const unsigned op = *p;
+	if (op == 0x88 || op == 0xC6 || op == 0x80 || op == 0xA2 || op == 0xFE || op == 0xF6 || (op < 0x40 && (op & 7u) == 0u)) return 1;
+	if (op == 0x0F && (p[1] >= 0x90 && p[1] <= 0x9F)) return 1;
+	return w;
+}
 
 static struct sigaction prevSegv, prevTrap;
 
@@ -125,8 +147,24 @@ static void bitbandAfterWrite(uintptr_t alias, uint32_t oldValue, uint32_t writt
 static const HostRegModel bitbandModel = {"bit-band alias (RM0090 2.3.3)", BITBAND_ALIAS_BASE, 0x01000000u, NULL,
 										  bitbandBeforeRead, NULL, NULL, bitbandAfterWrite};
 
+#define FLASH_RANGE_BASE 0x08000000u
+#define FLASH_RANGE_SIZE 0x00100000u
+static int inFlashRange(uintptr_t a) { return a >= FLASH_RANGE_BASE && a < FLASH_RANGE_BASE + FLASH_RANGE_SIZE; }
+
+/* The main flash range is not toggled with the register ranges (that was 256 pages per trap): while armed it stays PROT_READ, so reads of flash
+ * memory by a test or the HAL are plain host reads (no model, no log) and only stores trap. A store fault unprotects the touched page(s) for the
+ * single step and the trap handler protects them again. */
+static void flashProtect(int prot) { mprotect((void *)FLASH_RANGE_BASE, FLASH_RANGE_SIZE, prot); }
+/* For models that change flash memory in bulk (erase): writable while on, read only again when off (a no-op while disarmed). */
+void hostRegsFlashWritable(int on) {
+	if (!armed) return;
+	flashProtect(on ? (PROT_READ | PROT_WRITE) : PROT_READ);
+}
 static void protectAll(int prot) {
-	for (int i = 0; i < RANGE_COUNT; ++i) mprotect((void *)ranges[i].base, ranges[i].size, prot);
+	for (int i = 0; i < RANGE_COUNT; ++i) {
+		if (ranges[i].base == FLASH_RANGE_BASE) continue;
+		mprotect((void *)ranges[i].base, ranges[i].size, prot);
+	}
 }
 
 int hostRegsMap(void) {
@@ -224,6 +262,7 @@ size_t hostRegsReadsFrom(uintptr_t addr) {
 }
 
 uint32_t hostRegsPeek(uintptr_t addr) {
+	if (inFlashRange(addr)) return *(volatile uint32_t *)(addr & ~(uintptr_t)3u); /* readable armed or not */
 	const int reprotect = armed && !inHandler;
 	if (reprotect) protectAll(PROT_READ | PROT_WRITE);
 	const uint32_t v = *(volatile uint32_t *)(addr & ~(uintptr_t)3u);
@@ -232,6 +271,13 @@ uint32_t hostRegsPeek(uintptr_t addr) {
 }
 
 void hostRegsPoke(uintptr_t addr, uint32_t value) {
+	if (inFlashRange(addr) && armed && !inHandler) { /* one page writable for the store */
+		void *page = (void *)(addr & ~(uintptr_t)0xFFFu);
+		mprotect(page, 0x1000, PROT_READ | PROT_WRITE);
+		*(volatile uint32_t *)(addr & ~(uintptr_t)3u) = value;
+		mprotect(page, 0x1000, PROT_READ);
+		return;
+	}
 	const int reprotect = armed && !inHandler;
 	if (reprotect) protectAll(PROT_READ | PROT_WRITE);
 	*(volatile uint32_t *)(addr & ~(uintptr_t)3u) = value;
@@ -249,7 +295,14 @@ static void onSegv(int sig, siginfo_t *si, void *ucv) {
 	}
 	inHandler = 1;
 	protectAll(PROT_READ | PROT_WRITE);
+	step.flash = inFlashRange(a);
+	if (step.flash) {
+		step.flashPage = a & ~(uintptr_t)0xFFFu;
+		mprotect((void *)step.flashPage, 0x2000, PROT_READ | PROT_WRITE); /* the store may cross into the next page */
+	}
 	step.addr = a & ~(uintptr_t)3u;
+	step.rawAddr = a;
+	step.bytes = decodeStoreWidth((const unsigned char *)uc->uc_mcontext.gregs[REG_EIP]);
 	step.write = (uc->uc_mcontext.gregs[REG_ERR] & PF_WRITE) != 0;
 	step.model = findModel(step.addr);
 	step.reject = 0;
@@ -299,6 +352,10 @@ static void onTrap(int sig, siginfo_t *si, void *ucv) {
 	}
 	inStep = 0;
 	protectAll(PROT_NONE);
+	if (step.flash) {
+		step.flash = 0;
+		mprotect((void *)step.flashPage, 0x2000, PROT_READ);
+	}
 	inHandler = 0;
 }
 
@@ -321,11 +378,15 @@ void hostRegsArm(void) {
 	inStep = 0;
 	armed = 1;
 	protectAll(PROT_NONE);
+	flashProtect(PROT_READ);
 }
 
 void hostRegsDisarm(void) {
 	if (mapState != 1) return;
-	if (armed) protectAll(PROT_READ | PROT_WRITE);
+	if (armed) {
+		protectAll(PROT_READ | PROT_WRITE);
+		flashProtect(PROT_READ | PROT_WRITE);
+	}
 	armed = 0;
 }
 

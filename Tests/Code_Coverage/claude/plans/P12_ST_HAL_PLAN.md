@@ -1,6 +1,6 @@
 # P12 plan: tests of the real ST HAL (Claude, fresh start)
 
-Status: **approved by the owner 2026-11-11.** T0 trial done, approved and committed 2026-11-11 (section "T0 result"). T1-T3 (`f774247b`, `f22d81f3`, `29c3cae1`) done, approved and committed locally 2026-11-11, not pushed (sections "T1 result" to "T3 result"). T6a (timers) and T6b (ADC) done, approved, committed and pushed 2026-11-13 (sections "T6a result" and "T6b result"). T4 is split into T4a SPI, T4b UART, T4c I2C / I2C_Ex. **T4a (SPI) done, approved and committed locally 2026-11-12 (`538b2ba0`, section "T4a result"). T4b (UART) finished and gated 2026-11-12, uncommitted, waiting for the owner's "approve ... and commit"** (section "T4b result"; charter `Tests/Code_Coverage/claude/charters/hal/P12_T4B_REQUIREMENTS.md`). All questions (65-69) answered 2026-11-11 (section 6); 66 revised to F407VG and F407VG_DISCO.
+Status: **approved by the owner 2026-11-11.** T0 trial done, approved and committed 2026-11-11 (section "T0 result"). T1-T3 (`f774247b`, `f22d81f3`, `29c3cae1`) done, approved and committed locally 2026-11-11, not pushed (sections "T1 result" to "T3 result"). T6a (timers), T6b (ADC) and T7 (flash, IWDG) done, approved, committed and pushed 2026-11-13 (sections "T6a result" to "T7 result"). T4 is split into T4a SPI, T4b UART, T4c I2C / I2C_Ex. **T4a (SPI) done, approved and committed locally 2026-11-12 (`538b2ba0`, section "T4a result"). T4b (UART) finished and gated 2026-11-12, uncommitted, waiting for the owner's "approve ... and commit"** (section "T4b result"; charter `Tests/Code_Coverage/claude/charters/hal/P12_T4B_REQUIREMENTS.md`). All questions (65-69) answered 2026-11-11 (section 6); 66 revised to F407VG and F407VG_DISCO.
 
 Owner's instruction (2026-11-11): "I want to start on P12 that was started by Codex. I want to start from the beginning for that Phase and not use any of their files."
 
@@ -221,6 +221,18 @@ ADC (`stm32f4xx_hal_adc.c`, `stm32f4xx_hal_adc_ex.c`) of both targets (identical
 - **Findings:** vendor V113-V117 (V114 arguable); characterizations NEEDS REVIEW 338-341.
 - **Limits:** no conversion time, sampling time or timer triggers; overrun detected through the EOC flag only; the multi ADC data path is not modelled (CDR set by the test); not run with clang, MinGW, macOS or on ARM.
 
+## T7 result (2026-11-13, gated, committed and pushed)
+
+Flash and watchdog (`stm32f4xx_hal_flash.c`, `_flash_ex.c`, `stm32f4xx_hal_iwdg.c`) of both targets (identical files). Charter FB, FE, IW. `stm32f4xx_hal_flash_ramfunc.c` compiles out on the F407 and is out of scope; the dual bank, PCROP and boot configuration code is compiled out too.
+
+- **Platform (lead):** `fakes/stm32_hal/HalFlash.{h,c}`: the flash interface registers (ACR, KEYR, OPTKEYR, SR, CR, OPTCR) with key sequences and lockouts, NOR programming of the main flash (1 MB mapped at 0x08000000) and the OTP with PSIZE / width / alignment / write protection checks, sector and mass erase with the sector map, option byte commit, completion by `hostFlashComplete` or SR poll reads; `HalIwdg.{h,c}`: KR / PR / RLR / SR with the key protocol and update flags. Bus extensions in `HalRegisterSpace.c`: the main flash range (readable while armed, stores trap), the exact address and width of a store (`hostRegsLastAccessAddr / Bytes`, decoded from the faulting x86 instruction), `hostRegsFlashWritable` for bulk changes. Lead fixes during the stage: a failed x64 first word, a failed store crossing a word boundary, the bus speed (the flash tests took 250 s and the ctest limit is 120 s: 65 s now).
+- **Tests (`claude/cases_hal/`):** `test_hal_flash_base.cpp` 146, `_flash_ex` 96, `test_hal_iwdg.cpp` 48, probe 3 (293 new): 3557 cases per executable, 0 failed; 96 expected-fail assertions (unchanged: no `KNOWN_ISSUE` in T7); 4 cases skipped under sanitizers (misaligned stores).
+- **Review:** 818 mechanical mutants (778 killed, 40 survivors of which 17 equivalent) and 49 hand-written (34 killed); one finding of high severity (run time, fixed), model artefacts pinned as firmware behaviour (restated or dropped), unsourced oracles renamed `characterization:`, 16 / 11 model-only cases renamed `model:`; fix pass +10 cases; re-run of the survivors: 26 of 55 killed, 24 equivalent, 3 defects left (timeout boundaries, no document defines them). No vendor defect was found that a spec quote supports: the closest candidates are `HAL_FLASHEx_Erase` on a locked flash (returns OK with `*SectorError` = 0xFFFFFFFF), `HAL_FLASH_OB_Unlock` returning OK after a wrong sequence, `OBProgram` returning only the last status and `OBGetConfig` returning the raw nWRP field; all are characterizations (NEEDS REVIEW 342, 343) for the owner to decide.
+- **Gate (lead-run, `../ffb-test-build/p12t7-gate.sh`):** 32-bit + HAL ctest 14 / 14, `check_baseline.py` OK; `ffb_hal_tests` and `ffb_hal_tests_disco` 3557 / 3557, 123424 of 123520 assertions (96 expected); default ctest 11 / 11, baseline OK; 32-bit sanitizer build 3553 passed + 4 skipped; coverage build 3557 / 3557.
+- **Coverage (gcov, `p12t1-cov`, identical for both targets):** `stm32f4xx_hal_flash.c` 147 / 151 (97.35 %: the two weak callbacks), `stm32f4xx_hal_flash_ex.c` 134 / 134, `stm32f4xx_hal_iwdg.c` 17 / 17.
+- **Findings:** NEEDS REVIEW 342-344; no vendor bug.
+- **Limits:** no erase / program time, no bus stall (a write during BSY is dropped and counted), no read protection levels; the OTP lock rules are Low confidence; not run with clang, MinGW, macOS or on ARM.
+
 ## 3. Design
 
 ### 3.1 Why only the 32-bit build
@@ -265,7 +277,7 @@ Expected values come from documents, never from the HAL source:
 | T4 serial buses | SPI, I2C / I2C_Ex, UART: blocking, IT and DMA modes, timeouts, errors, abort | writers, reviewer (largest stage, may split) |
 | T5 CAN | bxCAN: init modes, filters (RM0090 32.7.4), mailboxes, FIFOs, error states | writers, reviewer |
 | T6 timers and ADC (split: T6a timers and T6b ADC done 2026-11-13) | TIM / TIM_Ex (base, PWM, encoder, input capture as the firmware uses them), ADC / ADC_Ex / LL ADC | writers, reviewer |
-| T7 flash and watchdog | FLASH / FLASH_Ex (erase, program, option bytes, errors on a fake with NOR semantics), RAMFUNC, IWDG | writers, reviewer |
+| T7 flash and watchdog (done 2026-11-13) | FLASH / FLASH_Ex (erase, program, option bytes, errors on a fake with NOR semantics), RAMFUNC, IWDG | writers, reviewer |
 | T8 USB | PCD / PCD_Ex / LL USB against an OTG_FS register fake. Kept apart from the TinyUSB `ffb_usb_tests` (that suite fakes the DCD, so it does not count as PCD coverage) | writers, reviewer |
 | T9 close | coverage tier D (per target), regression of every existing variant, documents (`USE_FULL_ASSERT` off throughout, question 68) | lead |
 
