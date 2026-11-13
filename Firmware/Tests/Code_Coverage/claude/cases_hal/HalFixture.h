@@ -18,6 +18,7 @@
 #ifndef FFB_TESTS_HAL_FIXTURE_H
 #define FFB_TESTS_HAL_FIXTURE_H
 
+#include <string>
 #include "HalHostSystem.h"
 #include "HalPeripherals.h"
 #include "HalRegisterSpace.h"
@@ -55,7 +56,7 @@ public:
 	~HalFixture() {
 		hostRegsDisarm();
 		for (std::size_t i = 0; i < hostRegsFaultCount(); ++i) {
-			FAIL_CHECK("register model fault: " << hostRegsFaultText(i));
+			FAIL_CHECK("register model fault: " << std::string(hostRegsFaultText(i)).c_str());
 		}
 	}
 

@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <ucontext.h>
@@ -45,7 +46,7 @@ enum { RANGE_COUNT = sizeof(ranges) / sizeof(ranges[0]) };
 static int mapState; /* 0 = not tried, 1 = mapped, -1 = failed */
 static char mapError[160];
 
-enum { MAX_MODELS = 32, MAX_FAULTS = 64, MAX_LOG = 4096 };
+enum { MAX_MODELS = 64, MAX_FAULTS = 64, MAX_LOG = 4096 };
 static const HostRegModel *models[MAX_MODELS];
 static int modelCount;
 
@@ -160,7 +161,11 @@ int hostRegsContains(uintptr_t addr, uint32_t size) {
 void hostRegsAddModel(const HostRegModel *model) {
 	for (int i = 0; i < modelCount; ++i)
 		if (models[i] == model) return;
-	if (modelCount < MAX_MODELS) models[modelCount++] = model;
+	if (modelCount >= MAX_MODELS) {
+		fprintf(stderr, "HalRegisterSpace: model table full (MAX_MODELS)\n");
+		abort();
+	}
+	models[modelCount++] = model;
 }
 
 static const HostRegModel *findModel(uintptr_t addr) {

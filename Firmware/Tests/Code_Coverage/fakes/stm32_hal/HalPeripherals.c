@@ -11,6 +11,8 @@
 #include "HalUart.h"
 #include "HalI2c.h"
 #include "HalCan.h"
+#include "HalTim.h"
+#include "HalAdc.h"
 #include "HalRegisterSpace.h"
 
 /* ---------------------------------------------------------------- addresses (RM0090 Table 1) */
@@ -60,6 +62,8 @@ void hostPeriphResetState(void) {
 	hostUartResetState();
 	hostI2cResetState();
 	hostCanResetState();
+	hostTimResetState();
+	hostAdcResetState();
 	for (unsigned p = 0; p < HOST_GPIO_PORTS; ++p) {
 		for (unsigned i = 0; i < 16; ++i) extLevel[p][i] = HOST_PIN_FLOAT;
 		lockStep[p] = 0;
@@ -402,5 +406,7 @@ void hostPeriphRegisterAll(void) {
 	hostUartRegister(); /* USART1-3, UART4-5, USART6, HalUart.h */
 	hostI2cRegister(); /* I2C1-I2C3, HalI2c.h */
 	hostCanRegister(); /* CAN1, CAN2, HalCan.h */
+	hostTimRegister(); /* TIM1-TIM14, HalTim.h */
+	hostAdcRegister(); /* ADC1-ADC3 and common registers, HalAdc.h */
 	hostCoreRegister(); /* system control space, HalCorePeripherals.h */
 }

@@ -1,6 +1,6 @@
 # P12 plan: tests of the real ST HAL (Claude, fresh start)
 
-Status: **approved by the owner 2026-11-11.** T0 trial done, approved and committed 2026-11-11 (section "T0 result"). T1-T3 (`f774247b`, `f22d81f3`, `29c3cae1`) done, approved and committed locally 2026-11-11, not pushed (sections "T1 result" to "T3 result"). T4 is split into T4a SPI, T4b UART, T4c I2C / I2C_Ex. **T4a (SPI) done, approved and committed locally 2026-11-12 (`538b2ba0`, section "T4a result"). T4b (UART) finished and gated 2026-11-12, uncommitted, waiting for the owner's "approve ... and commit"** (section "T4b result"; charter `Tests/Code_Coverage/claude/charters/hal/P12_T4B_REQUIREMENTS.md`). All questions (65-69) answered 2026-11-11 (section 6); 66 revised to F407VG and F407VG_DISCO.
+Status: **approved by the owner 2026-11-11.** T0 trial done, approved and committed 2026-11-11 (section "T0 result"). T1-T3 (`f774247b`, `f22d81f3`, `29c3cae1`) done, approved and committed locally 2026-11-11, not pushed (sections "T1 result" to "T3 result"). T6a (timers) and T6b (ADC) done, approved, committed and pushed 2026-11-13 (sections "T6a result" and "T6b result"). T4 is split into T4a SPI, T4b UART, T4c I2C / I2C_Ex. **T4a (SPI) done, approved and committed locally 2026-11-12 (`538b2ba0`, section "T4a result"). T4b (UART) finished and gated 2026-11-12, uncommitted, waiting for the owner's "approve ... and commit"** (section "T4b result"; charter `Tests/Code_Coverage/claude/charters/hal/P12_T4B_REQUIREMENTS.md`). All questions (65-69) answered 2026-11-11 (section 6); 66 revised to F407VG and F407VG_DISCO.
 
 Owner's instruction (2026-11-11): "I want to start on P12 that was started by Codex. I want to start from the beginning for that Phase and not use any of their files."
 
@@ -197,6 +197,30 @@ CAN (`stm32f4xx_hal_can.c`) of both targets (identical files). Charter CI, CF, C
 - **Charter changes:** register callbacks compiled out (`USE_HAL_CAN_REGISTER_CALLBACKS` 0); the INAK / SLAK independence (NEEDS REVIEW 327).
 - **Limits:** no bit timing, bus-off recovery, error counter evolution, interrupt delivery; arbitration order and the FMI numbering across instances are model decisions (Medium); not run with clang, MinGW, macOS or on ARM.
 
+## T6a result (2026-11-13, gated, committed and pushed)
+
+Timers (`stm32f4xx_hal_tim.c`, `stm32f4xx_hal_tim_ex.c`) of both targets (identical files). Charter TB, TI, TC, TN, TQ. GCC 16, 32-bit, out of tree. T6 was split because the timers and the ADC together are about 14,000 lines of HAL; T6b (ADC, ADC_Ex, LL ADC) follows on its own go-ahead.
+
+- **Platform (lead):** `fakes/stm32_hal/HalTim.{h,c}`: TIM1-TIM14 with per-type register sets and masks (a register the timer lacks is a fault), SR rc_w0 flags, EGR effects, `hostTimAdvance` (up, down, centre-aligned, RCR, one pulse), capture, BDTR lock levels, the DMAR burst redirect. Lead fixes during the stage: `HalRegisterSpace.c` model table 32 -> 64 (it dropped registrations silently; now aborts when full), the BDTR lock level taken from the value before the write, fault text printed as a string in `HalFixture.h`, callbacks record SR (`srAtLast`, `srOrder`).
+- **Tests (`claude/cases_hal/`):** `test_hal_tim_base.cpp` 97, `_ic` 168, `_cfg` 98, `_exn` 45, `_irq` 45, probe 4 (457 new): 2891 cases per executable, 0 failed; 87 expected-fail assertions inside the `KNOWN_ISSUE` cases.
+- **Review:** 1703 mutants (1309 `tim.c`, 394 `tim_ex.c`): 1578 killed, 32 invalid, 93 survivors (29 equivalent). Real gaps (Stop_DMA stream wiring, encoder and hall state combinations and DMA callbacks, burst callbacks and return codes, input-stage filter bits, IRQ flag clear order and untouched flags) fixed by resuming the writers (+29 cases); re-run of the survivors: 74 of 104 killed, 20 equivalent or unobservable, 10 gaps fixed in a second pass (not re-mutated). The writers' rigs had disarmed the register bus after `hostRegsReset()` (found by two writers): all five files re-arm, so model faults and masks apply in every rig. Verdicts changed: the unknown burst source and the reserved-SMCR accesses (TIM10 / 11 / 13 / 14, TIM6 / 7) are `characterization:`; the failed-DMA-start BUSY family is one arguable `KNOWN_ISSUE` (V112) for all timer functions.
+- **Gate (lead-run, `../ffb-test-build/p12t6a-gate.sh`):** 32-bit + HAL ctest 14 / 14, `check_baseline.py` OK; `ffb_hal_tests` and `ffb_hal_tests_disco` 2891 / 2891, 113653 of 113740 assertions (87 expected); default ctest 11 / 11, baseline OK; 32-bit sanitizer and coverage builds 2891 / 2891; identical across repeated runs.
+- **Coverage (gcov, `p12t1-cov`, identical for both targets):** `stm32f4xx_hal_tim.c` 1920 / 1967 (97.61 %), `stm32f4xx_hal_tim_ex.c` 606 / 619 (97.90 %). Uncovered: weak MSP and callback stubs (replaced by the test callbacks), the non-slave `__HAL_TIM_ENABLE` branches of `OC_Start_DMA`, `PWM_Start_DMA`, `IC_Start_DMA` and the hall starts (unreachable on the F407).
+- **Findings:** vendor V112 (arguable). Characterizations NEEDS REVIEW 332-337 (reserved-register accesses by the HAL, channel 4 on the N functions, invalid channels, `Encoder_Init` on TIM12, model decisions).
+- **Limits:** the prescaler does not divide; counting events not time; no DMA request generation by the timer, output stage or slave-mode wiring; not run with clang, MinGW, macOS or on ARM.
+
+## T6b result (2026-11-13, gated, committed and pushed)
+
+ADC (`stm32f4xx_hal_adc.c`, `stm32f4xx_hal_adc_ex.c`) of both targets (identical files). Charter AB, AQ, AX. GCC 16, 32-bit, out of tree. `stm32f4xx_ll_adc.c` compiles to nothing (`USE_FULL_LL_DRIVER` is not defined) and is out of scope.
+
+- **Platform (lead):** `fakes/stm32_hal/HalAdc.{h,c}`: ADC1-ADC3 and the common registers (RM0090 chapter 13): masks and reset values, SR rc_w0, SWSTART / JSWSTART rules, a conversion engine (`hostAdcConvert`, `hostAdcExternalTrigger`, `hostAdcSetPollReads`) with scan, continuous and discontinuous modes, EOC / OVR / AWD / JEOC rules, injected ranks and offsets, resolution and alignment, DMA request counting, the common CSR / CCR / CDR. The reviewer found the alignment shifts wrong (Figures 49 / 50); fixed.
+- **Tests (`claude/cases_hal/`):** `test_hal_adc_base.cpp` 107, `_irq` 112, `_ex` 151, probe 3 (373 new): 3264 cases per executable, 0 failed; 96 expected-fail assertions inside the `KNOWN_ISSUE` cases.
+- **Review:** 2575 mutants (2143 killed, 16 invalid, 416 survivors of which 147 equivalent or unreachable); a fix pass (+39 cases: state transitions with EOCS and single conversions, Stop / DeInit with CONT / ALIGN / DDS / DMA / EOCS, software start with a trigger source and edge NONE, injected offsets for ranks 1-4, multi mode DMA details); re-run of the survivors: 99 of 239 killed, 106 equivalent, 34 non-equivalent low-severity survivors left (poll timeout boundary and `tickstart`, multi mode scan-on-going condition, the state inside `MspDeInit`, Init lock / ErrorCode clearing, two macros). Verdicts changed: INJ_BUSY with JL != 0 and EOCS = 1 is `characterization:` (UM1725 calls that configuration unsupported); the OVR state bit is arguable.
+- **Gate (lead-run, `../ffb-test-build/p12t6b-gate.sh`):** 32-bit + HAL ctest 14 / 14, `check_baseline.py` OK; `ffb_hal_tests` and `ffb_hal_tests_disco` 3264 / 3264, 121519 of 121615 assertions (96 expected); default ctest 11 / 11, baseline OK; 32-bit sanitizer and coverage builds 3264 / 3264.
+- **Coverage (gcov, `p12t1-cov`, identical for both targets):** `stm32f4xx_hal_adc.c` 342 / 360 (95.00 %), `stm32f4xx_hal_adc_ex.c` 248 / 256 (96.88 %). Uncovered: the ERROR_INTERNAL branches after ADON fails to set (the model always honours ADON), the weak callback stubs.
+- **Findings:** vendor V113-V117 (V114 arguable); characterizations NEEDS REVIEW 338-341.
+- **Limits:** no conversion time, sampling time or timer triggers; overrun detected through the EOC flag only; the multi ADC data path is not modelled (CDR set by the test); not run with clang, MinGW, macOS or on ARM.
+
 ## 3. Design
 
 ### 3.1 Why only the 32-bit build
@@ -240,7 +264,7 @@ Expected values come from documents, never from the HAL source:
 | T3 DMA | DMA / DMA_Ex fake and tests (stream state machine, transfer complete / half / error flags, abort) | writers, reviewer |
 | T4 serial buses | SPI, I2C / I2C_Ex, UART: blocking, IT and DMA modes, timeouts, errors, abort | writers, reviewer (largest stage, may split) |
 | T5 CAN | bxCAN: init modes, filters (RM0090 32.7.4), mailboxes, FIFOs, error states | writers, reviewer |
-| T6 timers and ADC | TIM / TIM_Ex (base, PWM, encoder, input capture as the firmware uses them), ADC / ADC_Ex / LL ADC | writers, reviewer |
+| T6 timers and ADC (split: T6a timers and T6b ADC done 2026-11-13) | TIM / TIM_Ex (base, PWM, encoder, input capture as the firmware uses them), ADC / ADC_Ex / LL ADC | writers, reviewer |
 | T7 flash and watchdog | FLASH / FLASH_Ex (erase, program, option bytes, errors on a fake with NOR semantics), RAMFUNC, IWDG | writers, reviewer |
 | T8 USB | PCD / PCD_Ex / LL USB against an OTG_FS register fake. Kept apart from the TinyUSB `ffb_usb_tests` (that suite fakes the DCD, so it does not count as PCD coverage) | writers, reviewer |
 | T9 close | coverage tier D (per target), regression of every existing variant, documents (`USE_FULL_ASSERT` off throughout, question 68) | lead |

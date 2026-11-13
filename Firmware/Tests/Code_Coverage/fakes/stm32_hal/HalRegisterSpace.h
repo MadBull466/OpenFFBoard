@@ -79,7 +79,7 @@ const char *hostRegsError(void);
 /* 1 if [addr, addr + size) lies inside one mapped range. */
 int hostRegsContains(uintptr_t addr, uint32_t size);
 
-/* Registers a model (static storage, at most 32; the same model twice is a no-op). */
+/* Registers a model (static storage, at most 64; the same model twice is a no-op). */
 void hostRegsAddModel(const HostRegModel *model);
 /* Disarms, zeroes every range, runs every model's reset(), clears faults and the access log. */
 void hostRegsReset(void);
