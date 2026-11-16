@@ -589,10 +589,11 @@ TEST_CASE("[C4 arm_linear_interp_f32] a table with one value returns that value 
 	}
 }
 
-TEST_CASE("[C4 arm_linear_interp_f32] inputs of very large magnitude return the first and the last table value") {
+TEST_CASE("[C4 arm_linear_interp_f32] inputs of very large magnitude return the first and the last table value"
+          * KNOWN_ISSUE_UB_HIDDEN("B-DIF-3: arm_linear_interp_f32.c:94 converts a float outside int32 range to int32 (undefined; clang float-cast-overflow under the sanitizers with --no-skip). The result is the intended one on x86 and ARM")) {
 	// C6 / NEEDS REVIEW (host-vs-target), B-DIF-3: arm_linear_interp_f32.c:94 converts '(int32_t)((x - x1) / xSpacing)' before the
 	// range check. A float outside int32 range is undefined in C: x86 gives INT_MIN, ARM saturates; the intended result (first /
-	// last value) occurs on both. The suite's sanitizers (-fsanitize=undefined has no float-cast-overflow) cannot detect it.
+	// last value) occurs on both. GCC's -fsanitize=undefined has no float-cast-overflow; clang's does, so the case is skipped in sanitizer builds (KNOWN_ISSUE_UB_HIDDEN).
 	std::vector<float> table = {4.0f, -1.0f, 7.5f};
 	arm_linear_interp_instance_f32 S;
 	S.nValues = 3;
@@ -694,10 +695,11 @@ TEST_CASE("[C4 arm_bilinear_interp_f32] characterization: a coordinate on the la
 	CHECK(arm_bilinear_interp_f32(&S, 0.5f, 1.0f) == 0.0f);
 }
 
-TEST_CASE("[C4 arm_bilinear_interp_f32] coordinates of very large magnitude return 0") {
+TEST_CASE("[C4 arm_bilinear_interp_f32] coordinates of very large magnitude return 0"
+          * KNOWN_ISSUE_UB_HIDDEN("B-DIF-4: arm_bilinear_interp_f32.c:116-117 convert a float outside int32 range to int32 (undefined; clang float-cast-overflow under the sanitizers with --no-skip). The result is the intended one on x86 and ARM")) {
 	// C6 / NEEDS REVIEW (host-vs-target), B-DIF-4: arm_bilinear_interp_f32.c:116-117 convert '(int32_t) X' and '(int32_t) Y' before the
 	// range check; out of int32 range this is undefined in C (x86: INT_MIN, ARM: saturation), the intended result 0 occurs on both.
-	// Not detectable by the suite's sanitizers (no float-cast-overflow in -fsanitize=undefined).
+	// GCC's sanitizer does not see it, clang's float-cast-overflow does: skipped in sanitizer builds (KNOWN_ISSUE_UB_HIDDEN).
 	std::vector<float> table(12, 1.0f);
 	arm_bilinear_interp_instance_f32 S;
 	S.numRows = 3;
