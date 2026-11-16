@@ -986,6 +986,8 @@ with the target's `stm32f4xx_hal_conf.h`, plus the host platform in `Code_Covera
 * **DISCO:** both targets' HAL, CMSIS headers and `hal_conf` are byte-identical today; `hal_identity_f407vg_disco` fails as
   soon as they diverge, because the two executables share their test files.
 
+* **USB device (T8):** `HalOtg` models the OTG_FS core in device mode (registers with RM0090 masks and reset values, a receive FIFO with status entries and four TxFIFOs inside the 320 word RAM) and plays the USB host for the test (`hostOtgHostSetup`, `hostOtgHostOut`, `hostOtgHostIn`, `hostOtgUsbReset`, `hostOtgEnumDone`, ...); `OtgFixture` (`OtgTestSupport.h`) owns the PCD handle set up as the firmware does and runs `HAL_PCD_IRQHandler` until `hostOtgIrqPending()` is 0. Files `test_hal_pcd_{init,ep,irq,flow}.cpp`. OTG_HS, DMA mode and the host half of `stm32f4xx_ll_usb.c` are not tested. `HAL_USB_TIMEOUT` is 2000U in these builds (the HAL's 0xF000000 needs minutes per timeout case on the trapping bus). `USB_WritePacket` over-reads up to 3 bytes of the caller's buffer (vendor bug V118): source buffers in the tests are padded.
+
 ## Python helper tests
 
 `Code_Coverage/claude/python/test_*.py`: stdlib `unittest` smoke tests of the Python helper scripts (P9, tier A: tested, never fixed):

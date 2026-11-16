@@ -15,6 +15,7 @@
 #include "HalAdc.h"
 #include "HalFlash.h"
 #include "HalIwdg.h"
+#include "HalOtg.h"
 #include "HalRegisterSpace.h"
 
 /* ---------------------------------------------------------------- addresses (RM0090 Table 1) */
@@ -68,6 +69,7 @@ void hostPeriphResetState(void) {
 	hostAdcResetState();
 	hostFlashResetState();
 	hostIwdgResetState();
+	hostOtgResetState();
 	for (unsigned p = 0; p < HOST_GPIO_PORTS; ++p) {
 		for (unsigned i = 0; i < 16; ++i) extLevel[p][i] = HOST_PIN_FLOAT;
 		lockStep[p] = 0;
@@ -397,6 +399,7 @@ void hostPeriphRegisterAll(void) {
 	hostRegsAddModel(&rccModel);
 	hostFlashRegister(); /* FLASH interface, flash memory and OTP, HalFlash.h */
 	hostIwdgRegister(); /* IWDG, HalIwdg.h */
+	hostOtgRegister(); /* USB OTG FS device mode, HalOtg.h */
 	hostRegsAddModel(&dbgModel);
 	hostRegsAddModel(&uidModel);
 	hostClockPowerRegister(); /* PWR, HalClockPower.h */

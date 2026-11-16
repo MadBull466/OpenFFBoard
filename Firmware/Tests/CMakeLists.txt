@@ -1207,13 +1207,14 @@ if(FFB_TESTS_REAL_HAL)
 		add_library(${name}_hal OBJECT ${hal_sources})
 		add_executable(${name} ${FFB_HAL_TEST_SOURCES} $<TARGET_OBJECTS:${name}_hal>
 			${FFB_HAL_FAKE_DIR}/host_cmsis.c ${FFB_HAL_FAKE_DIR}/HalRegisterSpace.c ${FFB_HAL_FAKE_DIR}/HalPeripherals.c
-			${FFB_HAL_FAKE_DIR}/HalCorePeripherals.c ${FFB_HAL_FAKE_DIR}/HalClockPower.c ${FFB_HAL_FAKE_DIR}/HalDma.c ${FFB_HAL_FAKE_DIR}/HalSpi.c ${FFB_HAL_FAKE_DIR}/HalUart.c ${FFB_HAL_FAKE_DIR}/HalI2c.c ${FFB_HAL_FAKE_DIR}/HalCan.c ${FFB_HAL_FAKE_DIR}/HalTim.c ${FFB_HAL_FAKE_DIR}/HalAdc.c ${FFB_HAL_FAKE_DIR}/HalFlash.c ${FFB_HAL_FAKE_DIR}/HalIwdg.c
+			${FFB_HAL_FAKE_DIR}/HalCorePeripherals.c ${FFB_HAL_FAKE_DIR}/HalClockPower.c ${FFB_HAL_FAKE_DIR}/HalDma.c ${FFB_HAL_FAKE_DIR}/HalSpi.c ${FFB_HAL_FAKE_DIR}/HalUart.c ${FFB_HAL_FAKE_DIR}/HalI2c.c ${FFB_HAL_FAKE_DIR}/HalCan.c ${FFB_HAL_FAKE_DIR}/HalTim.c ${FFB_HAL_FAKE_DIR}/HalAdc.c ${FFB_HAL_FAKE_DIR}/HalFlash.c ${FFB_HAL_FAKE_DIR}/HalIwdg.c ${FFB_HAL_FAKE_DIR}/HalOtg.c
 			${FFB_HAL_FAKE_DIR}/HalHostSystem.c
 			Code_Coverage/support/test_main.cpp)
 		target_include_directories(${name} PRIVATE ${FFB_HAL_CASE_DIR} Code_Coverage/support Code_Coverage/third_party)
 		foreach(tgt ${name}_hal ${name})
 			target_include_directories(${tgt} PRIVATE ${hal_includes})
-			target_compile_definitions(${tgt} PRIVATE STM32F407xx USE_HAL_DRIVER)
+			# HAL_USB_TIMEOUT: the HAL's 0xF000000 (about 250 million register reads per polling loop) takes minutes per timeout case on the trapping bus; the HAL header wraps it in #ifndef.
+			target_compile_definitions(${tgt} PRIVATE STM32F407xx USE_HAL_DRIVER HAL_USB_TIMEOUT=2000U)
 			target_compile_options(${tgt} PRIVATE -include ${FFB_HAL_FAKE_DIR}/host_cmsis_gcc.h -Wall $<$<COMPILE_LANGUAGE:CXX>:-Wno-volatile>)
 			if(FFB_TESTS_SANITIZE)
 				target_compile_definitions(${tgt} PRIVATE HOSTTEST_SANITIZERS)
