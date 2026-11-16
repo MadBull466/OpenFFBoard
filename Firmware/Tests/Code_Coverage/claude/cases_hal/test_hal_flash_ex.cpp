@@ -5,6 +5,7 @@
 // The advanced option byte functions (HAL_FLASHEx_AdvOBProgram / AdvOBGetConfig / OB_SelectPCROP ...) are compiled out on the F407 (preprocessor of
 // stm32f4xx_hal_flash_ex.c: F42x/F43x/F401/F41x/F446/F469 only) and are therefore not tested.
 #include "FlashTestSupport.h"
+#include "TestHelpers.h"
 
 #include <cstring>
 #include <vector>
@@ -400,13 +401,15 @@ TEST_CASE_FIXTURE(FeFix, "FE1 an erase of a flash with a pending error flag retu
 	CHECK(pFlash.Lock == HAL_UNLOCKED);
 }
 
-TEST_CASE_FIXTURE(FeFix, "FE1 characterization: an erase of a locked flash returns HAL_OK and changes nothing") {
-	// NEEDS REVIEW 343/1: UM1725 says the flash must be unlocked first but defines no status for a locked one; RM0090 3.6.1: writes to CR are ignored while LOCK = 1.
+TEST_CASE_FIXTURE(FeFix, "FE1 an erase of a locked flash does not return HAL_OK"
+	* KNOWN_ISSUE("V126 (arguable: UM1725 only says the flash must be unlocked first and gives no status for a locked one): RM0090 3.6.1 writes to FLASH_CR are ignored while LOCK = 1, so nothing is erased, "
+	              "but HAL_FLASHEx_Erase (stm32f4xx_hal_flash_ex.c lines 160-222) never reads LOCK and returns HAL_OK with *SectorError = 0xFFFFFFFF, which UM1725 defines as 'all the sectors have been correctly erased'. "
+	              "HAL_FLASH_Unlock verifies LOCK and returns HAL_ERROR, so the erase path is inconsistent with it")) {
+	// NEEDS REVIEW 343/1 (promoted to V126 by the owner 2026-11-16).
 	feFillAll();
 	FLASH_EraseInitTypeDef e = feSectors(2, 1, FLASH_VOLTAGE_RANGE_3);
 	uint32_t err = 0;
-	CHECK(HAL_FLASHEx_Erase(&e, &err) == HAL_OK);
-	CHECK(err == feNone);
+	CHECK(HAL_FLASHEx_Erase(&e, &err) != HAL_OK);   // intended: an erase that did not happen is not reported as done
 	CHECK(feSectorMask() == 0u);
 	CHECK(hostFlashLockedWrites() > 0u);
 }
@@ -510,12 +513,13 @@ TEST_CASE_FIXTURE(FeFix, "FE1 a mass erase while the process is locked returns H
 	pFlash.Lock = HAL_UNLOCKED;
 }
 
-TEST_CASE_FIXTURE(FeFix, "FE1 characterization: a mass erase of a locked flash returns HAL_OK and erases nothing") {
-	// NEEDS REVIEW 343/4: same as the sector erase of a locked flash (NEEDS REVIEW 343/1).
+TEST_CASE_FIXTURE(FeFix, "FE1 a mass erase of a locked flash does not return HAL_OK"
+	* KNOWN_ISSUE("V126 (arguable, same defect as the sector erase of a locked flash): HAL_FLASHEx_Erase never reads FLASH_CR.LOCK; RM0090 3.6.1 ignores the CR writes while LOCK = 1, nothing is erased, the HAL returns HAL_OK")) {
+	// NEEDS REVIEW 343/4 (promoted to V126 by the owner 2026-11-16).
 	feFillAll();
 	FLASH_EraseInitTypeDef e = feMass(FLASH_VOLTAGE_RANGE_3);
 	uint32_t err = 0;
-	CHECK(HAL_FLASHEx_Erase(&e, &err) == HAL_OK);
+	CHECK(HAL_FLASHEx_Erase(&e, &err) != HAL_OK);   // intended: see the sector erase case
 	CHECK(feSectorMask() == 0u);
 }
 

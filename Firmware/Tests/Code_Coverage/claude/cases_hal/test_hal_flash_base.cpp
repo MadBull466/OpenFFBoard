@@ -3,6 +3,7 @@
 // Oracles: UM1725 Rev 8 chapter "HAL FLASH Generic Driver", RM0090 Rev 22 chapter 3 (3.6.1 unlock, 3.6.2 Table 13, 3.6.4 programming and errors,
 // 3.6.6 interrupts, 3.7 option bytes Tables 15 / 16, 3.8 OTP, 3.9 registers). Charter: P12_T7_REQUIREMENTS.md (group FB).
 #include "FlashTestSupport.h"
+#include "TestHelpers.h"
 
 #include <cstdint>
 #include <cstring>
@@ -175,13 +176,14 @@ TEST_CASE_FIXTURE(FbFixture, "characterization: FB1 option byte unlock of an alr
 	CHECK((rawOptcr() & kOptcr_OPTLOCK) == 0u);
 }
 
-TEST_CASE_FIXTURE(FbFixture, "characterization: FB1 option byte unlock returns HAL_OK although a wrong sequence kept OPTLOCK set") {
-	// NEEDS REVIEW 342/1: UM1725 does not say whether HAL_FLASH_OB_Unlock verifies the result (HAL_FLASH_Unlock does: HAL_ERROR). The HAL returns HAL_OK
-	// without reading OPTLOCK back. RM0090 3.7.2: after a wrong key sequence OPTCR stays locked until reset.
+TEST_CASE_FIXTURE(FbFixture, "FB1 option byte unlock returns HAL_ERROR when a wrong sequence kept OPTLOCK set"
+	* KNOWN_ISSUE("V127 (arguable: UM1725 only says 'HAL: Status'): RM0090 3.7.2 after a wrong key sequence OPTCR stays locked until reset, so the unlock did not happen. HAL_FLASH_OB_Unlock "
+	              "(stm32f4xx_hal_flash.c lines 461-475) writes the two keys and returns HAL_OK without reading OPTLOCK back, whereas HAL_FLASH_Unlock reads LOCK back and returns HAL_ERROR")) {
+	// NEEDS REVIEW 342/1 (promoted to V127 by the owner 2026-11-16).
 	FLASH->OPTKEYR = 0x11111111u;
 	FLASH->OPTKEYR = 0x22222222u;
 	CHECK(hostFlashBusFaults() == 1u);
-	CHECK(HAL_FLASH_OB_Unlock() == HAL_OK);
+	CHECK(HAL_FLASH_OB_Unlock() == HAL_ERROR);   // intended: the unlock did not take effect
 	CHECK((rawOptcr() & kOptcr_OPTLOCK) != 0u);
 }
 
