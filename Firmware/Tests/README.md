@@ -983,6 +983,7 @@ with the target's `stm32f4xx_hal_conf.h`, plus the host platform in `Code_Covera
   (`CanTestSupport.h`). `KNOWN_ISSUE` marks the
   vendor bugs V89-V109 and V111; `characterization:` cases are NEEDS REVIEW 281-331. Combined with sanitizers the HAL executables run (32-bit ASan), but
   the whole ctest does not: `ffb_flash_tests` cannot map 0x1FFF0000 there.
+  Tier D coverage: `coverage_report.py` prints "ST HAL in scope (tier D)" per target when the coverage build has `FFB_TESTS_REAL_HAL` (the host half of `stm32f4xx_ll_usb.c` is left out; `--no-exclusions` shows it); `run_all_tests.py` runs both HAL executables. The real-HAL build also passes with clang 23.
 * **DISCO:** both targets' HAL, CMSIS headers and `hal_conf` are byte-identical today; `hal_identity_f407vg_disco` fails as
   soon as they diverge, because the two executables share their test files.
 

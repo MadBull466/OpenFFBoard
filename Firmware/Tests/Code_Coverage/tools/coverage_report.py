@@ -133,6 +133,19 @@ def module_of(rel, tier):
 	return MODULE_OF.get(stem_of(rel), "other")
 
 
+# Tier D (P12): the ST HAL of the F407VG and F407VG_DISCO targets, built by the CMake targets ffb_hal_tests_hal and ffb_hal_tests_disco_hal
+HAL_TARGETS = (("F407VG", "/ffb_hal_tests_hal.dir/"), ("F407VG_DISCO", "/ffb_hal_tests_disco_hal.dir/"))
+# Out of scope inside the HAL sources (owner's decision, P12 T8): the host half of the LL USB driver (compiled, called only by HCD, which is off)
+HAL_OUT_OF_SCOPE = {"stm32f4xx_ll_usb.c": [(1239, 1248, "USB_ReadChInterrupts, host channel function (HCD is not enabled)"),
+	(1437, 2267, "USB host half, USB_HostInit to USB_StopHost (HCD is not enabled)")]}
+
+
+def is_hal_gcda(path):
+	"""True for a .gcda file of the HAL object libraries (tier D, own section)."""
+	path = path.replace("\\", "/")
+	return any(d in path for _, d in HAL_TARGETS)
+
+
 def is_dsp_gcda(path):
 	"""True for a .gcda file of the ffb_dsp_tests targets (they are reported in the dsp tier, not in tier C)."""
 	path = path.replace("\\", "/")
@@ -176,13 +189,14 @@ def run_gcov(gcov_cmd, gcda_files, notes_sources=None):
 				base = doc.get("current_working_directory", "")
 				for f in doc.get("files", []):
 					path = os.path.normpath(os.path.join(base, f["file"]))
-					entry = data.setdefault(path, {"lines": {}, "functions": {}})
+					entry = data.setdefault(path, {"lines": {}, "functions": {}, "fn_start": {}})
 					for ln in f.get("lines", []):
 						n = ln["line_number"]
 						entry["lines"][n] = entry["lines"].get(n, 0) + ln["count"]
 					for fn in f.get("functions", []):
 						name = fn["name"]
 						entry["functions"][name] = entry["functions"].get(name, 0) + fn["execution_count"]
+						entry.setdefault("fn_start", {})[name] = fn.get("start_line", 0)
 			if not valid_documents:
 				raise ValueError("invalid gcov output for %s: no JSON documents" % gcda)
 			# Successful gcov on notes establishes zero source lines even when files=[] (data-only objects).
@@ -311,7 +325,8 @@ def main():
 		return 2
 	# ffb_dsp_tests data is kept apart: tier C keeps its meaning (the CMSIS-DSP functions the firmware tests reach)
 	dsp_gcda = [g for g in gcda_files if is_dsp_gcda(g)]
-	gcda_files = [g for g in gcda_files if not is_dsp_gcda(g)]
+	hal_gcda = [g for g in gcda_files if is_hal_gcda(g)]
+	gcda_files = [g for g in gcda_files if not is_dsp_gcda(g) and not is_hal_gcda(g)]
 	# Notes-only objects may contain executable code that has never run. Ask gcov for their
 	# executable lines instead of inferring data-only status from the existence of .gcno.
 	# Standalone DSP static-library objects retain their documented linked-data-only scope.
@@ -333,6 +348,11 @@ def main():
 	try:
 		data = run_gcov(shlex.split(args.gcov), sorted(gcda_files) + sorted(notes_sources), notes_sources)
 		dsp_data = run_gcov(shlex.split(args.gcov), sorted(dsp_gcda)) if dsp_gcda else {}
+		hal_data = {}
+		for target, marker in HAL_TARGETS:
+			files = sorted(g for g in hal_gcda if marker in g.replace("\\", "/"))
+			if files:
+				hal_data[target] = run_gcov(shlex.split(args.gcov), files)
 	except (OSError, ValueError, RuntimeError) as exc:
 		sys.stderr.write("Coverage report incomplete: %s\n" % exc)
 		return 1
@@ -476,6 +496,43 @@ def main():
 		print("\nFiles with data are the sources linked into ffb_dsp_tests (a static library object that no test references is not "
 			"linked and has no data, so its lines are NOT in the executable line count above: the percentage is over linked files only). "
 			"In-scope files without data: %d of %d." % (len(missing), len(dsp_sources)))
+
+	# tier D: the ST HAL, one table per target (own data, not part of the ladder)
+	print("\n### ST HAL in scope (tier D, ffb_hal_tests and ffb_hal_tests_disco; not part of the coverage ladder)\n")
+	if not hal_data:
+		print("No HAL coverage data (built without FFB_TESTS_REAL_HAL or not run).")
+	for target, _ in HAL_TARGETS:
+		if target not in hal_data:
+			continue
+		print("**%s** (`Targets/%s/Drivers/STM32F4xx_HAL_Driver/Src`)\n" % (target, target))
+		print("| File | Lines covered / executable | Covered | Functions |")
+		print("|---|---|---|---|")
+		tot = [0, 0, 0, 0]
+		notes = []
+		for path, entry in sorted(hal_data[target].items()):
+			rel = os.path.relpath(path, fw).replace("\\", "/")
+			if "/STM32F4xx_HAL_Driver/Src/" not in rel:
+				continue
+			lines = dict(entry["lines"])
+			fns = entry["functions"]
+			base = os.path.basename(rel)
+			if base in HAL_OUT_OF_SCOPE and not args.no_exclusions:
+				starts = entry.get("fn_start", {})
+				for first, last, why in HAL_OUT_OF_SCOPE[base]:
+					dropped = [n for n in lines if first <= n <= last]
+					notes.append("`%s`: %d lines left out (%s, lines %d-%d)" % (base, len(dropped), why, first, last))
+					lines = {n: c for n, c in lines.items() if n not in dropped}
+					# functions whose first line lies in the dropped range are left out too
+					fns = {k: v for k, v in fns.items() if not first <= starts.get(k, 0) <= last}
+			cov = sum(1 for c in lines.values() if c > 0)
+			fe = sum(1 for c in fns.values() if c > 0)
+			print("| `%s` | %d / %d | %s | %d / %d |" % (base, cov, len(lines), pct(cov, len(lines)), fe, len(fns)))
+			for i, v in enumerate((cov, len(lines), fe, len(fns))):
+				tot[i] += v
+		print("| **Total** | %d / %d | %s | %d / %d |\n" % (tot[0], tot[1], pct(tot[0], tot[1]), tot[2], tot[3]))
+		for n in notes:
+			print("- " + n)
+		print()
 
 	print("\n### Not compiled (0 %, estimated executable lines)\n")
 	print("| Module | File | Code lines | Est. executable lines |")

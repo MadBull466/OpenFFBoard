@@ -50,7 +50,7 @@ sys.path.insert(0, TOOLS_DIR)
 import check_baseline  # noqa: E402  (read_cmake_cache, wildcard_to_regex, cmake_bool)
 import make_bug_report  # noqa: E402  (table, sort_key: parsing of the PROGRESS.md tables)
 
-EXECUTABLES = ("ffb_unit_tests", "ffb_target_tests", "ffb_flash_tests", "ffb_rtos_tests", "ffb_usb_tests", "ffb_driver_tests", "ffb_dsp_tests")
+EXECUTABLES = ("ffb_unit_tests", "ffb_target_tests", "ffb_flash_tests", "ffb_rtos_tests", "ffb_usb_tests", "ffb_driver_tests", "ffb_dsp_tests", "ffb_hal_tests", "ffb_hal_tests_disco")
 PYTHON_EXE = "python"
 # CMake cache variables with the ctest exclusions of each executable: (always, additionally in sanitizer builds)
 EXCLUDE_VARS = {

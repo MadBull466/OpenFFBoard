@@ -1,6 +1,6 @@
 # P12 plan: tests of the real ST HAL (Claude, fresh start)
 
-Status: **approved by the owner 2026-11-11.** T0 trial done, approved and committed 2026-11-11 (section "T0 result"). T1-T3 (`f774247b`, `f22d81f3`, `29c3cae1`) done, approved and committed locally 2026-11-11, not pushed (sections "T1 result" to "T3 result"). T6a (timers), T6b (ADC) and T7 (flash, IWDG) done, approved, committed and pushed 2026-11-13 (sections "T6a result" to "T7 result"). T4 is split into T4a SPI, T4b UART, T4c I2C / I2C_Ex. **T8 (USB PCD, device mode, OTG_FS) finished and gated 2026-11-16, uncommitted, waiting for the owner's "approve ... and commit"** (section "T8 result"; charter `Tests/Code_Coverage/claude/charters/hal/P12_T8_REQUIREMENTS.md`; owner's scope decision: device mode, full speed instance only). **T4a (SPI) done, approved and committed locally 2026-11-12 (`538b2ba0`, section "T4a result"). T4b (UART) finished and gated 2026-11-12, uncommitted, waiting for the owner's "approve ... and commit"** (section "T4b result"; charter `Tests/Code_Coverage/claude/charters/hal/P12_T4B_REQUIREMENTS.md`). All questions (65-69) answered 2026-11-11 (section 6); 66 revised to F407VG and F407VG_DISCO.
+Status: **approved by the owner 2026-11-11.** T0 trial done, approved and committed 2026-11-11 (section "T0 result"). T1-T3 (`f774247b`, `f22d81f3`, `29c3cae1`) done, approved and committed locally 2026-11-11, not pushed (sections "T1 result" to "T3 result"). T6a (timers), T6b (ADC) and T7 (flash, IWDG) done, approved, committed and pushed 2026-11-13 (sections "T6a result" to "T7 result"). T4 is split into T4a SPI, T4b UART, T4c I2C / I2C_Ex. T8 (USB PCD, device mode, OTG_FS) done, approved and committed locally 2026-11-16 (`1e5bcef9`, not pushed; section "T8 result"; charter `Tests/Code_Coverage/claude/charters/hal/P12_T8_REQUIREMENTS.md`; owner's scope decision: device mode, full speed instance only). **T9 (close-out) finished 2026-11-16, uncommitted, waiting for the owner's "approve ... and commit"** (section "T9 result"; P12 is complete after it). **T4a (SPI) done, approved and committed locally 2026-11-12 (`538b2ba0`, section "T4a result"). T4b (UART) finished and gated 2026-11-12, uncommitted, waiting for the owner's "approve ... and commit"** (section "T4b result"; charter `Tests/Code_Coverage/claude/charters/hal/P12_T4B_REQUIREMENTS.md`). All questions (65-69) answered 2026-11-11 (section 6); 66 revised to F407VG and F407VG_DISCO.
 
 Owner's instruction (2026-11-11): "I want to start on P12 that was started by Codex. I want to start from the beginning for that Phase and not use any of their files."
 
@@ -233,7 +233,7 @@ Flash and watchdog (`stm32f4xx_hal_flash.c`, `_flash_ex.c`, `stm32f4xx_hal_iwdg.
 - **Findings:** NEEDS REVIEW 342-344; no vendor bug.
 - **Limits:** no erase / program time, no bus stall (a write during BSY is dropped and counted), no read protection levels; the OTP lock rules are Low confidence; not run with clang, MinGW, macOS or on ARM.
 
-## T8 result (2026-11-16, gated, uncommitted)
+## T8 result (2026-11-16, gated, committed locally `1e5bcef9`)
 
 USB device (`stm32f4xx_hal_pcd.c`, `_pcd_ex.c`, `stm32f4xx_ll_usb.c`, identical in both targets), device mode, `USB_OTG_FS` only (owner's decision: no OTG_HS, no DMA mode; the host half of LL USB, 291 lines, is compiled but only HCD calls it and HCD is off). Charter PI, PE, PQ, PF. `HAL_PCDEx_ActivateLPM / DeActivateLPM / ActivateBCD / DeActivateBCD / BCD_VBUSDetect` are compiled only for other devices.
 
@@ -244,6 +244,30 @@ USB device (`stm32f4xx_hal_pcd.c`, `_pcd_ex.c`, `stm32f4xx_ll_usb.c`, identical 
 - **Coverage (gcov, `p12t1-cov`, identical for both targets):** `stm32f4xx_hal_pcd.c` 404 / 460 (the weak callbacks, the DMA branches and the GSNPSID > 0x300A branches), `stm32f4xx_hal_pcd_ex.c` 12 / 16 (two weak callbacks), `stm32f4xx_ll_usb.c` 438 / 454 device half (`USB_CoreInit` DMA branch, `USB_StopDevice` 1161, `USB_EPStartXfer` / `USB_EP0_OutStart` DMA and GSNPSID branches); host half 0 / 291 by decision.
 - **Findings:** vendor bugs V118-V125 (V118 `USB_WritePacket` over-reads the caller's buffer, ASan, no test; V119-V125 `KNOWN_ISSUE`, arguable except V123); NEEDS REVIEW 345-349.
 - **Limits:** no OTG_HS, no DMA mode, no host mode, no isochronous frame timing, no OTG protocols; CMOD and OTGINT are not derived by the model; `HAL_USB_TIMEOUT` is 2000U (the firmware has 0xF000000); the register space of OTG_FS in RM0090 is the only oracle for the LL functions (UM1725 has no LL USB chapter); not run with clang, MinGW, macOS or on ARM.
+
+## T9 result (2026-11-16, lead only, no new tests, uncommitted)
+
+- **Tools:** `coverage_report.py` has a new section "ST HAL in scope (tier D)": one table per target from the object libraries `ffb_hal_tests_hal` and `ffb_hal_tests_disco_hal` (kept out of the firmware ladder and out of tier C). Out of scope inside the HAL, by the owner's T8 decision: the host half of `stm32f4xx_ll_usb.c` (`HAL_OUT_OF_SCOPE`: lines 1239-1248 `USB_ReadChInterrupts`, lines 1437-2267 `USB_HostInit` to `USB_StopHost`; `--no-exclusions` shows the raw numbers). `run_all_tests.py` runs `ffb_hal_tests` and `ffb_hal_tests_disco` when the build has them.
+- **Tier D coverage (gcov, `p12t1-cov`, 32-bit, both targets identical):** 24 files each, **9567 / 9981 executable lines (95.9 %)**, 572 / 677 functions. Per file: `stm32f4xx_hal.c` 98 / 100, `_adc` 342 / 360, `_adc_ex` 248 / 256, `_can` 388 / 418, `_cortex` 75 / 77, `_dma` 355 / 361, `_dma_ex` 55 / 55, `_exti` 98 / 98, `_flash` 147 / 151, `_flash_ex` 134 / 134, `_gpio` 110 / 113, `_i2c` 2092 / 2153, `_iwdg` 17 / 17, `_pcd` 404 / 460, `_pcd_ex` 12 / 16, `_pwr` 83 / 85, `_pwr_ex` 33 / 33, `_rcc` 230 / 240, `_rcc_ex` 112 / 128, `_spi` 807 / 898, `_tim` 1920 / 1967, `_tim_ex` 606 / 619, `_uart` 763 / 788, `_ll_usb` 438 / 454 (host half left out). What is uncovered is listed per stage (weak callbacks replaced by the test callbacks, DMA and other-device branches, defensive branches the model cannot reach). Not compiled on the F407 (so not counted): `stm32f4xx_hal_i2c_ex.c`, `_flash_ramfunc.c`, `stm32f4xx_ll_adc.c`.
+- **Regression (fresh dirs `../ffb-test-build/p12t9-<variant>`, `../ffb-test-build/p12t9-gate.sh`, log `p12t9-gate.log`), ctest and `check_baseline.py`:**
+
+| Variant | Result |
+|---|---|
+| default, clang, 32-bit (`m32`) | ctest 11 / 11 |
+| `nodsp`, `nodsp-san` | ctest 10 / 10 |
+| `san` (GCC) | ctest 11 / 11 |
+| 32-bit + HAL (GCC) | ctest 14 / 14, `ffb_hal_tests` 72 s of its 120 s |
+| 32-bit + HAL (**clang 23**, first time) | ctest 14 / 14, 4040 / 4040 per HAL executable |
+| 32-bit + HAL + sanitizers | both HAL executables 4036 passed + 4 skipped; ctest 13 / 14 (see below) |
+| `clang-san` | ctest 10 / 11 (see below) |
+| `m32-san` | ctest 10 / 11 (see below) |
+
+  `check_baseline.py`: OK in all eleven (340 new cases, 0 failed, 318 baseline cases unchanged). Compiler warnings: none new (the usual `-Wint-to-pointer-cast` on 64-bit, `-Wformat` `CommandHandler.cpp:136`, clang `-Wunknown-warning-option`).
+- **Two failures in the gate, not caused by P12 (no HAL or fake file is involved); the first is the known limit, the second is new:**
+  1. `ffb_flash_tests` aborts at start in **every 32-bit sanitizer build** (`m32-san`, `32-bit + HAL + sanitizers`): "cannot map the fake flash memory at 0x1FFF0000: File exists". The fixed address the flash fake needs is taken by the 32-bit ASan runtime. Already documented in `Firmware/Tests/README.md` (HAL section: the whole ctest does not run with sanitizers there); the gate confirms it also for `m32-san`. Environment limit, no test is wrong; not fixed.
+  2. `ffb_dsp_tests` fails in the **clang sanitizer build**: clang 23's `-fsanitize=undefined` includes float-cast-overflow and aborts at `arm_linear_interp_f32.c:94` (`(int32_t)` of 1e30, vendor code) called from `test_dsp_interp_f32.cpp:603` (NEEDS REVIEW 204, B-DIF-3; the comments there say the suite's sanitizers cannot detect it, which is true for GCC only). The same pattern is at `test_dsp_interp_f32.cpp:707-709` (bilinear). The GCC sanitizer build passes.
+- **Full report** (`run_all_tests.py` on the 32-bit + HAL build, now including both HAL executables): Passed 14571, Failed 3, Bugged 854, 15428 cases in total. The 3 failures are the same VESC cases that the earlier default and 32-bit reports list (V63 and two V24 cases: `KNOWN_ISSUE` that no longer fails when run isolated with `--no-skip`); nothing from the HAL.
+- **Not tested, stated here:** MinGW, macOS, ARM; OTG_HS; the USB host half; `USE_FULL_ASSERT` was off throughout (question 68). P12 adds no firmware bug; vendor bugs V89-V125 (V118 without a test).
 
 ## 3. Design
 
@@ -291,7 +315,7 @@ Expected values come from documents, never from the HAL source:
 | T6 timers and ADC (split: T6a timers and T6b ADC done 2026-11-13) | TIM / TIM_Ex (base, PWM, encoder, input capture as the firmware uses them), ADC / ADC_Ex / LL ADC | writers, reviewer |
 | T7 flash and watchdog (done 2026-11-13) | FLASH / FLASH_Ex (erase, program, option bytes, errors on a fake with NOR semantics), RAMFUNC, IWDG | writers, reviewer |
 | T8 USB (done 2026-11-16, device mode, OTG_FS only) | PCD / PCD_Ex / LL USB against an OTG_FS register fake. Kept apart from the TinyUSB `ffb_usb_tests` (that suite fakes the DCD, so it does not count as PCD coverage) | writers, reviewer |
-| T9 close | coverage tier D (per target), regression of every existing variant, documents (`USE_FULL_ASSERT` off throughout, question 68) | lead |
+| T9 close (done 2026-11-16) | coverage tier D (per target), regression of every existing variant, documents (`USE_FULL_ASSERT` off throughout, question 68) | lead |
 
 Order follows dependencies (tick and RCC before buses, DMA before DMA modes). Each stage: lead writes the requirements charter from the documents, writers implement, reviewer mutates scratch copies under `../ffb-test-build/audit/`, gate (32-bit build with the option on, plus every existing variant unchanged, `check_baseline.py`), then stop for "approve ... and commit".
 
