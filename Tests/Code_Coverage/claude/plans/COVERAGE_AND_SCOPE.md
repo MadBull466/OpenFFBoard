@@ -1,6 +1,7 @@
 # Coverage and scope: what is covered, what is out of scope, what is not covered
 
-Date: 2026-11-11.
+Date: 2026-11-17.
+- 2026-11-17 re-measurement (after the Codex review fixes, `a18c2d95`): one gcov build with everything on (`np-cov`, 32-bit, real HAL), `coverage_report.py` standard and with `--no-exclusions`. Numbers in section 1.6. The per-tier numbers in sections 1.1 to 1.5 below are the older ones; where they differ, 1.6 is newer.
 - P18 (32-bit build): re-measured on the P18 gate coverage build `p18t2f-cov`. The firmware ladder, TinyUSB tier B, the driver tier and DSP are unchanged by P18, which adds behaviour checks on ILP32 and no new lines.
 - After the `Code_Coverage` move (2026-11-11): everything re-measured on `cc-cov` (two runs, same result): ladder 8,172 of 8,260 (one line more than the 8,171 of P17 / P18, cause not investigated), tier B, tier C, driver tier and DSP unchanged.
 - P17 T2: the ladder, tier B and the driver tier were measured on `p17t2g-cov`.
@@ -58,6 +59,23 @@ Headers of these modules: 392 / 413 lines (94.9 %).
 - Tier C, the 10 functions the firmware calls (100 %, 198 / 198 lines): `arm_sin_f32`, `arm_cos_f32`, `arm_biquad_cascade_df1_f32` and `_init_f32`, `arm_spline_interp_f32` and `_init_f32`, `arm_std_f32`, `arm_var_f32`, `arm_pid_init_f32`, `arm_pid_reset_f32`.
 - P11 `ffb_dsp_tests` (2485 cases, 5 skipped, 0 failed; fresh gcov: Filtering 7754 / 7754 lines (116 / 116 functions with data), Statistics 1799 / 1799, FastMath 443 / 451, Controller 97 / 97, Interpolation 233 / 233, BasicMath helpers 62 / 62, total 10388 / 10396 lines, 256 source files linked and measured, 2 without data): G1-G5 approved and committed; G5 (approved and pushed 2026-11-10, `eb682e0b`; Filtering part 2: conv f32 / q31 / q15 / q7 with fast / opt variants, partial conv, correlate f32 / f64 / f16 / q31 / q15 / q7, Levinson-Durbin f32 / f16 / q31, LMS and norm-LMS f32 / q15 / q31 with `arm_recip_q31` / `arm_recip_q15`, FIR and IIR lattices, sparse FIR) reviewed by 4 reviewers (about 230 mutants, gaps closed). Coverage counts only the branches the host compiles: the `ARM_MATH_DSP` unrolled kernels of the conv / correlate family are not measured (PROGRESS NEEDS REVIEW 231). Covers FastMath f32 / f64 / f16 / q31 / q15 (sin, cos, sqrt, divide, atan2, vlog, vexp, vinverse, recip_q15) and the helpers `arm_abs_q15/q31`, `arm_add_f32/f16`, plus the pattern-loader self-tests.
 
+### 1.6 Whole project, line coverage of the sources that are linked into a test (gcov, 2026-11-17, build `np-cov`)
+
+| Tier | Lines covered | % |
+|---|---|---|
+| Firmware ladder | 8,171 / 8,260 | 98.9 |
+| Drivers (TMC4671, ODrive, VESC, TMCDebugBridge, PWM, SimpleMotion, MyActuator) | 3,262 / 3,484 | 93.6 |
+| Tier B (TinyUSB device) | 1,508 / 1,572 | 95.9 |
+| CMSIS-DSP (P11) | 7,313 / 7,321 | 99.9 |
+| ST HAL (tier D), per target | 9,567 / 9,981 | 95.9 |
+| **Whole project, both HAL targets counted** | **39,388 / 40,599** | **97.0** |
+| **Whole project, HAL counted once** | | **97.4** |
+| Same, with `--no-exclusions` (counts the USB host half of `stm32f4xx_ll_usb.c`, 291 lines per target, uncovered) | | 95.6 (both targets) / 96.5 (HAL once) |
+
+- The firmware exclusion list is empty, so the two readings differ only by the USB host half of `stm32f4xx_ll_usb.c` (HAL 93.1 % raw).
+- Files that are not linked into any test are not measured: 63 of 258 CMSIS-DSP files, the F411RE HAL copy, the CubeMX `Core/` code, CMSIS core. A true all-files figure would be lower and was not estimated.
+- Reports: `../ffb-test-build/np-cov.report.md` and `../ffb-test-build/np-cov.raw.md` (outside the repository).
+
 ## 2. Out of scope (decided by you)
 
 | Area | Why |
@@ -104,8 +122,12 @@ Headers of these modules: 392 / 413 lines (94.9 %).
 - Real-time behaviour: preemption, interrupt latency, priorities (the fake RTOS is cooperative with simulated time).
 - Not shown by the host, MIDI (P17): the data race between the USB task and the `TIM_USER` interrupt on the `notes` vectors, a real USB host or MIDI device, the exact 100 microsecond timer period (one update event per call), high speed endpoints.
 - Skipped by default: in 32-bit builds the 18 `KNOWN_ISSUE_32BIT_UB` cases of bug 225 and the 2 existing `SerialFFB` cases it aborts (ctest exclusion `FFB_TARGET_TESTS_EXCLUDE_32BIT`); the crash `command with an unknown id is rejected`; the `effectsForces` out-of-range case (excluded); two spline cases in sanitizer builds; the heap-corrupting VESC cases (B-V5); the `KNOWN_ISSUE_UB_HIDDEN`, `KNOWN_ISSUE_UB` and crash DSP cases in sanitizer builds (about 400 of 2485 `ffb_dsp_tests` cases skipped).
+- **Variant gate on `a18c2d95` (2026-11-17):** green: default, san, nodsp-san, clang, clang-san, m32, hal, hal-clang (baseline OK in every variant: 318 baseline cases, 340 new, 0 failed; default ctest 11 / 11, HAL 14 / 14). Two known limits:
+  - `m32-san`: `ffb_flash_tests` aborts (the 32-bit ASan runtime occupies the fixed fake-flash address 0x1FFF0000). Still open.
+  - `hal-san`: `ffb_hal_tests_disco` passes run directly (4063 passed, 5 skipped, 116 expected failures, 172 s under a machine load of about 4) but exceeded the 120 s ctest timeout once. The HAL runs are dominated by system time from register trapping (about 70 s on a quiet machine, `--rand-seed=715` included: 4067 cases, 0 failed, 1 skipped).
+- **Mutation check of the P12 review witnesses (2026-11-17):** the seven gap witnesses RV1 (T1-001), RV2 (T2-001), RV9 (T4C-001), RV12 (T5-002), RV14 (T6A-002), RV15 (T6B-002) and RV18 (T7-002) were run against mutated copies of the HAL source (the checked-in HAL is not touched; mutant objects were relinked in a scratch build). All 8 mutants were killed, each by its own witness and by no other case: HAL_Delay without the extra tick, PWR_CR read-back removed, `M0AR` not programmed for memory-to-peripheral DMA, mailbox 2 payload byte 7 dropped, BDTR LOCK not written, SQR2 rank off by one, SQR1 channel off by one, flash cache reset after the callback.
 - Windows / MinGW and macOS: prepared in CMake, not verified here. `ffb_flash_tests` is skipped on macOS. The 32-bit option refuses macOS and MSVC; a 32-bit MinGW build was not tried.
 - Integration across modules (real driver inside `Axis`, end-to-end HID effect to bus frame, shared buses, board-wide save / restore) is not tested; it was proposed once and has not been approved.
 
 ## 4. Tests that exist but do not count as "coverage"
-The suspected bugs (firmware bugs numbered up to 225, vendor bugs V1-V101), NEEDS REVIEW numbers up to 312 and open questions up to 64 (17-23, 32-52 and 54-61 pending) are in `Tests/Code_Coverage/claude/reports/BUG_REPORT.md`, `Tests/Code_Coverage/claude/plans/PROGRESS.md` and `Tests/Code_Coverage/claude/reports/OPEN_QUESTIONS.md`. A `KNOWN_ISSUE` test runs the line but asserts the intended behaviour, so those lines count as covered while the behaviour is still wrong.
+The suspected bugs (firmware bugs numbered up to 226, vendor bugs V1-V129), NEEDS REVIEW numbers up to 350 and open questions up to 70 (17-23, 32-52 and 54-61 pending) are in `Tests/Code_Coverage/claude/reports/BUG_REPORT.md`, `Tests/Code_Coverage/claude/plans/PROGRESS.md` and `Tests/Code_Coverage/claude/reports/OPEN_QUESTIONS.md`. A `KNOWN_ISSUE` test runs the line but asserts the intended behaviour, so those lines count as covered while the behaviour is still wrong.
