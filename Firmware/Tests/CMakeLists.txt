@@ -1225,7 +1225,14 @@ if(FFB_TESTS_REAL_HAL)
 			target_link_options(${name} PRIVATE -fsanitize=address,undefined)
 		endif()
 		add_test(NAME ${name} COMMAND ${name})
-		set_tests_properties(${name} PROPERTIES TIMEOUT 120) # a HAL polling loop that never ends is reported as a hang
+		# a HAL polling loop that never ends is reported as a hang. A full run is about 70 s unloaded (mostly system time from register
+		# trapping); under ASan / UBSan it took 172 s on a loaded machine, so sanitizer builds get 600 s.
+		if(FFB_TESTS_SANITIZE)
+			set(ffb_hal_timeout 600)
+		else()
+			set(ffb_hal_timeout 120)
+		endif()
+		set_tests_properties(${name} PROPERTIES TIMEOUT ${ffb_hal_timeout})
 		if(TARGET test_report)
 			add_dependencies(test_report ${name})
 		endif()
