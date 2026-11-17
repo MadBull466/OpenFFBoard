@@ -102,7 +102,8 @@ struct CtF : CanFixture {
 
 // ------------------------------------------------------------------ CT1 AddTxMessage
 
-TEST_CASE_FIXTURE(CtF, "CT1 characterization: AddTxMessage is rejected with NOT_INITIALIZED in state RESET") {
+// NEEDS REVIEW 409
+TEST_CASE_FIXTURE(CtF, "characterization: CT1 AddTxMessage is rejected with NOT_INITIALIZED in state RESET") {
 	h.State = HAL_CAN_STATE_RESET;
 	uint32_t mb = 0x55u;
 	const CAN_TxHeaderTypeDef t = stdHdr(0x123);
@@ -112,7 +113,8 @@ TEST_CASE_FIXTURE(CtF, "CT1 characterization: AddTxMessage is rejected with NOT_
 	CHECK(hostCanTxCount(0) == 0u);
 }
 
-TEST_CASE_FIXTURE(CtF, "CT1 characterization: AddTxMessage is rejected with NOT_INITIALIZED in state ERROR") {
+// NEEDS REVIEW 409
+TEST_CASE_FIXTURE(CtF, "characterization: CT1 AddTxMessage is rejected with NOT_INITIALIZED in state ERROR") {
 	up();
 	h.State = HAL_CAN_STATE_ERROR;
 	uint32_t mb = 0u;
@@ -122,7 +124,8 @@ TEST_CASE_FIXTURE(CtF, "CT1 characterization: AddTxMessage is rejected with NOT_
 	CHECK(hostCanTxCount(0) == 0u);
 }
 
-TEST_CASE_FIXTURE(CtF, "CT1 characterization: AddTxMessage is rejected in state SLEEP_ACTIVE") {
+// NEEDS REVIEW 409
+TEST_CASE_FIXTURE(CtF, "characterization: CT1 AddTxMessage is rejected in state SLEEP_ACTIVE") {
 	up();
 	h.State = HAL_CAN_STATE_SLEEP_ACTIVE;
 	const CAN_TxHeaderTypeDef t = stdHdr(0x123);
@@ -194,7 +197,7 @@ TEST_CASE_FIXTURE(CtF, "CT1 AddTxMessage with all mailboxes full returns HAL_ERR
 	CHECK((can()->sTxMailBox[2].TIR >> 21) == 0x30u);
 }
 
-TEST_CASE_FIXTURE(CtF, "CT1 characterization: AddTxMessage with all mailboxes full sets the error code PARAM") {
+TEST_CASE_FIXTURE(CtF, "characterization: CT1 AddTxMessage with all mailboxes full sets the error code PARAM") {
 	// NEEDS REVIEW 329: UM1725 does not say which error code a full mailbox set gives; the HAL sets HAL_CAN_ERROR_PARAM.
 	up();
 	hold(true);
@@ -541,7 +544,8 @@ TEST_CASE_FIXTURE(CtF, "CT2 AbortTxRequest in state READY returns HAL_OK") {
 	CHECK(HAL_CAN_IsTxMessagePending(&h, CAN_TX_MAILBOX0) == 0u);
 }
 
-TEST_CASE_FIXTURE(CtF, "CT2 characterization: AbortTxRequest is rejected with NOT_INITIALIZED in states RESET and ERROR") {
+// NEEDS REVIEW 409
+TEST_CASE_FIXTURE(CtF, "characterization: CT2 AbortTxRequest is rejected with NOT_INITIALIZED in states RESET and ERROR") {
 	up();
 	h.State = HAL_CAN_STATE_RESET;
 	CHECK(HAL_CAN_AbortTxRequest(&h, CAN_TX_MAILBOX0) == HAL_ERROR);
@@ -552,7 +556,8 @@ TEST_CASE_FIXTURE(CtF, "CT2 characterization: AbortTxRequest is rejected with NO
 	CHECK((h.ErrorCode & HAL_CAN_ERROR_NOT_INITIALIZED) != 0u);
 }
 
-TEST_CASE_FIXTURE(CtF, "CT2 characterization: AbortTxRequest of a mailbox rejected by state does not abort the pending frame") {
+// NEEDS REVIEW 409
+TEST_CASE_FIXTURE(CtF, "characterization: CT2 AbortTxRequest of a mailbox rejected by state does not abort the pending frame") {
 	up();
 	hold(true);
 	addStd(0x10);
@@ -811,7 +816,8 @@ TEST_CASE_FIXTURE(CtF, "CT3 GetTxTimestamp works in state READY") {
 	CHECK(HAL_CAN_GetTxTimestamp(&h, CAN_TX_MAILBOX0) == 0x2222u);
 }
 
-TEST_CASE_FIXTURE(CtF, "CT3 characterization: GetRxMessage is rejected with NOT_INITIALIZED in state RESET") {
+// NEEDS REVIEW 409
+TEST_CASE_FIXTURE(CtF, "characterization: CT3 GetRxMessage is rejected with NOT_INITIALIZED in state RESET") {
 	up();
 	hostCanRx(0, &(const HostCanFrame &)rxf(0x100, 0, 0, 1));
 	h.State = HAL_CAN_STATE_RESET;
@@ -823,7 +829,8 @@ TEST_CASE_FIXTURE(CtF, "CT3 characterization: GetRxMessage is rejected with NOT_
 	CHECK(HAL_CAN_GetRxFifoFillLevel(&h, CAN_RX_FIFO0) == 1u);  // the message was not released
 }
 
-TEST_CASE_FIXTURE(CtF, "CT3 characterization: GetRxMessage is rejected with NOT_INITIALIZED in state ERROR") {
+// NEEDS REVIEW 409
+TEST_CASE_FIXTURE(CtF, "characterization: CT3 GetRxMessage is rejected with NOT_INITIALIZED in state ERROR") {
 	up();
 	h.State = HAL_CAN_STATE_ERROR;
 	CAN_RxHeaderTypeDef rh{};
@@ -832,7 +839,7 @@ TEST_CASE_FIXTURE(CtF, "CT3 characterization: GetRxMessage is rejected with NOT_
 	CHECK((h.ErrorCode & HAL_CAN_ERROR_NOT_INITIALIZED) != 0u);
 }
 
-TEST_CASE_FIXTURE(CtF, "CT3 characterization: GetRxMessage on an empty FIFO 0 returns HAL_ERROR with PARAM") {
+TEST_CASE_FIXTURE(CtF, "characterization: CT3 GetRxMessage on an empty FIFO 0 returns HAL_ERROR with PARAM") {
 	// NEEDS REVIEW 329 (see CT1 NEEDS REVIEW 329): UM1725 names no error code for an empty FIFO; the HAL uses PARAM.
 	up();
 	CAN_RxHeaderTypeDef rh{};
@@ -841,7 +848,8 @@ TEST_CASE_FIXTURE(CtF, "CT3 characterization: GetRxMessage on an empty FIFO 0 re
 	CHECK((h.ErrorCode & HAL_CAN_ERROR_PARAM) != 0u);
 }
 
-TEST_CASE_FIXTURE(CtF, "CT3 characterization: GetRxMessage on an empty FIFO 1 returns HAL_ERROR with PARAM") {
+// NEEDS REVIEW 329
+TEST_CASE_FIXTURE(CtF, "characterization: CT3 GetRxMessage on an empty FIFO 1 returns HAL_ERROR with PARAM") {
 	up();
 	CAN_RxHeaderTypeDef rh{};
 	uint8_t d[8];
@@ -949,7 +957,7 @@ TEST_CASE_FIXTURE(CtF, "CT3 GetRxMessage reports DLC 0 to 8 as received") {
 	}
 }
 
-TEST_CASE_FIXTURE(CtF, "CT3 characterization: GetRxMessage limits a received DLC of 9 to 15 to 8") {
+TEST_CASE_FIXTURE(CtF, "characterization: CT3 GetRxMessage limits a received DLC of 9 to 15 to 8") {
 	// NEEDS REVIEW 329: UM1725 / RM0090 do not say what a DLC field above 8 gives; ISO 11898 treats 9..15 as 8 data bytes and the HAL truncates to 8.
 	up();
 	for (uint8_t dlc = 9; dlc <= 15; ++dlc) {

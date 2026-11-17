@@ -769,6 +769,7 @@ TEST_SUITE("DSP Filtering q31") {
 // ---------------------------------------------------------------------------------------------------------------
 TEST_CASE("[C1 arm_conv_q31] ARM's 40 pattern tests (nba 4..13 x nbb 1,2,3,8,11) reach SNR 100 and 2 LSB, guard behind the output intact") { armPatternTest(CONV, true); }
 KIND_TESTS(CONV, "arm_conv_q31", "the output equals the exact model acc >> 31")
+// NEEDS REVIEW 234
 TEST_CASE("characterization: [C4 arm_conv_q31] (-2^31) * (-2^31) = 2^31 wraps to -2^31 (the DOC also says saturated to 1.31)") { wrapCharacterization(CONV); }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -784,7 +785,9 @@ TEST_CASE("[C5 arm_conv_fast_q31] signed data agree with the double computation:
 // ---------------------------------------------------------------------------------------------------------------
 TEST_CASE("[C1 arm_correlate_q31] ARM's 40 pattern tests (nba 4..13 x nbb 1,2,3,8,11, zeroed output) reach SNR 100 and 2 LSB, guard intact") { armPatternTest(CORR, true); }
 KIND_TESTS(CORR, "arm_correlate_q31", "the output equals out[p] = r[p - (M-1)] of the exact model, padding stays 0")
+// NEEDS REVIEW 228
 TEST_CASE("characterization: [C4 arm_correlate_q31] (-2^31) * (-2^31) = 2^31 wraps to -2^31 (the DOC also says saturated to 1.31)") { wrapCharacterization(CORR); }
+// NEEDS REVIEW 228
 TEST_CASE("characterization: [C2 arm_correlate_q31] the srcALen - srcBLen padding outputs are never written (6 against 2 and 2 against 6)") { paddingCharacterization(CORR); }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -817,7 +820,9 @@ TEST_CASE("[C3 arm_conv_partial_fast_q31] every window with firstIndex <= max(sr
 TEST_CASE("[C3 arm_conv_partial_fast_q31] every window with firstIndex <= max(srcALen, srcBLen) of every length pair 1 to 9 equals the exact model with signed data" * UB_FAST) { partialSweepTest(true, true); }
 TEST_CASE("[C3 arm_conv_partial_fast_q31] the window 0 .. srcALen+srcBLen-2 equals arm_conv_fast_q31 bit for bit, non-negative data") { partialEqualsFullTest(true, false); }
 TEST_CASE("[C4 arm_conv_partial_fast_q31] a window outside [0, srcALen+srcBLen-2] returns ARM_MATH_ARGUMENT_ERROR, the last valid windows succeed") { partialErrorTest(true); }
+// NEEDS REVIEW 230
 TEST_CASE("characterization: [C2 arm_conv_partial_fast_q31] the window is written at pDst[firstIndex ..] and nothing before it (first 0, 3, 7, 8, non-negative data)") { partialPlacementCharacterization(true); }
+// NEEDS REVIEW 387
 TEST_CASE("characterization: [C4 arm_conv_partial_fast_q31] on ARM_MATH_ARGUMENT_ERROR nothing is written to the output") { partialErrorWritesNothing(true); }
 
 // ---------------------------------------------------------------------------------------------------------------

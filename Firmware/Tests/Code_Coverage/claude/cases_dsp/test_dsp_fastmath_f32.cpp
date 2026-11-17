@@ -384,7 +384,8 @@ TEST_CASE("[C4 arm_sqrt_f32] zero returns ARM_MATH_SUCCESS and 0") {
 	CHECK(out == 0.0f);
 }
 
-TEST_CASE("[C4 arm_sqrt_f32] characterization: negative zero returns ARM_MATH_SUCCESS and a zero") {
+// NEEDS REVIEW 383
+TEST_CASE("characterization: [C4 arm_sqrt_f32] negative zero returns ARM_MATH_SUCCESS and a zero") {
 	// DOC is silent on -0.0f. IEEE 754 compares -0 == +0 (not negative) and sqrt(-0) = -0 (a zero); the sign of the zero is
 	// not asserted. NEEDS REVIEW (listed in the report).
 	float out = 123.0f;
@@ -400,7 +401,8 @@ TEST_CASE("[C4 arm_sqrt_f32] positive infinity gives infinity and success") {
 	CHECK(out > 0.0f);
 }
 
-TEST_CASE("[C4 arm_sqrt_f32] characterization: NaN returns ARM_MATH_ARGUMENT_ERROR and sets the output to 0") {
+// NEEDS REVIEW 383
+TEST_CASE("characterization: [C4 arm_sqrt_f32] NaN returns ARM_MATH_ARGUMENT_ERROR and sets the output to 0") {
 	// DOC is silent on NaN ("input value is negative"). The check `in >= 0` is false for NaN, so the error branch is taken
 	// and *pOut = 0 as for a negative input; a NaN is "not a valid positive input". NEEDS REVIEW (listed in the report).
 	float out = 123.0f;
@@ -495,7 +497,8 @@ TEST_CASE("[C4 arm_atan2_f32] a ratio y/x that overflows or underflows still giv
 	}
 }
 
-TEST_CASE("[C4 arm_atan2_f32] characterization: atan2(0, 0) returns ARM_MATH_NANINF") {
+// NEEDS REVIEW 194
+TEST_CASE("characterization: [C4 arm_atan2_f32] atan2(0, 0) returns ARM_MATH_NANINF") {
 	// DOC only says "@return error status" and does not name the code. The angle of the origin is undefined, so an error
 	// status is expected; the code ARM_MATH_NANINF (the final return of the function) is what this checks, and the
 	// output value is not asserted. NEEDS REVIEW (listed in the report).

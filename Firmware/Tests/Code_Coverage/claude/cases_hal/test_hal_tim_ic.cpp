@@ -240,6 +240,7 @@ TEST_CASE_FIXTURE(TimFixture, "TI1 IC_Init after IC_DeInit runs MspInit again") 
 	CHECK(timCounts.mspInit[3] == 2u);
 }
 
+// NEEDS REVIEW 422
 TEST_CASE_FIXTURE(TimFixture, "characterization: TI1 IC_DeInit leaves CEN set while a channel is still enabled") {
 	TiRig r(3);
 	REQUIRE(HAL_TIM_IC_Init(&r.h) == HAL_OK);
@@ -352,6 +353,7 @@ TEST_CASE_FIXTURE(TimFixture, "TI1 IC_ConfigChannel of a locked handle returns H
 	CHECK(r.h.Lock == HAL_LOCKED);
 }
 
+// NEEDS REVIEW 333
 TEST_CASE_FIXTURE(TimFixture, "characterization: TI1 IC_ConfigChannel with an invalid channel returns HAL_ERROR, writes nothing and unlocks") {
 	TiRig r(3);
 	REQUIRE(HAL_TIM_IC_Init(&r.h) == HAL_OK);
@@ -394,6 +396,7 @@ TEST_CASE_FIXTURE(TimFixture, "TI1 IC_ConfigChannel of a one channel timer selec
 	}
 }
 
+// NEEDS REVIEW 333
 TEST_CASE_FIXTURE(TimFixture, "characterization: TI1 IC_ConfigChannel channel 3 on TIM9 (no CCMR2) returns HAL_OK and touches the missing register") {
 	TiRig r(9);
 	REQUIRE(HAL_TIM_IC_Init(&r.h) == HAL_OK);
@@ -615,6 +618,7 @@ TEST_CASE_FIXTURE(TimFixture, "TI1 Stop of one channel keeps CCxE, the request b
 	}
 }
 
+// NEEDS REVIEW 333
 TEST_CASE_FIXTURE(TimFixture, "characterization: TI1 Stop of one channel keeps the counter running while another channel is enabled") {
 	for (int mode = 0; mode < 3; ++mode) {
 		CAPTURE(mode);
@@ -664,6 +668,7 @@ TEST_CASE_FIXTURE(TimFixture, "TI1 Stop clears CCxE and the interrupt bit on eve
 		}
 }
 
+// NEEDS REVIEW 335
 TEST_CASE_FIXTURE(TimFixture, "characterization: TI1 poll Start and Stop with TIM_CHANNEL_ALL return HAL_OK and use the state of channel 4") {
 	TiRig r(3);
 	REQUIRE(HAL_TIM_IC_Init(&r.h) == HAL_OK);
@@ -673,6 +678,7 @@ TEST_CASE_FIXTURE(TimFixture, "characterization: TI1 poll Start and Stop with TI
 	CHECK(r.state(4) == tiReady);
 }
 
+// NEEDS REVIEW 335
 TEST_CASE_FIXTURE(TimFixture, "characterization: TI1 Start_IT with TIM_CHANNEL_ALL returns HAL_ERROR and leaves the state of channel 4 BUSY, Stop_IT returns HAL_ERROR") {
 	TiRig r(3);
 	REQUIRE(HAL_TIM_IC_Init(&r.h) == HAL_OK);
@@ -683,6 +689,7 @@ TEST_CASE_FIXTURE(TimFixture, "characterization: TI1 Start_IT with TIM_CHANNEL_A
 	CHECK(r.state(4) == tiBusy);
 }
 
+// NEEDS REVIEW 335
 TEST_CASE_FIXTURE(TimFixture, "characterization: TI1 Start_DMA with TIM_CHANNEL_ALL returns HAL_ERROR, leaves channel 4 BUSY and the counter enabled, Stop_DMA returns HAL_ERROR") {
 	TiRig r(3, true);
 	REQUIRE(HAL_TIM_IC_Init(&r.h) == HAL_OK);
@@ -768,6 +775,7 @@ TEST_CASE_FIXTURE(TimFixture, "TI1 a channel configured by IC_ConfigChannel is a
 	CHECK(hostTimCapture(3, 1, 5) == 1);
 }
 
+// NEEDS REVIEW 422
 TEST_CASE_FIXTURE(TimFixture, "characterization: TI1 ReadCapturedValue of TIM_CHANNEL_ALL returns 0") {
 	TiRig r(3);
 	REQUIRE(HAL_TIM_IC_Init(&r.h) == HAL_OK);
@@ -958,6 +966,7 @@ TEST_CASE_FIXTURE(TimFixture, "TI2 OnePulse_ConfigChannel of a locked handle ret
 	CHECK(r.t->SMCR == 0u);
 }
 
+// NEEDS REVIEW 333
 TEST_CASE_FIXTURE(TimFixture, "characterization: TI2 OnePulse_ConfigChannel with an invalid output channel returns HAL_ERROR, writes nothing and unlocks") {
 	TiRig r(3);
 	REQUIRE(HAL_TIM_OnePulse_Init(&r.h, TIM_OPMODE_SINGLE) == HAL_OK);
@@ -969,6 +978,7 @@ TEST_CASE_FIXTURE(TimFixture, "characterization: TI2 OnePulse_ConfigChannel with
 	CHECK(HAL_TIM_OnePulse_GetState(&r.h) == HAL_TIM_STATE_READY);
 }
 
+// NEEDS REVIEW 422
 TEST_CASE_FIXTURE(TimFixture, "characterization: TI2 OnePulse_ConfigChannel with an invalid input channel returns HAL_ERROR after the output channel was configured") {
 	TiRig r(3);
 	REQUIRE(HAL_TIM_OnePulse_Init(&r.h, TIM_OPMODE_SINGLE) == HAL_OK);
@@ -979,6 +989,7 @@ TEST_CASE_FIXTURE(TimFixture, "characterization: TI2 OnePulse_ConfigChannel with
 	CHECK(r.h.Lock == HAL_UNLOCKED);
 }
 
+// NEEDS REVIEW 422
 TEST_CASE_FIXTURE(TimFixture, "characterization: TI2 OnePulse_ConfigChannel clears the prescaler bits of the input channel") {
 	TiRig r(3);
 	REQUIRE(HAL_TIM_OnePulse_Init(&r.h, TIM_OPMODE_SINGLE) == HAL_OK);
@@ -1033,6 +1044,7 @@ TEST_CASE_FIXTURE(TimFixture, "TI2 OnePulse_Start on TIM1 and TIM8 enables MOE, 
 		}
 }
 
+// NEEDS REVIEW 422
 TEST_CASE_FIXTURE(TimFixture, "characterization: TI2 OnePulse_Start ignores OutputChannel (channels 1 and 2 are always used)") {
 	const uint32_t chans[3] = {TIM_CHANNEL_1, TIM_CHANNEL_2, TIM_CHANNEL_3};
 	for (uint32_t ch : chans) {
@@ -1095,6 +1107,7 @@ TEST_CASE_FIXTURE(TimFixture, "TI2 OnePulse_Stop_IT keeps the other interrupt en
 	CHECK(r.t->DIER == 0x9u);
 }
 
+// NEEDS REVIEW 332
 TEST_CASE_FIXTURE(TimFixture, "characterization: TI2 OnePulse_Stop keeps MOE and CEN while channel 3 is still enabled (TIM1)") {
 	TiRig r(1);
 	REQUIRE(HAL_TIM_OnePulse_Init(&r.h, TIM_OPMODE_SINGLE) == HAL_OK);
@@ -1266,6 +1279,7 @@ TEST_CASE_FIXTURE(TimFixture, "TI3 Encoder_Init writes Period to ARR and Prescal
 	CHECK(r.cen() == false);
 }
 
+// NEEDS REVIEW 333
 TEST_CASE_FIXTURE(TimFixture, "characterization: TI3 Encoder_Init on TIM12 writes SMS = encoder mode and returns HAL_OK although RM0090 lists none for TIM9 / TIM12") {
 	TiRig r(12);
 	const TIM_Encoder_InitTypeDef c = tiEnc(TIM_ENCODERMODE_TI12);
@@ -1292,6 +1306,7 @@ TEST_CASE_FIXTURE(TimFixture, "TI3 Encoder_DeInit runs MspDeInit once, stops the
 	CHECK(r.h.DMABurstState == HAL_DMA_BURST_STATE_RESET);
 }
 
+// NEEDS REVIEW 422
 TEST_CASE_FIXTURE(TimFixture, "characterization: TI3 Encoder_DeInit leaves CEN set while a channel is still enabled") {
 	TiRig r(3);
 	const TIM_Encoder_InitTypeDef c = tiEnc(TIM_ENCODERMODE_TI12);
@@ -1342,6 +1357,7 @@ TEST_CASE_FIXTURE(TimFixture, "TI3 Encoder Start of TIM_CHANNEL_ALL enables CC1E
 	}
 }
 
+// NEEDS REVIEW 333
 TEST_CASE_FIXTURE(TimFixture, "characterization: TI3 Encoder Start with a channel value other than 1 or 2 is treated as both channels") {
 	const uint32_t chans[2] = {TIM_CHANNEL_3, TIM_CHANNEL_4};
 	for (uint32_t ch : chans)
@@ -1446,6 +1462,7 @@ TEST_CASE_FIXTURE(TimFixture, "TI3 Encoder Start_DMA of channel 1 with pData1 NU
 	}
 }
 
+// NEEDS REVIEW 333
 TEST_CASE_FIXTURE(TimFixture, "characterization: TI3 Encoder Start_DMA ignores the data pointer of the channel not started") {
 	{
 		TiEncRig r(3, true);
@@ -1572,6 +1589,7 @@ TEST_CASE_FIXTURE(TimFixture, "TI3 Encoder Stop of one channel only sets that ch
 	}
 }
 
+// NEEDS REVIEW 333
 TEST_CASE_FIXTURE(TimFixture, "characterization: TI3 Encoder Stop of one channel keeps the counter running while the other channel is enabled") {
 	for (int mode = 0; mode < 3; ++mode) {
 		CAPTURE(mode);
@@ -2003,6 +2021,7 @@ TEST_CASE_FIXTURE(TimFixture, "TI4 HallSensor_GetState is RESET before and READY
 	CHECK(HAL_TIMEx_HallSensor_GetState(&r.h) == HAL_TIM_STATE_READY);
 }
 
+// NEEDS REVIEW 333
 TEST_CASE_FIXTURE(TimFixture, "characterization: TI1 Start_DMA right after Stop_DMA returns HAL_ERROR until the DMA interrupt of the abort has run") {
 	TiRig r(3, true);
 	REQUIRE(HAL_TIM_IC_Init(&r.h) == HAL_OK);

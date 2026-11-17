@@ -264,6 +264,7 @@ TEST_CASE_FIXTURE(TdcFixture, "[R1.2 torque] set while the driver is not Running
 	CHECK((writes(kRegPwm).back() & 0xFF) == 7);
 }
 
+// NEEDS REVIEW 240
 TEST_CASE_FIXTURE(TdcFixture, "characterization: [R1.2 torque] the first set from Shutdown writes only the start (PWM 0x1A = 7, mode register stop) and no torque target") {
 	// B-DTDC-2 candidate; D1 R62: turn() does nothing while the motor is not ready, startMotor() only requests the Running state
 	auto b = idleBridge();
@@ -275,6 +276,7 @@ TEST_CASE_FIXTURE(TdcFixture, "characterization: [R1.2 torque] the first set fro
 	CHECK(writes(kRegTorqueFlux).empty());
 }
 
+// NEEDS REVIEW 240
 TEST_CASE_FIXTURE(TdcFixture, "characterization: [R1.2 torque] the same set after the driver thread reached Running writes the torque target and the torque mode") {
 	auto b = idleBridge();
 	REQUIRE(exec(*b, "torque", CMDtype::set, 1000) == CommandStatus::OK);
@@ -286,6 +288,7 @@ TEST_CASE_FIXTURE(TdcFixture, "characterization: [R1.2 torque] the same set afte
 	CHECK(modeByte() == 1);								 // torque mode (DS 0x63)
 }
 
+// NEEDS REVIEW 240
 TEST_CASE_FIXTURE(TdcFixture, "characterization: [R1.2 torque] the value of the first set from Shutdown is not applied later by the driver thread") {
 	auto b = idleBridge();
 	REQUIRE(exec(*b, "torque", CMDtype::set, 1000) == CommandStatus::OK);
@@ -294,6 +297,7 @@ TEST_CASE_FIXTURE(TdcFixture, "characterization: [R1.2 torque] the value of the 
 	CHECK(writes(kRegTorqueFlux).empty());
 }
 
+// NEEDS REVIEW 241
 TEST_CASE_FIXTURE(TdcFixture, "characterization: [R1.2 torque] set 40000 is narrowed to 16 bit and writes the torque -25536 (0x9C40)") {
 	auto b = runningBridge();
 	CHECK(exec(*b, "torque", CMDtype::set, 40000) == CommandStatus::OK);
@@ -435,6 +439,7 @@ TEST_CASE_FIXTURE(TdcFixture, "[R1.6 openloopspeedpwm] set 500 writes the speed 
 	CHECK(chip1.reg(kRegOpenloopAccel) == 100u);
 }
 
+// NEEDS REVIEW 241
 TEST_CASE_FIXTURE(TdcFixture, "characterization: [R5.1 openloopspeedpwm] set sends exactly the frames of openloopspeed set") {
 	auto b = bridge();
 	REQUIRE(exec(*b, "openloopspeed", CMDtype::set, 500) == CommandStatus::OK);
@@ -617,6 +622,7 @@ TEST_CASE_FIXTURE(TdcFixture, "[R1.4 mode] set 3 starts the motor (PWM_CHOP 7) a
 	CHECK((writes(kRegPwm).back() & 0xFF) == 7);
 }
 
+// NEEDS REVIEW 241
 TEST_CASE_FIXTURE(TdcFixture, "characterization: [R1.4 mode] set 9 (reserved in the datasheet, encminimove in the firmware) is accepted") {
 	auto b = bridge();
 	CHECK(exec(*b, "mode", CMDtype::set, 9) == CommandStatus::OK);
@@ -646,6 +652,7 @@ TEST_CASE_FIXTURE(TdcFixture, "[R1.4 mode] set 10 and above does not change the 
 	CHECK(chip1.log().empty());
 }
 
+// NEEDS REVIEW 241
 TEST_CASE_FIXTURE(TdcFixture, "characterization: [R1.4 mode] the help reply text for an out-of-range mode") {
 	auto b = bridge();
 	std::vector<CommandReply> replies;
@@ -654,6 +661,7 @@ TEST_CASE_FIXTURE(TdcFixture, "characterization: [R1.4 mode] the help reply text
 	CHECK(replies.front().reply == kModeHelp);
 }
 
+// NEEDS REVIEW 241
 TEST_CASE_FIXTURE(TdcFixture, "characterization: [R1.4 mode] a command type other than get and set answers the help text with OK and no register traffic") {
 	auto b = bridge();
 	for (CMDtype t : {CMDtype::none, CMDtype::setat, CMDtype::getat, CMDtype::info, CMDtype::err}) {
@@ -714,12 +722,14 @@ TEST_CASE_FIXTURE(TdcFixture, "[R5.2 mode] set -1 is rejected like an out-of-ran
 // R1.7 help strings
 // ---------------------------------------------------------------------------------------------------------------
 
+// NEEDS REVIEW 241
 TEST_CASE_FIXTURE(TdcFixture, "characterization: [R1.7 help] getHelpstring is the fixed TMCL-IDE text") {
 	auto b = bridge();
 	CHECK(b->getHelpstring() ==
 		  "Compatible with TMCL-IDE. To use the FOC modes position, velocity and torque you first must manually select the encoder and wait for alignment.");
 }
 
+// NEEDS REVIEW 374
 TEST_CASE_FIXTURE(TdcFixture, "characterization: [R1.7 help] the help text of each command") {
 	auto b = bridge();
 	struct Row {

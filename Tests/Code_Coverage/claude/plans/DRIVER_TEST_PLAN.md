@@ -1,5 +1,7 @@
 # Driver Test Plan: TMC4671, ODrive, VESC
 
+Status 2026-11-17: complete. D0-D3 (P10) are done and approved; the later driver phases P13-P17 are done too. This plan is the record of P10; the current state is in `PROGRESS.md`.
+
 Extension of `Tests/Code_Coverage/claude/plans/TEST_PLAN.md`. Permanent rules are in the root `CLAUDE.md` and apply throughout, in particular: `Firmware/` is read-only except `Firmware/Tests/`, push only to the user's fork when asked (see `CLAUDE.md`), never write the user's email address anywhere, commit as `MadBull.Ben` with an empty email.
 
 ## Scope

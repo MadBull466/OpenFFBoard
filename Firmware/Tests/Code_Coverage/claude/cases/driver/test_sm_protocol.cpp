@@ -324,16 +324,19 @@ TEST_CASE_FIXTURE(SmFixture, "[R4.2 cpr] sincos 256 (FBD 8) multiplies by 256: 1
 	CHECK(cprFor(*this, 8, 1000) == 256000);
 }
 
+// NEEDS REVIEW 252
 TEST_CASE_FIXTURE(SmFixture, "characterization: [R4.2 cpr] resolver (FBD 3) uses the factor 4") {
 	// NEEDS REVIEW: the code comment says "TODO check if this is right for hall, resolver and sincos"; the SM documents give no rule
 	CHECK(cprFor(*this, 3, 1000) == 4000);
 }
 
+// NEEDS REVIEW 252
 TEST_CASE_FIXTURE(SmFixture, "characterization: [R4.2 cpr] hall (FBD 4) uses the factor 4") {
 	// NEEDS REVIEW: see resolver
 	CHECK(cprFor(*this, 4, 1000) == 4000);
 }
 
+// NEEDS REVIEW 365
 TEST_CASE_FIXTURE(SmFixture, "characterization: [R4.2 cpr] serial (FBD 5) uses the factor 4") {
 	// NEEDS REVIEW: see resolver
 	CHECK(cprFor(*this, 5, 1000) == 4000);
@@ -379,6 +382,7 @@ TEST_CASE_FIXTURE(SmFixture, "[R4.3 fbd] FBD 9 (not in the supported list) adds 
 	CHECK_FALSE(sm->motorReady());
 }
 
+// NEEDS REVIEW 256
 TEST_CASE_FIXTURE(SmFixture, "characterization: [R4.3 fbd] FBD 10 (SMP_FBD_SERIALDATA_PORT2 in the SM defs) is rejected as invalid configuration") {
 	// NEEDS REVIEW: FBD 10 is a defined SM feedback type; the firmware has no cpr rule for it and rejects it
 	dev.params[FakeSmDevice::SMP_FB1_DEVICE_SELECTION] = 10;
@@ -394,6 +398,7 @@ TEST_CASE_FIXTURE(SmFixture, "[R4.3 fbd] a supported feedback adds no configurat
 	CHECK_FALSE(hasError(ErrorCode::externalConfigurationError));
 }
 
+// NEEDS REVIEW 254
 TEST_CASE_FIXTURE(SmFixture, "characterization: [R4.3 fbd] after a rejected feedback the hardfault stays set when the device is repaired, so the driver is not ready until restart") {
 	// NEEDS REVIEW: getSettings sets hardfault for FBD 0 but never clears it; only restart() or a status word reply clears it
 	dev.params[FakeSmDevice::SMP_FB1_DEVICE_SELECTION] = 0;
@@ -425,6 +430,7 @@ TEST_CASE_FIXTURE(SmFixture, "[R4.4 status] a status word of 0 ends getSettings 
 
 // ---------------------------------------------------------------- R4.5 interval
 
+// NEEDS REVIEW 365
 TEST_CASE_FIXTURE(SmFixture, "characterization: [R4.5 interval] a second getSettings straight after the first sends nothing and returns false, after 150 ms it runs again") {
 	// NEEDS REVIEW: the 150 ms constant is not in the SM documents
 	auto sm = makeSm(1);
@@ -437,6 +443,7 @@ TEST_CASE_FIXTURE(SmFixture, "characterization: [R4.5 interval] a second getSett
 	CHECK(dev.frameCount() == sent + 6);
 }
 
+// NEEDS REVIEW 365
 TEST_CASE_FIXTURE(SmFixture, "characterization: [R4.5 interval] 149 ms after the last request the settings are refused, 150 ms accepted") {
 	// NEEDS REVIEW: boundary of the 150 ms constant; simulated time does not move while the peer answers inside the call
 	auto sm = makeSm(1);
@@ -772,6 +779,7 @@ TEST_CASE_FIXTURE(SmFixture, "[R5.6 recover] after a timed-out read the next req
 	CHECK(v == 99);
 }
 
+// NEEDS REVIEW 253
 TEST_CASE_FIXTURE(SmFixture, "characterization: [R5.6 recover] a request sent in the same millisecond as the timeout of the previous one is refused, the port is released 10 ms after the last received byte") {
 	// NEEDS REVIEW: prepareUartTransmit resets the buffer only when more than 10 ms passed since the last byte; at exactly 10 ms the
 	// port is still taken. On the target the next request comes later; the SM documents have no such rule
@@ -833,6 +841,7 @@ TEST_CASE_FIXTURE(SmFixture, "[R5.6 recover] after a truncated reply the next re
 
 // ---------------------------------------------------------------- R5.7 / R5.8 limits
 
+// NEEDS REVIEW 255
 TEST_CASE_FIXTURE(SmFixture, "characterization: [R5.7 negative] a 22 bit -1 (0x3FFFFF) in a 24 bit reply is read as 0x3FFFFF, not sign extended") {
 	// NEEDS REVIEW (owner question 38d): the sign extension is commented out in uartRcv; the SM documents give no sign rule
 	SM_READY(sm);
@@ -843,6 +852,7 @@ TEST_CASE_FIXTURE(SmFixture, "characterization: [R5.7 negative] a 22 bit -1 (0x3
 	CHECK(v == 0x3FFFFF);
 }
 
+// NEEDS REVIEW 365
 TEST_CASE_FIXTURE(SmFixture, "characterization: [R5.7 negative] a 14 bit -1 (0x3FFF) in a 16 bit reply is read as 0x3FFF, not sign extended") {
 	// NEEDS REVIEW: see above
 	SM_READY(sm);
@@ -853,6 +863,7 @@ TEST_CASE_FIXTURE(SmFixture, "characterization: [R5.7 negative] a 14 bit -1 (0x3
 	CHECK(v == 0x3FFF);
 }
 
+// NEEDS REVIEW 255
 TEST_CASE_FIXTURE(SmFixture, "characterization: [R5.8 reg] reg setat with an address above 0x3FFF puts the high address bits into the subpacket type bits") {
 	// HD: 0x4001: queueCommand ORs (0x4001 >> 8) = 0x40 into the first byte 0x80: 0xC0 = type 11, then 0x01. NEEDS REVIEW: spec has 14 address bits
 	DebugModeOn debugModeOn;

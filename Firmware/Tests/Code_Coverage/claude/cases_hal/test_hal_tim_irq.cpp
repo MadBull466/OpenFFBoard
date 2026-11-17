@@ -261,7 +261,8 @@ TEST_CASE_FIXTURE(TimFixture, "TQ1 an enabled flag of one source does not run th
 	CHECK((t->SR & (tqCcFlag(2) | tqUIF | tqBIF | tqTIF | tqCOMIF)) == (tqCcFlag(2) | tqUIF | tqBIF | tqTIF | tqCOMIF));
 }
 
-TEST_CASE_FIXTURE(TimFixture, "TQ1 characterization: several flags at once call back in the order channels 1 to 4, update, break, trigger, commutation") {
+// NEEDS REVIEW 336
+TEST_CASE_FIXTURE(TimFixture, "characterization: TQ1 several flags at once call back in the order channels 1 to 4, update, break, trigger, commutation") {
 	TIM_TypeDef *t = TIM1;
 	tqClean(t);
 	TIM_HandleTypeDef h = tqHandle(1);
@@ -282,7 +283,8 @@ TEST_CASE_FIXTURE(TimFixture, "TQ1 characterization: several flags at once call 
 	CHECK(HAL_TIM_GetActiveChannel(&h) == HAL_TIM_ACTIVE_CHANNEL_CLEARED);
 }
 
-TEST_CASE_FIXTURE(TimFixture, "TQ1 characterization: the overcapture flag stays set after the handler and raises no callback by itself") {
+// NEEDS REVIEW 423
+TEST_CASE_FIXTURE(TimFixture, "characterization: TQ1 the overcapture flag stays set after the handler and raises no callback by itself") {
 	TIM_TypeDef *t = TIM2;
 	tqClean(t);
 	TIM_HandleTypeDef h = tqHandle(2);
@@ -410,7 +412,8 @@ TEST_CASE_FIXTURE(TqRig, "TQ2 the base DMA transfer complete calls the period el
 	CHECK(timCounts.stateAtLast == HAL_TIM_STATE_READY); // set before the callback
 }
 
-TEST_CASE_FIXTURE(TqRig, "TQ2 characterization: the base DMA transfer complete of a circular stream keeps the timer BUSY") {
+// NEEDS REVIEW 332
+TEST_CASE_FIXTURE(TqRig, "characterization: TQ2 the base DMA transfer complete of a circular stream keeps the timer BUSY") {
 	REQUIRE(HAL_TIM_Base_Init(&h) == HAL_OK);
 	link(TIM_DMA_ID_UPDATE, true, false);
 	REQUIRE(HAL_TIM_Base_Start_DMA(&h, buf, 4) == HAL_OK);
@@ -489,7 +492,8 @@ TEST_CASE_FIXTURE(TimFixture, "TQ2 the OC and PWM DMA transfer complete calls th
 		}
 }
 
-TEST_CASE_FIXTURE(TimFixture, "TQ2 characterization: the OC and PWM DMA transfer complete of a circular stream keeps the channel BUSY") {
+// NEEDS REVIEW 423
+TEST_CASE_FIXTURE(TimFixture, "characterization: TQ2 the OC and PWM DMA transfer complete of a circular stream keeps the channel BUSY") {
 	for (int k = 0; k < 2; ++k)
 		for (unsigned ch = 1; ch <= 4; ++ch) {
 			CAPTURE(k);
@@ -557,7 +561,8 @@ TEST_CASE_FIXTURE(TimFixture, "TQ2 the IC DMA transfer complete calls the captur
 	}
 }
 
-TEST_CASE_FIXTURE(TimFixture, "TQ2 characterization: the IC DMA transfer complete of a circular stream keeps the channel BUSY") {
+// NEEDS REVIEW 423
+TEST_CASE_FIXTURE(TimFixture, "characterization: TQ2 the IC DMA transfer complete of a circular stream keeps the channel BUSY") {
 	for (unsigned ch = 1; ch <= 4; ++ch) {
 		CAPTURE(ch);
 		timSupportReset();
@@ -631,7 +636,8 @@ TEST_CASE_FIXTURE(TimFixture, "TQ2 the complementary DMA transfer complete calls
 		}
 }
 
-TEST_CASE_FIXTURE(TimFixture, "TQ2 characterization: the complementary DMA transfer complete of a circular stream keeps the complementary state BUSY") {
+// NEEDS REVIEW 423
+TEST_CASE_FIXTURE(TimFixture, "characterization: TQ2 the complementary DMA transfer complete of a circular stream keeps the complementary state BUSY") {
 	for (unsigned ch = 1; ch <= 3; ++ch) {
 		CAPTURE(ch);
 		timSupportReset();
@@ -690,7 +696,8 @@ TEST_CASE_FIXTURE(TqRig, "TQ2 the trigger DMA transfer complete calls the trigge
 	CHECK(HAL_TIM_Base_GetState(&h) == HAL_TIM_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(TqRig, "TQ2 characterization: the trigger DMA transfer complete of a circular stream keeps the timer BUSY") {
+// NEEDS REVIEW 336
+TEST_CASE_FIXTURE(TqRig, "characterization: TQ2 the trigger DMA transfer complete of a circular stream keeps the timer BUSY") {
 	REQUIRE(HAL_TIM_Base_Init(&h) == HAL_OK);
 	link(TIM_DMA_ID_TRIGGER, true, false);
 	REQUIRE(HAL_TIM_DMABurst_MultiWriteStart(&h, TIM_DMABASE_CR1, TIM_DMA_TRIGGER, buf, TIM_DMABURSTLENGTH_1TRANSFER, 4) == HAL_OK);
@@ -781,7 +788,8 @@ TEST_CASE_FIXTURE(TqRig, "TQ2 the commutation DMA transfer complete calls the co
 	CHECK(HAL_TIM_Base_GetState(&h) == HAL_TIM_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(TqRig, "TQ2 characterization: the commutation DMA half transfer calls the half callback and already sets the timer READY") {
+// NEEDS REVIEW 336
+TEST_CASE_FIXTURE(TqRig, "characterization: TQ2 the commutation DMA half transfer calls the half callback and already sets the timer READY") {
 	REQUIRE(HAL_TIM_Base_Init(&h) == HAL_OK);
 	link(TIM_DMA_ID_COMMUTATION, false, false);
 	REQUIRE(HAL_TIM_DMABurst_MultiWriteStart(&h, TIM_DMABASE_CR1, TIM_DMA_COM, buf, TIM_DMABURSTLENGTH_1TRANSFER, 4) == HAL_OK);
@@ -792,7 +800,8 @@ TEST_CASE_FIXTURE(TqRig, "TQ2 characterization: the commutation DMA half transfe
 	CHECK(HAL_TIM_Base_GetState(&h) == HAL_TIM_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(TqRig, "TQ2 characterization: the commutation DMA transfer complete of a circular stream also sets the timer READY") {
+// NEEDS REVIEW 336
+TEST_CASE_FIXTURE(TqRig, "characterization: TQ2 the commutation DMA transfer complete of a circular stream also sets the timer READY") {
 	REQUIRE(HAL_TIM_Base_Init(&h) == HAL_OK);
 	link(TIM_DMA_ID_COMMUTATION, true, false);
 	REQUIRE(HAL_TIM_DMABurst_MultiWriteStart(&h, TIM_DMABASE_CR1, TIM_DMA_COM, buf, TIM_DMABURSTLENGTH_1TRANSFER, 4) == HAL_OK);
@@ -826,7 +835,8 @@ TEST_CASE_FIXTURE(TqRig, "TQ2 the commutation callbacks installed by ConfigCommu
 	CHECK(timCounts.order[1] == TIM_CB_COMMUT);
 }
 
-TEST_CASE_FIXTURE(TqRig, "TQ2 characterization: callbacks of a stream that is not linked to a channel report the event with no active channel") {
+// NEEDS REVIEW 336
+TEST_CASE_FIXTURE(TqRig, "characterization: TQ2 callbacks of a stream that is not linked to a channel report the event with no active channel") {
 	// The stream is started for CC1, then the handle slot is cleared so that hdma matches no channel (the else branch of every callback).
 	for (int ev = 0; ev < 5; ++ev) {
 		CAPTURE(ev);

@@ -596,7 +596,8 @@ const DataClass kClasses[] = {{-32768, 32767, "full"}, {-16000, 16000, "moderate
 
 }  // namespace
 
-TEST_CASE("[C4 arm_absmin_q15] characterization: blocks where every sample saturates to 32767 give 32767 at index 0 (also absmin_no_idx and absmax)") {
+// NEEDS REVIEW 209
+TEST_CASE("characterization: [C4 arm_absmin_q15] blocks where every sample saturates to 32767 give 32767 at index 0 (also absmin_no_idx and absmax)") {
 	const std::vector<std::vector<int16_t>> blocks = {{32767, -32768}, {-32768, -32768, 32767}, {-32768, 32767, -32768, -32768, 32767}, {32767, 32767, -32768, 32767, -32768, -32768, -32768}};
 	for (const auto &x : blocks) {
 		CAPTURE(x.size());
@@ -845,7 +846,8 @@ TEST_CASE("[C4 arm_var_q15] the variance of equal samples is 0 (including two sa
 	}
 }
 
-TEST_CASE("[C4 arm_var_q15] characterization: the variance of 0 or 1 samples is 0 (explicit branch, DOC silent, DEF with n-1 undefined)") {
+// NEEDS REVIEW 395
+TEST_CASE("characterization: [C4 arm_var_q15] the variance of 0 or 1 samples is 0 (explicit branch, DOC silent, DEF with n-1 undefined)") {
 	const q15_t x[1] = {12345};
 	q15_t r = 1;
 	arm_var_q15(x, 1, &r);
@@ -960,7 +962,8 @@ TEST_CASE("[C4 arm_std_q15] two samples {-32768, 32767} (variance above 1) give 
 	CHECK(std::fabs(r - 32767.0) <= kSqrtErr + 0.5);
 }
 
-TEST_CASE("[C4 arm_std_q15] characterization: the std of 0 or 1 samples is 0 (explicit branch, DOC silent)") {
+// NEEDS REVIEW 395
+TEST_CASE("characterization: [C4 arm_std_q15] the std of 0 or 1 samples is 0 (explicit branch, DOC silent)") {
 	const q15_t x[1] = {12345};
 	q15_t r = 1;
 	arm_std_q15(x, 1, &r);
@@ -1013,7 +1016,8 @@ TEST_CASE("[C4 arm_mse_q15] identical inputs give 0 and a hand derived pair give
 	CHECK(r == 8192);
 }
 
-TEST_CASE("[C4 arm_mse_q15] characterization: a mean square error of 1.0 or more saturates to 32767 (DOC silent; the saturation is only in the code, arm_mse_q15.c:171)") {
+// NEEDS REVIEW 395
+TEST_CASE("characterization: [C4 arm_mse_q15] a mean square error of 1.0 or more saturates to 32767 (DOC silent; the saturation is only in the code, arm_mse_q15.c:171)") {
 	// a = 32767, b = -32768: real (1.99997)^2 = 4.0 > 1: saturated 32767; the same for the swapped inputs (the error is squared)
 	const q15_t hi = 32767, lo = -32768;
 	q15_t r = 1;

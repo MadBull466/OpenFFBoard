@@ -250,7 +250,8 @@ TEST_CASE_FIXTURE(Fx, "[V2] repeated changes of vesccanid never use more than tw
 
 // ---------------------------------------------------------------- V3
 
-TEST_CASE_FIXTURE(Fx, "[V3] characterization: VESC_1 is creatable only while no instance exists") {
+// NEEDS REVIEW 378
+TEST_CASE_FIXTURE(Fx, "characterization: [V3] VESC_1 is creatable only while no instance exists") {
 	CHECK(VESC_1::isCreatable());
 	{
 		auto v = makeVesc1();
@@ -259,7 +260,8 @@ TEST_CASE_FIXTURE(Fx, "[V3] characterization: VESC_1 is creatable only while no 
 	CHECK(VESC_1::isCreatable());
 }
 
-TEST_CASE_FIXTURE(Fx, "[V3] characterization: VESC_2 is creatable only while no instance exists") {
+// NEEDS REVIEW 378
+TEST_CASE_FIXTURE(Fx, "characterization: [V3] VESC_2 is creatable only while no instance exists") {
 	CHECK(VESC_2::isCreatable());
 	{
 		auto v = makeVesc2();
@@ -268,7 +270,8 @@ TEST_CASE_FIXTURE(Fx, "[V3] characterization: VESC_2 is creatable only while no 
 	CHECK(VESC_2::isCreatable());
 }
 
-TEST_CASE_FIXTURE(Fx, "[V3] characterization: an instance of VESC_1 does not block the creation of VESC_2") {
+// NEEDS REVIEW 378
+TEST_CASE_FIXTURE(Fx, "characterization: [V3] an instance of VESC_1 does not block the creation of VESC_2") {
 	auto v1 = makeVesc1();
 	CHECK(VESC_2::isCreatable());
 	auto v2 = makeVesc2();
@@ -276,7 +279,8 @@ TEST_CASE_FIXTURE(Fx, "[V3] characterization: an instance of VESC_1 does not blo
 	CHECK_FALSE(VESC_2::isCreatable());
 }
 
-TEST_CASE_FIXTURE(Fx, "[V3] characterization: destroying the only instance stops the port and frees its two filter banks") {
+// NEEDS REVIEW 378
+TEST_CASE_FIXTURE(Fx, "characterization: [V3] destroying the only instance stops the port and frees its two filter banks") {
 	auto v = makeVesc1();
 	REQUIRE(HostTarget::canActiveFilterBanks() == 2);
 	v.reset();
@@ -288,7 +292,8 @@ TEST_CASE_FIXTURE(Fx, "[V3] characterization: destroying the only instance stops
 	CHECK_FALSE(HostTarget::canAccepts(0x3801, true));
 }
 
-TEST_CASE_FIXTURE(Fx, "[V3] characterization: with both instances the port stays started until the second one is destroyed") {
+// NEEDS REVIEW 378
+TEST_CASE_FIXTURE(Fx, "characterization: [V3] with both instances the port stays started until the second one is destroyed") {
 	peer0.setPresent(false);
 	auto v1 = makeVesc1();
 	auto v2 = makeVesc2();
@@ -302,13 +307,15 @@ TEST_CASE_FIXTURE(Fx, "[V3] characterization: with both instances the port stays
 	CHECK(HostTarget::canActiveFilterBanks() == 0);
 }
 
-TEST_CASE_FIXTURE(Fx, "[V3] characterization: destroying a driver that is not READY sends no frame") {
+// NEEDS REVIEW 378
+TEST_CASE_FIXTURE(Fx, "characterization: [V3] destroying a driver that is not READY sends no frame") {
 	auto v = makeVesc1();
 	v.reset();
 	CHECK(HostTarget::canTxFrames().empty());
 }
 
-TEST_CASE_FIXTURE(Fx, "[V3] characterization: destroying a READY started driver sends one last SET_CURRENT_REL with ratio 0 and nothing afterwards") {
+// NEEDS REVIEW 378
+TEST_CASE_FIXTURE(Fx, "characterization: [V3] destroying a READY started driver sends one last SET_CURRENT_REL with ratio 0 and nothing afterwards") {
 	auto v = makeVesc1();
 	readyAndStart(*v);
 	v->turn(16384);
@@ -321,7 +328,8 @@ TEST_CASE_FIXTURE(Fx, "[V3] characterization: destroying a READY started driver 
 	CHECK(HostTarget::canTxFrames().size() == 1);
 }
 
-TEST_CASE_FIXTURE(Fx, "[V3] characterization: a port at preset 1 is raised to preset 3 (250 kbit/s)") {
+// NEEDS REVIEW 378
+TEST_CASE_FIXTURE(Fx, "characterization: [V3] a port at preset 1 is raised to preset 3 (250 kbit/s)") {
 	// Presets: 0 50k, 1 100k, 2 125k, 3 250k (cpp_target_config.cpp:51); VescCAN.cpp:66-68 "Minimum 250k"
 	HostTarget::canPort2B().setSpeedPreset(1);
 	auto v = makeVesc1();
@@ -329,19 +337,22 @@ TEST_CASE_FIXTURE(Fx, "[V3] characterization: a port at preset 1 is raised to pr
 	CHECK(HostTarget::canPort2B().getSpeed() == 250000);
 }
 
-TEST_CASE_FIXTURE(Fx, "[V3] characterization: a port at preset 2 is raised to preset 3") {
+// NEEDS REVIEW 378
+TEST_CASE_FIXTURE(Fx, "characterization: [V3] a port at preset 2 is raised to preset 3") {
 	HostTarget::canPort2B().setSpeedPreset(2);
 	auto v = makeVesc1();
 	CHECK(HostTarget::canPort2B().getSpeedPreset() == 3);
 }
 
-TEST_CASE_FIXTURE(Fx, "[V3] characterization: a port at preset 3 stays at preset 3") {
+// NEEDS REVIEW 378
+TEST_CASE_FIXTURE(Fx, "characterization: [V3] a port at preset 3 stays at preset 3") {
 	HostTarget::canPort2B().setSpeedPreset(3);
 	auto v = makeVesc1();
 	CHECK(HostTarget::canPort2B().getSpeedPreset() == 3);
 }
 
-TEST_CASE_FIXTURE(Fx, "[V3] characterization: a port above preset 3 (preset 5, 1000 kbit/s) is not lowered") {
+// NEEDS REVIEW 378
+TEST_CASE_FIXTURE(Fx, "characterization: [V3] a port above preset 3 (preset 5, 1000 kbit/s) is not lowered") {
 	HostTarget::canPort2B().setSpeedPreset(5);
 	auto v = makeVesc1();
 	CHECK(HostTarget::canPort2B().getSpeedPreset() == 5);

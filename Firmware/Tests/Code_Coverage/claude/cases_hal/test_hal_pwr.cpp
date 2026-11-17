@@ -238,7 +238,8 @@ TEST_CASE_FIXTURE(PwrFixture, "PW3 ConfigPVD leaves the other EXTI lines unchang
 // "configures the voltage threshold"; it does not say whether the old EXTI setup of the line survives.
 // NEEDS REVIEW (proposed): ConfigPVD resets IMR / EMR / RTSR / FTSR bit 16 first, so IT rising followed by EVT falling
 // leaves only EMR and FTSR set.
-TEST_CASE_FIXTURE(PwrFixture, "PW3 characterization: a second ConfigPVD replaces the earlier EXTI configuration of line 16") {
+// NEEDS REVIEW 297
+TEST_CASE_FIXTURE(PwrFixture, "characterization: PW3 a second ConfigPVD replaces the earlier EXTI configuration of line 16") {
 	configPvd(PWR_PVDLEVEL_3, PWR_PVD_MODE_IT_RISING);
 	configPvd(PWR_PVDLEVEL_3, PWR_PVD_MODE_EVENT_FALLING);
 	CHECK(exti(&EXTI->IMR) == 0u);
@@ -249,7 +250,8 @@ TEST_CASE_FIXTURE(PwrFixture, "PW3 characterization: a second ConfigPVD replaces
 
 // characterization: reverse sequence of the case above (same NEEDS REVIEW entry): EVT rising+falling then IT rising
 // leaves only IMR and RTSR set.
-TEST_CASE_FIXTURE(PwrFixture, "PW3 characterization: ConfigPVD IT rising after EVT both edges clears EMR and FTSR of line 16") {
+// NEEDS REVIEW 297
+TEST_CASE_FIXTURE(PwrFixture, "characterization: PW3 ConfigPVD IT rising after EVT both edges clears EMR and FTSR of line 16") {
 	configPvd(PWR_PVDLEVEL_3, PWR_PVD_MODE_EVENT_RISING_FALLING);
 	configPvd(PWR_PVDLEVEL_3, PWR_PVD_MODE_IT_RISING);
 	CHECK(exti(&EXTI->IMR) == kPvdLine);
@@ -261,7 +263,8 @@ TEST_CASE_FIXTURE(PwrFixture, "PW3 characterization: ConfigPVD IT rising after E
 // characterization: ConfigPVD does not enable the detector (PVDE stays 0 until HAL_PWR_EnablePVD). UM1725 describes
 // ConfigPVD as "configures the threshold" and EnablePVD as the enable. NEEDS REVIEW (proposed): confirm that PVDE is not
 // touched by ConfigPVD.
-TEST_CASE_FIXTURE(PwrFixture, "PW3 characterization: ConfigPVD does not change PVDE") {
+// NEEDS REVIEW 403
+TEST_CASE_FIXTURE(PwrFixture, "characterization: PW3 ConfigPVD does not change PVDE") {
 	configPvd(PWR_PVDLEVEL_4, PWR_PVD_MODE_IT_RISING);
 	CHECK((cr() & kPvde) == 0u);
 	poke(&PWR->CR, kCrDefault | kPvde);
@@ -446,7 +449,8 @@ TEST_CASE_FIXTURE(PwrFixture, "PW6 EnterSLEEPMode with WFE clears SLEEPDEEP befo
 // instruction". RM0090 5.3.4 / PM0214: a stale event register makes the first WFE return at once. NEEDS REVIEW
 // (proposed): WFE entry executes SEV then WFE twice (clearing a stale event), and the NO_EVT_CLEAR variant executes one
 // WFE and no SEV; the exact counts are the HAL's behaviour (2 / 1).
-TEST_CASE_FIXTURE(PwrFixture, "PW6 characterization: WFE entry clears a stale event first, NO_EVT_CLEAR does not") {
+// NEEDS REVIEW 344
+TEST_CASE_FIXTURE(PwrFixture, "characterization: PW6 WFE entry clears a stale event first, NO_EVT_CLEAR does not") {
 	HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFE);
 	CHECK(hostCmsisSevCount == 1u);
 	CHECK(hostCmsisWfeCount == 2u);
@@ -546,7 +550,8 @@ TEST_CASE_FIXTURE(PwrFixture, "PW7 EnterSTOPMode with WFE has SLEEPDEEP set and 
 
 // characterization: WFE counts of the Stop entry (see PW6 WFE case). NEEDS REVIEW (proposed): STOPENTRY_WFE runs SEV and
 // two WFE (stale event cleared), STOPENTRY_WFE_NO_EVT_CLEAR one WFE and no SEV.
-TEST_CASE_FIXTURE(PwrFixture, "PW7 characterization: Stop with WFE clears a stale event first, NO_EVT_CLEAR does not") {
+// NEEDS REVIEW 298
+TEST_CASE_FIXTURE(PwrFixture, "characterization: PW7 Stop with WFE clears a stale event first, NO_EVT_CLEAR does not") {
 	HAL_PWR_EnterSTOPMode(PWR_MAINREGULATOR_ON, PWR_STOPENTRY_WFE);
 	CHECK(hostCmsisSevCount == 1u);
 	CHECK(hostCmsisWfeCount == 2u);
@@ -581,7 +586,8 @@ TEST_CASE_FIXTURE(PwrFixture, "PW7 EnterSTANDBYMode sets SLEEPDEEP while waiting
 // Power Control register" (CWUF), and UM1725 HAL_PWR_EnterSTANDBYMode only has the I/O pin note. The HAL does not clear
 // WUF or SBF. NEEDS REVIEW (proposed): the application must clear WUF itself (e.g. __HAL_PWR_CLEAR_FLAG(PWR_FLAG_WU))
 // before calling EnterSTANDBYMode; confirm that this is the intended contract and not a HAL omission.
-TEST_CASE_FIXTURE(PwrFixture, "PW7 characterization: EnterSTANDBYMode leaves WUF and SBF as they were") {
+// NEEDS REVIEW 298
+TEST_CASE_FIXTURE(PwrFixture, "characterization: PW7 EnterSTANDBYMode leaves WUF and SBF as they were") {
 	hostPwrSetFlags(1, 1);
 	HAL_PWR_EnterSTANDBYMode();
 	REQUIRE(g_obs.n == 1);
@@ -645,7 +651,8 @@ TEST_CASE_FIXTURE(PwrFixture, "PW9 EnableBkUpReg with DBP = 0 leaves BRE clear (
 // characterization: return code and wait of a backup regulator that never gets ready. UM1725 does not describe the
 // timeout. NEEDS REVIEW (proposed): EnableBkUpReg returns HAL_TIMEOUT after the HAL's own timeout (1000 ms tick count)
 // and leaves BRE set; the same HAL_TIMEOUT is returned when DBP = 0 and BRE could therefore not be written.
-TEST_CASE_FIXTURE(PwrFixture, "PW9 characterization: EnableBkUpReg returns HAL_TIMEOUT when BRR never rises") {
+// NEEDS REVIEW 299
+TEST_CASE_FIXTURE(PwrFixture, "characterization: PW9 EnableBkUpReg returns HAL_TIMEOUT when BRR never rises") {
 	hostPwrFailBackupRegulator(1);
 	HAL_PWR_EnableBkUpAccess();
 	CHECK(HAL_PWREx_EnableBkUpReg() == HAL_TIMEOUT);
@@ -654,7 +661,8 @@ TEST_CASE_FIXTURE(PwrFixture, "PW9 characterization: EnableBkUpReg returns HAL_T
 	CHECK((csr() & kCsrBre) == kCsrBre);
 }
 
-TEST_CASE_FIXTURE(PwrFixture, "PW9 characterization: EnableBkUpReg with DBP = 0 returns HAL_TIMEOUT (BRE not written)") {
+// NEEDS REVIEW 403
+TEST_CASE_FIXTURE(PwrFixture, "characterization: PW9 EnableBkUpReg with DBP = 0 returns HAL_TIMEOUT (BRE not written)") {
 	CHECK(HAL_PWREx_EnableBkUpReg() == HAL_TIMEOUT);
 }
 
@@ -668,7 +676,8 @@ TEST_CASE_FIXTURE(PwrFixture, "PW9 DisableBkUpReg clears BRE, waits for BRR to c
 
 // characterization: DisableBkUpReg with a BRR that stays set. UM1725 gives no return code. NEEDS REVIEW (proposed):
 // DisableBkUpReg returns HAL_TIMEOUT after the HAL's own timeout (>= 1000 ticks) and BRE is cleared anyway.
-TEST_CASE_FIXTURE(PwrFixture, "PW9 characterization: DisableBkUpReg returns HAL_TIMEOUT when BRR stays set") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(PwrFixture, "characterization: PW9 DisableBkUpReg returns HAL_TIMEOUT when BRR stays set") {
 	HAL_PWR_EnableBkUpAccess();
 	REQUIRE(HAL_PWREx_EnableBkUpReg() == HAL_OK);
 	hostPwrStickyBackupReady(1);
@@ -741,7 +750,8 @@ TEST_CASE_FIXTURE(PwrFixture, "PW11 ControlVoltageScaling waits until VOSRDY ris
 // characterization: timeout of a regulator that never gets ready. UM1725 gives no return code. NEEDS REVIEW (proposed):
 // ControlVoltageScaling returns HAL_TIMEOUT when VOSRDY never rises, after the HAL's own timeout (>= 1000 ticks as
 // assumed here is the HAL's 1 s PWR_VOSRDY_TIMEOUT_VALUE); VOS keeps the requested value.
-TEST_CASE_FIXTURE(PwrFixture, "PW11 characterization: ControlVoltageScaling returns HAL_TIMEOUT when VOSRDY never rises") {
+// NEEDS REVIEW 299
+TEST_CASE_FIXTURE(PwrFixture, "characterization: PW11 ControlVoltageScaling returns HAL_TIMEOUT when VOSRDY never rises") {
 	hostPwrFailVos(1);
 	CHECK(HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE2) == HAL_TIMEOUT);
 	CHECK(hostTickPeek() >= 1000u);
@@ -751,7 +761,8 @@ TEST_CASE_FIXTURE(PwrFixture, "PW11 characterization: ControlVoltageScaling retu
 
 // characterization: the HAL enables the PWR peripheral clock (RCC_APB1ENR bit 28, RM0090 7.3.17) itself. UM1725 does not
 // say so for ControlVoltageScaling. NEEDS REVIEW (proposed): confirm that PWREN is set as a side effect.
-TEST_CASE_FIXTURE(PwrFixture, "PW11 characterization: ControlVoltageScaling enables the PWR clock (APB1ENR bit 28)") {
+// NEEDS REVIEW 299
+TEST_CASE_FIXTURE(PwrFixture, "characterization: PW11 ControlVoltageScaling enables the PWR clock (APB1ENR bit 28)") {
 	REQUIRE((peek(&RCC->APB1ENR) & (1u << 28)) == 0u);
 	HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE2);
 	CHECK((peek(&RCC->APB1ENR) & (1u << 28)) == (1u << 28));

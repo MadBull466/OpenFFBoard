@@ -1314,18 +1314,24 @@ TEST_CASE("[C2 arm_fir_lattice_q15] blocks of 1, 2, 3 samples with 1, 4, 5, 9 st
 TEST_CASE("[C2 arm_fir_lattice_q15] blocks of 4, 5, 9 samples with 1, 4, 5, 9 stages and signed data write exactly blockSize outputs and nothing behind the exact size (numStages) state" * UB_FQ15) { firGuardsTest<Q15T>(kLarge); }
 TEST_CASE("[C2 arm_fir_lattice_q31] blocks of 1, 2, 3, 4, 5, 9 samples with 1, 4, 5, 9 stages and non-negative data write exactly blockSize outputs and nothing behind the exact size (numStages) state") { firGuardsTest<Q31T>(kNonNeg); }
 
+// NEEDS REVIEW 235
 TEST_CASE("characterization: [C3 arm_fir_lattice_q15] one stage, blocks of 3: y[n] = x[n] + floor(k x[n-1] / 2^15) for every x[0] in 1.15 (non-saturating results), 5 coefficients, exact floor model") { firSweepOneStageTest<Q15T>(3, true, true); }
 TEST_CASE("[C3 arm_fir_lattice_q15] one stage, blocks of 3: y[n] = x[n] + floor(k x[n-1] / 2^15) for every x[0] in 1.15 (non-saturating results), 5 coefficients, within 1 LSB (q31: 2 LSB) of the real product") { firSweepOneStageTest<Q15T>(3, true, false); }
+// NEEDS REVIEW 223
 TEST_CASE("characterization: [C3 arm_fir_lattice_q15] one stage, blocks of 4: y[n] = x[n] + floor(k x[n-1] / 2^15) for every non-negative x[0], non-negative data, 3 coefficients, exact floor model") { firSweepOneStageTest<Q15T>(4, false, true); }
 TEST_CASE("[C3 arm_fir_lattice_q15] one stage, blocks of 4: y[n] = x[n] + floor(k x[n-1] / 2^15) for every non-negative x[0], non-negative data, 3 coefficients, within 1 LSB (q31: 2 LSB) of the real product") { firSweepOneStageTest<Q15T>(4, false, false); }
 TEST_CASE("characterization: [C3 arm_fir_lattice_q15] one stage, blocks of 4: y[n] = x[n] + floor(k x[n-1] / 2^15) for every x[0] in 1.15 (non-saturating results), 5 coefficients, exact floor model" * UB_FQ15) { firSweepOneStageTest<Q15T>(4, true, true); }
 TEST_CASE("[C3 arm_fir_lattice_q15] one stage, blocks of 4: y[n] = x[n] + floor(k x[n-1] / 2^15) for every x[0] in 1.15 (non-saturating results), 5 coefficients, within 1 LSB (q31: 2 LSB) of the real product" * UB_FQ15) { firSweepOneStageTest<Q15T>(4, true, false); }
+// NEEDS REVIEW 223
 TEST_CASE("characterization: [C3 arm_fir_lattice_q31] one stage, block of 4: y[n] = x[n] + 2 floor(k x[n-1] / 2^32) for x[0] over the non-negative range in steps of 40009, 3 coefficients, exact floor model") { firSweepOneStageTest<Q31T>(4, false, true); }
 TEST_CASE("[C3 arm_fir_lattice_q31] one stage, block of 4: y[n] = x[n] + 2 floor(k x[n-1] / 2^32) for x[0] over the non-negative range in steps of 40009, 3 coefficients, within 1 LSB (q31: 2 LSB) of the real product") { firSweepOneStageTest<Q31T>(4, false, false); }
 
+// NEEDS REVIEW 223
 TEST_CASE("characterization: [C3 arm_fir_lattice_q15] the output and the g state equal the integer model with floor products (DOC silent), non-negative data, 1..9, 12 and 17 stages, 8 partitions") { firExactModelTest<Q15T>(false, kNonNeg); }
+// NEEDS REVIEW 223
 TEST_CASE("characterization: [C4 arm_fir_lattice_q15] full range data, blocks of 1, 2, 3: every f and g is clipped to 1.15 as the model with __SSAT says (DOC silent about saturation)") { firExactModelTest<Q15T>(true, kSmall); }
 TEST_CASE("characterization: [C4 arm_fir_lattice_q15] full range data, blocks of 4 and more: every f and g is clipped to 1.15 as the model with __SSAT says (DOC silent about saturation)" * UB_FQ15) { firExactModelTest<Q15T>(true, kLarge); }
+// NEEDS REVIEW 220
 TEST_CASE("characterization: [C3 arm_fir_lattice_q31] the output and the g state equal the integer model with 2 * floor(a k / 2^32) products (DOC silent), non-negative data, 1..9, 12 and 17 stages, 8 partitions") { firExactModelTest<Q31T>(false, kNonNeg); }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1367,9 +1373,13 @@ TEST_CASE("[C3 arm_iir_lattice_q15] one stage with k = 0: y[n] = sat16(floor((v1
 TEST_CASE("[C3 arm_iir_lattice_q31] one stage with k = 0: y[n] = floor((v1 x[n-1] + v0 x[n]) / 2^31) for x[0] over the full range in steps of 40009 and two x[1], floor error in [0, 1) LSB") { iirSweepTest<Q31T>(); }
 TEST_CASE("[C4 arm_iir_lattice_q15] a sum above +1 or below -1 at the output is saturated to 32767 / -32768 (DOC: the accumulator is saturated to 1.15)") { iirQ15OutputSaturationTest(); }
 
+// NEEDS REVIEW 235
 TEST_CASE("characterization: [C3 arm_iir_lattice_q15] output and state equal the integer model with floor products (DOC silent about the product rounding), 1..9, 12 and 17 stages, 7 partitions") { iirExactModelTest<Q15T>(false); }
+// NEEDS REVIEW 235
 TEST_CASE("characterization: [C4 arm_iir_lattice_q15] full range data: every f and g is clipped to 1.15 as the model with __SSAT says (DOC silent about intermediate saturation)") { iirExactModelTest<Q15T>(true); }
+// NEEDS REVIEW 235
 TEST_CASE("characterization: [C3 arm_iir_lattice_q31] output and state equal the integer model with floor products (DOC silent about the product rounding), 1..9, 12 and 17 stages, 7 partitions") { iirExactModelTest<Q31T>(false); }
+// NEEDS REVIEW 220
 TEST_CASE("characterization: [C4 arm_iir_lattice_q31] full range data: every f and g is clipped to 1.31 as the model with clip_q63_to_q31 says (DOC silent about intermediate saturation)") { iirExactModelTest<Q31T>(true); }
 
 TEST_CASE("[C3 arm_iir_lattice_f32] the impulse response of a 2 stage filter with k1 = 0.5, k2 = 0.25 equals the hand derived {0.28125, 0.15234375, -0.04052734375}") { iirTwoStageImpulseTest<F32T>(); }

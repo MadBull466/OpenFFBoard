@@ -301,7 +301,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS2 Start_IT sets HTIE when a half transfer callba
 	}
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS2 characterization: Start_IT leaves HTIE clear when no half transfer callback is set") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS2 Start_IT leaves HTIE clear when no half transfer callback is set") {
 	// NEEDS REVIEW (proposed): UM1725 and RM0090 do not say whether the half transfer interrupt is enabled without a
 	// callback. The HAL leaves HTIE clear then. Open: accepted behaviour, or must HTIE always be set?
 	for (const auto &st : dmaXferLayoutStreams()) {
@@ -316,7 +317,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS2 characterization: Start_IT leaves HTIE clear w
 	}
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS2 characterization: Start_IT leaves FEIE clear although direct mode is disabled") {
+// NEEDS REVIEW 303
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS2 Start_IT leaves FEIE clear although direct mode is disabled") {
 	// NEEDS REVIEW (proposed, lead decision): the charter expects FEIE (RM0090 10.5.10 bit 7) to be set by Start_IT when
 	// the FIFO is in use (DMDIS = 1), so that FIFO errors (FEIF) raise an interrupt. UM1725 does not say. The HAL never sets
 	// FEIE in Start_IT, whereas HAL_DMAEx_MultiBufferStart_IT sets it (DX1), so the two are inconsistent and a FIFO
@@ -334,7 +336,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS2 characterization: Start_IT leaves FEIE clear a
 	}
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS2 characterization: Start_IT leaves FEIE clear in direct mode") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS2 Start_IT leaves FEIE clear in direct mode") {
 	// NEEDS REVIEW (proposed): neither document says whether FEIE is set in direct mode (no FIFO errors occur there,
 	// RM0090 10.3.? FIFO). The HAL leaves FEIE clear.
 	for (const auto &st : dmaXferLayoutStreams()) {
@@ -400,7 +403,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS3 Start_IT of a stream that is BUSY returns HAL_
 	}
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS3 characterization: Start_IT refused with HAL_BUSY leaves the handle unlocked") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS3 Start_IT refused with HAL_BUSY leaves the handle unlocked") {
 	// NEEDS REVIEW (proposed): UM1725 does not describe the lock. The HAL locks the handle, finds the state not READY,
 	// unlocks it again and returns HAL_BUSY (so the running transfer can still be polled or aborted).
 	const dmaXferStream st = dmaXferMake(1, 6);
@@ -434,7 +438,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DX1 MultiBufferStart_IT of a stream that is BUSY r
 	}
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DX1 characterization: MultiBufferStart_IT refused with HAL_BUSY leaves the handle unlocked") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DX1 MultiBufferStart_IT refused with HAL_BUSY leaves the handle unlocked") {
 	// NEEDS REVIEW (proposed): as for Start_IT (DS3), UM1725 does not describe the lock; the HAL unlocks before HAL_BUSY.
 	const dmaXferStream st = dmaXferMake(0, 6);
 	DMA_HandleTypeDef h;
@@ -446,7 +451,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DX1 characterization: MultiBufferStart_IT refused 
 	CHECK(h.Lock == HAL_UNLOCKED);
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS5 characterization: Abort of a Start_IT transfer with a half callback clears TCIE, TEIE, DMEIE and HTIE") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS5 Abort of a Start_IT transfer with a half callback clears TCIE, TEIE, DMEIE and HTIE") {
 	// NEEDS REVIEW (proposed): UM1725 does not say which interrupt enables Abort clears. The HAL clears the four enables
 	// (including HTIE, which Start_IT set because a half callback exists) and FEIE, so no interrupt follows the abort.
 	for (const auto &st : dmaXferLayoutStreams()) {
@@ -463,7 +469,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS5 characterization: Abort of a Start_IT transfer
 	}
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS3 characterization: Start of a handle that was never initialised returns HAL_BUSY and writes no register") {
+// NEEDS REVIEW 321
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS3 Start of a handle that was never initialised returns HAL_BUSY and writes no register") {
 	// NEEDS REVIEW (proposed): UM1725 21.2.1 puts HAL_DMA_Init first but gives no status for a start before it. The HAL refuses
 	// a start while the state is not READY (RESET here) with HAL_BUSY and writes no register.
 	const dmaXferStream st = dmaXferMake(0, 2);
@@ -478,7 +485,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS3 characterization: Start of a handle that was n
 	CHECK(noProtectedWrites(st));
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS3 characterization: Start while the handle is locked returns HAL_BUSY") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS3 Start while the handle is locked returns HAL_BUSY") {
 	// NEEDS REVIEW (proposed): UM1725 does not describe the process lock of the DMA handle. The HAL refuses a start
 	// while Lock == HAL_LOCKED even though the state is READY, and writes no register.
 	const dmaXferStream st = dmaXferMake(1, 3);
@@ -512,7 +520,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS4 Start with the smallest transfer of one item w
 	CHECK(noProtectedWrites(st));
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS4 characterization: Start with DataLength 0 returns HAL_OK and leaves the state BUSY") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS4 Start with DataLength 0 returns HAL_OK and leaves the state BUSY") {
 	// NEEDS REVIEW (proposed): RM0090 10.5.6 says a stream with NDT = 0 does not start (it stays idle with EN set); UM1725
 	// gives no status for a zero length. The HAL accepts it (HAL_OK) and reports BUSY, although nothing will ever
 	// complete. Open: should the HAL return HAL_ERROR?
@@ -525,7 +534,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS4 characterization: Start with DataLength 0 retu
 	CHECK(noProtectedWrites(st));
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS4 characterization: Start with DataLength 65536 returns HAL_OK") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS4 Start with DataLength 65536 returns HAL_OK") {
 	// NEEDS REVIEW (proposed): 65536 does not fit the 16 bit NDT field (RM0090 10.5.6: 0 .. 65535). UM1725 gives no
 	// parameter check. The HAL accepts the length (HAL_OK); what the register then holds is the model's truncation and
 	// is not asserted. Open: should the HAL return HAL_ERROR?
@@ -640,7 +650,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS5 Abort with no transfer ongoing sets the error 
 	CHECK(HAL_DMA_GetError(&h) == HAL_DMA_ERROR_NO_XFER);
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS5 characterization: Abort with no transfer ongoing returns HAL_ERROR") {
+// NEEDS REVIEW 339
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS5 Abort with no transfer ongoing returns HAL_ERROR") {
 	// NEEDS REVIEW (proposed): UM1725 lists the error code but gives no return status for an abort without a transfer.
 	// The HAL returns HAL_ERROR (and leaves the stream disabled).
 	const dmaXferStream st = dmaXferMake(1, 2);
@@ -650,7 +661,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS5 characterization: Abort with no transfer ongoi
 	CHECK((cr(st) & dmaXferEN) == 0u);
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS5 characterization: Abort of a stream whose EN never clears times out after about 5 ms") {
+// NEEDS REVIEW 301
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS5 Abort of a stream whose EN never clears times out after about 5 ms") {
 	// NEEDS REVIEW (proposed): UM1725 notes that Abort waits for the stream to stop but names neither a timeout nor its
 	// status. The HAL waits more than 5 ms (the model ticks 1 ms per HAL_GetTick call) and then returns HAL_TIMEOUT with
 	// the error code TIMEOUT and the state TIMEOUT (HAL_DMA_STATE_TIMEOUT, not ERROR as the charter assumed).
@@ -744,7 +756,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS6 Abort_IT with no transfer ongoing sets the err
 	CHECK(dmaXferAbortCb == 0);
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS6 characterization: Abort_IT with no transfer ongoing returns HAL_ERROR") {
+// NEEDS REVIEW 402
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS6 Abort_IT with no transfer ongoing returns HAL_ERROR") {
 	// NEEDS REVIEW (proposed): UM1725 gives the error code but no return status. The HAL returns HAL_ERROR.
 	const dmaXferStream st = dmaXferMake(0, 5);
 	DMA_HandleTypeDef h;
@@ -867,7 +880,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS7 PollForTransfer with a timeout sets the error 
 	CHECK(HAL_DMA_GetError(&h) == HAL_DMA_ERROR_TIMEOUT);
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS7 characterization: a poll timeout sets the state READY and unlocks the handle") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS7 a poll timeout sets the state READY and unlocks the handle") {
 	// NEEDS REVIEW (proposed): UM1725 says nothing about the state after a poll timeout. The HAL sets READY and unlocks.
 	const dmaXferStream st = dmaXferMake(0, 7);
 	DMA_HandleTypeDef h;
@@ -919,7 +933,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS7 PollForTransfer with HAL_MAX_DELAY waits until
 	CHECK(noProtectedWrites(st));
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS7 characterization: PollForTransfer with timeout 0 and no completion returns HAL_TIMEOUT") {
+// NEEDS REVIEW 402
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS7 PollForTransfer with timeout 0 and no completion returns HAL_TIMEOUT") {
 	// NEEDS REVIEW (proposed): UM1725 does not define Timeout = 0. The HAL treats it as "do not wait": HAL_TIMEOUT at once.
 	const dmaXferStream st = dmaXferMake(0, 4);
 	DMA_HandleTypeDef h;
@@ -975,7 +990,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS7 a transfer error during polling clears TEIF") 
 	CHECK(noProtectedWrites(st));
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS7 characterization: a FIFO error flag during polling is recorded and cleared and the poll goes on") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS7 a FIFO error flag during polling is recorded and cleared and the poll goes on") {
 	// NEEDS REVIEW (proposed, lead decision): the charter expects HAL_ERROR with the error code FE. UM1725 and RM0090 do not
 	// say. RM0090 10.3.18 says only a transfer error (TEIF) disables the stream; the HAL treats FE like that: it adds
 	// HAL_DMA_ERROR_FE to the error code, clears FEIF and keeps polling, so the poll returns HAL_OK at the end of the
@@ -996,7 +1012,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS7 characterization: a FIFO error flag during pol
 	CHECK(noProtectedWrites(st));
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS7 characterization: a direct mode error flag during polling is recorded and cleared and the poll goes on") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS7 a direct mode error flag during polling is recorded and cleared and the poll goes on") {
 	// NEEDS REVIEW (proposed, lead decision): as for the FIFO error: the charter expects HAL_ERROR with the code DME;
 	// the HAL records HAL_DMA_ERROR_DME, clears DMEIF and returns HAL_OK at the end of the transfer.
 	const dmaXferStream st = dmaXferMake(1, 4);
@@ -1070,7 +1087,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS8 a rejected circular poll leaves the transfer f
 
 /* ---------------------------------------------------------------- DS9 */
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS9 characterization: PollForTransfer on a stream that is not busy returns HAL_ERROR") {
+// NEEDS REVIEW 402
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS9 PollForTransfer on a stream that is not busy returns HAL_ERROR") {
 	// NEEDS REVIEW (proposed): UM1725 gives no status for polling a stream with no transfer. The HAL returns HAL_ERROR
 	// at once (no waiting).
 	const dmaXferStream st = dmaXferMake(0, 6);
@@ -1081,7 +1099,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS9 characterization: PollForTransfer on a stream 
 	CHECK(hostTickPeek() - t0 < 3u);
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS9 characterization: PollForTransfer on a stream that is not busy sets the error code NO_XFER") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS9 PollForTransfer on a stream that is not busy sets the error code NO_XFER") {
 	// NEEDS REVIEW (proposed): UM1725 lists HAL_DMA_ERROR_NO_XFER only as "Abort requested with no Xfer ongoing"; the
 	// HAL also uses it for a poll without a transfer.
 	const dmaXferStream st = dmaXferMake(0, 6);
@@ -1201,7 +1220,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DX1 MultiBufferStart_IT sets FEIE when direct mode
 	CHECK(noProtectedWrites(st));
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DX1 characterization: MultiBufferStart_IT sets FEIE also in direct mode") {
+// NEEDS REVIEW 303
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DX1 MultiBufferStart_IT sets FEIE also in direct mode") {
 	// NEEDS REVIEW (proposed): neither document says; the HAL sets FEIE unconditionally here (and never in Start_IT).
 	const dmaXferStream st = dmaXferMake(1, 7);
 	DMA_HandleTypeDef h;
@@ -1212,7 +1232,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DX1 characterization: MultiBufferStart_IT sets FEI
 	CHECK(noProtectedWrites(st));
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DX1 characterization: MultiBufferStart_IT without the memory 1 complete callback returns HAL_ERROR with the error code PARAM") {
+// NEEDS REVIEW 303
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DX1 MultiBufferStart_IT without the memory 1 complete callback returns HAL_ERROR with the error code PARAM") {
 	// NEEDS REVIEW (proposed): UM1725 DMAEx does not say that the three callbacks XferCpltCallback, XferM1CpltCallback and
 	// XferErrorCallback are mandatory. The HAL refuses to start without any of them: HAL_ERROR, error code PARAM (UM1725
 	// "Parameter error"), nothing written, and this check comes before the state check.
@@ -1244,7 +1265,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DX1 MultiBufferStart of a stream that is BUSY retu
 	}
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DX1 characterization: MultiBufferStart of a handle that was never initialised returns HAL_BUSY") {
+// NEEDS REVIEW 402
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DX1 MultiBufferStart of a handle that was never initialised returns HAL_BUSY") {
 	// NEEDS REVIEW (proposed): as DS3, UM1725 gives no status for a start before HAL_DMA_Init; the HAL returns HAL_BUSY.
 	const dmaXferStream st = dmaXferMake(1, 1);
 	DMA_HandleTypeDef h = {};
@@ -1336,7 +1358,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DX2 ChangeMemory keeps the stream enabled and BUSY
 	CHECK(noProtectedWrites(st));
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DX2 characterization: ChangeMemory of the memory in use is passed to the hardware") {
+// NEEDS REVIEW 303
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DX2 ChangeMemory of the memory in use is passed to the hardware") {
 	// NEEDS REVIEW (proposed): UM1725 says MEMORY0 "can be changed only when the current transfer uses MEMORY1", but
 	// does not say whether the HAL checks it. The HAL does not: it returns HAL_OK and writes M0AR while CT = 0; the
 	// register model (RM0090 10.3.9: a write to the memory in use sets TEIF) then raises TEIF and keeps the old address. Open: should the HAL refuse the call (return HAL_ERROR, write nothing)?
@@ -1385,7 +1408,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DX1 MultiBufferStart_IT clears the FE, DME, TE, HT
 	CHECK(noProtectedWrites(st));
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DX1 characterization: MultiBufferStart_IT without XferCpltCallback returns HAL_ERROR with the error code PARAM") {
+// NEEDS REVIEW 303
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DX1 MultiBufferStart_IT without XferCpltCallback returns HAL_ERROR with the error code PARAM") {
 	// NEEDS REVIEW (proposed): see the M1 callback case; UM1725 does not list the mandatory callbacks.
 	const dmaXferStream st = dmaXferMake(1, 0);
 	DMA_HandleTypeDef h;
@@ -1397,7 +1421,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DX1 characterization: MultiBufferStart_IT without 
 	CHECK((cr(st) & dmaXferEN) == 0u);
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DX1 characterization: MultiBufferStart_IT without XferErrorCallback returns HAL_ERROR with the error code PARAM") {
+// NEEDS REVIEW 303
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DX1 MultiBufferStart_IT without XferErrorCallback returns HAL_ERROR with the error code PARAM") {
 	// NEEDS REVIEW (proposed): as above.
 	const dmaXferStream st = dmaXferMake(0, 0);
 	DMA_HandleTypeDef h;
@@ -1420,7 +1445,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DX1 MultiBufferStart_IT sets HTIE when only the me
 	CHECK(noProtectedWrites(st));
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DX1 characterization: Abort of a MultiBufferStart_IT transfer clears every interrupt enable including FEIE") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DX1 Abort of a MultiBufferStart_IT transfer clears every interrupt enable including FEIE") {
 	// NEEDS REVIEW (proposed): UM1725 does not say which enables Abort clears. The HAL clears TCIE, TEIE, DMEIE, HTIE and
 	// FEIE.
 	const dmaXferStream st = dmaXferMake(0, 4);
@@ -1436,7 +1462,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DX1 characterization: Abort of a MultiBufferStart_
 	CHECK(noProtectedWrites(st));
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS7 characterization: a full transfer poll also clears HTIF") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS7 a full transfer poll also clears HTIF") {
 	// NEEDS REVIEW (proposed): UM1725 does not list which flags a poll clears. The full level poll clears HTIF and TCIF.
 	const dmaXferStream st = dmaXferMake(0, 3);
 	DMA_HandleTypeDef h;
@@ -1448,7 +1475,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS7 characterization: a full transfer poll also cl
 	CHECK(hostDmaFlags(st.c, st.s) == 0u);
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS7 characterization: a half transfer poll leaves TCIF set") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS7 a half transfer poll leaves TCIF set") {
 	// NEEDS REVIEW (proposed): the half level poll clears HTIF only; a TCIF that is already set stays.
 	const dmaXferStream st = dmaXferMake(1, 4);
 	DMA_HandleTypeDef h;
@@ -1460,7 +1488,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS7 characterization: a half transfer poll leaves 
 	CHECK((hostDmaFlags(st.c, st.s) & HOST_DMA_TCIF) == HOST_DMA_TCIF);
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS7 characterization: a transfer error poll clears HTIF and TCIF too") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS7 a transfer error poll clears HTIF and TCIF too") {
 	// NEEDS REVIEW (proposed): after a transfer error the HAL clears all flags of the stream.
 	const dmaXferStream st = dmaXferMake(0, 7);
 	DMA_HandleTypeDef h;
@@ -1476,7 +1505,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS7 characterization: a transfer error poll clears
 	CHECK(hostDmaFlags(st.c, st.s) == 0u);
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS7 characterization: a transfer error poll switches the interrupt enables off") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS7 a transfer error poll switches the interrupt enables off") {
 	// NEEDS REVIEW (proposed): the HAL aborts the stream after a transfer error, which clears TCIE, TEIE, DMEIE and HTIE.
 	const dmaXferStream st = dmaXferMake(1, 2);
 	DMA_HandleTypeDef h;
@@ -1488,7 +1518,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS7 characterization: a transfer error poll switch
 	CHECK((cr(st) & dmaXferALLIE) == 0u);
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS3 characterization: Start refused because the state is not READY leaves the handle unlocked") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS3 Start refused because the state is not READY leaves the handle unlocked") {
 	// NEEDS REVIEW (proposed): see the Start_IT case; UM1725 does not describe the lock.
 	const dmaXferStream st = dmaXferMake(0, 5);
 	DMA_HandleTypeDef h;
@@ -1499,7 +1530,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS3 characterization: Start refused because the st
 	CHECK(h.Lock == HAL_UNLOCKED);
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS9 characterization: a refused poll of a stream that is not busy leaves the handle unlocked") {
+// NEEDS REVIEW 332
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS9 a refused poll of a stream that is not busy leaves the handle unlocked") {
 	// NEEDS REVIEW (proposed): the HAL releases the lock before returning HAL_ERROR.
 	const dmaXferStream st = dmaXferMake(1, 6);
 	DMA_HandleTypeDef h;
@@ -1509,7 +1541,8 @@ TEST_CASE_FIXTURE(DmaXferFx, "DS9 characterization: a refused poll of a stream t
 	CHECK(h.Lock == HAL_UNLOCKED);
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DS1 characterization: Start clears a stale error code") {
+// NEEDS REVIEW 324
+TEST_CASE_FIXTURE(DmaXferFx, "characterization: DS1 Start clears a stale error code") {
 	// NEEDS REVIEW (proposed): UM1725 does not say; the HAL resets the error code to NONE when a transfer starts.
 	const dmaXferStream st = dmaXferMake(0, 0);
 	DMA_HandleTypeDef h;

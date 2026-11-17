@@ -1,6 +1,8 @@
 # P12 T4b requirements charter: UART (real ST HAL, F407VG and F407VG_DISCO)
 
 Status: 2026-11-12 (lead). Charter, platform (`fakes/stm32_hal/HalUart.{h,c}`), tests, review and gate done (see the plan, section "T4b result"; amendments: UA1 no flush / error code only in `Abort`, UI7 compiled out, UM3 non-matching address enters mute mode per RM0090 30.3.6, the model stops the UART4 / UART5 unavailable bits). T4 is split (T4a SPI done, T4b UART = this
+
+**Final status (2026-11-17): done, approved, committed and pushed, commit `3bf7980f`. Statements about pending approval or gates in the line above were true when it was written.**
 charter, T4c I2C / I2C_Ex); each stage has its own charter, model, review, gate and approval.
 Plan: `Tests/Code_Coverage/claude/plans/P12_ST_HAL_PLAN.md`. Rules as in `P12_T1_REQUIREMENTS.md` ... `P12_T4A_REQUIREMENTS.md`.
 

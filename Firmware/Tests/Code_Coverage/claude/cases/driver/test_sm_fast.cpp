@@ -195,6 +195,7 @@ TEST_CASE_FIXTURE(SmFixture, "[R3.2 fast] the write enable pin is high after tur
 	CHECK((GPIOE->ODR & DRV_GP1_Pin) == 0);
 }
 
+// NEEDS REVIEW 364
 TEST_CASE_FIXTURE(SmFixture, "characterization: [R3.2 fast] without a transmit-complete interrupt the write enable pin stays high") {
 	auto sm = makeSm(1);
 	REQUIRE(initialize(*sm));
@@ -306,6 +307,7 @@ TEST_CASE_FIXTURE(SmFixture, "[R3.5 fast] after a silent device answered again 1
 	CHECK(sm->getPos() == 40);
 }
 
+// NEEDS REVIEW 253
 TEST_CASE_FIXTURE(SmFixture, "characterization: [R3.5 fast] a turn 9 ms after an unanswered one sends nothing, 11 ms after it a new frame is sent (10 ms after the last received byte)") {
 	// The silent frame is sent in the same millisecond as the last byte received (the end of initialize()), so the 10 ms
 	// of the firmware (HAL_GetTick() - lastTimeByteReceived > 10 while the port is taken) run from that byte.
@@ -323,6 +325,7 @@ TEST_CASE_FIXTURE(SmFixture, "characterization: [R3.5 fast] a turn 9 ms after an
 	CHECK(dev.frameCount() == 1);
 }
 
+// NEEDS REVIEW 253
 TEST_CASE_FIXTURE(SmFixture, "characterization: [R3.5 fast] after 50 ms without any received byte the next turn after an unanswered one is sent at once, the unanswered frame starts no timeout of its own") {
 	// NEEDS REVIEW, possible defect: the recovery time is measured from the last received byte, not from the unanswered
 	// frame; with an idle gap of 50 ms before the silent turn the 10 ms are already over and the next turn follows
@@ -434,6 +437,7 @@ TEST_CASE_FIXTURE(SmFixture, "[R3.7 fast] getPos returns the position known befo
 	CHECK(sm->getPos() == 60);
 }
 
+// NEEDS REVIEW 364
 TEST_CASE_FIXTURE(SmFixture, "characterization: [R3.7 fast] the refresh threshold is 100 ms, exactly 100 ms sends nothing and 101 ms sends a fast update") {
 	auto sm = makeSm(1);
 	REQUIRE(initialize(*sm));
@@ -554,10 +558,12 @@ TEST_CASE_FIXTURE(SmFixture, "[R6.3 fast] motion after setPos is relative to the
 	CHECK(sm->getPos() == -170);
 }
 
+// NEEDS REVIEW 256
 TEST_CASE_FIXTURE(SmFixture, "characterization: [R6.4 fast] a step of exactly 0x7fff reports is followed as a forward motion of 0x7fff") {
 	CHECK(deltaOf(*this, 0, 0x7fff) == 0x7fff);
 }
 
+// NEEDS REVIEW 256
 TEST_CASE_FIXTURE(SmFixture, "characterization: [R6.4 fast] a step of exactly 0x8000 reports is counted as an overflow, the position moves by -0x7fff") {
 	// 0x8000 apart is half a revolution: forward and backward are equally near, the SM documents give no rule.
 	// NEEDS REVIEW: the -0x7fff is also one count short of -0x8000 (the B-SM-2 loss at the overflow step)

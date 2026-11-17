@@ -313,7 +313,7 @@ TEST_CASE_FIXTURE(UartAbortFx, "UA1 Abort of a Transmit_IT and a Receive_IT at t
 	}
 }
 
-TEST_CASE_FIXTURE(UartAbortFx, "UA1 characterization: Abort leaves a received frame in the data register (RXNE stays set)") {
+TEST_CASE_FIXTURE(UartAbortFx, "characterization: UA1 Abort leaves a received frame in the data register (RXNE stays set)") {
 	// NEEDS REVIEW 318: the charter lists a flush of the Rx data register; the HAL does not touch DR and UM1725 does not say.
 	UART_ABORT_EACH(n) {
 		UartAbortRig r(n);
@@ -326,7 +326,7 @@ TEST_CASE_FIXTURE(UartAbortFx, "UA1 characterization: Abort leaves a received fr
 	}
 }
 
-TEST_CASE_FIXTURE(UartAbortFx, "UA1 characterization: Abort resets ErrorCode, AbortTransmit and AbortReceive leave it") {
+TEST_CASE_FIXTURE(UartAbortFx, "characterization: UA1 Abort resets ErrorCode, AbortTransmit and AbortReceive leave it") {
 	// NEEDS REVIEW 318: UM1725 says nothing about ErrorCode in the abort functions. The code is set directly (a left over error).
 	UartAbortRig r(0);
 	r.h.ErrorCode = HAL_UART_ERROR_FE;
@@ -418,7 +418,7 @@ TEST_CASE_FIXTURE(UartAbortFx, "UA1 a transfer can be started again after a bloc
 	CHECK(UartAbortRig::streamOn(r.rx));
 }
 
-TEST_CASE_FIXTURE(UartAbortFx, "UA1 characterization: Abort of a Tx stream that never stops returns HAL_TIMEOUT, sets ErrorCode DMA and leaves gState BUSY_TX") {
+TEST_CASE_FIXTURE(UartAbortFx, "characterization: UA1 Abort of a Tx stream that never stops returns HAL_TIMEOUT, sets ErrorCode DMA and leaves gState BUSY_TX") {
 	// NEEDS REVIEW 318
 	UartAbortRig r(2, true);
 	r.startTxDMA();
@@ -429,7 +429,7 @@ TEST_CASE_FIXTURE(UartAbortFx, "UA1 characterization: Abort of a Tx stream that 
 	CHECK((r.cr3() & uartAbortCR3_DMAT) == 0u);
 }
 
-TEST_CASE_FIXTURE(UartAbortFx, "UA1 characterization: Abort of an Rx stream that never stops returns HAL_TIMEOUT, sets ErrorCode DMA and leaves RxState BUSY_RX") {
+TEST_CASE_FIXTURE(UartAbortFx, "characterization: UA1 Abort of an Rx stream that never stops returns HAL_TIMEOUT, sets ErrorCode DMA and leaves RxState BUSY_RX") {
 	// NEEDS REVIEW 318
 	UartAbortRig r(2, true);
 	r.startRxDMA();
@@ -440,7 +440,7 @@ TEST_CASE_FIXTURE(UartAbortFx, "UA1 characterization: Abort of an Rx stream that
 	CHECK((r.cr3() & uartAbortCR3_DMAR) == 0u);
 }
 
-TEST_CASE_FIXTURE(UartAbortFx, "UA1 characterization: AbortTransmit of a Tx stream that never stops returns HAL_TIMEOUT with ErrorCode DMA") {
+TEST_CASE_FIXTURE(UartAbortFx, "characterization: UA1 AbortTransmit of a Tx stream that never stops returns HAL_TIMEOUT with ErrorCode DMA") {
 	// NEEDS REVIEW 318
 	UartAbortRig r(3, true);
 	r.startTxDMA();
@@ -450,7 +450,7 @@ TEST_CASE_FIXTURE(UartAbortFx, "UA1 characterization: AbortTransmit of a Tx stre
 	CHECK(r.h.gState == HAL_UART_STATE_BUSY_TX);
 }
 
-TEST_CASE_FIXTURE(UartAbortFx, "UA1 characterization: AbortReceive of an Rx stream that never stops returns HAL_TIMEOUT with ErrorCode DMA") {
+TEST_CASE_FIXTURE(UartAbortFx, "characterization: UA1 AbortReceive of an Rx stream that never stops returns HAL_TIMEOUT with ErrorCode DMA") {
 	// NEEDS REVIEW 318
 	UartAbortRig r(3, true);
 	r.startRxDMA();
@@ -460,7 +460,7 @@ TEST_CASE_FIXTURE(UartAbortFx, "UA1 characterization: AbortReceive of an Rx stre
 	CHECK(r.h.RxState == HAL_UART_STATE_BUSY_RX);
 }
 
-TEST_CASE_FIXTURE(UartAbortFx, "UA1 characterization: a blocking abort whose DMA streams are not busy any more returns HAL_OK and sets the states READY") {
+TEST_CASE_FIXTURE(UartAbortFx, "characterization: UA1 a blocking abort whose DMA streams are not busy any more returns HAL_OK and sets the states READY") {
 	// NEEDS REVIEW 318: the streams are stopped through the DMA API first, DMAT and DMAR stay set in the UART.
 	UartAbortRig r(4, true);
 	r.startTxDMA();
@@ -475,7 +475,7 @@ TEST_CASE_FIXTURE(UartAbortFx, "UA1 characterization: a blocking abort whose DMA
 	CHECK(HAL_UART_GetError(&r.h) == HAL_UART_ERROR_NONE);
 }
 
-TEST_CASE_FIXTURE(UartAbortFx, "UA1 characterization: AbortTransmit and AbortReceive whose streams are not busy return HAL_OK") {
+TEST_CASE_FIXTURE(UartAbortFx, "characterization: UA1 AbortTransmit and AbortReceive whose streams are not busy return HAL_OK") {
 	// NEEDS REVIEW 318
 	UartAbortRig r(4, true);
 	r.startTxDMA();
@@ -1202,7 +1202,7 @@ TEST_CASE_FIXTURE(UartAbortFx, "UA1 a Tx DMA stream error clears TXEIE and TCIE,
 	}
 }
 
-TEST_CASE_FIXTURE(UartAbortFx, "UA2 characterization: Abort_IT without DMA resets a left over ErrorCode to NONE") {
+TEST_CASE_FIXTURE(UartAbortFx, "characterization: UA2 Abort_IT without DMA resets a left over ErrorCode to NONE") {
 	// NEEDS REVIEW 318: the code is seeded after the transfer started.
 	UART_ABORT_EACH(n) {
 		UartAbortRig r(n);
@@ -1213,7 +1213,7 @@ TEST_CASE_FIXTURE(UartAbortFx, "UA2 characterization: Abort_IT without DMA reset
 	}
 }
 
-TEST_CASE_FIXTURE(UartAbortFx, "UA2 characterization: the Tx DMA abort callback of Abort_IT resets a left over ErrorCode to NONE") {
+TEST_CASE_FIXTURE(UartAbortFx, "characterization: UA2 the Tx DMA abort callback of Abort_IT resets a left over ErrorCode to NONE") {
 	// NEEDS REVIEW 318
 	UartAbortRig r(1, true);
 	r.startTxDMA();
@@ -1224,7 +1224,7 @@ TEST_CASE_FIXTURE(UartAbortFx, "UA2 characterization: the Tx DMA abort callback 
 	CHECK(HAL_UART_GetError(&r.h) == HAL_UART_ERROR_NONE);
 }
 
-TEST_CASE_FIXTURE(UartAbortFx, "UA2 characterization: the Rx DMA abort callback of Abort_IT resets a left over ErrorCode to NONE") {
+TEST_CASE_FIXTURE(UartAbortFx, "characterization: UA2 the Rx DMA abort callback of Abort_IT resets a left over ErrorCode to NONE") {
 	// NEEDS REVIEW 318
 	UartAbortRig r(1, true);
 	r.startRxDMA();
@@ -1235,7 +1235,7 @@ TEST_CASE_FIXTURE(UartAbortFx, "UA2 characterization: the Rx DMA abort callback 
 	CHECK(HAL_UART_GetError(&r.h) == HAL_UART_ERROR_NONE);
 }
 
-TEST_CASE_FIXTURE(UartAbortFx, "UA2 characterization: AbortTransmit_IT and AbortReceive_IT (also their DMA callbacks) leave a left over ErrorCode") {
+TEST_CASE_FIXTURE(UartAbortFx, "characterization: UA2 AbortTransmit_IT and AbortReceive_IT (also their DMA callbacks) leave a left over ErrorCode") {
 	// NEEDS REVIEW 318
 	UartAbortRig r(1, true);
 	r.startTxIT();
@@ -1283,7 +1283,7 @@ TEST_CASE_FIXTURE(UartAbortFx, "UA2 Abort_IT with DMAR clear overwrites a stale 
 	CHECK(uartCounts.abortCplt == 1u);
 }
 
-TEST_CASE_FIXTURE(UartAbortFx, "UA1 characterization: blocking Abort sets the transfer counters to 0 and ReceptionType to STANDARD") {
+TEST_CASE_FIXTURE(UartAbortFx, "characterization: UA1 blocking Abort sets the transfer counters to 0 and ReceptionType to STANDARD") {
 	// NEEDS REVIEW 318
 	UartAbortRig r(1, true);
 	r.startTxDMA();
@@ -1296,7 +1296,7 @@ TEST_CASE_FIXTURE(UartAbortFx, "UA1 characterization: blocking Abort sets the tr
 	CHECK(r.h.ReceptionType == HAL_UART_RECEPTION_STANDARD);
 }
 
-TEST_CASE_FIXTURE(UartAbortFx, "UA1 characterization: AbortTransmit sets TxXferCount to 0 and AbortReceive sets RxXferCount to 0") {
+TEST_CASE_FIXTURE(UartAbortFx, "characterization: UA1 AbortTransmit sets TxXferCount to 0 and AbortReceive sets RxXferCount to 0") {
 	// NEEDS REVIEW 318
 	UartAbortRig r(1);
 	r.startTxIT();
@@ -1311,7 +1311,7 @@ TEST_CASE_FIXTURE(UartAbortFx, "UA1 characterization: AbortTransmit sets TxXferC
 	CHECK(r.h.ReceptionType == HAL_UART_RECEPTION_STANDARD);
 }
 
-TEST_CASE_FIXTURE(UartAbortFx, "UA2 characterization: Abort_IT and the Only variants set the transfer counters to 0 and ReceptionType to STANDARD") {
+TEST_CASE_FIXTURE(UartAbortFx, "characterization: UA2 Abort_IT and the Only variants set the transfer counters to 0 and ReceptionType to STANDARD") {
 	// NEEDS REVIEW 318
 	UartAbortRig r(1);
 	r.startTxIT();
@@ -1329,7 +1329,7 @@ TEST_CASE_FIXTURE(UartAbortFx, "UA2 characterization: Abort_IT and the Only vari
 	CHECK(r.h.ReceptionType == HAL_UART_RECEPTION_STANDARD);
 }
 
-TEST_CASE_FIXTURE(UartAbortFx, "UA2 characterization: the DMA abort callbacks set the transfer counters to 0 and ReceptionType to STANDARD") {
+TEST_CASE_FIXTURE(UartAbortFx, "characterization: UA2 the DMA abort callbacks set the transfer counters to 0 and ReceptionType to STANDARD") {
 	// NEEDS REVIEW 318
 	UartAbortRig r(1, true);
 	r.startTxDMA();

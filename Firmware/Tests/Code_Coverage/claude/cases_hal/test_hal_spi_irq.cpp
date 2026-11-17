@@ -495,30 +495,36 @@ TEST_CASE_FIXTURE(SpiFixture, "SQ1 Receive_IT of a slave starts a transfer: BUSY
 	SPI_IRQ_INSTANCES(spiIrqStartSlaveRx)
 }
 // NEEDS REVIEW SQ-1.
-TEST_CASE_FIXTURE(SpiFixture, "SQ1 characterization: Receive_IT sets ERRIE") {
+// NEEDS REVIEW 309
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SQ1 Receive_IT sets ERRIE") {
 	SPI_IRQ_INSTANCES(spiIrqStartErrie)
 }
 // NEEDS REVIEW SQ-2.
-TEST_CASE_FIXTURE(SpiFixture, "SQ1 characterization: Transmit_IT with a NULL buffer or Size 0 returns HAL_ERROR and leaves the handle ready and unlocked") {
+// NEEDS REVIEW 309
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SQ1 Transmit_IT with a NULL buffer or Size 0 returns HAL_ERROR and leaves the handle ready and unlocked") {
 	SPI_IRQ_INSTANCES(spiIrqStartNullTx)
 }
 // NEEDS REVIEW SQ-2.
-TEST_CASE_FIXTURE(SpiFixture, "SQ1 characterization: TransmitReceive_IT with a NULL buffer or Size 0 returns HAL_ERROR and leaves the handle ready and unlocked") {
+// NEEDS REVIEW 309
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SQ1 TransmitReceive_IT with a NULL buffer or Size 0 returns HAL_ERROR and leaves the handle ready and unlocked") {
 	SPI_IRQ_INSTANCES(spiIrqStartNullTxRx)
 }
 // NEEDS REVIEW SQ-2.
-TEST_CASE_FIXTURE(SpiFixture, "SQ1 characterization: a slave Receive_IT with a NULL buffer or Size 0 returns HAL_ERROR and leaves the handle ready and unlocked") {
+// NEEDS REVIEW 309
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SQ1 a slave Receive_IT with a NULL buffer or Size 0 returns HAL_ERROR and leaves the handle ready and unlocked") {
 	SPI_IRQ_INSTANCES(spiIrqStartNullSlaveRx)
 }
 // NEEDS REVIEW SQ-2.
-TEST_CASE_FIXTURE(SpiFixture, "SQ1 characterization: Receive_IT of a 2 line master with a NULL buffer or Size 0 returns HAL_ERROR") {
+// NEEDS REVIEW 309
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SQ1 Receive_IT of a 2 line master with a NULL buffer or Size 0 returns HAL_ERROR") {
 	SPI_IRQ_INSTANCES(spiIrqStartNullMasterRxReturn)
 }
 TEST_CASE_FIXTURE(SpiFixture, "SQ1 a rejected Receive_IT of a 2 line master leaves the handle ready" * KNOWN_ISSUE("vendor bug V97: HAL_SPI_Receive_IT sets State = BUSY_RX before it hands a master 2 line call to TransmitReceive_IT; when that rejects the NULL buffer / Size 0 the state stays BUSY_RX and the next start returns HAL_BUSY (UM1725: a start function that returns HAL_ERROR does not start a transfer)")) {
 	SPI_IRQ_INSTANCES(spiIrqStartNullMasterRxState)
 }
 // NEEDS REVIEW SQ-2.
-TEST_CASE_FIXTURE(SpiFixture, "SQ1 characterization: a start while busy returns HAL_BUSY and leaves the running transfer") {
+// NEEDS REVIEW 309
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SQ1 a start while busy returns HAL_BUSY and leaves the running transfer") {
 	SPI_IRQ_INSTANCES(spiIrqStartBusy)
 }
 TEST_CASE_FIXTURE(SpiFixture, "SQ1 a new Transmit_IT after a finished one transfers the new data") {
@@ -533,7 +539,8 @@ TEST_CASE_FIXTURE(SpiFixture, "SQ2 Transmit_IT clears TXEIE and RXNEIE after the
 TEST_CASE_FIXTURE(SpiFixture, "SQ2 each handler call of Transmit_IT writes at most one frame") { SPI_IRQ_MATRIX(spiIrqTxOneFramePerCall) }
 TEST_CASE_FIXTURE(SpiFixture, "SQ2 Receive_IT delivers the peer words in order") { SPI_IRQ_MATRIX(spiIrqRxData) }
 // NEEDS REVIEW SQ-5.
-TEST_CASE_FIXTURE(SpiFixture, "SQ2 characterization: Receive_IT of a 2 line master ends ready with RxCplt exactly once") {
+// NEEDS REVIEW 309
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SQ2 Receive_IT of a 2 line master ends ready with RxCplt exactly once") {
 	SPI_IRQ_MATRIX(spiIrqRxDone)
 }
 TEST_CASE_FIXTURE(SpiFixture, "SQ2 Receive_IT clears TXEIE and RXNEIE after the last frame") { SPI_IRQ_MATRIX(spiIrqRxDisables) }
@@ -746,16 +753,19 @@ TEST_CASE_FIXTURE(SpiFixture, "SQ3 an OVR with ERRIE in Receive_IT calls the err
 }
 TEST_CASE_FIXTURE(SpiFixture, "SQ3 the handler clears OVR after an OVR error") { SPI_IRQ_INSTANCES(spiIrqOvrRxFlag) }
 // NEEDS REVIEW SQ-3.
-TEST_CASE_FIXTURE(SpiFixture, "SQ3 characterization: after an OVR error the state is ready and the handle unlocked") {
+// NEEDS REVIEW 309
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SQ3 after an OVR error the state is ready and the handle unlocked") {
 	SPI_IRQ_INSTANCES(spiIrqOvrRxState)
 }
 TEST_CASE_FIXTURE(SpiFixture, "SQ3 an OVR error does not run a completion callback") { SPI_IRQ_INSTANCES(spiIrqOvrRxNoCplt) }
 // NEEDS REVIEW SQ-7 (proposed text: characterization: in BUSY_TX state the handler clears OVR without an error code or callback; UM1725 and RM0090 28.3.10 do not say how a transmit only master treats the OVR that its unread receive buffer causes).
-TEST_CASE_FIXTURE(SpiFixture, "SQ3 characterization: an OVR during a master Transmit_IT is cleared without error code and callback") {
+// NEEDS REVIEW 309
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SQ3 an OVR during a master Transmit_IT is cleared without error code and callback") {
 	SPI_IRQ_INSTANCES(spiIrqOvrMasterTx)
 }
 // NEEDS REVIEW SQ-4.
-TEST_CASE_FIXTURE(SpiFixture, "SQ3 characterization: the OVR error code stays set after the error callback") {
+// NEEDS REVIEW 309
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SQ3 the OVR error code stays set after the error callback") {
 	SPI_IRQ_INSTANCES(spiIrqErrorCodeKept)
 }
 TEST_CASE_FIXTURE(SpiFixture, "SQ3 a MODF with ERRIE sets the MODF error code and calls the error callback once") {
@@ -763,7 +773,8 @@ TEST_CASE_FIXTURE(SpiFixture, "SQ3 a MODF with ERRIE sets the MODF error code an
 }
 TEST_CASE_FIXTURE(SpiFixture, "SQ3 the handler clears MODF after a MODF error") { SPI_IRQ_INSTANCES(spiIrqModfFlag) }
 // NEEDS REVIEW SQ-3.
-TEST_CASE_FIXTURE(SpiFixture, "SQ3 characterization: after a MODF error the state is ready, the handle unlocked and TxCplt not called") {
+// NEEDS REVIEW 309
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SQ3 after a MODF error the state is ready, the handle unlocked and TxCplt not called") {
 	SPI_IRQ_INSTANCES(spiIrqModfState)
 }
 TEST_CASE_FIXTURE(SpiFixture, "SQ3 a MODF in TransmitReceive_IT sets the MODF error code and calls the error callback once") {
@@ -773,7 +784,8 @@ TEST_CASE_FIXTURE(SpiFixture, "SQ3 a TI mode FRE with ERRIE sets the FRE error c
 	SPI_IRQ_INSTANCES(spiIrqFre)
 }
 // NEEDS REVIEW SQ-3.
-TEST_CASE_FIXTURE(SpiFixture, "SQ3 characterization: after a FRE error the state is ready") { SPI_IRQ_INSTANCES(spiIrqFreState) }
+// NEEDS REVIEW 420
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SQ3 after a FRE error the state is ready") { SPI_IRQ_INSTANCES(spiIrqFreState) }
 
 /* ======================================================================== SQ4: disabled interrupts */
 
@@ -941,11 +953,14 @@ void spiIrqTxRxErrie(unsigned idx, bool wide, unsigned n) {
 TEST_CASE_FIXTURE(SpiFixture, "SQ2 after Transmit_IT of several frames BSY is clear") { SPI_IRQ_MATRIX(spiIrqTxEnd) }
 TEST_CASE_FIXTURE(SpiFixture, "SQ2 after Transmit_IT of several frames OVR is clear") { SPI_IRQ_MATRIX(spiIrqTxEndOvr) }
 // NEEDS REVIEW SQ-8.
-TEST_CASE_FIXTURE(SpiFixture, "SQ2 characterization: Transmit_IT clears ERRIE after the last frame") { SPI_IRQ_MATRIX(spiIrqTxErrie) }
+// NEEDS REVIEW 309
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SQ2 Transmit_IT clears ERRIE after the last frame") { SPI_IRQ_MATRIX(spiIrqTxErrie) }
 // NEEDS REVIEW SQ-8.
-TEST_CASE_FIXTURE(SpiFixture, "SQ2 characterization: Receive_IT clears ERRIE after the last frame") { SPI_IRQ_MATRIX(spiIrqRxErrie) }
+// NEEDS REVIEW 309
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SQ2 Receive_IT clears ERRIE after the last frame") { SPI_IRQ_MATRIX(spiIrqRxErrie) }
 // NEEDS REVIEW SQ-8.
-TEST_CASE_FIXTURE(SpiFixture, "SQ2 characterization: TransmitReceive_IT clears ERRIE after the last frame") { SPI_IRQ_MATRIX(spiIrqTxRxErrie) }
+// NEEDS REVIEW 420
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SQ2 TransmitReceive_IT clears ERRIE after the last frame") { SPI_IRQ_MATRIX(spiIrqTxRxErrie) }
 
 /* ======================================================================== SQ1 / SQ2: one line mode in IT */
 
@@ -1117,16 +1132,21 @@ SPI_IRQ_ABORT_FN(spiIrqAbortLateSpe, mItLate, pLateSpe)
 } // namespace
 
 // NEEDS REVIEW SQ-9.
-TEST_CASE_FIXTURE(SpiFixture, "SQ6 characterization: Abort of an IT transfer without a delivered interrupt returns HAL_ERROR with the ABORT error code and the state ready") { SPI_IRQ_ABORT_MATRIX(spiIrqAbortTimeout) }
+// NEEDS REVIEW 310
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SQ6 Abort of an IT transfer without a delivered interrupt returns HAL_ERROR with the ABORT error code and the state ready") { SPI_IRQ_ABORT_MATRIX(spiIrqAbortTimeout) }
 // NEEDS REVIEW SQ-9.
-TEST_CASE_FIXTURE(SpiFixture, "SQ6 characterization: Abort_IT of an IT transfer without a delivered interrupt returns HAL_ERROR with the ABORT error code and the state ready") { SPI_IRQ_ABORT_MATRIX(spiIrqAbortItTimeout) }
+// NEEDS REVIEW 310
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SQ6 Abort_IT of an IT transfer without a delivered interrupt returns HAL_ERROR with the ABORT error code and the state ready") { SPI_IRQ_ABORT_MATRIX(spiIrqAbortItTimeout) }
 TEST_CASE_FIXTURE(SpiFixture, "SQ6 Abort of an IT transfer leaves OVR clear") { SPI_IRQ_ABORT_MATRIX(spiIrqAbortOvr) }
 TEST_CASE_FIXTURE(SpiFixture, "SQ6 Abort_IT of an IT transfer leaves OVR clear") { SPI_IRQ_ABORT_MATRIX(spiIrqAbortItOvr) }
 TEST_CASE_FIXTURE(SpiFixture, "SQ6 Abort of an IT transfer runs no completion or error callback") { SPI_IRQ_ABORT_MATRIX(spiIrqAbortNoCplt) }
 TEST_CASE_FIXTURE(SpiFixture, "SQ6 Abort_IT of an IT transfer runs no completion or error callback") { SPI_IRQ_ABORT_MATRIX(spiIrqAbortItNoCplt) }
 // NEEDS REVIEW SQ-9.
-TEST_CASE_FIXTURE(SpiFixture, "SQ6 characterization: Abort_IT of an IT transfer calls AbortCpltCallback exactly once even when the abort ISR did not run") { SPI_IRQ_ABORT_MATRIX(spiIrqAbortItCb) }
+// NEEDS REVIEW 310
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SQ6 Abort_IT of an IT transfer calls AbortCpltCallback exactly once even when the abort ISR did not run") { SPI_IRQ_ABORT_MATRIX(spiIrqAbortItCb) }
 // NEEDS REVIEW SQ-10.
-TEST_CASE_FIXTURE(SpiFixture, "SQ6 characterization: the abort ISR run after a timed out Abort_IT clears TXEIE, RXNEIE and ERRIE") { SPI_IRQ_ABORT_MATRIX(spiIrqAbortLateCr2) }
+// NEEDS REVIEW 310
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SQ6 the abort ISR run after a timed out Abort_IT clears TXEIE, RXNEIE and ERRIE") { SPI_IRQ_ABORT_MATRIX(spiIrqAbortLateCr2) }
 // NEEDS REVIEW SQ-10.
-TEST_CASE_FIXTURE(SpiFixture, "SQ6 characterization: the abort ISR run after a timed out Abort_IT clears SPE") { SPI_IRQ_ABORT_MATRIX(spiIrqAbortLateSpe) }
+// NEEDS REVIEW 420
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SQ6 the abort ISR run after a timed out Abort_IT clears SPE") { SPI_IRQ_ABORT_MATRIX(spiIrqAbortLateSpe) }

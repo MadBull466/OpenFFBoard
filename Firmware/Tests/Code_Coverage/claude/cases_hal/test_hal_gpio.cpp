@@ -236,6 +236,7 @@ TEST_CASE_FIXTURE(HalFixture, "G4 ReadPin of an analog pin returns RESET althoug
 	CHECK(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_6) == GPIO_PIN_RESET);
 }
 
+// NEEDS REVIEW 282
 TEST_CASE_FIXTURE(HalFixture, "characterization: G4 analog mode with GPIO_PULLUP leaves PUPDR of the pin unchanged") {
 	// RM0090 8.3.12 only says the pull resistors are disabled in analog mode; whether the HAL skips PUPDR is not specified.
 	enableAllPortClocks();
@@ -661,6 +662,7 @@ TEST_CASE_FIXTURE(HalFixture, "G12 Init of an unlocked pin of a port with a lock
 	CHECK(peek(&GPIOD->AFR[0]) == (5u << 16));     // AFRL nibble 4 = bits 19:16
 }
 
+// NEEDS REVIEW 281
 TEST_CASE_FIXTURE(HalFixture, "characterization: G13 LockPin of an already locked port returns HAL_OK although the new pins stay unlocked") {
 	// RM0090 8.4.8: LCKR is locked until the next reset, so the second sequence cannot lock pin 5; UM1725 gives no error case.
 	enableAllPortClocks();

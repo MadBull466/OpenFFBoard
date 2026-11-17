@@ -1105,6 +1105,7 @@ TEST_CASE_FIXTURE(Listen, "IS4 a nack at the end of an interrupt slave transmit 
 	CHECK((cr1() & I2C_CR1_ACK) == 0u);
 }
 
+// NEEDS REVIEW 323
 TEST_CASE_FIXTURE(Listen, "characterization: a stop with the interrupt slave receive unfinished reports an error through ErrorCode AF") {
 	// Slave_Receive_IT of 3 bytes, the controller sends 1 byte and stops: not all data came, HAL sets AF (UM1725 silent) and
 	// the error callback runs.

@@ -168,7 +168,7 @@ TEST_CASE_FIXTURE(IiFixture, "II1 init at 100 kHz is Sm and at 100001 Hz is Fm f
 	CHECK(HAL_I2C_Init(&h) == HAL_ERROR);
 }
 
-TEST_CASE_FIXTURE(IiFixture, "II1 characterization: init with PCLK1 too low leaves the handle in state BUSY with PE 0 and no registers programmed") {
+TEST_CASE_FIXTURE(IiFixture, "characterization: II1 init with PCLK1 too low leaves the handle in state BUSY with PE 0 and no registers programmed") {
 	// NEEDS REVIEW 320: UM1725 / RM0090 do not say what state a failed Init leaves; the HAL returns with State = BUSY after the SWRST pulse.
 	setPclk1(1000000u);
 	REQUIRE(HAL_I2C_Init(&h) == HAL_ERROR);
@@ -179,7 +179,7 @@ TEST_CASE_FIXTURE(IiFixture, "II1 characterization: init with PCLK1 too low leav
 	CHECK(i2cCounts.mspInit == 1u);
 }
 
-TEST_CASE_FIXTURE(IiFixture, "II1 characterization: a second init after a PCLK1 error does not call MspInit again because the state is BUSY") {
+TEST_CASE_FIXTURE(IiFixture, "characterization: II1 a second init after a PCLK1 error does not call MspInit again because the state is BUSY") {
 	// NEEDS REVIEW 320: follows from NEEDS REVIEW 320 (state BUSY is not RESET).
 	setPclk1(1000000u);
 	REQUIRE(HAL_I2C_Init(&h) == HAL_ERROR);
@@ -274,7 +274,7 @@ TEST_CASE_FIXTURE(IiFixture, "II2 Sm CCR at 50 kHz is PCLK1 / 100000") {
 	CHECK(ccr() == 420u);
 }
 
-TEST_CASE_FIXTURE(IiFixture, "II2 characterization: Sm CCR rounds a non-exact quotient up") {
+TEST_CASE_FIXTURE(IiFixture, "characterization: II2 Sm CCR rounds a non-exact quotient up") {
 	// NEEDS REVIEW 320: RM0090 is silent on rounding. 7 MHz / 200 kHz = 35 exactly; 7.1 MHz / 200 kHz = 35.5 -> HAL gives 36 (a slower, safe clock).
 	initAt(7100000u, 100000);
 	CHECK(ccr() == 36u);
@@ -297,7 +297,7 @@ TEST_CASE_FIXTURE(IiFixture, "II2 Fm duty 2 at 42 MHz and 400 kHz gives CCR 35")
 	CHECK(ccr() == 0x8023u);
 }
 
-TEST_CASE_FIXTURE(IiFixture, "II2 characterization: Fm duty 2 rounds a non-exact quotient up") {
+TEST_CASE_FIXTURE(IiFixture, "characterization: II2 Fm duty 2 rounds a non-exact quotient up") {
 	// NEEDS REVIEW 320: 16 MHz / 1.2 MHz = 13.33 -> HAL gives 14; 8 MHz: 6.67 -> 7.
 	initAt(16000000u, 400000, I2C_DUTYCYCLE_2);
 	CHECK(ccr() == 0x800Eu);
@@ -352,14 +352,14 @@ TEST_CASE_FIXTURE(IiFixture, "II2 Sm CCR of at least 4 is respected: PCLK1 2 MHz
 	CHECK(ccr() == 10u);
 }
 
-TEST_CASE_FIXTURE(IiFixture, "II2 characterization: Sm speed so low that the 12-bit CCR wraps below 4 is raised to 4") {
+TEST_CASE_FIXTURE(IiFixture, "characterization: II2 Sm speed so low that the 12-bit CCR wraps below 4 is raised to 4") {
 	// NEEDS REVIEW 320: 2 MHz / (2 * 244 Hz) = 4098.4 -> rounded up 4099, which does not fit the 12-bit CCR[11:0] field (RM0090 27.6.8); the HAL masks it
 	// to 3 and then applies the minimum 4. The manual gives no value for a speed that the field cannot hold.
 	initAt(2000000u, 244);
 	CHECK(ccr() == 4u);
 }
 
-TEST_CASE_FIXTURE(IiFixture, "II2 characterization: Sm speed that needs more than 12 CCR bits is truncated to 12 bits") {
+TEST_CASE_FIXTURE(IiFixture, "characterization: II2 Sm speed that needs more than 12 CCR bits is truncated to 12 bits") {
 	// NEEDS REVIEW 320: 42 MHz / (2 * 5 kHz) = 4200 > 4095 (CCR is 12 bits): HAL gives 4200 & 0xFFF = 104 (a clock 40 times too fast), no error.
 	initAt(42000000u, 5000);
 	CHECK(ccr() == 104u);
@@ -627,7 +627,7 @@ TEST_CASE_FIXTURE(IiFixture, "II4 DeInit of a never initialised handle returns H
 	CHECK((cr1() & 1u) == 0u);
 }
 
-TEST_CASE_FIXTURE(IiFixture, "II4 characterization: DeInit while a transfer is in progress still resets the handle") {
+TEST_CASE_FIXTURE(IiFixture, "characterization: II4 DeInit while a transfer is in progress still resets the handle") {
 	// NEEDS REVIEW 320: UM1725 does not say that DeInit refuses a busy peripheral; the HAL does not check the state.
 	doInit();
 	h.State = HAL_I2C_STATE_BUSY_TX;

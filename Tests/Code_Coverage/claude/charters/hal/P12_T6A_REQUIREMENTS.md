@@ -1,6 +1,8 @@
 # P12 T6a requirements charter: timers TIM / TIM_Ex (real ST HAL, F407VG and F407VG_DISCO)
 
 Status: 2026-11-12 (lead). T6 is split: T6a timers (`stm32f4xx_hal_tim.c`, `stm32f4xx_hal_tim_ex.c`), T6b ADC (`stm32f4xx_hal_adc.c`, `_adc_ex.c`, `stm32f4xx_ll_adc.c`), each with its own charter, model, review, gate and approval.
+
+**Final status (2026-11-17): done, approved, committed and pushed, commit `55907156` (T6a and T6b). Statements about pending approval or gates in the line above were true when it was written.**
 Charter and platform (`fakes/stm32_hal/HalTim.{h,c}`, lead probe `test_hal_tim_probe.cpp`, shared callbacks `TimTestSupport.h` / `test_hal_tim_support.cpp`) done; tests, review, gate pending.
 Plan: `Tests/Code_Coverage/claude/plans/P12_ST_HAL_PLAN.md`. Rules as in the T1-T5 charters. Both targets compile identical files; the same test files run in both executables.
 

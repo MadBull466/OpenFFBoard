@@ -1,6 +1,8 @@
 # P12 T8 requirements charter: PCD, PCD_Ex and LL USB, device mode, OTG_FS (real ST HAL, F407VG and F407VG_DISCO)
 
 Status: 2026-11-16 (lead). T8 follows T7 (flash and IWDG, committed and pushed). Scope decided by the owner: device mode, full speed instance `USB_OTG_FS` only. Platform (`fakes/stm32_hal/HalOtg.{h,c}`, lead probe `test_hal_pcd_probe.cpp`, shared callbacks and fixture `OtgTestSupport.h` / `test_hal_pcd_support.cpp`) done; tests, review, gate pending.
+
+**Final status (2026-11-17): done, approved, committed and pushed, commit `1e5bcef9`. Statements about pending approval or gates in the line above were true when it was written.**
 Plan: `Tests/Code_Coverage/claude/plans/P12_ST_HAL_PLAN.md`. Rules as in the T1-T7 charters. Both targets compile identical files; the same test files run in both executables. T8 is kept apart from the TinyUSB `ffb_usb_tests`.
 
 ## Oracles

@@ -109,6 +109,7 @@ TEST_CASE_FIXTURE(PwmFixture, "the fake HAL_TIM_PWM_Stop on a never started chan
 	HostTarget::state().unmodelledHalCalls.clear(); // declared: the fixture check would otherwise fail the test
 }
 
+// NEEDS REVIEW 248
 TEST_CASE_FIXTURE(PwmFixture, "characterization: the unused free function setPWM_HAL configures the channel in PWM mode 1 with the given pulse and starts it") {
 	// MotorPWM.cpp:321-331 is dead code in the firmware (no caller); it is public in MotorPWM.h. Its sConfigOC leaves
 	// OCNPolarity / OCNIdleState uninitialised (the real HAL would read them; the fake does not): informational, no test of that.

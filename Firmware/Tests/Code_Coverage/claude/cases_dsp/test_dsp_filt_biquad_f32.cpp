@@ -1073,8 +1073,11 @@ void blockSizeZero(Kind k) {
 
 }  // namespace
 
+// NEEDS REVIEW 385
 TEST_CASE("characterization: [C4 arm_biquad_cascade_df1_f32] a block of size 0 leaves the state and the output buffer unchanged") { blockSizeZero(DF1); }
+// NEEDS REVIEW 385
 TEST_CASE("characterization: [C4 arm_biquad_cascade_df2T_f32] a block of size 0 leaves the state and the output buffer unchanged") { blockSizeZero(DF2T); }
+// NEEDS REVIEW 385
 TEST_CASE("characterization: [C4 arm_biquad_cascade_stereo_df2T_f32] a block of size 0 leaves the state and the output buffer unchanged") { blockSizeZero(STEREO); }
 
 }  // TEST_SUITE

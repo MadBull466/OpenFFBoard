@@ -551,7 +551,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AX1 the injected configuration leaves the unrelat
 	CHECK(h.Instance->CR2 == cr2);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AX1 characterization: the injected configuration does not touch the analog watchdog bits of CR1") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AX1 the injected configuration does not touch the analog watchdog bits of CR1") {
 	// NEEDS REVIEW 340/2
 	ADC_HandleTypeDef h = axHandle(1);
 	axInit(h);
@@ -754,7 +754,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AX2 InjectedStart while the regular group runs ke
 	CHECK(hostAdcRegularRunning(n) == 1);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AX2 characterization: InjectedStart clears the error code only when the regular group is not busy") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AX2 InjectedStart clears the error code only when the regular group is not busy") {
 	// NEEDS REVIEW 340/3
 	ADC_HandleTypeDef h = axHandle(1);
 	axInit(h);
@@ -952,7 +952,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AX2 InjectedStop does not stop the ADC while the 
 	CHECK(hostAdcRegularRunning(n) == 1);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AX2 characterization: InjectedStop refused by the regular group returns HAL_ERROR with ERROR_CONFIG and unlocks") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AX2 InjectedStop refused by the regular group returns HAL_ERROR with ERROR_CONFIG and unlocks") {
 	// NEEDS REVIEW 340/4
 	ADC_HandleTypeDef h = axHandle(1);
 	axInit(h);
@@ -975,7 +975,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AX2 InjectedStop does not stop the ADC in auto-in
 	CHECK((h.Instance->CR2 & axCR2_ADON) == axCR2_ADON);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AX2 characterization: InjectedStop in auto-injection mode returns HAL_ERROR with ERROR_CONFIG") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AX2 InjectedStop in auto-injection mode returns HAL_ERROR with ERROR_CONFIG") {
 	// NEEDS REVIEW 340/4
 	ADC_HandleTypeDef h = axHandle(1);
 	axInit(h);
@@ -1133,7 +1133,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AX3 a three conversion injected sequence is compl
 	CHECK(h.State == (HAL_ADC_STATE_READY | HAL_ADC_STATE_INJ_EOC)); /* software start, EOCS = 0 */
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AX3 characterization: a software started injected sequence of three conversions with EOCS set keeps INJ_BUSY") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AX3 a software started injected sequence of three conversions with EOCS set keeps INJ_BUSY") {
 	// NEEDS REVIEW 340/12 (UM1725 EOCSelection: the injected group should not be used with polling / interrupt when EOC is selected after each conversion)
 	ADC_HandleTypeDef h = axHandle(1);
 	h.Init.ScanConvMode = ENABLE;
@@ -1184,7 +1184,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AX3 with an external injected trigger the state k
 	CHECK(h.State == (HAL_ADC_STATE_INJ_BUSY | HAL_ADC_STATE_INJ_EOC));
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AX3 characterization: with auto-injection the state keeps INJ_BUSY after the injected conversion") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AX3 with auto-injection the state keeps INJ_BUSY after the injected conversion") {
 	// NEEDS REVIEW 340/5
 	ADC_HandleTypeDef h = axHandle(1);
 	axInit(h);
@@ -1197,7 +1197,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AX3 characterization: with auto-injection the sta
 	CHECK((h.State & HAL_ADC_STATE_INJ_EOC) == HAL_ADC_STATE_INJ_EOC);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AX3 characterization: with a continuous regular group the state keeps INJ_BUSY after the injected conversion") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AX3 with a continuous regular group the state keeps INJ_BUSY after the injected conversion") {
 	// NEEDS REVIEW 340/5
 	ADC_HandleTypeDef h = axHandle(1);
 	h.Init.ContinuousConvMode = ENABLE;
@@ -1264,7 +1264,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AX3 InjectedPollForConversion with the timeout 0 
 	CHECK(HAL_ADCEx_InjectedPollForConversion(&h, 0) == HAL_OK);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AX3 characterization: a timed out InjectedPollForConversion unlocks the handle") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AX3 a timed out InjectedPollForConversion unlocks the handle") {
 	// NEEDS REVIEW 340/7
 	ADC_HandleTypeDef h = axHandle(1);
 	axInit(h);
@@ -1395,7 +1395,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AX3 InjectedGetValue clears the JEOC flag") {
 	CHECK((h.Instance->SR & axSR_JEOC) == 0u);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AX3 characterization: InjectedGetValue clears JEOC only and an invalid rank returns 0") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AX3 InjectedGetValue clears JEOC only and an invalid rank returns 0") {
 	// NEEDS REVIEW 340/6
 	ADC_HandleTypeDef h = axHandle(1);
 	axInit(h);
@@ -1679,7 +1679,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AX4 MultiModeStart_DMA with auto-injection also s
 	CHECK(r.h.State == (HAL_ADC_STATE_REG_BUSY | HAL_ADC_STATE_INJ_BUSY));
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AX4 characterization: MultiModeStart_DMA clears the error code, only the regular codes while the injected group is busy") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AX4 MultiModeStart_DMA clears the error code, only the regular codes while the injected group is busy") {
 	// NEEDS REVIEW 340/3 / NEEDS REVIEW 340/9
 	AxMulti r(1);
 	r.h.ErrorCode = HAL_ADC_ERROR_OVR | HAL_ADC_ERROR_DMA | HAL_ADC_ERROR_INTERNAL;
@@ -1692,7 +1692,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AX4 characterization: MultiModeStart_DMA clears t
 	CHECK(r.h.ErrorCode == HAL_ADC_ERROR_INTERNAL);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AX4 characterization: MultiModeStart_DMA enables the overrun interrupt and clears a stale EOC") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AX4 MultiModeStart_DMA enables the overrun interrupt and clears a stale EOC") {
 	// NEEDS REVIEW 340/9
 	AxMulti r(1);
 	HalFixture::poke(&r.h.Instance->SR, axSR_EOC);
@@ -1701,7 +1701,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AX4 characterization: MultiModeStart_DMA enables 
 	CHECK((r.h.Instance->SR & axSR_EOC) == 0u);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AX4 characterization: MultiModeStart_DMA enables only the given ADC, not the slaves") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AX4 MultiModeStart_DMA enables only the given ADC, not the slaves") {
 	// NEEDS REVIEW 340/9
 	AxMulti r(1);
 	r.start();
@@ -1710,7 +1710,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AX4 characterization: MultiModeStart_DMA enables 
 	CHECK((ADC3->CR2 & axCR2_ADON) == 0u);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AX4 characterization: MultiModeStart_DMA returns HAL_OK although the DMA stream is busy and cannot be started") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AX4 MultiModeStart_DMA returns HAL_OK although the DMA stream is busy and cannot be started") {
 	// NEEDS REVIEW 340/9
 	AxMulti r(1);
 	REQUIRE(HAL_DMA_Start_IT(&r.d, axCdrAddress, r.bufAddr(), 1) == HAL_OK);
@@ -1762,7 +1762,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AX4 the DMA stream can be started again after Mul
 	CHECK(r.h.State == HAL_ADC_STATE_REG_BUSY);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AX4 characterization: MultiModeStop_DMA with an idle DMA stream returns HAL_ERROR but still disables the ADC") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AX4 MultiModeStop_DMA with an idle DMA stream returns HAL_ERROR but still disables the ADC") {
 	// NEEDS REVIEW 340/10
 	AxMulti r(1);
 	HAL_ADCEx_MultiModeStart_DMA(&r.h, r.buf, 4);
@@ -1773,7 +1773,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AX4 characterization: MultiModeStop_DMA with an i
 	CHECK(r.h.Lock == HAL_UNLOCKED);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AX4 characterization: MultiModeStop_DMA with a stream that never stops returns the abort timeout and sets READY") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AX4 MultiModeStop_DMA with a stream that never stops returns the abort timeout and sets READY") {
 	// NEEDS REVIEW 340/10
 	AxMulti r(1);
 	r.start();
@@ -1813,7 +1813,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AX4 the DMA transfer complete sets REG_EOC before
 	CHECK((r.h.State & HAL_ADC_STATE_REG_EOC) == HAL_ADC_STATE_REG_EOC);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AX4 characterization: the DMA transfer complete of a software started single conversion ends the regular state with READY") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AX4 the DMA transfer complete of a software started single conversion ends the regular state with READY") {
 	// NEEDS REVIEW 340/11
 	AxMulti r(1);
 	r.start();
@@ -1836,7 +1836,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AX4 the DMA transfer complete with an external re
 	CHECK(r.h.State == (HAL_ADC_STATE_REG_BUSY | HAL_ADC_STATE_REG_EOC)); /* UM1725 REG_BUSY: 'can occur by external trigger' */
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AX4 characterization: the DMA transfer complete of an EOCS scan sequence keeps REG_BUSY") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AX4 the DMA transfer complete of an EOCS scan sequence keeps REG_BUSY") {
 	// NEEDS REVIEW 340/11
 	AxMulti r(1, false, axTweakScanEocs);
 	r.start();
@@ -1844,7 +1844,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AX4 characterization: the DMA transfer complete o
 	CHECK(r.h.State == (HAL_ADC_STATE_REG_BUSY | HAL_ADC_STATE_REG_EOC));
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AX4 characterization: the DMA transfer complete while the injected group is busy clears REG_BUSY without READY") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AX4 the DMA transfer complete while the injected group is busy clears REG_BUSY without READY") {
 	// NEEDS REVIEW 340/11
 	AxMulti r(1);
 	axOneInjected(r.h, 1, true);
@@ -1862,7 +1862,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AX4 a circular DMA stream runs the complete callb
 	CHECK(adcCounts.conv == 3u);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AX4 characterization: a DMA completion in an error state runs the error callback instead of the complete callback") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AX4 a DMA completion in an error state runs the error callback instead of the complete callback") {
 	// NEEDS REVIEW 340/11
 	AxMulti r(1);
 	r.start();
@@ -1985,7 +1985,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AX2 InjectedStart and InjectedStart_IT of the ADC
 	}
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AX2 characterization: InjectedStart_IT keeps the error code while REG_BUSY is set and clears it otherwise") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AX2 InjectedStart_IT keeps the error code while REG_BUSY is set and clears it otherwise") {
 	// NEEDS REVIEW 340/3
 	ADC_HandleTypeDef h = axHandle(1);
 	axInit(h);

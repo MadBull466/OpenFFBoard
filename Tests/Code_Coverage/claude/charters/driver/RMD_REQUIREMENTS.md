@@ -2,6 +2,8 @@
 
 Status: **T0 approved by the owner 2026-11-10** ("approve and start T1"); drafted by the lead (Sonnet 5.5). T1 approved and committed (`70a7598b`); T2 (256 cases, reviewed, gated) waiting for the owner's approval.
 
+**Final status (2026-11-17): done, approved, committed and pushed, commit `1d30019d` (T2). Statements about pending approval or gates in the line above were true when it was written.**
+
 Unit under test: `Firmware/FFBoard/UserExtensions/Src/RmdMotorCAN.cpp` (412 lines, `RS` below) and `Inc/RmdMotorCAN.h` (144 lines, `RH`), classes `RmdMotorCAN : MotorDriver, PersistentStorage, Encoder, CanHandler, CommandHandler, cpp_freertos::Thread` and the two instances `RmdMotorCAN1` / `RmdMotorCAN2`, behind the macro `RMDCAN`, class ids `CLSID_MOT_RMD1` / `CLSID_MOT_RMD2`, motor drivers 11 and 12 (`MotorDriver.cpp:50-53`; `Axis.cpp:68-70` id 11 in axis 1 only and `Axis.cpp:92-94` id 12 in axis 2 only).
 Executable: `ffb_driver_tests` (owner's decision, question 28). Plan: `Tests/Code_Coverage/claude/plans/P14_P17_REMAINING_DRIVERS_PLAN.md`. Tests: `Firmware/Tests/Code_Coverage/claude/cases/driver/test_rmd_*.cpp`, fixture `support/RmdFixture.h`, peer fake `fakes/FakeRmdPeer.{h,cpp}`.
 

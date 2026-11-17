@@ -13,5 +13,7 @@
 | `midi10.pdf` (USB Device Class Definition for MIDI Devices 1.0) and `MIDI_1.0_Detailed_Specification.pdf` | MIDI (P17, tests done) |
 | `USB MIDI v2_0.pdf` | no longer needed: the firmware class is USB-MIDI 1.0 style (kept as supplied) |
 | `dm00031020-...stm32f405-...pdf` (RM0090), `DS_dm00037051.pdf` (datasheet), `es0182-...errata...pdf` | STM32F407 fakes (HAL, timers, flash, CAN, USB) |
+| `um1725-description-of-stm32f4-hal-and-lowlayer-drivers-stmicroelectronics.pdf` (UM1725 Rev 8), PM0214 (Cortex-M4 programming manual) | P12: expected values of the real ST HAL tests (UM1725 for the HAL API, RM0090 for registers, PM0214 for the core peripherals) |
+| `stm32f4xx-hal-driver-1.8.3/` (ST's upstream HAL source, git-ignored) | P12: proves the checked-in HAL files are unmodified; never an oracle for expected values |
 
 Not supplied by the owner and therefore not in this folder: the USB HID PID 1.01 specification (open question 3), the PWM driver has no protocol specification.

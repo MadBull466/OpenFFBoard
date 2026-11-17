@@ -2,6 +2,8 @@
 
 Status: **APPROVED by the owner, 2026-11-10 (T0); T1 approved and committed (`70bf9659`); T2 done 2026-11-10, waiting for the owner's approval (results in `Tests/Code_Coverage/claude/plans/PROGRESS.md` "P14 review result (T2)"). Corrections after the writers (lead, Sonnet 5.5): B-PWM-4 (CENTERED `int32_t` overflow at speed LOW, `KNOWN_ISSUE_UB`) and the RC half-scale saturation (`characterization:`, open question 36) were found in T2; the T0 note that no product overflows was wrong (it only checked PWM_DIR / DUAL).**
 
+**Final status (2026-11-17): done, approved, committed and pushed, commit `c688687b` (T2). Statements about pending approval or gates in the line above were true when it was written.**
+
 Unit under test: `Firmware/FFBoard/UserExtensions/Src/MotorPWM.cpp` (332 lines, `MP` below) and `Inc/MotorPWM.h` (107 lines, `MH`). Class `MotorPWM : MotorDriver, CommandHandler, PersistentStorage`, behind the macro `PWMDRIVER`, class id `CLSID_MOT_PWM` 0x84, registered as motor driver 4 in `MotorDriver.cpp:35` and `Axis.cpp:56 / :83`.
 Executable: `ffb_driver_tests` (owner's decision, question 28). Plan: `Tests/Code_Coverage/claude/plans/P14_P17_REMAINING_DRIVERS_PLAN.md`. Tests: `Firmware/Tests/Code_Coverage/claude/cases/driver/test_pwm_*.cpp`, fixture `support/PwmFixture.h`.
 

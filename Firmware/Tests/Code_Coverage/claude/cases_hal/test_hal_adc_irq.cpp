@@ -414,7 +414,8 @@ TEST_CASE_FIXTURE(AdcFixture, "AQ2 IRQHandler clears the EOC and STRT flags afte
 	CHECK(hostAdcIrqPending(1) == 0u);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AQ2 characterization: the conversion callback runs while the EOC and STRT flags are still set") {
+// NEEDS REVIEW 407
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AQ2 the conversion callback runs while the EOC and STRT flags are still set") {
 	AqRig r(1);
 	REQUIRE(HAL_ADC_Start_IT(&r.h) == HAL_OK);
 	hostAdcConvert(1, 1);
@@ -493,7 +494,8 @@ TEST_CASE_FIXTURE(AdcFixture, "AQ2 IRQHandler of a scan sequence with EOC after 
 	CHECK((r.I()->CR1 & aqCR1_EOCIE) == aqCR1_EOCIE);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AQ2 characterization: after the last conversion of a software started scan with EOC after every conversion the state stays REG_BUSY") {
+// NEEDS REVIEW 339
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AQ2 after the last conversion of a software started scan with EOC after every conversion the state stays REG_BUSY") {
 	AqRig r(1, aqScan(2, ADC_EOC_SINGLE_CONV));
 	REQUIRE(HAL_ADC_Start_IT(&r.h) == HAL_OK);
 	for (unsigned i = 0; i < 2; ++i) {
@@ -551,7 +553,8 @@ TEST_CASE_FIXTURE(AdcFixture, "AQ2 IRQHandler does not set REG_EOC in the state 
 	CHECK(adcCounts.conv == 1u);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AQ2 characterization: the EOC branch clears only EOC and STRT and leaves the other set flags") {
+// NEEDS REVIEW 407
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AQ2 the EOC branch clears only EOC and STRT and leaves the other set flags") {
 	AqRig r(1);
 	r.I()->CR1 |= aqCR1_EOCIE;
 	r.pokeSR(0x3Fu);
@@ -692,7 +695,8 @@ TEST_CASE_FIXTURE(AdcFixture, "AQ2 IRQHandler of the JEOC flag does not set INJ_
 	CHECK(adcCounts.injected == 1u);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AQ2 characterization: the JEOC branch clears only JEOC and JSTRT") {
+// NEEDS REVIEW 407
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AQ2 the JEOC branch clears only JEOC and JSTRT") {
 	AqRig r(1);
 	r.I()->CR1 |= aqCR1_JEOCIE;
 	r.pokeSR(0x3Fu);
@@ -739,7 +743,8 @@ TEST_CASE_FIXTURE(AdcFixture, "AQ2 IRQHandler with the AWD flag but no AWDIE or 
 	CHECK(adcCounts.window == 0u);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AQ2 characterization: the AWD branch clears only the AWD flag") {
+// NEEDS REVIEW 407
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AQ2 the AWD branch clears only the AWD flag") {
 	AqRig r(1);
 	r.I()->CR1 |= aqCR1_AWDIE;
 	r.pokeSR(0x3Fu);
@@ -794,7 +799,8 @@ TEST_CASE_FIXTURE(AdcFixture, "AQ2 IRQHandler of the OVR flag clears the flag be
 	CHECK((adcCounts.srAtLast & aqSR_OVR) == 0u); /* NEEDS REVIEW 339/a: unlike the other branches the OVR flag is cleared before the callback (and again after it) */
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AQ2 characterization: the OVR branch clears only the OVR flag") {
+// NEEDS REVIEW 407
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AQ2 the OVR branch clears only the OVR flag") {
 	AqRig r(1);
 	r.I()->CR1 |= aqCR1_OVRIE;
 	r.pokeSR(0x3Fu);
@@ -1030,7 +1036,8 @@ TEST_CASE_FIXTURE(AdcFixture, "AQ3 Start_DMA leaves the handle unlocked") {
 	CHECK(r.h.Lock == HAL_UNLOCKED);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AQ3 characterization: Start_DMA returns HAL_OK although the DMA stream is busy and the stream keeps the first buffer") {
+// NEEDS REVIEW 339
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AQ3 Start_DMA returns HAL_OK although the DMA stream is busy and the stream keeps the first buffer") {
 	AqRig r(1, AqCfg(), true);
 	REQUIRE(HAL_ADC_Start_DMA(&r.h, r.buf, 4) == HAL_OK);
 	uint32_t other[4] = {0, 0, 0, 0};
@@ -1243,7 +1250,8 @@ TEST_CASE_FIXTURE(AdcFixture, "AQ4 DMA error keeps the other error codes") {
 	CHECK(r.h.ErrorCode == (HAL_ADC_ERROR_OVR | HAL_ADC_ERROR_DMA));
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AQ4 characterization: a DMA error leaves exactly the state ERROR_DMA") {
+// NEEDS REVIEW 339
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AQ4 a DMA error leaves exactly the state ERROR_DMA") {
 	AqRig r(1, AqCfg(), true);
 	REQUIRE(HAL_ADC_Start_DMA(&r.h, r.buf, 4) == HAL_OK);
 	REQUIRE(r.h.State == HAL_ADC_STATE_REG_BUSY);
@@ -1261,7 +1269,8 @@ TEST_CASE_FIXTURE(AdcFixture, "AQ4 DMA completion in the state ERROR_DMA calls t
 	CHECK((r.h.ErrorCode & HAL_ADC_ERROR_DMA) == HAL_ADC_ERROR_DMA);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AQ4 characterization: DMA completion in the state ERROR_INTERNAL reports the error callback and changes neither state nor error code") {
+// NEEDS REVIEW 339
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AQ4 DMA completion in the state ERROR_INTERNAL reports the error callback and changes neither state nor error code") {
 	AqRig r(1, AqCfg(), true);
 	REQUIRE(HAL_ADC_Start_DMA(&r.h, r.buf, 1) == HAL_OK);
 	r.h.State |= HAL_ADC_STATE_ERROR_INTERNAL;

@@ -136,7 +136,8 @@ TEST_CASE_FIXTURE(SpiInitFixture, "SI1 hardware NSS output clears SSM and sets S
 // characterization: SSI is 1 for a master also with hardware NSS (RM0090: SSI has an effect only when SSM = 1).
 // Proposed NEEDS REVIEW (number from 307): "SI1 master with hardware NSS: Init sets SSI; RM0090 28.5.1 says the bit has no effect
 // without SSM, UM1725 does not say. Confirm acceptable."
-TEST_CASE_FIXTURE(SpiInitFixture, "SI1 characterization: master with hardware NSS input has SSI set") {
+// NEEDS REVIEW 419
+TEST_CASE_FIXTURE(SpiInitFixture, "characterization: SI1 master with hardware NSS input has SSI set") {
 	h.Init.NSS = SPI_NSS_HARD_INPUT;
 	doInit();
 	CHECK(cr1() == 0x0104u); // MSTR | SSI
@@ -161,7 +162,8 @@ TEST_CASE_FIXTURE(SpiInitFixture, "SI1 every baud rate prescaler writes its BR v
 
 // characterization: in slave mode (Motorola) the prescaler is not used by the HAL and BR is written as 000. RM0090 does not say
 // whether BR matters for a slave. Proposed NEEDS REVIEW: "SI1 slave: requested prescaler 256 is replaced by BR = 000 in CR1."
-TEST_CASE_FIXTURE(SpiInitFixture, "SI1 characterization: slave mode writes BR = 000 whatever the prescaler") {
+// NEEDS REVIEW 307
+TEST_CASE_FIXTURE(SpiInitFixture, "characterization: SI1 slave mode writes BR = 000 whatever the prescaler") {
 	h.Init.Mode = SPI_MODE_SLAVE;
 	h.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
 	doInit();
@@ -188,7 +190,8 @@ TEST_CASE_FIXTURE(SpiInitFixture, "SI1 TI mode sets FRF in CR2 and Motorola mode
 
 // characterization: in TI mode the HAL forces CPOL = 0 and CPHA = 0 even when the structure asks for 1 (RM0090: both bits are
 // "not used in SPI TI mode"). Proposed NEEDS REVIEW: "SI1 TI mode: requested CPOL / CPHA high is written as 0."
-TEST_CASE_FIXTURE(SpiInitFixture, "SI1 characterization: TI mode writes CPOL and CPHA as 0") {
+// NEEDS REVIEW 307
+TEST_CASE_FIXTURE(SpiInitFixture, "characterization: SI1 TI mode writes CPOL and CPHA as 0") {
 	h.Init.TIMode = SPI_TIMODE_ENABLE;
 	h.Init.CLKPolarity = SPI_POLARITY_HIGH;
 	h.Init.CLKPhase = SPI_PHASE_2EDGE;
@@ -234,7 +237,8 @@ TEST_CASE_FIXTURE(SpiInitFixture, "SI1 Init calls the MSP init callback once wit
 
 // characterization: CR2 is written as a whole, so enable bits left in it are lost. Proposed NEEDS REVIEW: "SI1 Init overwrites CR2
 // (TXEIE / RXNEIE / ERRIE / DMA enables left from an earlier use are cleared)."
-TEST_CASE_FIXTURE(SpiInitFixture, "SI1 characterization: Init overwrites CR2 and clears interrupt and DMA enables") {
+// NEEDS REVIEW 307
+TEST_CASE_FIXTURE(SpiInitFixture, "characterization: SI1 Init overwrites CR2 and clears interrupt and DMA enables") {
 	poke(&h.Instance->CR2, 0x00E3u); // TXEIE, RXNEIE, ERRIE, TXDMAEN, RXDMAEN
 	doInit();
 	CHECK(cr2() == 0u);
@@ -243,7 +247,8 @@ TEST_CASE_FIXTURE(SpiInitFixture, "SI1 characterization: Init overwrites CR2 and
 // characterization: USE_SPI_CRC is 0, the CRC code is compiled out: CRCEN stays 0 and CRCPR keeps its reset value 0x0007 even
 // with CRCCalculation = ENABLE and a polynomial in the structure. Proposed NEEDS REVIEW: "SI1 CRCPolynomial is not written to
 // CRCPR (CRC compiled out); CRCEN is cleared."
-TEST_CASE_FIXTURE(SpiInitFixture, "SI1 characterization: a requested CRC calculation writes neither CRCEN nor CRCPR") {
+// NEEDS REVIEW 307
+TEST_CASE_FIXTURE(SpiInitFixture, "characterization: SI1 a requested CRC calculation writes neither CRCEN nor CRCPR") {
 	h.Init.CRCCalculation = SPI_CRCCALCULATION_ENABLE;
 	h.Init.CRCPolynomial = 0x1234;
 	doInit();
@@ -325,7 +330,8 @@ TEST_CASE_FIXTURE(SpiInitFixture, "SI3 Init of a handle in state RESET unlocks i
 
 // characterization: re-init of a READY handle returns HAL_OK, does not call MspInit again and writes the registers again.
 // Proposed NEEDS REVIEW: "SI3 second HAL_SPI_Init on a READY handle: HAL_OK, MspInit not called again, new CR1 written."
-TEST_CASE_FIXTURE(SpiInitFixture, "SI3 characterization: Init of a READY handle does not call MspInit again") {
+// NEEDS REVIEW 307
+TEST_CASE_FIXTURE(SpiInitFixture, "characterization: SI3 Init of a READY handle does not call MspInit again") {
 	doInit();
 	REQUIRE(h.State == HAL_SPI_STATE_READY);
 	h.Init.FirstBit = SPI_FIRSTBIT_LSB;
@@ -369,7 +375,8 @@ TEST_CASE_FIXTURE(SpiInitFixture, "SI4 DeInit calls the MSP deinit callback once
 
 // characterization: the HAL itself writes only SPE of CR1 in DeInit; the reset of the other registers is left to MspDeInit /
 // the RCC reset. Proposed NEEDS REVIEW: "SI4 DeInit changes only CR1.SPE; CR1 configuration bits and CR2 stay as they were."
-TEST_CASE_FIXTURE(SpiInitFixture, "SI4 characterization: DeInit changes only the SPE bit of the registers") {
+// NEEDS REVIEW 349
+TEST_CASE_FIXTURE(SpiInitFixture, "characterization: SI4 DeInit changes only the SPE bit of the registers") {
 	h.Init.NSS = SPI_NSS_HARD_OUTPUT;
 	h.Init.DataSize = SPI_DATASIZE_16BIT;
 	doInit();
@@ -382,7 +389,8 @@ TEST_CASE_FIXTURE(SpiInitFixture, "SI4 characterization: DeInit changes only the
 
 // characterization: DeInit with a NULL handle returns HAL_ERROR (UM1725 gives no return codes). Proposed NEEDS REVIEW: "SI4
 // HAL_SPI_DeInit(NULL) returns HAL_ERROR without calling MspDeInit."
-TEST_CASE_FIXTURE(SpiInitFixture, "SI4 characterization: DeInit with a NULL handle returns HAL_ERROR") {
+// NEEDS REVIEW 301
+TEST_CASE_FIXTURE(SpiInitFixture, "characterization: SI4 DeInit with a NULL handle returns HAL_ERROR") {
 	CHECK(HAL_SPI_DeInit(nullptr) == HAL_ERROR);
 	CHECK(spiCounts.mspDeInit == 0u);
 }

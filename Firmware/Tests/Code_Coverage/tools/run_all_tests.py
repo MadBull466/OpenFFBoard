@@ -654,7 +654,8 @@ def annotate_numbers(r, progress, baseline_known=frozenset()):
 		for source, text in (("marker", r.description), ("name", r.name), ("source comment", header)):
 			nums = extract_numbers(text)
 			if r.characterization and source != "marker":
-				nums = [n for n in nums if n.startswith("NR ")] or nums
+				# a requirement tag in the title ("[V3]", "[R12]") or a version in its text ("V1.3") is not a bug number
+				nums = [n for n in nums if n.startswith("NR ")]
 			if nums:
 				r.numbers, r.number_source = nums[:1], source
 				break

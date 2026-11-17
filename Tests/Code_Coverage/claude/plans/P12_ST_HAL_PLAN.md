@@ -1,6 +1,6 @@
 # P12 plan: tests of the real ST HAL (Claude, fresh start)
 
-Status: **approved by the owner 2026-11-11.** T0 trial done, approved and committed 2026-11-11 (section "T0 result"). T1-T3 (`f774247b`, `f22d81f3`, `29c3cae1`) done, approved and committed locally 2026-11-11, not pushed (sections "T1 result" to "T3 result"). T6a (timers), T6b (ADC) and T7 (flash, IWDG) done, approved, committed and pushed 2026-11-13 (sections "T6a result" to "T7 result"). T4 is split into T4a SPI, T4b UART, T4c I2C / I2C_Ex. T8 (USB PCD, device mode, OTG_FS) done, approved and committed locally 2026-11-16 (`1e5bcef9`, not pushed; section "T8 result"; charter `Tests/Code_Coverage/claude/charters/hal/P12_T8_REQUIREMENTS.md`; owner's scope decision: device mode, full speed instance only). **T9 (close-out) finished 2026-11-16, uncommitted, waiting for the owner's "approve ... and commit"** (section "T9 result"; P12 is complete after it). **T4a (SPI) done, approved and committed locally 2026-11-12 (`538b2ba0`, section "T4a result"). T4b (UART) finished and gated 2026-11-12, uncommitted, waiting for the owner's "approve ... and commit"** (section "T4b result"; charter `Tests/Code_Coverage/claude/charters/hal/P12_T4B_REQUIREMENTS.md`). All questions (65-69) answered 2026-11-11 (section 6); 66 revised to F407VG and F407VG_DISCO.
+Status: **complete (T0-T9) and pushed; updated 2026-11-17.** Approved by the owner 2026-11-11. Commits: T0 `1b69dc27`, T1 `f774247b`, T2 `f22d81f3`, T3 `29c3cae1`, T4a SPI `538b2ba0`, T4b UART `3bf7980f`, T4c I2C `9ba9d9c6` (T4 was split into T4a/T4b/T4c; I2C_Ex is compiled out on the F407), T5 CAN `baf1f855`, T6a timers and T6b ADC `55907156`, T7 flash and IWDG `5231f41d`, T8 USB PCD (device mode, OTG_FS only, owner's scope decision; charter `Tests/Code_Coverage/claude/charters/hal/P12_T8_REQUIREMENTS.md`) `1e5bcef9`, T9 close-out `afdec4c4` (tier D coverage report, regression of all variants). After T9: V126 / V127 promoted (`ba8b76ed`), Codex review fixes with 12 model corrections, 23 witness cases and V128 / V129 (`a18c2d95`), HAL sanitizer ctest timeout 600 s (`09b1d8e9`). Result: 4,067 cases per executable, 9,567 / 9,981 lines per target (95.9 %). The sections "T0 result" to "T9 result" below record each stage as it was written. All questions (65-69) answered 2026-11-11 (section 6); 66 revised to F407VG and F407VG_DISCO.
 
 Owner's instruction (2026-11-11): "I want to start on P12 that was started by Codex. I want to start from the beginning for that Phase and not use any of their files."
 
@@ -51,7 +51,7 @@ Lead only, no agents. GCC 16, out of tree.
   - The real `HAL_GetTick` (`return uwTick;`, `__weak`) is replaced and never runs. The firmware uses the real one; it replaces only `HAL_InitTick` (TIM-based time base in `Core/Src/stm32f4xx_hal_timebase_tim.c`).
   - `NVIC_SystemReset` ends in `for(;;) __NOP();`. A test that reaches it hangs until the ctest timeout, so T1 must treat it as hardware-only or give `__NOP` an escape hook.
 
-## T1 result (2026-11-11, gated, committed locally)
+## T1 result (2026-11-11, gated, committed `f774247b`)
 
 HAL core, CORTEX, GPIO and EXTI of both targets. Charter G1-G14, E1-E10, H1-H10, C1-C17. GCC 16, 32-bit, out of tree.
 
@@ -71,7 +71,7 @@ HAL core, CORTEX, GPIO and EXTI of both targets. Charter G1-G14, E1-E10, H1-H10,
 - **Model decisions:** the clock gate of a peripheral is not modelled (RM0090 is silent); an EXTI edge sets PR only with IMR set (medium confidence); the lock becomes active at the first read after the third LCKR write; STK_CALIB reads 0xC0000000 (PM0214 contradicts itself); H9 oracle is the RM0090 reset bits per register.
 - **Limits:** the 32-bit sanitizer build cannot run `ffb_flash_tests` (the i386 ASan layout collides with its fixed mapping at 0x1FFF0000; not a P12 regression, the HAL executables run fine with sanitizers); not run with clang, MinGW, macOS or on ARM; peripheral timing and interrupts beyond the NVIC register model are not modelled.
 
-## T2 result (2026-11-11, gated, committed locally)
+## T2 result (2026-11-11, gated, committed `f22d81f3`)
 
 RCC / RCC_Ex and PWR / PWR_Ex of both targets (F405/407 branches that compile for the F407). Charter RC1-RC15, RX1-RX4, PW1-PW11. GCC 16, 32-bit, out of tree.
 
@@ -92,7 +92,7 @@ RCC / RCC_Ex and PWR / PWR_Ex of both targets (F405/407 branches that compile fo
 - **Charter changes:** PW7 (CWUF in Standby) corrected: neither UM1725 nor RM0090 requires it, RM0090 Table 31 makes "WUF cleared" an application precondition. The charter's PLLSAI / `SelectLSEMode` / over-drive items are not compiled for the F407 and are not tested.
 - **Limits:** clock speeds, jitter and start-up times are not modelled (ready flags follow the HAL tick); no RCC / PWR interrupts, no wake-up from Stop / Standby, no clock gating; not run with clang, MinGW, macOS or on ARM.
 
-## T3 result (2026-11-11, gated, committed locally)
+## T3 result (2026-11-11, gated, committed `29c3cae1`)
 
 DMA / DMA_Ex of both targets. Charter DI1-DI9, DS1-DS9, DQ1-DQ8, DX1-DX2, DC1-DC4 (added after gcov showed the callback registration API is compiled unconditionally in this HAL version). GCC 16, 32-bit, out of tree.
 
@@ -113,7 +113,7 @@ DMA / DMA_Ex of both targets. Charter DI1-DI9, DS1-DS9, DQ1-DQ8, DX1-DX2, DC1-DC
 - **Charter changes:** DS2 (`Start_IT` does not set FEIE; neither oracle requires it), DS7 (FE / DME during polling do not end it; only TE does, RM0090 10.3.18), DQ7 (`Abort_IT` has no timeout; completion is the TCIF raised by the stop), DI7 (DeInit has no timeout; no `HAL_TIMEOUT` expected) are characterized, not asserted as the charter draft said; the callback registration API is compiled (group DC).
 - **Limits:** no data movement, request timing, FIFO fill level, bus errors or interrupt delivery; the 3 tick stop delay behind V94 is an assumption; not run with clang, MinGW, macOS or on ARM.
 
-## T4a result (2026-11-12, approved and committed locally `538b2ba0`)
+## T4a result (2026-11-12, approved and committed `538b2ba0`)
 
 SPI (`stm32f4xx_hal_spi.c`) of both targets; T4 was split by the lead into T4a SPI, T4b UART, T4c I2C / I2C_Ex (about 15,000 lines of HAL). Charter SI, SP, SQ, SD. GCC 16, 32-bit, out of tree. The owner paused the stage once ("pause") and resumed it ("Continue, this was a mistake"); no work was lost (the writers were resumed from their transcripts).
 
@@ -134,7 +134,7 @@ SPI (`stm32f4xx_hal_spi.c`) of both targets; T4 was split by the lead into T4a S
 - **Charter changes:** SI7 (Register / UnRegister callbacks) is compiled out (`USE_HAL_SPI_REGISTER_CALLBACKS` 0: a `static_assert` records it); SD6 (16-bit size conversion) does not exist in this HAL version (NDTR = `Size`, characterization); the interrupt-mode `HAL_SPI_Abort` / `Abort_IT` success path is untestable on this host (a memory-only wait for the abort ISR); the CRC polynomial is not written (`USE_SPI_CRC` 0).
 - **Limits:** no bit order / clock phase / NSS on the wire, no CRC, I2S or interrupt delivery; frame time and the slave BSY (never set) are model assumptions; not run with clang, MinGW, macOS or on ARM.
 
-## T4b result (2026-11-12, gated, committed locally `3bf7980f`)
+## T4b result (2026-11-12, gated, committed `3bf7980f`)
 
 UART (`stm32f4xx_hal_uart.c`) of both targets. Charter UI, UM, UP, UQ, UD, UA. GCC 16, 32-bit, out of tree.
 
@@ -155,7 +155,7 @@ UART (`stm32f4xx_hal_uart.c`) of both targets. Charter UI, UM, UP, UQ, UD, UA. G
 - **Charter changes:** UA1 (no flush of DR, error code only in `Abort` / `Abort_IT`) amended after the writer; UI7 (Register / UnRegister callbacks) compiled out (`USE_HAL_UART_REGISTER_CALLBACKS` 0); UM3 follows RM0090 30.3.6 for a non-matching address.
 - **Limits:** no flow control, synchronous / smartcard / IrDA, LIN break detection or interrupt delivery; frame time, IDLE rule and the address-mark MSB with parity are model assumptions; not run with clang, MinGW, macOS or on ARM.
 
-## T4c result (2026-11-12, gated, committed locally `9ba9d9c6`)
+## T4c result (2026-11-12, gated, committed `9ba9d9c6`)
 
 I2C (`stm32f4xx_hal_i2c.c`) of both targets. `stm32f4xx_hal_i2c_ex.c` is compiled out: its body needs `I2C_FLTR_ANOFF` and `I2C_FLTR_DNF`, which the F407 CMSIS header does not define (RM0090 27.6.10: I2C_FLTR is F42x / F43x only); offset 0x24 is reserved in the model. Charter II, IP, IS, IT, IQ, ID. GCC 16, 32-bit, out of tree.
 
@@ -176,7 +176,7 @@ I2C (`stm32f4xx_hal_i2c.c`) of both targets. `stm32f4xx_hal_i2c_ex.c` is compile
 - **Charter changes:** I2C_Ex scope note (compiled out); register callbacks compiled out (`USE_HAL_I2C_REGISTER_CALLBACKS` 0); IP7 checked through the bus log (the model has no register-write trace).
 - **Limits:** no wire timing, PEC, SMBus, noise filters, DMA EOT_1 / LAST NACK; byte time is a model parameter (default 0 = software slower than a byte); the model decisions listed in NEEDS REVIEW 326; not run with clang, MinGW, macOS or on ARM.
 
-## T5 result (2026-11-12, gated, committed locally)
+## T5 result (2026-11-12, gated, committed `baf1f855`)
 
 CAN (`stm32f4xx_hal_can.c`) of both targets (identical files). Charter CI, CF, CT, CQ. GCC 16, 32-bit, out of tree.
 
@@ -233,7 +233,7 @@ Flash and watchdog (`stm32f4xx_hal_flash.c`, `_flash_ex.c`, `stm32f4xx_hal_iwdg.
 - **Findings:** NEEDS REVIEW 342-344; no vendor bug.
 - **Limits:** no erase / program time, no bus stall (a write during BSY is dropped and counted), no read protection levels; the OTP lock rules are Low confidence; not run with clang, MinGW, macOS or on ARM.
 
-## T8 result (2026-11-16, gated, committed locally `1e5bcef9`)
+## T8 result (2026-11-16, gated, committed `1e5bcef9`)
 
 USB device (`stm32f4xx_hal_pcd.c`, `_pcd_ex.c`, `stm32f4xx_ll_usb.c`, identical in both targets), device mode, `USB_OTG_FS` only (owner's decision: no OTG_HS, no DMA mode; the host half of LL USB, 291 lines, is compiled but only HCD calls it and HCD is off). Charter PI, PE, PQ, PF. `HAL_PCDEx_ActivateLPM / DeActivateLPM / ActivateBCD / DeActivateBCD / BCD_VBUSDetect` are compiled only for other devices.
 
@@ -245,7 +245,7 @@ USB device (`stm32f4xx_hal_pcd.c`, `_pcd_ex.c`, `stm32f4xx_ll_usb.c`, identical 
 - **Findings:** vendor bugs V118-V125 (V118 `USB_WritePacket` over-reads the caller's buffer, ASan, no test; V119-V125 `KNOWN_ISSUE`, arguable except V123); NEEDS REVIEW 345-349.
 - **Limits:** no OTG_HS, no DMA mode, no host mode, no isochronous frame timing, no OTG protocols; CMOD and OTGINT are not derived by the model; `HAL_USB_TIMEOUT` is 2000U (the firmware has 0xF000000); the register space of OTG_FS in RM0090 is the only oracle for the LL functions (UM1725 has no LL USB chapter); not run with clang, MinGW, macOS or on ARM.
 
-## T9 result (2026-11-16, lead only, no new tests, uncommitted)
+## T9 result (2026-11-16, lead only, no new tests, committed `afdec4c4`)
 
 - **Tools:** `coverage_report.py` has a new section "ST HAL in scope (tier D)": one table per target from the object libraries `ffb_hal_tests_hal` and `ffb_hal_tests_disco_hal` (kept out of the firmware ladder and out of tier C). Out of scope inside the HAL, by the owner's T8 decision: the host half of `stm32f4xx_ll_usb.c` (`HAL_OUT_OF_SCOPE`: lines 1239-1248 `USB_ReadChInterrupts`, lines 1437-2267 `USB_HostInit` to `USB_StopHost`; `--no-exclusions` shows the raw numbers). `run_all_tests.py` runs `ffb_hal_tests` and `ffb_hal_tests_disco` when the build has them.
 - **Tier D coverage (gcov, `p12t1-cov`, 32-bit, both targets identical):** 24 files each, **9567 / 9981 executable lines (95.9 %)**, 572 / 677 functions. Per file: `stm32f4xx_hal.c` 98 / 100, `_adc` 342 / 360, `_adc_ex` 248 / 256, `_can` 388 / 418, `_cortex` 75 / 77, `_dma` 355 / 361, `_dma_ex` 55 / 55, `_exti` 98 / 98, `_flash` 147 / 151, `_flash_ex` 134 / 134, `_gpio` 110 / 113, `_i2c` 2092 / 2153, `_iwdg` 17 / 17, `_pcd` 404 / 460, `_pcd_ex` 12 / 16, `_pwr` 83 / 85, `_pwr_ex` 33 / 33, `_rcc` 230 / 240, `_rcc_ex` 112 / 128, `_spi` 807 / 898, `_tim` 1920 / 1967, `_tim_ex` 606 / 619, `_uart` 763 / 788, `_ll_usb` 438 / 454 (host half left out). What is uncovered is listed per stage (weak callbacks replaced by the test callbacks, DMA and other-device branches, defensive branches the model cannot reach). Not compiled on the F407 (so not counted): `stm32f4xx_hal_i2c_ex.c`, `_flash_ramfunc.c`, `stm32f4xx_ll_adc.c`.

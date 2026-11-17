@@ -1154,7 +1154,9 @@ TEST_CASE("[C3 arm_fir_sparse_q7] step response is the running sum of the quarte
 	// x = 32 (0.25): y_k = c_k / 4: 16, 8, -4
 	explicitTest<Q7T>({64, 32, -16}, {0, 2, 5}, 5, std::vector<int8_t>(12, 32), stepY<int8_t>(16, 24, 20));
 }
+// NEEDS REVIEW 229
 TEST_CASE("characterization: [C4 arm_fir_sparse_q7] results beyond the 1.7 range saturate (DOC says truncated)") { q7SaturationTest(); }
+// NEEDS REVIEW 229
 TEST_CASE("characterization: [C4 arm_fir_sparse_q7] results beyond the 1.7 range saturate in the unrolled loop (blockSize 8, non negative outputs)") { q7UnrolledSaturationTest(); }
 TEST_CASE("[C3 arm_fir_sparse_q7] ascending distinct delays equal the exact model (signed data for blockSize <= 3, non negative above)") { modeTest<Q7T>(Mode::Asc, VQ); }
 TEST_CASE("[C3 arm_fir_sparse_q7] descending delays equal the exact model (signed data for blockSize <= 3, non negative above)") { modeTest<Q7T>(Mode::Desc, VQ); }

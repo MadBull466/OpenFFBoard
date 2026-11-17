@@ -312,7 +312,7 @@ TEST_CASE_FIXTURE(HalFixture, "DI3 init of an enabled stream that stops at once 
 
 // characterization (proposed NEEDS REVIEW 301): UM1725 does not say what HAL_DMA_Init returns when the stream does not stop;
 // the HAL returns HAL_TIMEOUT after about 5 ms. Review: is HAL_TIMEOUT (and not HAL_ERROR) the wanted status?
-TEST_CASE_FIXTURE(HalFixture, "DI3 characterization: init of a stream whose EN never clears returns HAL_TIMEOUT after about 5 ms") {
+TEST_CASE_FIXTURE(HalFixture, "characterization: DI3 init of a stream whose EN never clears returns HAL_TIMEOUT after about 5 ms") {
 	DMA_Stream_TypeDef *st = DMA1_Stream3;
 	dmaInitEnable(st);
 	hostDmaStickEnabled(0, 3, 1);
@@ -324,7 +324,7 @@ TEST_CASE_FIXTURE(HalFixture, "DI3 characterization: init of a stream whose EN n
 
 // characterization (proposed NEEDS REVIEW 302): after the timeout the HAL sets the error code HAL_DMA_ERROR_TIMEOUT (UM1725 lists
 // the error code names only; the values come from the HAL header, and no link to Init is given). Review: error code TIMEOUT wanted?
-TEST_CASE_FIXTURE(HalFixture, "DI3 characterization: init timeout sets the error code TIMEOUT") {
+TEST_CASE_FIXTURE(HalFixture, "characterization: DI3 init timeout sets the error code TIMEOUT") {
 	dmaInitEnable(DMA1_Stream3);
 	hostDmaStickEnabled(0, 3, 1);
 	DMA_HandleTypeDef h = dmaInitHandle(0, 3, dmaInitBase());
@@ -335,7 +335,7 @@ TEST_CASE_FIXTURE(HalFixture, "DI3 characterization: init timeout sets the error
 
 // characterization (proposed NEEDS REVIEW 303): the state after an init timeout is HAL_DMA_STATE_TIMEOUT (the state
 // names come from the HAL header; UM1725 gives no state definitions and none for Init). Review: TIMEOUT (not READY or ERROR) wanted?
-TEST_CASE_FIXTURE(HalFixture, "DI3 characterization: init timeout sets the state TIMEOUT") {
+TEST_CASE_FIXTURE(HalFixture, "characterization: DI3 init timeout sets the state TIMEOUT") {
 	dmaInitEnable(DMA1_Stream3);
 	hostDmaStickEnabled(0, 3, 1);
 	DMA_HandleTypeDef h = dmaInitHandle(0, 3, dmaInitBase());
@@ -389,7 +389,7 @@ TEST_CASE_FIXTURE(HalFixture, "DI4 init of every combination Table 49 allows ret
 // characterization (proposed NEEDS REVIEW 304): RM0090 Table 49 calls these configurations forbidden (the hardware sets FEIF
 // when the stream is enabled); neither RM0090 nor UM1725 says the HAL must reject them at init. The HAL returns HAL_ERROR with
 // the error code HAL_DMA_ERROR_PARAM and the state READY. Review: reject at init (HAL_ERROR / PARAM / READY) wanted?
-TEST_CASE_FIXTURE(HalFixture, "DI4 characterization: init of every combination Table 49 forbids returns HAL_ERROR with the error code PARAM and the state READY") {
+TEST_CASE_FIXTURE(HalFixture, "characterization: DI4 init of every combination Table 49 forbids returns HAL_ERROR with the error code PARAM and the state READY") {
 	for (int m = 0; m < 3; ++m)
 		for (int f = 0; f < 4; ++f)
 			for (int b = 0; b < 4; ++b) {
@@ -424,7 +424,7 @@ TEST_CASE_FIXTURE(HalFixture, "DI4 the table copied from RM0090 has 23 allowed a
 // characterization (proposed NEEDS REVIEW 305): RM0090 10.3.? note: with peripheral bursts and the FIFO in use, 3/4 threshold
 // is forbidden when PBURST x PSIZE = FIFO size (16 bytes): (INCR4, word), (INCR8, half-word), (INCR16, byte). The HAL does not
 // check this rule: HAL_OK, state READY. Review: should the HAL reject these (HAL_ERROR / PARAM) like the memory rule?
-TEST_CASE_FIXTURE(HalFixture, "DI4 characterization: init with a peripheral burst that fills the FIFO and threshold 3/4 returns HAL_OK") {
+TEST_CASE_FIXTURE(HalFixture, "characterization: DI4 init with a peripheral burst that fills the FIFO and threshold 3/4 returns HAL_OK") {
 	const unsigned burst[3] = {1, 2, 3};   // INCR4, INCR8, INCR16 as index of dmaInitPBursts
 	const unsigned psize[3] = {2, 1, 0};   // word, half-word, byte: burst beats x size = 16 bytes
 	for (int i = 0; i < 3; ++i) {
@@ -503,7 +503,7 @@ TEST_CASE_FIXTURE(HalFixture, "DI5 FIFO mode stream keeps MBURST and MSIZE of th
 // ---------------------------------------------------------------- DI6 invalid handle
 
 // characterization (proposed NEEDS REVIEW 309): UM1725 gives no return code for a NULL handle; the HAL returns HAL_ERROR.
-TEST_CASE_FIXTURE(HalFixture, "DI6 characterization: init of a NULL handle returns HAL_ERROR and accesses no register") {
+TEST_CASE_FIXTURE(HalFixture, "characterization: DI6 init of a NULL handle returns HAL_ERROR and accesses no register") {
 	CHECK(HAL_DMA_Init(nullptr) == HAL_ERROR);
 	CHECK(hostRegsLogCount() == 0u);
 }
@@ -511,7 +511,7 @@ TEST_CASE_FIXTURE(HalFixture, "DI6 characterization: init of a NULL handle retur
 // characterization (proposed NEEDS REVIEW 306): UM1725 does not define a stream that belongs to neither controller. The HAL
 // takes the stream number from the address, writes the registers there and returns HAL_OK; the bus model reports the accesses
 // as faults (no register at that address). Review: should HAL_DMA_Init reject an instance that is not a DMA stream?
-TEST_CASE_FIXTURE(HalFixture, "DI6 characterization: init of a handle whose stream is in no DMA controller returns HAL_OK") {
+TEST_CASE_FIXTURE(HalFixture, "characterization: DI6 init of a handle whose stream is in no DMA controller returns HAL_OK") {
 	DMA_HandleTypeDef h = dmaInitHandle(0, 0, dmaInitBase());
 	// 0x40026800 + 0x10 is where a third DMA controller's stream 0 would be (RM0090 Table 1 has only DMA1 and DMA2).
 	h.Instance = reinterpret_cast<DMA_Stream_TypeDef *>(0x40026810u);
@@ -646,14 +646,14 @@ TEST_CASE_FIXTURE(HalFixture, "DI7 deinit of a stream whose EN never clears stil
 }
 
 // characterization (proposed NEEDS REVIEW 310): as 309 for HAL_DMA_DeInit.
-TEST_CASE_FIXTURE(HalFixture, "DI7 characterization: deinit of a NULL handle returns HAL_ERROR and accesses no register") {
+TEST_CASE_FIXTURE(HalFixture, "characterization: DI7 deinit of a NULL handle returns HAL_ERROR and accesses no register") {
 	CHECK(HAL_DMA_DeInit(nullptr) == HAL_ERROR);
 	CHECK(hostRegsLogCount() == 0u);
 }
 
 // characterization (proposed NEEDS REVIEW 308): UM1725 gives no status for DeInit during a transfer. The HAL returns HAL_BUSY
 // when the state is BUSY and changes nothing (registers and state keep their values).
-TEST_CASE_FIXTURE(HalFixture, "DI7 characterization: deinit of a handle in state BUSY returns HAL_BUSY and changes nothing") {
+TEST_CASE_FIXTURE(HalFixture, "characterization: DI7 deinit of a handle in state BUSY returns HAL_BUSY and changes nothing") {
 	DMA_HandleTypeDef h = dmaInitHandle(0, 1, dmaInitBase());
 	REQUIRE(HAL_DMA_Init(&h) == HAL_OK);
 	DMA1_Stream1->M0AR = 0x20000000u;

@@ -853,6 +853,7 @@ TEST_CASE("[C2 arm_correlate_opt_q7] DOC sized scratch1 is enough for (A, B) = (
 TEST_CASE("[C2 arm_conv_partial_opt_q7] DOC sized scratch1 is enough for (A, B) = (4,5), (8,9), (12,13), (16,17) in both orders, full window" * UB_OVERREAD) { partialScratchOverreadTest(); }
 
 // ---- correlate padding (characterization). a has 7 values, b has 1: 6 padding samples; (a, b): 6 leading, (b, a): 6 trailing.
+// NEEDS REVIEW 228
 TEST_CASE("characterization: [C4 arm_correlate_q7] the (A - B) leading (A > B) or (B - A) trailing padding samples are not written") {
 	// DOC (arm_correlate_q7.c): "pDst ... Length 2 * max(srcALen, srcBLen) - 1"; the code skips the padding (pOut += j). NEEDS REVIEW.
 	const V8 a = {1, 2, 3, 4, 5, 6, 7}, b = {9};
@@ -867,6 +868,7 @@ TEST_CASE("characterization: [C4 arm_correlate_q7] the (A - B) leading (A > B) o
 	}
 }
 
+// NEEDS REVIEW 228
 TEST_CASE("characterization: [C4 arm_correlate_opt_q7] the (A - B) leading (A > B) or (B - A) trailing padding samples are not written") {
 	const V8 a = {1, 2, 3, 4, 5, 6, 7}, b = {9};
 	for (int swap = 0; swap < 2; swap++) {
@@ -893,12 +895,14 @@ TEST_CASE("[C4 arm_conv_partial_opt_q7] windows beyond A + B - 2 (A 6, B 8) retu
 TEST_CASE("[C4 arm_conv_partial_q7] the last valid windows (A 6, B 1: 0+6, 5+1, 2+4, 4+2) succeed with the model values") { partialBoundaryTest(false); }
 TEST_CASE("[C4 arm_conv_partial_opt_q7] the last valid windows (A 6, B 1: 0+6, 5+1, 2+4, 4+2) succeed with the model values") { partialBoundaryTest(true); }
 
+// NEEDS REVIEW 388
 TEST_CASE("characterization: [C4 arm_conv_partial_q7] a result beyond the 1.7 range is saturated like the full convolution (the DOC has no scaling paragraph)") {
 	const V8 a(6, -128), b(1, -128);  // full result: 127 everywhere (16384 >> 7 = 128 -> 127)
 	const PRun r = runPartial(false, a, b, 2, 3, 5);
 	CHECK(r.st == ARM_MATH_SUCCESS);
 	for (size_t i = 2; i < 5; i++) CHECK(r.out[i] == 127);
 }
+// NEEDS REVIEW 388
 TEST_CASE("characterization: [C4 arm_conv_partial_opt_q7] a result beyond the 1.7 range is saturated like the full convolution (the DOC has no scaling paragraph)") {
 	const V8 a(6, -128), b(1, -128);
 	const PRun r = runPartial(true, a, b, 2, 3, 5);

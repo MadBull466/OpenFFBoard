@@ -597,7 +597,8 @@ TEST_CASE_FIXTURE(FlowRig, "PF5 a USB reset in the middle of a bulk IN transfer 
 	CHECK(otgCounts.setupWords[0] == 0x01000680u);
 }
 
-TEST_CASE_FIXTURE(FlowRig, "PF5 characterization: the IN endpoint interrupted by a USB reset stays armed and the HAL refills its TxFIFO, but the reset deactivates the endpoint") {
+// NEEDS REVIEW 348
+TEST_CASE_FIXTURE(FlowRig, "characterization: PF5 the IN endpoint interrupted by a USB reset stays armed and the HAL refills its TxFIFO, but the reset deactivates the endpoint") {
 	// NR348_a: RM0090 does not say what the application must do with an armed IN endpoint at a USB reset; the HAL's reset branch does not disable it
 	// (EPENA and DIEPEMPMSK stay), so the next TXFE interrupt writes the following packet of the old transfer into the flushed FIFO.
 	enumerate(0x10);

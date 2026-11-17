@@ -723,7 +723,8 @@ TEST_CASE("[C3 arm_absmin_q31] the absolute minimum of mixed signs returns the m
 	CHECK(idx == 5u);
 }
 
-TEST_CASE("[C3 arm_max_q31] characterization: with equal maxima the index of the first one is returned at every position of the unrolled loop") {
+// NEEDS REVIEW 210
+TEST_CASE("characterization: [C3 arm_max_q31] with equal maxima the index of the first one is returned at every position of the unrolled loop") {
 	// the code updates only on a strictly greater value; DOC: "index of maximum value" (silent about ties)
 	for (uint32_t n = 2; n <= 13; n++)
 		for (uint32_t first = 0; first + 1 < n; first++) {
@@ -740,7 +741,8 @@ TEST_CASE("[C3 arm_max_q31] characterization: with equal maxima the index of the
 		}
 }
 
-TEST_CASE("[C3 arm_min_q31] characterization: with equal minima the index of the first one is returned at every position of the unrolled loop") {
+// NEEDS REVIEW 396
+TEST_CASE("characterization: [C3 arm_min_q31] with equal minima the index of the first one is returned at every position of the unrolled loop") {
 	for (uint32_t n = 2; n <= 13; n++)
 		for (uint32_t first = 0; first + 1 < n; first++) {
 			std::vector<int32_t> v(n, 5);
@@ -758,7 +760,8 @@ TEST_CASE("[C3 arm_min_q31] characterization: with equal minima the index of the
 
 // Host note for the abs tie tests: the portable abs functions have no unrolled loop (only arm_max_q31 / arm_min_q31 do);
 // the ARM_MATH_DSP path (4-way unrolled, __QSUB for the magnitude) exists only on the target and is not run here.
-TEST_CASE("[C3 arm_absmax_q31] characterization: when +x and -x have the same magnitude the index of the first one is returned") {
+// NEEDS REVIEW 396
+TEST_CASE("characterization: [C3 arm_absmax_q31] when +x and -x have the same magnitude the index of the first one is returned") {
 	for (uint32_t n = 2; n <= 13; n++)
 		for (uint32_t first = 0; first + 1 < n; first++) {
 			std::vector<int32_t> v(n, 5);
@@ -774,7 +777,8 @@ TEST_CASE("[C3 arm_absmax_q31] characterization: when +x and -x have the same ma
 		}
 }
 
-TEST_CASE("[C3 arm_absmin_q31] characterization: when +x and -x have the same magnitude the index of the first one is returned") {
+// NEEDS REVIEW 396
+TEST_CASE("characterization: [C3 arm_absmin_q31] when +x and -x have the same magnitude the index of the first one is returned") {
 	for (uint32_t n = 2; n <= 13; n++)
 		for (uint32_t first = 0; first + 1 < n; first++) {
 			std::vector<int32_t> v(n, 500);
@@ -863,7 +867,8 @@ TEST_CASE("[C3 arm_mean_q31] the mean of two samples over a 64 x 64 grid of the 
 		}
 }
 
-TEST_CASE("[C3 arm_mean_q31] characterization: a negative mean that is not an integer is truncated toward zero (C division)") {
+// NEEDS REVIEW 215
+TEST_CASE("characterization: [C3 arm_mean_q31] a negative mean that is not an integer is truncated toward zero (C division)") {
 	// DOC only says "the accumulator is truncated"; the code divides the signed 64 bit sum by the block size
 	const int32_t a[2] = {-1, 0};
 	const int32_t b[3] = {-4, -4, -3};  // sum -11, n 3: -3.67 -> -3
@@ -1293,7 +1298,8 @@ TEST_CASE("[C4 arm_min_q31] two samples give the smaller one with its index in b
 	CHECK(idx == 1u);
 }
 
-TEST_CASE("[C4 arm_max_q31] characterization: when all samples are equal the index is 0 for every block size") {
+// NEEDS REVIEW 396
+TEST_CASE("characterization: [C4 arm_max_q31] when all samples are equal the index is 0 for every block size") {
 	for (uint32_t n = 1; n <= 13; n++) {
 		std::vector<int32_t> v(n, -42);
 		q31_t r = 0;
@@ -1305,7 +1311,8 @@ TEST_CASE("[C4 arm_max_q31] characterization: when all samples are equal the ind
 	}
 }
 
-TEST_CASE("[C4 arm_min_q31] characterization: when all samples are equal the index is 0 for every block size") {
+// NEEDS REVIEW 396
+TEST_CASE("characterization: [C4 arm_min_q31] when all samples are equal the index is 0 for every block size") {
 	for (uint32_t n = 1; n <= 13; n++) {
 		std::vector<int32_t> v(n, 42);
 		q31_t r = 0;
@@ -1342,7 +1349,8 @@ TEST_CASE("[C4 arm_absmax_no_idx_q31] a single sample returns its magnitude, INT
 	}
 }
 
-TEST_CASE("[C4 arm_absmax_q31] characterization: INT32_MIN and INT32_MAX in one block both have magnitude INT32_MAX and the first one wins") {
+// NEEDS REVIEW 396
+TEST_CASE("characterization: [C4 arm_absmax_q31] INT32_MIN and INT32_MAX in one block both have magnitude INT32_MAX and the first one wins") {
 	const int32_t a[3] = {5, INT32_MIN, INT32_MAX}, b[3] = {5, INT32_MAX, INT32_MIN};
 	q31_t r = 0;
 	uint32_t idx = 99;
@@ -1376,7 +1384,8 @@ TEST_CASE("[C4 arm_absmin_q31] a single sample returns its magnitude with index 
 	CHECK(idx == 0u);
 }
 
-TEST_CASE("[C4 arm_absmin_q31] characterization: INT32_MIN counts as magnitude INT32_MAX (saturating abs), as ARM's saturation test shows for absmax") {
+// NEEDS REVIEW 396
+TEST_CASE("characterization: [C4 arm_absmin_q31] INT32_MIN counts as magnitude INT32_MAX (saturating abs), as ARM's saturation test shows for absmax") {
 	// DOC of the absmin functions is silent about INT32_MIN; the code is the same saturating abs as arm_absmax_q31
 	const int32_t a[2] = {INT32_MIN, INT32_MAX}, b[1] = {INT32_MIN};
 	q31_t r = 0;
@@ -1512,7 +1521,8 @@ TEST_CASE("[C4 arm_rms_q31] the rms of zeros is 0") {
 	CHECK(r == 0);
 }
 
-TEST_CASE("[C4 arm_var_q31] characterization: with block size 1 or 0 the variance is set to 0 (no division by n - 1 = 0)") {
+// NEEDS REVIEW 396
+TEST_CASE("characterization: [C4 arm_var_q31] with block size 1 or 0 the variance is set to 0 (no division by n - 1 = 0)") {
 	// the code returns 0 for blockSize <= 1 (arm_var_q31.c:143); DOC is silent about this case
 	const int32_t one[1] = {INT32_MAX};
 	q31_t r = 99;
@@ -1523,7 +1533,8 @@ TEST_CASE("[C4 arm_var_q31] characterization: with block size 1 or 0 the varianc
 	CHECK(r == 0);
 }
 
-TEST_CASE("[C4 arm_std_q31] characterization: with block size 1 or 0 the standard deviation is set to 0 (no division by n - 1 = 0)") {
+// NEEDS REVIEW 396
+TEST_CASE("characterization: [C4 arm_std_q31] with block size 1 or 0 the standard deviation is set to 0 (no division by n - 1 = 0)") {
 	const int32_t one[1] = {INT32_MAX};
 	q31_t r = 99;
 	arm_std_q31(one, 1, &r);

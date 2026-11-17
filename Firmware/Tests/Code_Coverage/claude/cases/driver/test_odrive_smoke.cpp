@@ -16,7 +16,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O1] constructing ODriveCAN1 starts the CAN po
 	CHECK_FALSE(HostTarget::canPort().filters[0].extid);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O32] characterization: after the first heartbeat reports IDLE the first frame of the driver is a well-formed standard-id Set Axis Requested State of node 0 for state number 3") {
+// NEEDS REVIEW 356
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O32] after the first heartbeat reports IDLE the first frame of the driver is a well-formed standard-id Set Axis Requested State of node 0 for state number 3") {
 	auto od = makeOdrive1();
 	runFor(499);
 	CHECK(HostTarget::canTxFrames().empty()); // the thread has not run its first body yet (Delay(500) first)
@@ -68,7 +69,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O3] ODriveCAN2 receives the node 1 heartbeat 
 	CHECK(peer1.violations().empty());
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O3] characterization: with the real F407 interrupt set-up ODriveCAN2 sees no heartbeat before one of its own frames completes") {
+// NEEDS REVIEW 356
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O3] with the real F407 interrupt set-up ODriveCAN2 sees no heartbeat before one of its own frames completes") {
 	setRx1Interrupt(false);
 	auto od = makeOdrive2();
 	runFor(450); // heartbeats at 100 .. 400 wait in FIFO 1: no interrupt, and the driver has sent nothing to complete

@@ -174,7 +174,8 @@ TEST_CASE_FIXTURE(OdrvRxFixture, "[O22] the velocity word does not change the po
 	CHECK(od->getPos_f() == 0.25f);
 }
 
-TEST_CASE_FIXTURE(OdrvRxFixture, "[O22] characterization: getPos is 65535 times the position in turns, truncated towards zero") {
+// NEEDS REVIEW 355
+TEST_CASE_FIXTURE(OdrvRxFixture, "characterization: [O22] getPos is 65535 times the position in turns, truncated towards zero") {
 	// cpr 0xFFFF is firmware (FW). HD: 1.5 * 65535 = 98302.5 -> 98302; -1.5 -> -98302.5 -> -98302 (both exact in float)
 	auto od = makeOdrive1();
 	link(*od, peer0);
@@ -209,7 +210,8 @@ TEST_CASE_FIXTURE(OdrvRxFixture, "[O23] a later bus voltage reply replaces the e
 	CHECK(get(*od, "vbus") == 12000);
 }
 
-TEST_CASE_FIXTURE(OdrvRxFixture, "[O23] characterization: the vbus command truncates sub-millivolt fractions") {
+// NEEDS REVIEW 355
+TEST_CASE_FIXTURE(OdrvRxFixture, "characterization: [O23] the vbus command truncates sub-millivolt fractions") {
 	// HD: float(12.3456) = 12.345600128..., times 1000 in float = 12345.6 -> 12345 (truncation, FW)
 	auto od = makeOdrive1();
 	link(*od, peer0);
@@ -356,7 +358,8 @@ TEST_CASE_FIXTURE(OdrvRxFixture, "[O25] a frame with a command id the driver doe
 	CHECK(get(*od, "vbus") == 24500);
 }
 
-TEST_CASE_FIXTURE(OdrvRxFixture, "[O25] characterization: a frame with an unused command id of the node counts as a sign of life and keeps the node connected") {
+// NEEDS REVIEW 184
+TEST_CASE_FIXTURE(OdrvRxFixture, "characterization: [O25] a frame with an unused command id of the node counts as a sign of life and keeps the node connected") {
 	// NEEDS REVIEW: lastCanMessage is refreshed before the command switch (ODriveCAN.cpp:397)
 	auto od = makeOdrive1();
 	link(*od, peer0);
@@ -493,7 +496,8 @@ TEST_CASE_FIXTURE(OdrvRxFixture, "[O40] the peer decodes the torque frame as a v
 	CHECK(peer0.violations().empty());
 }
 
-TEST_CASE_FIXTURE(OdrvRxFixture, "[O40] characterization: a power of -32768 is not clipped and sends slightly more than minus the max torque") {
+// NEEDS REVIEW 178
+TEST_CASE_FIXTURE(OdrvRxFixture, "characterization: [O40] a power of -32768 is not clipped and sends slightly more than minus the max torque") {
 	// HD: -32768 / 32767 * 10 = -10.000305 Nm. int16 minimum; no clipping in turn() (FW)
 	auto od = makeOdrive1();
 	REQUIRE(run(*od, "maxtorque", CMDtype::set, 1000) == CommandStatus::OK);
@@ -508,7 +512,8 @@ TEST_CASE_FIXTURE(OdrvRxFixture, "[O40] characterization: a power of -32768 is n
 // O41 turn while not ready
 // ---------------------------------------------------------------------------------------------------------------
 
-TEST_CASE_FIXTURE(OdrvRxFixture, "[O41] characterization: turn sends a torque frame although the driver is not connected and not ready") {
+// NEEDS REVIEW 178
+TEST_CASE_FIXTURE(OdrvRxFixture, "characterization: [O41] turn sends a torque frame although the driver is not connected and not ready") {
 	// NEEDS REVIEW: the motorReady() check in setTorque is commented out (ODriveCAN.cpp:272-274)
 	auto od = makeOdrive1();
 	REQUIRE_FALSE(od->motorReady());
@@ -518,7 +523,8 @@ TEST_CASE_FIXTURE(OdrvRxFixture, "[O41] characterization: turn sends a torque fr
 	CHECK(txFramesCmd(0, CMD_TORQUE).size() == 1);
 }
 
-TEST_CASE_FIXTURE(OdrvRxFixture, "[O41] characterization: turn sends a torque frame while the ODrive is connected but idle") {
+// NEEDS REVIEW 178
+TEST_CASE_FIXTURE(OdrvRxFixture, "characterization: [O41] turn sends a torque frame while the ODrive is connected but idle") {
 	auto od = makeOdrive1();
 	link(*od, peer0);
 	REQUIRE_FALSE(od->motorReady());
@@ -562,7 +568,8 @@ TEST_CASE_FIXTURE(OdrvRxFixture, "[O42] a second getPos_f call right after a req
 	CHECK(txFramesCmd(0, CMD_ENC).size() == 1);
 }
 
-TEST_CASE_FIXTURE(OdrvRxFixture, "[O42] characterization: a request is repeated when the reply is still missing more than 5 ms after the last reply") {
+// NEEDS REVIEW 355
+TEST_CASE_FIXTURE(OdrvRxFixture, "characterization: [O42] a request is repeated when the reply is still missing more than 5 ms after the last reply") {
 	auto od = makeOdrive1();
 	link(*od, peer0);
 	rx(peer0, 0, CMD_ENC, floats(1.0f, 0));

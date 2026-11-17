@@ -281,6 +281,7 @@ TEST_CASE_FIXTURE(CiFixture, "CI1 Init of a started handle rewrites the register
 	CHECK((msr() & ci_INAK) != 0u);
 }
 
+// NEEDS REVIEW 327
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI1 Init times out with ERROR, TIMEOUT and state ERROR when INAK is never set") {
 	hostCanStuckSync(0, 1);
 	CHECK(HAL_CAN_Init(&h) == HAL_ERROR);
@@ -289,6 +290,7 @@ TEST_CASE_FIXTURE(CiFixture, "characterization: CI1 Init times out with ERROR, T
 	CHECK(canCounts.mspInit == 1u); // MspInit runs before the wait
 }
 
+// NEEDS REVIEW 327
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI1 Init times out with ERROR, TIMEOUT and state ERROR when SLAK is never cleared") {
 	initOk();
 	REQUIRE(HAL_CAN_RequestSleep(&h) == HAL_OK); // SLAK = 1 and INAK = 1
@@ -299,6 +301,7 @@ TEST_CASE_FIXTURE(CiFixture, "characterization: CI1 Init times out with ERROR, T
 	CHECK(h.State == HAL_CAN_STATE_ERROR);
 }
 
+// NEEDS REVIEW 327
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI1 Init after a timeout succeeds once the hardware answers and clears the error code") {
 	hostCanStuckSync(0, 1);
 	REQUIRE(HAL_CAN_Init(&h) == HAL_ERROR);
@@ -309,6 +312,7 @@ TEST_CASE_FIXTURE(CiFixture, "characterization: CI1 Init after a timeout succeed
 	CHECK(canCounts.mspInit == 1u); // state was ERROR, not RESET
 }
 
+// NEEDS REVIEW 327
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI1 Init of the second instance times out on its own mode flags") {
 	setup(CAN2);
 	hostCanStuckSync(1, 1);
@@ -322,6 +326,7 @@ TEST_CASE_FIXTURE(CiFixture, "CI1 Init waits for a mode acknowledge that arrives
 	CHECK(h.State == HAL_CAN_STATE_READY);
 }
 
+// NEEDS REVIEW 327
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI1 Init gives up when the mode acknowledge needs far longer than the 10 ms the HAL waits") {
 	hostCanSetSyncTicks(100);
 	CHECK(HAL_CAN_Init(&h) == HAL_ERROR);
@@ -344,6 +349,7 @@ TEST_CASE_FIXTURE(CiFixture, "CI2 DeInit of a started handle ends in state RESET
 	CHECK(canCounts.last == &h);
 }
 
+// NEEDS REVIEW 327
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI2 DeInit stops a started handle before MspDeInit (state is READY inside the callback)") {
 	startOk();
 	REQUIRE(HAL_CAN_DeInit(&h) == HAL_OK);
@@ -447,6 +453,7 @@ TEST_CASE_FIXTURE(CiFixture, "CI3 Start waits for an acknowledge that arrives af
 	CHECK(h.State == HAL_CAN_STATE_LISTENING);
 }
 
+// NEEDS REVIEW 408
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI3 Start from state LISTENING returns ERROR with NOT_READY and keeps the state") {
 	startOk();
 	CHECK(HAL_CAN_Start(&h) == HAL_ERROR);
@@ -454,12 +461,14 @@ TEST_CASE_FIXTURE(CiFixture, "characterization: CI3 Start from state LISTENING r
 	CHECK(h.State == HAL_CAN_STATE_LISTENING);
 }
 
+// NEEDS REVIEW 327
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI3 Start from state RESET returns ERROR with NOT_READY") {
 	CHECK(HAL_CAN_Start(&h) == HAL_ERROR);
 	CHECK((h.ErrorCode & HAL_CAN_ERROR_NOT_READY) != 0u);
 	CHECK(h.State == HAL_CAN_STATE_RESET);
 }
 
+// NEEDS REVIEW 327
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI3 Start from state ERROR returns ERROR with NOT_READY and keeps state ERROR") {
 	hostCanStuckSync(0, 1);
 	REQUIRE(HAL_CAN_Init(&h) == HAL_ERROR);
@@ -470,12 +479,14 @@ TEST_CASE_FIXTURE(CiFixture, "characterization: CI3 Start from state ERROR retur
 	CHECK(h.State == HAL_CAN_STATE_ERROR);
 }
 
+// NEEDS REVIEW 327
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI3 Start adds NOT_READY to an existing error code instead of replacing it") {
 	h.ErrorCode = HAL_CAN_ERROR_EWG;
 	CHECK(HAL_CAN_Start(&h) == HAL_ERROR);
 	CHECK(h.ErrorCode == (HAL_CAN_ERROR_EWG | HAL_CAN_ERROR_NOT_READY));
 }
 
+// NEEDS REVIEW 327
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI3 Start times out with ERROR, TIMEOUT and state ERROR when INAK never clears") {
 	initOk();
 	hostCanStuckSync(0, 1);
@@ -484,6 +495,7 @@ TEST_CASE_FIXTURE(CiFixture, "characterization: CI3 Start times out with ERROR, 
 	CHECK(h.State == HAL_CAN_STATE_ERROR);
 }
 
+// NEEDS REVIEW 408
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI3 Start gives up when the acknowledge needs far longer than 10 ms") {
 	initOk();
 	hostCanSetSyncTicks(100);
@@ -544,6 +556,7 @@ TEST_CASE_FIXTURE(CiFixture, "CI3 Stop waits for an acknowledge that arrives aft
 	CHECK(h.State == HAL_CAN_STATE_READY);
 }
 
+// NEEDS REVIEW 327
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI3 Stop from READY returns ERROR with NOT_STARTED and keeps the state") {
 	initOk();
 	CHECK(HAL_CAN_Stop(&h) == HAL_ERROR);
@@ -551,12 +564,14 @@ TEST_CASE_FIXTURE(CiFixture, "characterization: CI3 Stop from READY returns ERRO
 	CHECK(h.State == HAL_CAN_STATE_READY);
 }
 
+// NEEDS REVIEW 408
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI3 Stop from state RESET returns ERROR with NOT_STARTED") {
 	CHECK(HAL_CAN_Stop(&h) == HAL_ERROR);
 	CHECK((h.ErrorCode & HAL_CAN_ERROR_NOT_STARTED) != 0u);
 	CHECK(h.State == HAL_CAN_STATE_RESET);
 }
 
+// NEEDS REVIEW 408
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI3 Stop from state ERROR returns ERROR with NOT_STARTED") {
 	h.State = HAL_CAN_STATE_ERROR;
 	CHECK(HAL_CAN_Stop(&h) == HAL_ERROR);
@@ -571,6 +586,7 @@ TEST_CASE_FIXTURE(CiFixture, "CI3 Stop does not touch the registers when the sta
 	CHECK(mcr() == before);
 }
 
+// NEEDS REVIEW 327
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI3 Stop times out with ERROR, TIMEOUT and state ERROR when INAK never sets") {
 	startOk();
 	hostCanStuckSync(0, 1);
@@ -579,6 +595,7 @@ TEST_CASE_FIXTURE(CiFixture, "characterization: CI3 Stop times out with ERROR, T
 	CHECK(h.State == HAL_CAN_STATE_ERROR);
 }
 
+// NEEDS REVIEW 327
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI3 Stop gives up when the acknowledge needs far longer than 10 ms") {
 	startOk();
 	hostCanSetSyncTicks(100);
@@ -618,11 +635,13 @@ TEST_CASE_FIXTURE(CiFixture, "CI4 RequestSleep keeps the other MCR bits") {
 	CHECK(mcr() == (ci_DBF | ci_NART | ci_TTCM | ci_INRQ | ci_SLEEP));
 }
 
+// NEEDS REVIEW 327
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI4 RequestSleep from state RESET returns ERROR with NOT_INITIALIZED") {
 	CHECK(HAL_CAN_RequestSleep(&h) == HAL_ERROR);
 	CHECK((h.ErrorCode & HAL_CAN_ERROR_NOT_INITIALIZED) != 0u);
 }
 
+// NEEDS REVIEW 327
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI4 RequestSleep from state ERROR returns ERROR with NOT_INITIALIZED and leaves SLEEP alone") {
 	h.State = HAL_CAN_STATE_ERROR;
 	h.ErrorCode = HAL_CAN_ERROR_EPV;
@@ -657,6 +676,7 @@ TEST_CASE_FIXTURE(CiFixture, "CI4 WakeUp of a handle that is not asleep returns 
 	CHECK(h.ErrorCode == HAL_CAN_ERROR_NONE);
 }
 
+// NEEDS REVIEW 327
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI4 WakeUp returns ERROR with TIMEOUT when SLAK never clears") {
 	initOk();
 	REQUIRE(HAL_CAN_RequestSleep(&h) == HAL_OK);
@@ -675,11 +695,13 @@ TEST_CASE_FIXTURE(CiFixture, "CI4 WakeUp returns OK when SLAK clears only after 
 	CHECK(h.ErrorCode == HAL_CAN_ERROR_NONE);
 }
 
+// NEEDS REVIEW 327
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI4 WakeUp from state RESET returns ERROR with NOT_INITIALIZED") {
 	CHECK(HAL_CAN_WakeUp(&h) == HAL_ERROR);
 	CHECK((h.ErrorCode & HAL_CAN_ERROR_NOT_INITIALIZED) != 0u);
 }
 
+// NEEDS REVIEW 327
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI4 WakeUp from state ERROR returns ERROR with NOT_INITIALIZED and does not write MCR") {
 	h.State = HAL_CAN_STATE_ERROR;
 	const uint32_t before = mcr();
@@ -864,12 +886,14 @@ TEST_CASE_FIXTURE(CiFixture, "CI5 ResetError of a sleeping ready handle clears t
 	CHECK(h.ErrorCode == HAL_CAN_ERROR_NONE);
 }
 
+// NEEDS REVIEW 327
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI5 ResetError in state RESET returns ERROR and adds NOT_INITIALIZED to the code") {
 	h.ErrorCode = HAL_CAN_ERROR_EPV;
 	CHECK(HAL_CAN_ResetError(&h) == HAL_ERROR);
 	CHECK(h.ErrorCode == (HAL_CAN_ERROR_EPV | HAL_CAN_ERROR_NOT_INITIALIZED));
 }
 
+// NEEDS REVIEW 327
 TEST_CASE_FIXTURE(CiFixture, "characterization: CI5 ResetError in state ERROR returns ERROR and keeps the existing error bits") {
 	h.State = HAL_CAN_STATE_ERROR;
 	h.ErrorCode = HAL_CAN_ERROR_TIMEOUT;

@@ -122,7 +122,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O1] the node id stored in flash selects the f
 	CHECK(HostTarget::canPort().filters[0].filter_mask == 0x7E0);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O1] characterization: a port below the 250 kbit/s preset is raised to preset 3") {
+// NEEDS REVIEW 354
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O1] a port below the 250 kbit/s preset is raised to preset 3") {
 	// Firmware only: the speed floor ("Minimum 250k", ODC:80) is not in the spec. Presets: 0 50k, 1 100k, 2 125k, 3 250k (cpp_target_config.cpp:51)
 	HostTarget::canPort2B().setSpeedPreset(1);
 	auto od = makeOdrive1();
@@ -130,13 +131,15 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O1] characterization: a port below the 250 kb
 	CHECK(HostTarget::canPort2B().getSpeed() == 250000);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O1] characterization: a port at preset 3 (250 kbit/s) stays at preset 3") {
+// NEEDS REVIEW 354
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O1] a port at preset 3 (250 kbit/s) stays at preset 3") {
 	HostTarget::canPort2B().setSpeedPreset(3);
 	auto od = makeOdrive1();
 	CHECK(HostTarget::canPort2B().getSpeedPreset() == 3);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O1] characterization: a port above the 250 kbit/s preset (preset 5, 1000 kbit/s) is not lowered") {
+// NEEDS REVIEW 354
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O1] a port above the 250 kbit/s preset (preset 5, 1000 kbit/s) is not lowered") {
 	HostTarget::canPort2B().setSpeedPreset(5);
 	auto od = makeOdrive1();
 	CHECK(HostTarget::canPort2B().getSpeedPreset() == 5);
@@ -170,7 +173,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O2] an instance of ODriveCAN1 does not block 
 	CHECK_FALSE(ODriveCAN2::isCreatable());
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O2] characterization: destroying ODriveCAN1 sends a last Set Input Torque of 0 to node 0") {
+// NEEDS REVIEW 354
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O2] destroying ODriveCAN1 sends a last Set Input Torque of 0 to node 0") {
 	auto od = makeOdrive1();
 	REQUIRE(HostTarget::canTxFrames().empty());
 	od.reset();
@@ -179,14 +183,16 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O2] characterization: destroying ODriveCAN1 s
 	checkFrame(HostTarget::canTxFrames()[0], 0x00E, false, 4, Bytes{0, 0, 0, 0});
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O2] characterization: destroying ODriveCAN2 sends a last Set Input Torque of 0 to node 1") {
+// NEEDS REVIEW 354
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O2] destroying ODriveCAN2 sends a last Set Input Torque of 0 to node 1") {
 	auto od = makeOdrive2();
 	od.reset();
 	REQUIRE(HostTarget::canTxFrames().size() == 1);
 	checkFrame(HostTarget::canTxFrames()[0], 0x02E, false, 4, Bytes{0, 0, 0, 0}); // HD: 1 << 5 | 0x0E
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O2] characterization: destroying the only instance stops the port and puts the transceiver into silent mode") {
+// NEEDS REVIEW 354
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O2] destroying the only instance stops the port and puts the transceiver into silent mode") {
 	auto od = makeOdrive1();
 	od.reset();
 	CHECK_FALSE(HostTarget::canPort().started);
@@ -195,7 +201,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O2] characterization: destroying the only ins
 	CHECK(canSilentPinHigh());
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O2] characterization: destroying the instance removes its hardware filter") {
+// NEEDS REVIEW 354
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O2] destroying the instance removes its hardware filter") {
 	auto od = makeOdrive1();
 	REQUIRE(HostTarget::canActiveFilterBanks() == 1);
 	od.reset();
@@ -203,7 +210,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O2] characterization: destroying the instance
 	CHECK_FALSE(HostTarget::canAccepts(0x001));
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O2] characterization: with both instances the port stays started until the second one is destroyed") {
+// NEEDS REVIEW 354
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O2] with both instances the port stays started until the second one is destroyed") {
 	auto od1 = makeOdrive1();
 	auto od2 = makeOdrive2();
 	CHECK(HostTarget::canPort2B().getPortUsers() == 2);
@@ -220,7 +228,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O2] characterization: with both instances the
 
 // ---------------------------------------------------------------- O3
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O3] characterization: the filter of ODriveCAN1 uses receive FIFO 0 and the filter of ODriveCAN2 receive FIFO 1") {
+// NEEDS REVIEW 354
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O3] the filter of ODriveCAN1 uses receive FIFO 0 and the filter of ODriveCAN2 receive FIFO 1") {
 	{
 		auto od = makeOdrive1();
 		uint32_t fifo = 99;
@@ -235,21 +244,24 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O3] characterization: the filter of ODriveCAN
 	}
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O3] characterization: ODriveCAN2 processes a node 1 frame at once when the FIFO 1 interrupt line is enabled (fixture default, modelling deviation L8)") {
+// NEEDS REVIEW 183
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O3] ODriveCAN2 processes a node 1 frame at once when the FIFO 1 interrupt line is enabled (fixture default, modelling deviation L8)") {
 	auto od = makeOdrive2();
 	peer1.setState(0x55); // arbitrary value: the heartbeat state byte is passed to the `state` command unchanged
 	CHECK(peer1.sendHeartbeat() > 0);
 	CHECK(CommandHelpers::get(*od, "state") == 0x55);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O3] characterization: ODriveCAN1 processes a node 0 heartbeat from FIFO 0") {
+// NEEDS REVIEW 354
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O3] ODriveCAN1 processes a node 0 heartbeat from FIFO 0") {
 	auto od = makeOdrive1();
 	peer0.setState(0x55);
 	CHECK(peer0.sendHeartbeat() > 0);
 	CHECK(CommandHelpers::get(*od, "state") == 0x55);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O3] characterization: with the real F407 interrupt set-up a node 1 frame waits in FIFO 1 and is processed at the next TX completion") {
+// NEEDS REVIEW 354
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O3] with the real F407 interrupt set-up a node 1 frame waits in FIFO 1 and is processed at the next TX completion") {
 	setRx1Interrupt(false); // F407: CAN1_RX1 is not enabled in the NVIC (HAL_CAN_MspInit)
 	auto od = makeOdrive2();
 	peer1.setState(0x55);
@@ -362,14 +374,16 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O11] Set Axis Requested State of node 1 has i
 	checkFrame(HostTarget::canTxFrames()[0], 0x027, false, 4, Bytes{0x04, 0x03, 0x02, 0x01});
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O11] characterization: requesting FULL_CALIBRATION_SEQUENCE sends the number 3 as 03 00 00 00") {
+// NEEDS REVIEW 354
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O11] requesting FULL_CALIBRATION_SEQUENCE sends the number 3 as 03 00 00 00") {
 	auto od = makeOdrive1();
 	od->setState(ODriveState::AXIS_STATE_FULL_CALIBRATION_SEQUENCE); // the number 3 is the driver's enum (L2)
 	REQUIRE(HostTarget::canTxFrames().size() == 1);
 	checkFrame(HostTarget::canTxFrames()[0], 0x007, false, 4, Bytes{0x03, 0x00, 0x00, 0x00});
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O11] characterization: requesting CLOSED_LOOP_CONTROL sends the number 8 as 08 00 00 00") {
+// NEEDS REVIEW 354
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O11] requesting CLOSED_LOOP_CONTROL sends the number 8 as 08 00 00 00") {
 	auto od = makeOdrive1();
 	od->setState(ODriveState::AXIS_STATE_CLOSED_LOOP_CONTROL); // the number 8 is the driver's enum (L2)
 	REQUIRE(HostTarget::canTxFrames().size() == 1);
@@ -408,7 +422,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O12] Set Controller Modes of node 1 has id 0x
 	checkFrame(HostTarget::canTxFrames()[0], 0x02B, false, 8, Bytes{0x44, 0x33, 0x22, 0x11, 0x88, 0x77, 0x66, 0x55});
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O12] characterization: torque control with passthrough input sends 01 00 00 00 01 00 00 00") {
+// NEEDS REVIEW 354
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O12] torque control with passthrough input sends 01 00 00 00 01 00 00 00") {
 	auto od = makeOdrive1();
 	od->setMode(ODriveControlMode::CONTROL_MODE_TORQUE_CONTROL, ODriveInputMode::INPUT_MODE_PASSTHROUGH); // 1 and 1: driver enums (L2)
 	REQUIRE(HostTarget::canTxFrames().size() == 1);
@@ -531,7 +546,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O14] the periodic bus voltage request of the 
 
 // ---------------------------------------------------------------- O15
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O15] characterization: Start Anticogging is sent with id 0x010 and DLC 1 carrying one zero byte (spec: no signals)") {
+// NEEDS REVIEW 182
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O15] Start Anticogging is sent with id 0x010 and DLC 1 carrying one zero byte (spec: no signals)") {
 	// CSV 0x010 has no signals; the driver sends sendMsg(0x10, (uint8_t)0) = DLC 1 (ODC:303). Harmless difference, lead decision L3.
 	auto od = makeOdrive1();
 	od->startAnticogging();
@@ -539,7 +555,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O15] characterization: Start Anticogging is s
 	checkFrame(HostTarget::canTxFrames()[0], 0x010, false, 1, Bytes{0x00});
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O15] characterization: the peer records the Start Anticogging frame as undocumented, not as a violation") {
+// NEEDS REVIEW 354
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O15] the peer records the Start Anticogging frame as undocumented, not as a violation") {
 	auto od = makeOdrive1();
 	od->startAnticogging();
 	process();
@@ -550,7 +567,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O15] characterization: the peer records the S
 	CHECK(peer0.undocumented()[0].dlc == 1);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O15] characterization: the anticogging command odrv.anticogging=1 sends the Start Anticogging frame once") {
+// NEEDS REVIEW 354
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O15] the anticogging command odrv.anticogging=1 sends the Start Anticogging frame once") {
 	auto od = makeOdrive1();
 	CHECK(CommandHelpers::run(*od, "anticogging", CMDtype::set, 1) == CommandStatus::OK);
 	REQUIRE(HostTarget::canTxFrames().size() == 1);

@@ -1,6 +1,8 @@
 # P12 T2 requirements charter: RCC / RCC_Ex and PWR / PWR_Ex (real ST HAL, F407VG and F407VG_DISCO)
 
 Status: 2026-11-11 (lead). Platform done (`fakes/stm32_hal/HalClockPower.{h,c}`, lead probe: the firmware clock configuration HSE 8 MHz / M4 N168 P2 gives SYSCLK 168 MHz, PCLK1 42 MHz, PCLK2 84 MHz). Tests: four writers, two reviewers, all fixes landed, gated 2026-11-11 (see the plan, section "T2 result"). Plan: `Tests/Code_Coverage/claude/plans/P12_ST_HAL_PLAN.md` (stage T2).
+
+**Final status (2026-11-17): done, approved, committed and pushed, commit `f22d81f3`. Statements about pending approval or gates in the line above were true when it was written.**
 Platform and rules as in `P12_T1_REQUIREMENTS.md` (trapping bus, fixture, `KNOWN_ISSUE`, `characterization:`, no sleeping,
 expected values never from the HAL source).
 

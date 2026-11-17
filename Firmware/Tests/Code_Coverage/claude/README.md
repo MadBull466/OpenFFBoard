@@ -1,6 +1,6 @@
 # Claude: test cases
 
 `cases/` (gap tests of `ffb_unit_tests`, `cases/driver/` for `ffb_driver_tests`), `cases_target/`, `cases_flash/`, `cases_rtos/`,
-`cases_usb/`, `cases_dsp/` and `python/`. The original 318 baseline cases stay in `Firmware/Tests/Code_Coverage/cases/`. Shared infrastructure
+`cases_usb/`, `cases_dsp/`, `cases_hal/` (P12, real ST HAL) and `python/`. The original 318 baseline cases stay in `Firmware/Tests/Code_Coverage/cases/`. Shared infrastructure
 (`platform/`, `support/`, `mocks/`, `fakes/`, `tools/`, `third_party/`) stays in `Firmware/Tests/Code_Coverage/`; `CMakeLists.txt` stays in `Firmware/Tests/`.
 Documents: `Tests/Code_Coverage/claude/`.

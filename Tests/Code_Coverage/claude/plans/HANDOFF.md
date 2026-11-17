@@ -6,45 +6,28 @@ Written 2026-11-04 by Claude (Opus 5.5) for the project owner (GitHub `MadBull46
 
 A host-side (Linux/Windows, no hardware) unit-test suite for the OpenFFBoard firmware (STM32F407, C/C++), built with doctest 2.4.11 and CMake in `Firmware/Tests/`. It started from upstream's `feature/host-unit-tests` (commit `a5418ff5`, 318 baseline cases, kept unchanged) and was extended in phases P0-P11. The firmware itself was never changed. Everything is on branch `add-test-suite`.
 
-## State at handoff (updated 2026-11-11 for P18; written first 2026-11-04)
+## State
 
-| Item | State |
-|---|---|
-| P0-P9 (in-scope firmware, FreeRTOS wrappers, TinyUSB, CMSIS-DSP functions the firmware calls, Python helpers) | done, approved |
-| P10 driver track D0-D3 (TMC4671, ODrive, VESC) | done, approved 2026-11-04 |
-| P11 CMSIS-DSP (G1-G5) | done, approved and pushed 2026-11-10 |
-| P13 TMCDebugBridge, P14 PWM, P15 SimpleMotion, P16 MyActuator, P17 MIDI | done, approved, committed and pushed to the fork 2026-11-10 (`fe232b2d` is the last: P17 T2) |
-| P17 MIDI detail (`MidiMain`, `MidiHandler`, TinyUSB `class/midi`, in `ffb_usb_tests`) | T0 `f21e631a`, T1 `88980f93`, T2 `fe232b2d` (319 cases, four reviewers; `MidiHandler.cpp` 100 %, `MidiMain.cpp` 100 %, `midi_device.c` 98.5 %); charter `Tests/Code_Coverage/claude/charters/driver/MIDI_REQUIREMENTS.md`, work orders `P17_WORK_ORDERS.md` |
-| P18 32-bit build (`FFB_TESTS_32BIT`, bug 225) | T1-T4 approved, committed and pushed 2026-11-11 (`544b4162`; question 64 docs `7bb1390a`); on 2026-11-11 all test folders moved under `Code_Coverage/` (`590779a6`, path fixes after it); plan `Tests/Code_Coverage/claude/plans/P18_32BIT_BUILD_PLAN.md`, work order `Tests/Code_Coverage/claude/charters/P18_WORK_ORDERS.md` |
-| Open questions | `Tests/Code_Coverage/claude/reports/OPEN_QUESTIONS.md` (pending 17-23, 32-52, 54-61 and 64; 62 and 63 answered 2026-11-11) |
-| Suspected bugs | `Tests/Code_Coverage/claude/reports/BUG_REPORT.md` (generated, do not hand-edit): firmware bugs up to 225, vendor bugs up to V105, NEEDS REVIEW up to 319 |
-
-Current counts (GCC 16, 2026-11-11): `ffb_unit_tests` 654 passed / 4 skipped, `ffb_target_tests` 1863, `ffb_flash_tests` 159, `ffb_rtos_tests` 278, `ffb_usb_tests` 606, `ffb_driver_tests` 1717, `ffb_dsp_tests` 2485, Python `claude/python` 125; ctest 11 of 11 (also in the 32-bit build, where `ffb_target_tests` runs 1843 and `ffb_dsp_tests` 1871). The resume point and the exact numbers are in `Tests/Code_Coverage/claude/plans/PROGRESS.md` ("Current state", "Next action"); whole-project numbers in `Tests/Code_Coverage/claude/reports/PROJECT_SUMMARY.md`.
+The state changes with every session and is kept in one place: `Tests/Code_Coverage/claude/plans/PROGRESS.md`, sections "Current state" (phases, test counts, gates, coverage, bug counters, open owner decisions) and "Next action" (open items). Coverage per tier: `COVERAGE_AND_SCOPE.md`; the phase-by-phase table with estimates and measured results: `TEST_PLAN.md`, "Coverage by phase (P0-P18)". Do not copy numbers into this file.
 
 ### Where to continue
 
-The test plan P0-P17 is complete: every phase is approved, committed and pushed. P18 (32-bit build) is approved, committed and pushed (`544b4162`, 2026-11-11). Otherwise nothing is waiting for a decision of yours except the open questions (17-23, 32-52, 54-61 in `Tests/Code_Coverage/claude/reports/OPEN_QUESTIONS.md`) and the two stale lines of `CLAUDE.md` (tier C wording, `USB MIDI v2_0.pdf` spec line), which are the owner's file. New work starts only on the owner's request; if an open question is answered, update the affected tests, `PROGRESS.md`, `OPEN_QUESTIONS.md` and `BUG_REPORT.md` (run `make_bug_report.py`). Reusable pieces for a new phase: the charter and work-order shape of `MIDI_REQUIREMENTS.md` / `P17_WORK_ORDERS.md`, `support/RmdFixture.h` (threads with several `Delay` calls), `support/MidiFixture.h` and `platform/usb_midi/` (a recording double of a driver interface for a caller built into another executable).
+The test plan P0-P18 is complete: every phase is approved, committed and pushed (last commit of 2026-11-17: `09b1d8e9`). Nothing is waiting for a decision of yours except the open questions (17, 18, 20-23, 32-52, 54-61 and 70 in `Tests/Code_Coverage/claude/reports/OPEN_QUESTIONS.md`) and the open items listed under "Next action" in `PROGRESS.md`. New work starts only on the owner's request; if an open question is answered, update the affected tests, `PROGRESS.md`, `OPEN_QUESTIONS.md` and `BUG_REPORT.md` (run `make_bug_report.py`). Reusable pieces for a new phase: the charter and work-order shape of `MIDI_REQUIREMENTS.md` / `P17_WORK_ORDERS.md` and `charters/hal/`, `support/RmdFixture.h` (threads with several `Delay` calls), `support/MidiFixture.h` and `platform/usb_midi/` (a recording double of a driver interface for a caller built into another executable), and `fakes/stm32_hal/` (register-level models for the real HAL).
 
-## Rules you must follow (from the owner's `CLAUDE.md`, repeated here because they are strict)
+## Rules you must follow
 
-1. `Firmware/` is **read-only**, except `Firmware/Tests/` (never edit `Firmware/Tests/Code_Coverage/third_party/doctest.h`). Vendor code (CMSIS-DSP, TinyUSB, ST HAL, FreeRTOS, `eeprom.c`): bugs are **reported, never fixed**. Never edit firmware to make it testable; never add `#ifdef` for tests to it; use fakes in `fakes/` or stubs in `platform/src/host_stubs.cpp`.
-2. Git: branch `add-test-suite`, never commit to main/master. Local commits (push only to the user's fork `MadBull466/OpenFFBoard`, only when asked; see `CLAUDE.md`) with a one-off identity: `git -c user.name="MadBull.Ben" -c user.email= commit ...` (name `MadBull.Ben`, email deliberately empty). **Push only to the fork, only when asked; never to `origin`; never add or change a remote; never change git config.** Never write the owner's email address into any file, commit message or report; grep every staged diff for email addresses before committing.
-3. No hardware, flashing, serial/USB/CAN or network access in tests. Ask before adding any dependency that has to be downloaded. Install nothing globally. Do not edit anything under `.github/` (describe needed CI changes in PROGRESS and ask).
-4. Specification files (ODrive/VESC/TMC4671 documents, `bldc-master`, `can-protocol.csv`) are supplied by the owner and **never committed or uploaded** (`Tests/.gitignore`). Never invent register maps, opcodes or CAN frames; if a spec is missing, stop and ask.
-5. Expected values come from a spec, vendor documentation or a hand derivation written in a comment. Never copy the value the firmware currently produces into an assertion unless the test is named `characterization: ...` and has a NEEDS REVIEW entry.
-6. Test conventions (full text in `Firmware/Tests/README.md`): use a fixture; test through public interfaces; one behaviour per test; the name is a statement that is true if the test passes; never sleep (advance simulated time); `KNOWN_ISSUE("...")` describes the INTENDED behaviour and fails today because of a suspected defect (the first failing assertion must be the defect), `KNOWN_ISSUE_UB` is the same for undefined behaviour and is skipped in sanitizer builds; never write a test that expects a suspected buggy result without a marker.
-7. Keep the 318 baseline case names (`Firmware/Tests/Code_Coverage/baseline/test_cases.txt`); never edit existing test files, add new ones; after every CMake or test change rebuild and run `tools/check_baseline.py`.
-8. Host is 64-bit, target is 32-bit ARM with a single-precision FPU: flag any test whose result could differ on target (type sizes, packing, endianness, float/double promotion, integer overflow, signed shifts, out-of-range float-to-int). The 32-bit variant (`-DFFB_TESTS_32BIT=ON`, P18) runs the suite as ILP32; a defect that exists only with a 32-bit `size_t` uses `KNOWN_ISSUE_32BIT` / `KNOWN_ISSUE_32BIT_UB` (`support/KnownIssue32.h`).
-9. Out of scope (confirmed): ST HAL, CMSIS core, FreeRTOS kernel, `Firmware/Targets/**`, CubeMX code. Since 2026-11-10 the PWM, SimpleMotion and MyActuator drivers, `TMCDebugBridge` and MIDI are in scope (each feature macro is on in one executable only). Fake any driver that is not built into the executable under test at its interface.
-10. Stop at the end of every phase or module group and wait for the owner's approval. Do not start the next one without it.
+The full, current rules are in the owner's root `CLAUDE.md` (and `AGENTS.md` for Codex); they are not repeated here, because a copy drifts. The ones that matter most:
 
-Note (still true 2026-11-10, owner's file, not changed): `CLAUDE.md` still describes tier C as "only the CMSIS-DSP functions the firmware calls". Since 2026-11-04 tier C covers every function and type of the used modules (P11). The owner has not yet said whether to update that line.
+1. `Firmware/` is **read-only** except `Firmware/Tests/`; vendor code bugs are reported, never fixed; never edit firmware to make it testable.
+2. Git: branch `add-test-suite`, never commit to main / master; commit only when the owner says so, with the one-off identity `git -c user.name="MadBull.Ben" -c user.email= commit ...`; push only to the owner's fork by URL and only when asked; never write the owner's email anywhere.
+3. No hardware, no network in tests; ask before adding any dependency; install nothing; do not edit `.github/`.
+4. Specification files in `Tests/Code_Coverage/shared/specs/` are supplied by the owner and never committed; never invent register maps, opcodes or CAN frames; if a spec is missing, stop and ask.
+5. Expected values come from a spec or a hand derivation, never from the firmware's current output (otherwise `characterization:` plus a NEEDS REVIEW entry); one behaviour per test; never sleep; keep the 318 baseline cases (run `tools/check_baseline.py` after every CMake or test change).
+6. Stop at the end of every phase or module group and wait for the owner's approval.
 
 ## Known issues you will meet
 
-* `effectsForces` out-of-bounds read: the case `requesting the forces of a not existing axis is rejected` (`cases/test_effects_calculator.cpp:1062`) aborts the run on GCC 16 (`_GLIBCXX_ASSERTIONS`). Exclude it with `--test-case-exclude=`; never disable assertions globally; report only.
-* `arm_spline_f32` ASan finding in vendor code: in sanitizer runs skip only the two spline cases named in `Tests/Code_Coverage/claude/plans/PROGRESS.md`.
-* Skipped crash: `command with an unknown id is rejected` stays skipped. Several VESC/TMC tests that corrupt memory are skipped by default (marked "KNOWN ISSUE (crash)"/"(memory corruption)").
+Three standing items (the `effectsForces` out-of-bounds read that aborts on GCC 16, the `arm_spline_f32` ASan finding, the skipped crash case `command with an unknown id is rejected`) plus the 32-bit build limits are described, with the exact case names and exclusions, in `CLAUDE.md` ("Known issues") and `Tests/Code_Coverage/claude/plans/TEST_PLAN.md` ("Scope and known issues"). Several VESC / TMC tests that corrupt memory are skipped by default (marked "KNOWN ISSUE (crash)" / "(memory corruption)").
 
 ## How to build and run
 
@@ -73,7 +56,7 @@ Pitfalls seen: writers sometimes locked in a buggy value without a marker (alway
 
 ## Suggested ways to help
 
-* **Continue with P17 (MIDI):** see "Where to continue" above. Stop at each approval gate.
+* **Work through the open items** listed under "Next action" in `PROGRESS.md`, only with the owner's go-ahead. Stop at each approval gate.
 * **Review the owner's work:** pick a phase, run the gate, mutate the firmware in a scratch copy, read the tests for weak oracles (tests that would pass for a wrong implementation), check every `characterization:` test and its NEEDS REVIEW entry, and check the claims in the bug report against the source. Report findings; do not fix firmware.
 * **Answer open questions** only if the owner gives you the answer; otherwise do not guess.
 

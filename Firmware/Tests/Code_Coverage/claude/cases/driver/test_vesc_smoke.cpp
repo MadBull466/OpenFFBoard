@@ -32,7 +32,8 @@ TEST_CASE_FIXTURE(VescFixture, "[V12] the first frame of the driver comes at 500
 	CHECK(peer0.requestCount(FakeVescPeer::COMM_FW_VERSION) == 1);
 }
 
-TEST_CASE_FIXTURE(VescFixture, "[V40] characterization: with a silent VESC the driver repeats the FW version request at 500, 1000, 1500 and 2000 ms (fixture scheduling)") {
+// NEEDS REVIEW 380
+TEST_CASE_FIXTURE(VescFixture, "characterization: [V40] with a silent VESC the driver repeats the FW version request at 500, 1000, 1500 and 2000 ms (fixture scheduling)") {
 	auto v = makeVesc1();
 	peer0.setSilent(true);
 	runFor(2000);

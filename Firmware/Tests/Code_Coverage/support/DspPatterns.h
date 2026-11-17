@@ -107,15 +107,32 @@ Check closeAbsRel(const std::vector<A> &ref, const std::vector<B> &out, double a
 	return Check();
 }
 
-// |out - ref| <= lsb for integer samples (lsb 0 = exact)
+namespace detail {
+// |a - b| of two integers without signed overflow. Both values are mapped to unsigned 64 bit order-preserving (bias 2^63), so
+// the difference of INT64_MIN and INT64_MAX (2^64 - 1) is exact. Supported: every signed type up to 64 bit and every unsigned
+// type up to 32 bit (the 65 bit range of uint64_t does not fit; the DSP tests have no use for it).
+template <class T>
+uint64_t biased(T v) {
+	static_assert(std::is_integral<T>::value && (std::is_signed<T>::value ? sizeof(T) <= 8 : sizeof(T) <= 4),
+	              "withinLsb: signed integers up to 64 bit and unsigned integers up to 32 bit only");
+	return static_cast<uint64_t>(static_cast<int64_t>(v)) + (uint64_t(1) << 63);
+}
+template <class A, class B>
+uint64_t absDiff(A a, B b) {
+	const uint64_t x = biased(a), y = biased(b);
+	return x > y ? x - y : y - x;
+}
+}  // namespace detail
+
+// |out - ref| <= lsb for integer samples (lsb 0 = exact; a negative lsb accepts nothing). The difference is computed without
+// signed overflow, so extreme erroneous outputs (q63 endpoints) are reported, not undefined behaviour.
 template <class A, class B>
 Check withinLsb(const std::vector<A> &ref, const std::vector<B> &out, int64_t lsb) {
-	static_assert(std::is_integral<A>::value && std::is_integral<B>::value, "withinLsb is for integer types");
 	if (ref.size() != out.size()) return detail::lengthMismatch(ref.size(), out.size());
 	for (size_t i = 0; i < ref.size(); i++) {
-		int64_t d = static_cast<int64_t>(out[i]) - static_cast<int64_t>(ref[i]);
-		if (d < 0) d = -d;
-		if (d > lsb) return detail::fail("integer error", i, static_cast<double>(out[i]), static_cast<double>(ref[i]), static_cast<double>(lsb));
+		const uint64_t d = detail::absDiff(out[i], ref[i]);
+		if (lsb < 0 || d > static_cast<uint64_t>(lsb))
+			return detail::fail("integer error", i, static_cast<double>(out[i]), static_cast<double>(ref[i]), static_cast<double>(lsb));
 	}
 	return Check();
 }

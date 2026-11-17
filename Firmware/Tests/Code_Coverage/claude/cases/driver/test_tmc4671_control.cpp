@@ -182,7 +182,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R62] turn(1000) with a reversed external encoder
 	CHECK(chip1.writesTo(0x64).back() == 0xFC180000u);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R62] characterization: turn(300) with fluxoffset 500 writes flux -300 (field weakening)") {
+// NEEDS REVIEW 169
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R62] turn(300) with fluxoffset 500 writes flux -300 (field weakening)") {
 	auto tmc = makeTmc1();
 	reachRunning(*tmc);
 	REQUIRE(CommandHelpers::run(*tmc, "fluxoffset", CMDtype::set, 500) == CommandStatus::OK);
@@ -193,7 +194,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R62] characterization: turn(300) with fluxoffset
 	CHECK(chip1.writesTo(0x64).back() == 0x012CFED4u);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R62] characterization: turn(1000) with fluxoffset 500 limits the flux to -500") {
+// NEEDS REVIEW 368
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R62] turn(1000) with fluxoffset 500 limits the flux to -500") {
 	auto tmc = makeTmc1();
 	reachRunning(*tmc);
 	REQUIRE(CommandHelpers::run(*tmc, "fluxoffset", CMDtype::set, 500) == CommandStatus::OK);
@@ -204,7 +206,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R62] characterization: turn(1000) with fluxoffse
 	CHECK(chip1.writesTo(0x64).back() == 0x03E8FE0Cu);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R62] characterization: turn(-300) with fluxoffset 500 writes flux -300 and torque -300") {
+// NEEDS REVIEW 368
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R62] turn(-300) with fluxoffset 500 writes flux -300 and torque -300") {
 	auto tmc = makeTmc1();
 	reachRunning(*tmc);
 	REQUIRE(CommandHelpers::run(*tmc, "fluxoffset", CMDtype::set, 500) == CommandStatus::OK);
@@ -228,7 +231,8 @@ struct FluxBrakeSetup {
 };
 } // namespace
 
-TEST_CASE_FIXTURE(TmcFixture, "[R63] characterization: with fluxbrake on and 2 V over the external supply turn writes the dissipation flux instead of the field weakening flux") {
+// NEEDS REVIEW 169
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R63] with fluxbrake on and 2 V over the external supply turn writes the dissipation flux instead of the field weakening flux") {
 	auto tmc = makeTmc1();
 	reachRunning(*tmc);
 	tmc->setTorqueLimit(10000);
@@ -246,7 +250,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R63] characterization: with fluxbrake on and 2 V
 	CHECK(std::abs(int32_t(w & 0xFFFF) - vDiff) <= 1);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R63] characterization: the dissipation flux scales with the torque limit (0.15 per mV at limit 1500)") {
+// NEEDS REVIEW 169
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R63] the dissipation flux scales with the torque limit (0.15 per mV at limit 1500)") {
 	auto tmc = makeTmc1();
 	reachRunning(*tmc);
 	tmc->setTorqueLimit(1500);
@@ -262,7 +267,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R63] characterization: the dissipation flux scal
 	CHECK(std::abs(flux - int32_t(expect)) <= 1);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R63] characterization: a dissipation flux above the torque limit is clipped to the limit") {
+// NEEDS REVIEW 169
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R63] a dissipation flux above the torque limit is clipped to the limit") {
 	auto tmc = makeTmc1();
 	reachRunning(*tmc);
 	tmc->setTorqueLimit(5000);
@@ -277,7 +283,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R63] characterization: a dissipation flux above 
 	CHECK((chip1.writesTo(0x64).back() & 0xFFFF) == 5000u);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R63] characterization: with fluxbrake off the dissipation flux is not used") {
+// NEEDS REVIEW 169
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R63] with fluxbrake off the dissipation flux is not used") {
 	auto tmc = makeTmc1();
 	reachRunning(*tmc);
 	tmc->setTorqueLimit(10000);
@@ -289,7 +296,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R63] characterization: with fluxbrake off the di
 	CHECK(chip1.writesTo(0x64).back() == 0x01F40000u); // flux 0 (no offset), torque 500
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R63] characterization: with fluxbrake on and only 0.5 V over the external supply the dissipation flux is not used") {
+// NEEDS REVIEW 368
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R63] with fluxbrake on and only 0.5 V over the external supply the dissipation flux is not used") {
 	auto tmc = makeTmc1();
 	reachRunning(*tmc);
 	tmc->setTorqueLimit(10000);
@@ -481,7 +489,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R67] getTmcVM selects ADC_RAW_ADDR 1 before it r
 	CHECK(log[1].addr == 0x02);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R67] characterization: getTmcVM of 6000 counts above the offset returns about 22280 mV") {
+// NEEDS REVIEW 368
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R67] getTmcVM of 6000 counts above the offset returns about 22280 mV") {
 	auto tmc = makeTmc1();
 	tmc->conf.hwconf.adcOffset = 1000; // conf is public; no hardware version has this offset with the default scaler combination under test
 	tmc->conf.hwconf.vmScaler = float(kVmScalerV);
@@ -490,7 +499,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R67] characterization: getTmcVM of 6000 counts a
 	CHECK(std::abs(double(tmc->getTmcVM()) - expected) <= 2.0);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R67] characterization: getTmcVM uses only bits 15:0 of ADC_RAW_DATA") {
+// NEEDS REVIEW 368
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R67] getTmcVM uses only bits 15:0 of ADC_RAW_DATA") {
 	auto tmc = makeTmc1();
 	tmc->conf.hwconf.adcOffset = 1000; // conf is public; no hardware version has this offset with the default scaler combination under test
 	tmc->conf.hwconf.vmScaler = float(kVmScalerV);
@@ -557,21 +567,24 @@ TEST_CASE_FIXTURE(TmcFixture, "[R68] getTemp selects ADC_RAW_ADDR 2 before it re
 	CHECK(log[1].addr == 0x02);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R68] characterization: getTemp of 6488 counts above the centre is 25 C (thermistor at its nominal resistance)") {
+// NEEDS REVIEW 368
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R68] getTemp of 6488 counts above the centre is 25 C (thermistor at its nominal resistance)") {
 	auto tmc = makeTmc1();
 	setupThermistor(*tmc);
 	chip1.setAdcRaw(2, 0x7FFF + 6488);
 	CHECK(tmc->getTemp() == doctest::Approx(25.0).epsilon(0.004)); // HD 25.0006 C, tolerance 0.1 C
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R68] characterization: getTemp of 12975 counts above the centre is about 40.05 C") {
+// NEEDS REVIEW 368
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R68] getTemp of 12975 counts above the centre is about 40.05 C") {
 	auto tmc = makeTmc1();
 	setupThermistor(*tmc);
 	chip1.setAdcRaw(2, 0x7FFF + 12975);
 	CHECK(std::abs(double(tmc->getTemp()) - 40.05) <= 0.1);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R68] characterization: getTemp uses only bits 15:0 of ADC_RAW_DATA") {
+// NEEDS REVIEW 368
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R68] getTemp uses only bits 15:0 of ADC_RAW_DATA") {
 	auto tmc = makeTmc1();
 	setupThermistor(*tmc);
 	chip1.setAdcRaw(2, 0xABCD0000u | (0x7FFF + 6488));
@@ -588,14 +601,16 @@ TEST_CASE_FIXTURE(TmcFixture, "[R68] getTemp returns 0 and does not touch the ch
 	CHECK(chip1.log().empty());
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R68] characterization: getTemp returns 0 when the raw value is not above the centre and offset") {
+// NEEDS REVIEW 368
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R68] getTemp returns 0 when the raw value is not above the centre and offset") {
 	auto tmc = makeTmc1();
 	setupThermistor(*tmc);
 	chip1.setAdcRaw(2, 0x7FFF); // adcval = 0
 	CHECK(tmc->getTemp() == 0.0f);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R68] characterization: the temp command replies the temperature in hundredths of a degree") {
+// NEEDS REVIEW 368
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R68] the temp command replies the temperature in hundredths of a degree") {
 	auto tmc = makeTmc1();
 	setupThermistor(*tmc);
 	chip1.setAdcRaw(2, 0x7FFF + 6488);

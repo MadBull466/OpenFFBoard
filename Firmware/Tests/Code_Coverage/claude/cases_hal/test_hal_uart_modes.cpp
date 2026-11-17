@@ -242,7 +242,8 @@ TEST_CASE_FIXTURE(UartFixture, "UM1 no frame goes on the line while the half dup
 	CHECK(hostUartTxCount(2) == 0u);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UM1 characterization: the half duplex helpers run while a transmit is active and leave the state READY") {
+// NEEDS REVIEW 426
+TEST_CASE_FIXTURE(UartFixture, "characterization: UM1 the half duplex helpers run while a transmit is active and leave the state READY") {
 	/* NEEDS REVIEW 314 */
 	UartModesRig r;
 	uartModesInit(r, 1, UM_HD);
@@ -256,7 +257,8 @@ TEST_CASE_FIXTURE(UartFixture, "UM1 characterization: the half duplex helpers ru
 	CHECK((r.u()->CR1 & (USART_CR1_TE | USART_CR1_RE)) == USART_CR1_RE);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UM1 characterization: the half duplex helpers return HAL_BUSY for a locked handle and change nothing") {
+// NEEDS REVIEW 426
+TEST_CASE_FIXTURE(UartFixture, "characterization: UM1 the half duplex helpers return HAL_BUSY for a locked handle and change nothing") {
 	/* NEEDS REVIEW 314 */
 	UartModesRig r;
 	uartModesInit(r, 1, UM_HD);
@@ -397,7 +399,8 @@ TEST_CASE_FIXTURE(UartFixture, "UM2 a break waits for the data frame in progress
 	CHECK(hostUartBreakCount(1) == 1u);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UM2 characterization: HAL_LIN_SendBreak returns HAL_BUSY for a locked handle and sends nothing") {
+// NEEDS REVIEW 426
+TEST_CASE_FIXTURE(UartFixture, "characterization: UM2 HAL_LIN_SendBreak returns HAL_BUSY for a locked handle and sends nothing") {
 	/* NEEDS REVIEW 314 */
 	UartModesRig r;
 	uartModesInit(r, 1, UM_LIN10);
@@ -407,7 +410,8 @@ TEST_CASE_FIXTURE(UartFixture, "UM2 characterization: HAL_LIN_SendBreak returns 
 	CHECK(hostUartBreakCount(1) == 0u);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UM2 characterization: HAL_LIN_SendBreak while a transmit is active leaves the state READY") {
+// NEEDS REVIEW 426
+TEST_CASE_FIXTURE(UartFixture, "characterization: UM2 HAL_LIN_SendBreak while a transmit is active leaves the state READY") {
 	/* NEEDS REVIEW 314 */
 	UartModesRig r;
 	uartModesInit(r, 1, UM_LIN10);
@@ -490,7 +494,8 @@ TEST_CASE_FIXTURE(UartFixture, "UM3 EnterMuteMode sets RWU and ExitMuteMode clea
 	}
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UM3 characterization: Enter and ExitMuteMode set the Rx event type to TC") {
+// NEEDS REVIEW 426
+TEST_CASE_FIXTURE(UartFixture, "characterization: UM3 Enter and ExitMuteMode set the Rx event type to TC") {
 	/* NEEDS REVIEW 314 */
 	UartModesRig r;
 	uartModesInit(r, 1, UM_MP_IDLE);
@@ -701,7 +706,8 @@ TEST_CASE_FIXTURE(UartFixture, "UM3 HAL_UART_Receive in address mark mute mode r
 	}
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UM3 characterization: the mute mode helpers return HAL_BUSY for a locked handle and change nothing") {
+// NEEDS REVIEW 346
+TEST_CASE_FIXTURE(UartFixture, "characterization: UM3 the mute mode helpers return HAL_BUSY for a locked handle and change nothing") {
 	/* NEEDS REVIEW 314 */
 	UartModesRig r;
 	uartModesInit(r, 1, UM_MP_IDLE);
@@ -715,7 +721,8 @@ TEST_CASE_FIXTURE(UartFixture, "UM3 characterization: the mute mode helpers retu
 	CHECK((r.u()->CR1 & USART_CR1_RWU) == USART_CR1_RWU);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UM3 characterization: the mute mode helpers while a transmit is active leave the state READY") {
+// NEEDS REVIEW 426
+TEST_CASE_FIXTURE(UartFixture, "characterization: UM3 the mute mode helpers while a transmit is active leave the state READY") {
 	/* NEEDS REVIEW 314 */
 	UartModesRig r;
 	uartModesInit(r, 1, UM_MP_IDLE);
@@ -804,7 +811,8 @@ TEST_CASE_FIXTURE(UartFixture, "UM4 the Init functions of the other instances le
 	CHECK(other.u()->BRR == brr);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UM4 characterization: Init while a transmit is active resets both states to READY") {
+// NEEDS REVIEW 426
+TEST_CASE_FIXTURE(UartFixture, "characterization: UM4 Init while a transmit is active resets both states to READY") {
 	/* NEEDS REVIEW 314 */
 	for (unsigned k = 0; k < uartModesKindCount; ++k) {
 		INFO("kind " << k);
@@ -878,7 +886,8 @@ TEST_CASE_FIXTURE(UartFixture, "UM3 Enter and ExitMuteMode leave the handle unlo
 	CHECK(r.h.Lock == HAL_UNLOCKED);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UM4 characterization: the Rx event type is TC after each special mode Init") {
+// NEEDS REVIEW 426
+TEST_CASE_FIXTURE(UartFixture, "characterization: UM4 the Rx event type is TC after each special mode Init") {
 	/* NR_UART_5 (lead: 314) */
 	for (unsigned k = 0; k < uartModesKindCount; ++k) {
 		INFO("kind " << k);

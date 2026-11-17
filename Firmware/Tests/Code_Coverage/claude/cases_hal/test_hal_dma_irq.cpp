@@ -193,7 +193,8 @@ TEST_CASE_FIXTURE(DmaIrqFx, "DQ1 a normal mode transfer complete leaves the stre
 }
 
 /* characterization (NEEDS REVIEW DQ-4) */
-TEST_CASE_FIXTURE(DmaIrqFx, "DQ1 characterization: the handler clears TCIE after a transfer complete in non-circular mode") {
+// NEEDS REVIEW 304
+TEST_CASE_FIXTURE(DmaIrqFx, "characterization: DQ1 the handler clears TCIE after a transfer complete in non-circular mode") {
 	DMA_HandleTypeDef h;
 	start(h, kDefault);
 	REQUIRE((peek(&h.Instance->CR) & DMA_SxCR_TCIE) != 0u);
@@ -245,7 +246,8 @@ TEST_CASE_FIXTURE(DmaIrqFx, "DQ2 a half transfer leaves the stream enabled and t
 
 /* characterization (NEEDS REVIEW DQ-1): UM1725 and RM0090 do not say whether the HAL clears HTIE after the first half
  * transfer interrupt in non-circular mode; the HAL clears it, so a second HTIF would not call the callback. */
-TEST_CASE_FIXTURE(DmaIrqFx, "DQ2 characterization: the handler clears HTIE after a half transfer in non-circular mode") {
+// NEEDS REVIEW 304
+TEST_CASE_FIXTURE(DmaIrqFx, "characterization: DQ2 the handler clears HTIE after a half transfer in non-circular mode") {
 	DMA_HandleTypeDef h;
 	start(h, kDefault);
 	REQUIRE((peek(&h.Instance->CR) & DMA_SxCR_HTIE) != 0u);
@@ -307,7 +309,8 @@ TEST_CASE_FIXTURE(DmaIrqFx, "DQ3 the stream is disabled after a transfer error")
 
 /* characterization (NEEDS REVIEW DQ-2): UM1725 does not say which state follows a transfer error. With the stream disabled
  * by the hardware the HAL leaves the handle READY and unlocked, with the error code TE kept. */
-TEST_CASE_FIXTURE(DmaIrqFx, "DQ3 characterization: state after a transfer error is READY and unlocked") {
+// NEEDS REVIEW 410
+TEST_CASE_FIXTURE(DmaIrqFx, "characterization: DQ3 state after a transfer error is READY and unlocked") {
 	DMA_HandleTypeDef h;
 	start(h, kDefault);
 	raise(kDefault, HOST_DMA_TEIF);
@@ -319,7 +322,8 @@ TEST_CASE_FIXTURE(DmaIrqFx, "DQ3 characterization: state after a transfer error 
 
 /* characterization (NEEDS REVIEW DQ-5): the handler's transfer error path waits for EN = 0 with a bounded iteration count;
  * with EN never clearing it must still return. */
-TEST_CASE_FIXTURE(DmaIrqFx, "DQ3 characterization: a transfer error with EN never clearing returns, runs the error callback, READY and unlocked") {
+// NEEDS REVIEW 304
+TEST_CASE_FIXTURE(DmaIrqFx, "characterization: DQ3 a transfer error with EN never clearing returns, runs the error callback, READY and unlocked") {
 	DMA_HandleTypeDef h;
 	start(h, kDefault);
 	hostDmaStickEnabled(ctl(kDefault), str(kDefault), 1);
@@ -335,7 +339,8 @@ TEST_CASE_FIXTURE(DmaIrqFx, "DQ3 characterization: a transfer error with EN neve
 }
 
 /* characterization (NEEDS REVIEW DQ-4) */
-TEST_CASE_FIXTURE(DmaIrqFx, "DQ3 characterization: the handler clears TEIE after a transfer error") {
+// NEEDS REVIEW 410
+TEST_CASE_FIXTURE(DmaIrqFx, "characterization: DQ3 the handler clears TEIE after a transfer error") {
 	DMA_HandleTypeDef h;
 	start(h, kDefault);
 	REQUIRE((peek(&h.Instance->CR) & DMA_SxCR_TEIE) != 0u);
@@ -631,7 +636,8 @@ TEST_CASE_FIXTURE(DmaIrqFx, "DQ7 the abort interrupt leaves the handle READY and
 }
 
 /* characterization (NEEDS REVIEW DQ-4) */
-TEST_CASE_FIXTURE(DmaIrqFx, "DQ7 characterization: after the abort callback TCIE, TEIE, DMEIE and HTIE are cleared") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(DmaIrqFx, "characterization: DQ7 after the abort callback TCIE, TEIE, DMEIE and HTIE are cleared") {
 	DMA_HandleTypeDef h;
 	start(h, kDefault);
 	REQUIRE((peek(&h.Instance->CR) & (DMA_SxCR_TCIE | DMA_SxCR_TEIE | DMA_SxCR_DMEIE | DMA_SxCR_HTIE)) ==
@@ -665,7 +671,8 @@ TEST_CASE_FIXTURE(DmaIrqFx, "DQ7 a transfer complete arriving after Abort_IT doe
  * state ERROR when EN never clears. UM1725 says nothing about a timeout of Abort_IT; Abort_IT has none (a polling timeout
  * exists in HAL_DMA_Abort; the transfer error path of the IRQ handler has its own bounded wait, see DQ3). Documented here: Abort_IT returns HAL_OK without waiting, and later interrupts without
  * a flag change nothing, the state stays ABORT. */
-TEST_CASE_FIXTURE(DmaIrqFx, "DQ7 characterization: Abort_IT with EN never clearing has no timeout and the state stays ABORT") {
+// NEEDS REVIEW 318
+TEST_CASE_FIXTURE(DmaIrqFx, "characterization: DQ7 Abort_IT with EN never clearing has no timeout and the state stays ABORT") {
 	DMA_HandleTypeDef h;
 	start(h, kDefault);
 	hostDmaStickEnabled(ctl(kDefault), str(kDefault), 1);
@@ -867,7 +874,8 @@ TEST_CASE_FIXTURE(DmaIrqFx, "DC2 UnRegisterCallback with HAL_DMA_XFER_ALL_CB_ID 
 }
 
 /* characterization (NEEDS REVIEW DC-1) */
-TEST_CASE_FIXTURE(DmaIrqFx, "DC3 characterization: an invalid callback id returns HAL_ERROR and changes nothing") {
+// NEEDS REVIEW 410
+TEST_CASE_FIXTURE(DmaIrqFx, "characterization: DC3 an invalid callback id returns HAL_ERROR and changes nothing") {
 	DMA_HandleTypeDef h;
 	init(h, kDefault);
 	const auto bad = static_cast<HAL_DMA_CallbackIDTypeDef>(7);
@@ -877,7 +885,8 @@ TEST_CASE_FIXTURE(DmaIrqFx, "DC3 characterization: an invalid callback id return
 }
 
 /* characterization (NEEDS REVIEW DC-2) */
-TEST_CASE_FIXTURE(DmaIrqFx, "DC3 characterization: RegisterCallback with HAL_DMA_XFER_ALL_CB_ID returns HAL_ERROR") {
+// NEEDS REVIEW 305
+TEST_CASE_FIXTURE(DmaIrqFx, "characterization: DC3 RegisterCallback with HAL_DMA_XFER_ALL_CB_ID returns HAL_ERROR") {
 	DMA_HandleTypeDef h;
 	init(h, kDefault, DMA_NORMAL, kNoCallbacks);
 	CHECK(HAL_DMA_RegisterCallback(&h, HAL_DMA_XFER_ALL_CB_ID, dmaIrqCplt) == HAL_ERROR);
@@ -885,7 +894,8 @@ TEST_CASE_FIXTURE(DmaIrqFx, "DC3 characterization: RegisterCallback with HAL_DMA
 }
 
 /* characterization (NEEDS REVIEW DC-3) */
-TEST_CASE_FIXTURE(DmaIrqFx, "DC3 characterization: Register and UnRegister while the state is not READY return HAL_ERROR and leave the handle unlocked") {
+// NEEDS REVIEW 305
+TEST_CASE_FIXTURE(DmaIrqFx, "characterization: DC3 Register and UnRegister while the state is not READY return HAL_ERROR and leave the handle unlocked") {
 	DMA_HandleTypeDef h;
 	init(h, kDefault);
 	h.State = HAL_DMA_STATE_BUSY;
@@ -898,7 +908,8 @@ TEST_CASE_FIXTURE(DmaIrqFx, "DC3 characterization: Register and UnRegister while
 }
 
 /* characterization (NEEDS REVIEW DC-4); the pointer not being stored is plain */
-TEST_CASE_FIXTURE(DmaIrqFx, "DC3 characterization: RegisterCallback after Start_IT does not store the pointer and is not HAL_OK") {
+// NEEDS REVIEW 305
+TEST_CASE_FIXTURE(DmaIrqFx, "characterization: DC3 RegisterCallback after Start_IT does not store the pointer and is not HAL_OK") {
 	DMA_HandleTypeDef h;
 	start(h, kDefault);
 	CHECK(HAL_DMA_RegisterCallback(&h, HAL_DMA_XFER_CPLT_CB_ID, dmaIrqHalf) != HAL_OK);

@@ -330,7 +330,8 @@ TEST_CASE_FIXTURE(PqRig, "PQ2 a SETUP packet is copied into Setup[] and the setu
 	CHECK(hostOtgRxWordsUsed() == 0);
 }
 
-TEST_CASE_FIXTURE(PqRig, "PQ2 characterization: SETUP data adds its byte count (8) to the EP0 xfer_count") {
+// NEEDS REVIEW 417
+TEST_CASE_FIXTURE(PqRig, "characterization: PQ2 SETUP data adds its byte count (8) to the EP0 xfer_count") {
 	up();
 	const uint8_t setup[8] = {0x00, 5, 7, 0, 0, 0, 0, 0};
 	REQUIRE(hostOtgHostSetup(setup) == HOSTOTG_ACK);
@@ -775,7 +776,8 @@ TEST_CASE_FIXTURE(PqRig, "PQ3 EP0 IN data of 18 bytes at maximum packet size 64 
 	CHECK(otgCounts.lastEp == 0);
 }
 
-TEST_CASE_FIXTURE(PqRig, "PQ3 characterization: EP0 IN data longer than the maximum packet size (8) is cut to one packet") {
+// NEEDS REVIEW 417
+TEST_CASE_FIXTURE(PqRig, "characterization: PQ3 EP0 IN data longer than the maximum packet size (8) is cut to one packet") {
 	up();
 	REQUIRE(HAL_PCD_EP_Open(&h, 0x80, 8, EP_TYPE_CTRL) == HAL_OK);
 	REQUIRE(HAL_PCD_EP_Transmit(&h, 0x80, tx, 18) == HAL_OK);
@@ -795,7 +797,8 @@ TEST_CASE_FIXTURE(PqRig, "PQ3 TXFE for an endpoint with no transfer (xfer_len 0)
 	CHECK((pqRd(R_DIEPEMPMSK) & (1u << 2)) == 0);
 }
 
-TEST_CASE_FIXTURE(PqRig, "PQ3 characterization: TXFE with xfer_count beyond xfer_len writes nothing and leaves DIEPEMPMSK set") {
+// NEEDS REVIEW 347
+TEST_CASE_FIXTURE(PqRig, "characterization: PQ3 TXFE with xfer_count beyond xfer_len writes nothing and leaves DIEPEMPMSK set") {
 	up();
 	h.IN_ep[1].xfer_len = 5;
 	h.IN_ep[1].xfer_count = 10;
@@ -890,7 +893,8 @@ TEST_CASE_FIXTURE(PqRig, "PQ3 an incomplete ISO OUT with EONUM 1 on an even fram
 	CHECK(otgCounts.isoOut == 0);
 }
 
-TEST_CASE_FIXTURE(PqRig, "PQ3 characterization: with two matching isochronous OUT endpoints only the lowest is flagged by one PXFR interrupt") {
+// NEEDS REVIEW 417
+TEST_CASE_FIXTURE(PqRig, "characterization: PQ3 with two matching isochronous OUT endpoints only the lowest is flagged by one PXFR interrupt") {
 	up();
 	h.OUT_ep[1].type = EP_TYPE_ISOC;
 	h.OUT_ep[3].type = EP_TYPE_ISOC;
@@ -988,7 +992,8 @@ TEST_CASE_FIXTURE(PqRig, "PQ4 USBRST unmasks control endpoint 0 in DAINTMSK and 
 	CHECK((pqRd(R_DOEPMSK) & D_EPDISD) == D_EPDISD);
 }
 
-TEST_CASE_FIXTURE(PqRig, "PQ4 characterization: USBRST sets DIEPMSK 0x0B and DOEPMSK 0x202B (STSPHSRXM and NAKMSK in addition to the RM0090 list)") {
+// NEEDS REVIEW 347
+TEST_CASE_FIXTURE(PqRig, "characterization: PQ4 USBRST sets DIEPMSK 0x0B and DOEPMSK 0x202B (STSPHSRXM and NAKMSK in addition to the RM0090 list)") {
 	up();
 	pqWr(R_DIEPMSK, 0);
 	pqWr(R_DOEPMSK, 0);
@@ -998,7 +1003,8 @@ TEST_CASE_FIXTURE(PqRig, "PQ4 characterization: USBRST sets DIEPMSK 0x0B and DOE
 	CHECK(pqRd(R_DOEPMSK) == 0x0000202Bu);
 }
 
-TEST_CASE_FIXTURE(PqRig, "PQ4 characterization: USBRST with use_dedicated_ep1 leaves DIEPMSK / DOEPMSK alone and touches the OTG_HS only registers") {
+// NEEDS REVIEW 349
+TEST_CASE_FIXTURE(PqRig, "characterization: PQ4 USBRST with use_dedicated_ep1 leaves DIEPMSK / DOEPMSK alone and touches the OTG_HS only registers") {
 	up();
 	h.Init.use_dedicated_ep1 = ENABLE;
 	pqWr(R_DIEPMSK, 0);
@@ -1208,7 +1214,8 @@ TEST_CASE_FIXTURE(PqRig, "PQ4 OTGINT without SEDET gives no disconnect callback 
 	CHECK(pqRd(R_GOTGINT) == 0);
 }
 
-TEST_CASE_FIXTURE(PqRig, "PQ4 characterization: DISCINT has no handler in device mode: no callback, flag stays set") {
+// NEEDS REVIEW 347
+TEST_CASE_FIXTURE(PqRig, "characterization: PQ4 DISCINT has no handler in device mode: no callback, flag stays set") {
 	up();
 	pqOr(R_GINTMSK, GI_DISCINT);
 	hostOtgDisconnectEvent();
@@ -1217,7 +1224,8 @@ TEST_CASE_FIXTURE(PqRig, "PQ4 characterization: DISCINT has no handler in device
 	CHECK((pqRd(R_GINTSTS) & GI_DISCINT) == GI_DISCINT);
 }
 
-TEST_CASE_FIXTURE(PqRig, "PQ4 characterization: with several events pending the callbacks run resume, suspend, reset, SOF, connect, disconnect") {
+// NEEDS REVIEW 347
+TEST_CASE_FIXTURE(PqRig, "characterization: PQ4 with several events pending the callbacks run resume, suspend, reset, SOF, connect, disconnect") {
 	h.Init.Sof_enable = ENABLE;
 	up();
 	hostOtgSuspend();

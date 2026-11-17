@@ -889,6 +889,7 @@ TEST_CASE("[C4 arm_conv_f32] the input arrays are not modified") { convConstInpu
 TEST_CASE("[C1 arm_conv_partial_f32] ARM's three windows (first 3, 9, 7; 4 points) return success and reach SNR 120, abs 1e-5, rel 1e-6") { armPartialTest(); }
 TEST_CASE("[C3 arm_conv_partial_f32] every window of every length pair 1-9 equals the same part of the full convolution within the bound") { partialAllWindowsTest(); }
 TEST_CASE("[C4 arm_conv_partial_f32] a window ending at srcALen+srcBLen-2 succeeds, one point further returns ARM_MATH_ARGUMENT_ERROR") { partialRangeErrorTest(); }
+// NEEDS REVIEW 230
 TEST_CASE("characterization: [C4 arm_conv_partial_f32] the window is written at pDst[firstIndex], nothing else is written, an error writes nothing (NEEDS REVIEW)") { partialPlacementCharacterization(); }
 
 TEST_CASE("[C1 arm_levinson_durbin_f32] ARM's cases n = 3, 8, 11 reach SNR 120, abs and rel 1e-6 for the coefficients and for err, guard intact") { armLevinsonTest(); }

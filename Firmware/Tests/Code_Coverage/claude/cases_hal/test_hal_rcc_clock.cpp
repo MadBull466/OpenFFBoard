@@ -273,7 +273,8 @@ static void stepThenFailHse(void) {
 	hostRccFail(HOST_OSC_HSE, 1); // the HSE dies right after the HAL has checked HSERDY and written SW
 }
 
-TEST_CASE_FIXTURE(RccClockFixture, "RC10 characterization: ClockConfig returns HAL_TIMEOUT when SWS never follows SW") {
+// NEEDS REVIEW 291
+TEST_CASE_FIXTURE(RccClockFixture, "characterization: RC10 ClockConfig returns HAL_TIMEOUT when SWS never follows SW") {
 	// NEEDS REVIEW: UM1725 gives no return code for the poll of SWS ("Return values: None"); the HAL gives up after
 	// 5000 ticks (CLOCKSWITCH_TIMEOUT_VALUE, 5 s) and returns HAL_TIMEOUT, leaving SW at the requested source and
 	// SystemCoreClock unchanged.
@@ -302,7 +303,8 @@ TEST_CASE_FIXTURE(RccClockFixture, "RC10 ClockConfig with a latency that cannot 
 	CHECK(((cfgr() >> 2) & 3u) == 0u); // the clock was not switched
 }
 
-TEST_CASE_FIXTURE(RccClockFixture, "RC10 characterization: ClockConfig returns HAL_ERROR when a legal latency does not read back") {
+// NEEDS REVIEW 291
+TEST_CASE_FIXTURE(RccClockFixture, "characterization: RC10 ClockConfig returns HAL_ERROR when a legal latency does not read back") {
 	// NEEDS REVIEW: UM1725 gives no return code; the HAL status offered is HAL_ERROR (the code returns it when the
 	// LATENCY bits do not read back the written value).
 	REQUIRE(startFirmwarePll());
@@ -320,7 +322,8 @@ TEST_CASE_FIXTURE(RccClockFixture, "RC10 the clock is not switched when a legal 
 	CHECK(SystemCoreClock == kHsi);
 }
 
-TEST_CASE_FIXTURE(RccClockFixture, "RC10 characterization: ClockConfig returns HAL_OK although the tick could not be re-initialised") {
+// NEEDS REVIEW 291
+TEST_CASE_FIXTURE(RccClockFixture, "characterization: RC10 ClockConfig returns HAL_OK although the tick could not be re-initialised") {
 	// NEEDS REVIEW: with uwTickPrio at its start value 16 (out of the 4 priority bits, PM0214 4.3.7) HAL_InitTick
 	// returns HAL_ERROR; ClockConfig ignores it and returns HAL_OK. UM1725 says nothing about this case.
 	REQUIRE(uwTickPrio == 16u);
@@ -342,7 +345,8 @@ TEST_CASE_FIXTURE(RccClockFixture, "RC11 GetSysClockFreq with the HSE as system 
 	CHECK(HAL_RCC_GetSysClockFreq() == kHse);
 }
 
-TEST_CASE_FIXTURE(RccClockFixture, "RC11 characterization: GetSysClockFreq with SWS = 11 returns the HSI value") {
+// NEEDS REVIEW 292
+TEST_CASE_FIXTURE(RccClockFixture, "characterization: RC11 GetSysClockFreq with SWS = 11 returns the HSI value") {
 	// NEEDS REVIEW: RM0090 7.3.3 lists SWS = 11 as "not applicable"; the HAL returns HSI_VALUE for it.
 	poke(&RCC->CFGR, 0xFu); // SWS = 11, SW = 11 (raw, the model ignores such a write from the CPU)
 	CHECK(HAL_RCC_GetSysClockFreq() == kHsi);
@@ -395,7 +399,8 @@ TEST_CASE_FIXTURE(RccClockFixture, "RC11 GetSysClockFreq follows the PLL formula
 	CHECK_MESSAGE(mm.bad == 0u, mm.first);
 }
 
-TEST_CASE_FIXTURE(RccClockFixture, "RC11 characterization: GetSysClockFreq of a PLL whose VCO is not a multiple of P rounds down") {
+// NEEDS REVIEW 404
+TEST_CASE_FIXTURE(RccClockFixture, "characterization: RC11 GetSysClockFreq of a PLL whose VCO is not a multiple of P rounds down") {
 	// NEEDS REVIEW: rounding of fractional hertz is a HAL choice, not specified by UM1725 / RM0090.
 	// HSE 8 MHz, M 3, N 100, P 8: 8e6 x 100 / 3 = 266 666 666.67 Hz, / 8 = 33 333 333.33 Hz: a fraction of a hertz is lost.
 	forcePll(3, 100, 8, true);
@@ -657,7 +662,8 @@ TEST_CASE_FIXTURE(RccClockFixture, "RC12 GetOscConfig returns the HSI trimming o
 	CHECK_MESSAGE(mm.bad == 0u, mm.first);
 }
 
-TEST_CASE_FIXTURE(RccClockFixture, "RC12 characterization: GetOscConfig reports a HSE bypass bit even when HSEON is also set") {
+// NEEDS REVIEW 292
+TEST_CASE_FIXTURE(RccClockFixture, "characterization: RC12 GetOscConfig reports a HSE bypass bit even when HSEON is also set") {
 	// NEEDS REVIEW: which state wins when HSEON and HSEBYP are both set is a HAL choice (RM0090: bypass needs HSEON).
 	poke(&RCC->CR, 0x83u | (1u << 16) | (1u << 18)); // HSEON and HSEBYP
 	RCC_OscInitTypeDef got = {};
@@ -738,7 +744,8 @@ TEST_CASE_FIXTURE(RccClockFixture, "RC13 MCOConfig replaces an earlier source an
 	CHECK(((cfgr() >> 24) & 7u) == 4u); // /2
 }
 
-TEST_CASE_FIXTURE(RccClockFixture, "RC13 characterization: MCOConfig MCO1 configures PA8 as very high speed alternate function 0") {
+// NEEDS REVIEW 293
+TEST_CASE_FIXTURE(RccClockFixture, "characterization: RC13 MCOConfig MCO1 configures PA8 as very high speed alternate function 0") {
 	// NEEDS REVIEW: UM1725 only says "PA8/PC9 should be configured in alternate function mode" (a note for the caller);
 	// the HAL does it itself: push-pull alternate function (MODER 10), no pull, very high speed (OSPEEDR 11), AF0.
 	// GPIOA reset values (RM0090 8.4): MODER 0xA8000000, OSPEEDR 0x0C000000, others 0.
@@ -750,7 +757,8 @@ TEST_CASE_FIXTURE(RccClockFixture, "RC13 characterization: MCOConfig MCO1 config
 	CHECK(peek(&GPIOA->AFR[1]) == 0u);                          // AFRH nibble of PA8 (bits 3:0) = AF0
 }
 
-TEST_CASE_FIXTURE(RccClockFixture, "RC13 characterization: MCOConfig MCO2 configures PC9 as very high speed alternate function 0") {
+// NEEDS REVIEW 293
+TEST_CASE_FIXTURE(RccClockFixture, "characterization: RC13 MCOConfig MCO2 configures PC9 as very high speed alternate function 0") {
 	// NEEDS REVIEW: as for MCO1, now PC9 (GPIOC reset values are 0).
 	HAL_RCC_MCOConfig(RCC_MCO2, RCC_MCO2SOURCE_HSE, RCC_MCODIV_1);
 	CHECK(peek(&GPIOC->MODER) == (2u << 18));   // PC9: bits 19:18 = 10
@@ -760,7 +768,8 @@ TEST_CASE_FIXTURE(RccClockFixture, "RC13 characterization: MCOConfig MCO2 config
 	CHECK(peek(&GPIOC->AFR[1]) == 0u); // AFRH nibble of PC9 (bits 7:4) = AF0
 }
 
-TEST_CASE_FIXTURE(RccClockFixture, "RC13 characterization: MCOConfig enables the clock of the port of the output pin") {
+// NEEDS REVIEW 293
+TEST_CASE_FIXTURE(RccClockFixture, "characterization: RC13 MCOConfig enables the clock of the port of the output pin") {
 	// NEEDS REVIEW: the port clock enable is not described by UM1725 for MCOConfig. RM0090 7.3.10: GPIOAEN bit 0,
 	// GPIOCEN bit 2 of RCC_AHB1ENR (reset 0x00100000: CCMDATARAMEN only).
 	HAL_RCC_MCOConfig(RCC_MCO1, RCC_MCO1SOURCE_HSI, RCC_MCODIV_1);
@@ -873,21 +882,24 @@ TEST_CASE_FIXTURE(RccClockFixture, "RC2 clock config: DeInit leaves RCC_CIR at 0
 // NEEDS REVIEW for the four "is rejected" cases: UM1725 gives no return code for a source that is not ready; the HAL
 // returns HAL_ERROR (not HAL_TIMEOUT) before it writes SW. The plain oracle is that SW was never written with the
 // target source (RM0090 7.3.3: a source that is not ready must not be selected).
-TEST_CASE_FIXTURE(RccClockFixture, "RC15 characterization: ClockConfig to the HSE while the HSE is off is rejected with HAL_ERROR") {
+// NEEDS REVIEW 294
+TEST_CASE_FIXTURE(RccClockFixture, "characterization: RC15 ClockConfig to the HSE while the HSE is off is rejected with HAL_ERROR") {
 	hostRegsLogClear();
 	CHECK(clockConfig(kAllTypes, RCC_SYSCLKSOURCE_HSE, 0x0, 0x0, 0x0, 0) == HAL_ERROR);
 	CHECK_FALSE(swWritten(1u));
 	CHECK(((cfgr() >> 2) & 3u) == 0u); // SWS still HSI
 }
 
-TEST_CASE_FIXTURE(RccClockFixture, "RC15 characterization: ClockConfig to the PLL while the PLL is off is rejected with HAL_ERROR") {
+// NEEDS REVIEW 404
+TEST_CASE_FIXTURE(RccClockFixture, "characterization: RC15 ClockConfig to the PLL while the PLL is off is rejected with HAL_ERROR") {
 	hostRegsLogClear();
 	CHECK(clockConfig(kAllTypes, RCC_SYSCLKSOURCE_PLLCLK, 0x0, 0x0, 0x0, 0) == HAL_ERROR);
 	CHECK_FALSE(swWritten(2u));
 	CHECK(((cfgr() >> 2) & 3u) == 0u);
 }
 
-TEST_CASE_FIXTURE(RccClockFixture, "RC15 characterization: ClockConfig to the HSI while the HSI is off is rejected with HAL_ERROR") {
+// NEEDS REVIEW 404
+TEST_CASE_FIXTURE(RccClockFixture, "characterization: RC15 ClockConfig to the HSI while the HSI is off is rejected with HAL_ERROR") {
 	REQUIRE(startHse());
 	REQUIRE(clockConfig(kAllTypes, RCC_SYSCLKSOURCE_HSE, 0x0, 0x0, 0x0, 0) == HAL_OK);
 	__HAL_RCC_HSI_DISABLE(); // allowed: the HSE is the system clock
@@ -898,7 +910,8 @@ TEST_CASE_FIXTURE(RccClockFixture, "RC15 characterization: ClockConfig to the HS
 	CHECK(((cfgr() >> 2) & 3u) == 1u); // still HSE
 }
 
-TEST_CASE_FIXTURE(RccClockFixture, "RC15 characterization: ClockConfig to a HSE that never becomes ready is rejected with HAL_ERROR") {
+// NEEDS REVIEW 294
+TEST_CASE_FIXTURE(RccClockFixture, "characterization: RC15 ClockConfig to a HSE that never becomes ready is rejected with HAL_ERROR") {
 	__HAL_RCC_HSE_CONFIG(RCC_HSE_ON); // HSEON without waiting
 	hostRccFail(HOST_OSC_HSE, 1);
 	hostRegsLogClear();
@@ -924,7 +937,8 @@ TEST_CASE_FIXTURE(RccClockFixture, "RC15 ClockConfig of a clock source that is n
 	CHECK(st == HAL_OK);
 }
 
-TEST_CASE_FIXTURE(RccClockFixture, "RC15 characterization: a rejected ClockConfig has already written HPRE and set PPRE1 and PPRE2 to /16") {
+// NEEDS REVIEW 294
+TEST_CASE_FIXTURE(RccClockFixture, "characterization: RC15 a rejected ClockConfig has already written HPRE and set PPRE1 and PPRE2 to /16") {
 	// NEEDS REVIEW: neither UM1725 nor RM0090 say what a rejected call leaves behind. The HAL writes the highest APB
 	// dividers and the new HPRE before it checks the ready flag of the source, and does not undo them on HAL_ERROR.
 	REQUIRE(clockConfig(kAllTypes, RCC_SYSCLKSOURCE_HSE, 0x9, 0x0, 0x0, 0) == HAL_ERROR); // HSE is off

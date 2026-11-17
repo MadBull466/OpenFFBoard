@@ -366,6 +366,7 @@ TEST_CASE_FIXTURE(PwmFixture, "[R6.2 recreate] a stored configuration is restore
 
 // ---------------------------------------------------------------- R6.3 two instances created with new
 
+// NEEDS REVIEW 247
 TEST_CASE_FIXTURE(PwmFixture, "characterization: [R6.3 two instances] a second instance created with new leaves the same timer registers as one instance") {
 	// NEEDS REVIEW: the constructor does not enforce the singleton, only the chooser does (MotorPWM.cpp:35-46)
 	std::unique_ptr<MotorPWM> first(new MotorPWM());
@@ -378,6 +379,7 @@ TEST_CASE_FIXTURE(PwmFixture, "characterization: [R6.3 two instances] a second i
 	CHECK(HostTarget::state().unmodelledHalCalls.empty()); // Stop, Config, Start in order is accepted by the strict fake
 }
 
+// NEEDS REVIEW 247
 TEST_CASE_FIXTURE(PwmFixture, "characterization: [R6.3 two instances] the constructor of a second instance resets the output of the first started instance to 0") {
 	// NEEDS REVIEW: both objects share TIM1; pwmInitTimer loads Pulse 0 into every channel
 	std::unique_ptr<MotorPWM> first(new MotorPWM());
@@ -388,6 +390,7 @@ TEST_CASE_FIXTURE(PwmFixture, "characterization: [R6.3 two instances] the constr
 	CHECK(ccr(1) == 0);
 }
 
+// NEEDS REVIEW 247
 TEST_CASE_FIXTURE(PwmFixture, "characterization: [R6.3 two instances] destroying the first of two instances switches the shared outputs off and releases the flag, the second one is deleted without error") {
 	// NEEDS REVIEW: destruction acts on the shared timer and the shared static flag whatever instance is left
 	std::unique_ptr<MotorPWM> first(new MotorPWM());

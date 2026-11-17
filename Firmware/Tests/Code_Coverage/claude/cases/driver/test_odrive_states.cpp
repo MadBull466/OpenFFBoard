@@ -77,7 +77,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O30] connected is false after 3 s without a f
 	CHECK(isConnected(*od));
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O30] characterization: connected stays true while the last frame is younger than 2000 ms") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O30] connected stays true while the last frame is younger than 2000 ms") {
 	auto od = makeOdrive1();
 	reachRunning(*od);
 	peer0.setSilent(true);
@@ -86,7 +87,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O30] characterization: connected stays true w
 	CHECK(isConnected(*od));
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O30] characterization: connected is false when no frame came for more than 2000 ms") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O30] connected is false when no frame came for more than 2000 ms") {
 	auto od = makeOdrive1();
 	reachRunning(*od);
 	peer0.setSilent(true);
@@ -95,7 +97,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O30] characterization: connected is false whe
 	CHECK_FALSE(isConnected(*od));
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O30] characterization: after the timeout motorReady is false and the reported ODrive state is undefined (0)") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O30] after the timeout motorReady is false and the reported ODrive state is undefined (0)") {
 	auto od = makeOdrive1();
 	reachRunning(*od);
 	peer0.setSilent(true);
@@ -121,7 +124,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O31] no encoder estimates are requested while
 	CHECK(txFramesCmd(0, 0x09).empty());
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O31] characterization: after 3 s without any frame getPos_f requests no encoder estimates") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O31] after 3 s without any frame getPos_f requests no encoder estimates") {
 	auto od = makeOdrive1();
 	peer0.setSilent(true);
 	runFor(3000);
@@ -131,7 +135,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O31] characterization: after 3 s without any 
 
 // ---------------------------------------------------------------- O32 start-up sequence
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O32] characterization: ODrive reports IDLE: the next loop requests the full calibration sequence (0x07 = 3) and nothing else") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O32] ODrive reports IDLE: the next loop requests the full calibration sequence (0x07 = 3) and nothing else") {
 	auto od = makeOdrive1();
 	runFor(600); // heartbeat at 100 ms -> WAIT_READY, body at 500 ms -> request
 	const auto st = txFramesCmd(0, 0x07);
@@ -143,7 +148,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O32] characterization: ODrive reports IDLE: t
 	CHECK(peer0.requestedStates() == std::vector<uint32_t>({3}));
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O32] characterization: no state request is sent before the first heartbeat") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O32] no state request is sent before the first heartbeat") {
 	auto od = makeOdrive1();
 	peer0.setHeartbeat(false);
 	runFor(2000);
@@ -151,7 +157,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O32] characterization: no state request is se
 	CHECK(txFramesCmd(0, 0x0B).empty());
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O32] characterization: while the ODrive is in a calibration state (3, 4, 6, 7, 13) the driver requests nothing and is not ready") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O32] while the ODrive is in a calibration state (3, 4, 6, 7, 13) the driver requests nothing and is not ready") {
 	uint32_t st = 0;
 	SUBCASE("full calibration (3)") { st = 3; }
 	SUBCASE("motor calibration (4)") { st = 4; }
@@ -173,7 +180,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O32] characterization: while the ODrive is in
 	checkDataFrame(fr[0], 0x07, STATE_CLOSED_LOOP_BYTES);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O32] characterization: from a calibration state the driver goes to RUNNING with Set Controller Modes when the ODrive reports closed loop directly") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O32] from a calibration state the driver goes to RUNNING with Set Controller Modes when the ODrive reports closed loop directly") {
 	uint32_t st = 0;
 	SUBCASE("full calibration (3)") { st = 3; }
 	SUBCASE("motor calibration (4)") { st = 4; }
@@ -193,7 +201,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O32] characterization: from a calibration sta
 	checkDataFrame(md[0], 0x0B, MODES_TORQUE_PASSTHROUGH);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O32] characterization: when the calibration ends in IDLE the driver requests closed loop (0x07 = 8)") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O32] when the calibration ends in IDLE the driver requests closed loop (0x07 = 8)") {
 	auto od = makeOdrive1();
 	reachRunning(*od);
 	const auto st = txFramesCmd(0, 0x07);
@@ -204,7 +213,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O32] characterization: when the calibration e
 	CHECK(st[1].time <= 3500);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O32] characterization: when the ODrive reports closed loop the driver sends the controller modes torque / passthrough once") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O32] when the ODrive reports closed loop the driver sends the controller modes torque / passthrough once") {
 	auto od = makeOdrive1();
 	reachRunning(*od);
 	runFor(2000);
@@ -214,7 +224,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O32] characterization: when the ODrive report
 	CHECK(od->motorReady());
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O32] characterization: the start-up sends exactly 0x07 = 3, 0x07 = 8, 0x0B modes in this order") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O32] the start-up sends exactly 0x07 = 3, 0x07 = 8, 0x0B modes in this order") {
 	auto od = makeOdrive1();
 	reachRunning(*od);
 	runFor(2000);
@@ -223,7 +234,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O32] characterization: the start-up sends exa
 	CHECK(peer0.violations().empty());
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O32] characterization: entering RUNNING zeroes the position (getPos_f is 0 although the ODrive reports 0.25 turns)") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O32] entering RUNNING zeroes the position (getPos_f is 0 although the ODrive reports 0.25 turns)") {
 	peer0.setEncoder(0.25f, 0.0f);
 	peer0.setEncoderCyclic(true, 10);
 	auto od = makeOdrive1();
@@ -233,7 +245,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O32] characterization: entering RUNNING zeroe
 	CHECK(od->getPos() == 0);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O32] characterization: with storepos on, entering RUNNING keeps the reported position (0.25 turns)") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O32] with storepos on, entering RUNNING keeps the reported position (0.25 turns)") {
 	peer0.setEncoder(0.25f, 0.0f);
 	peer0.setEncoderCyclic(true, 10);
 	auto od = makeOdrive1();
@@ -264,7 +277,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O33] the controller modes are sent when the c
 
 // ---------------------------------------------------------------- O34 refused calibration
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O34] characterization: a refused calibration request is not repeated and the driver never becomes ready (no retry)") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O34] a refused calibration request is not repeated and the driver never becomes ready (no retry)") {
 	peer0.setRefuseRequests(true);
 	auto od = makeOdrive1();
 	runFor(10000);
@@ -284,7 +298,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O35] motorReady is false before any frame of 
 	CHECK_FALSE(od->motorReady());
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O35] characterization: motorReady is false in closed loop until the loop has run once (local state WAIT_READY)") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O35] motorReady is false in closed loop until the loop has run once (local state WAIT_READY)") {
 	peer0.setState(FP::STATE_CLOSED_LOOP);
 	auto od = makeOdrive1();
 	runFor(450); // heartbeats at 100 .. 400 ms, first body at 500 ms
@@ -297,7 +312,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O35] motorReady is true in RUNNING with the O
 	CHECK(od->motorReady());
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O35] characterization: motorReady is false when the ODrive leaves closed loop (IDLE) while the driver is RUNNING") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O35] motorReady is false when the ODrive leaves closed loop (IDLE) while the driver is RUNNING") {
 	auto od = makeOdrive1();
 	reachRunning(*od);
 	heartbeat(peer0, FP::STATE_IDLE);
@@ -305,7 +321,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O35] characterization: motorReady is false wh
 	CHECK_FALSE(od->motorReady());
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O35] characterization: motorReady is false while the ODrive calibrates") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O35] motorReady is false while the ODrive calibrates") {
 	auto od = makeOdrive1();
 	runFor(1500); // calibration requested at 500 ms, runs until 2500 ms
 	REQUIRE(peer0.state() == FP::STATE_FULL_CALIBRATION);
@@ -314,7 +331,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O35] characterization: motorReady is false wh
 
 // ---------------------------------------------------------------- O36 start / stop / emergency stop
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O36] characterization: startMotor with the ODrive in IDLE sends 0x07 = 8 (closed loop)") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O36] startMotor with the ODrive in IDLE sends 0x07 = 8 (closed loop)") {
 	auto od = makeOdrive1();
 	runFor(150); // heartbeat at 100 ms: IDLE
 	clearTxFrames();
@@ -323,7 +341,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O36] characterization: startMotor with the OD
 	checkDataFrame(HostTarget::canTxFrames()[0], 0x07, STATE_CLOSED_LOOP_BYTES);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O36] characterization: startMotor sends nothing when the ODrive is not in IDLE") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O36] startMotor sends nothing when the ODrive is not in IDLE") {
 	peer0.setState(FP::STATE_CLOSED_LOOP);
 	auto od = makeOdrive1();
 	runFor(150);
@@ -332,7 +351,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O36] characterization: startMotor sends nothi
 	CHECK(HostTarget::canTxFrames().empty());
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O36] characterization: stopMotor in closed loop sends torque 0 and then requests IDLE (0x07 = 1)") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O36] stopMotor in closed loop sends torque 0 and then requests IDLE (0x07 = 1)") {
 	auto od = makeOdrive1();
 	reachRunning(*od);
 	clearTxFrames();
@@ -342,7 +362,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O36] characterization: stopMotor in closed lo
 	checkDataFrame(HostTarget::canTxFrames()[1], 0x07, STATE_IDLE_BYTES);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O36] characterization: stopMotor with the ODrive in IDLE sends torque 0 only") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O36] stopMotor with the ODrive in IDLE sends torque 0 only") {
 	auto od = makeOdrive1();
 	runFor(150);
 	clearTxFrames();
@@ -351,7 +372,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O36] characterization: stopMotor with the ODr
 	checkDataFrame(HostTarget::canTxFrames()[0], 0x0E, TORQUE_ZERO);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O36] characterization: emergencyStop(false) does what stopMotor does") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O36] emergencyStop(false) does what stopMotor does") {
 	auto od = makeOdrive1();
 	reachRunning(*od);
 	clearTxFrames();
@@ -361,7 +383,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O36] characterization: emergencyStop(false) d
 	checkDataFrame(HostTarget::canTxFrames()[1], 0x07, STATE_IDLE_BYTES);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O36] characterization: emergencyStop(true) does what startMotor does") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O36] emergencyStop(true) does what startMotor does") {
 	auto od = makeOdrive1();
 	runFor(150);
 	clearTxFrames();
@@ -370,7 +393,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O36] characterization: emergencyStop(true) do
 	checkDataFrame(HostTarget::canTxFrames()[0], 0x07, STATE_CLOSED_LOOP_BYTES);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O36] characterization: stopMotor then startMotor returns the driver to ready without a new calibration or modes frame") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O36] stopMotor then startMotor returns the driver to ready without a new calibration or modes frame") {
 	auto od = makeOdrive1();
 	reachRunning(*od);
 	od->stopMotor();
@@ -385,7 +409,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O36] characterization: stopMotor then startMo
 
 // ---------------------------------------------------------------- O37 automatic calibration
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O37] characterization: the ODrive is calibrated and put in closed loop although startMotor was never called") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O37] the ODrive is calibrated and put in closed loop although startMotor was never called") {
 	auto od = makeOdrive1();
 	reachRunning(*od);
 	CHECK(peer0.requestedStates() == std::vector<uint32_t>({3, 8}));
@@ -393,7 +418,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O37] characterization: the ODrive is calibrat
 
 // ---------------------------------------------------------------- O38 bus voltage request
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O38] characterization: without a voltage reply the driver sends RTR 0x17 (DLC 0) in every loop from 1500 ms on") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O38] without a voltage reply the driver sends RTR 0x17 (DLC 0) in every loop from 1500 ms on") {
 	auto od = makeOdrive1();
 	peer0.setRespond(false); // heartbeats continue, requests are not answered
 	runFor(3000);
@@ -408,7 +434,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O38] characterization: without a voltage repl
 	}
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O38] characterization: with immediate replies the driver requests 0x17 again when the reply is older than 1000 ms (1500, 3000, 4500 ms)") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O38] with immediate replies the driver requests 0x17 again when the reply is older than 1000 ms (1500, 3000, 4500 ms)") {
 	auto od = makeOdrive1();
 	runFor(5000);
 	// reply at 1500 ms -> lastVoltageUpdate = 1500; 2500 ms: 1000 > 1000 false; 3000 ms: 1500 > 1000 -> request; 4500 ms again
@@ -421,7 +448,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O38] characterization: with immediate replies
 
 // ---------------------------------------------------------------- O39 loss and reconnect
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O39] characterization: after a loss and a new IDLE heartbeat the driver requests the calibration again and reaches closed loop") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O39] after a loss and a new IDLE heartbeat the driver requests the calibration again and reaches closed loop") {
 	auto od = makeOdrive1();
 	reachRunning(*od);
 	peer0.setSilent(true);
@@ -435,7 +463,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O39] characterization: after a loss and a new
 	CHECK(isConnected(*od));
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O39] characterization: after a loss and a heartbeat with the ODrive still in closed loop the driver is ready again without a new request") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O39] after a loss and a heartbeat with the ODrive still in closed loop the driver is ready again without a new request") {
 	auto od = makeOdrive1();
 	reachRunning(*od);
 	peer0.setSilent(true);
@@ -450,7 +479,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O39] characterization: after a loss and a hea
 
 // ---------------------------------------------------------------- O70 errors not raised
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O70] characterization: an axis error in the heartbeat is readable with the errors command but not added to the firmware error handler") {
+// NEEDS REVIEW 179
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O70] an axis error in the heartbeat is readable with the errors command but not added to the firmware error handler") {
 	auto od = makeOdrive1();
 	runFor(150);
 	const size_t before = ErrorHandler::getErrors().size();
@@ -459,7 +489,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O70] characterization: an axis error in the h
 	CHECK(ErrorHandler::getErrors().size() == before);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O70] characterization: CAN bus error states are ignored by the driver (no error raised, still connected)") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O70] CAN bus error states are ignored by the driver (no error raised, still connected)") {
 	auto od = makeOdrive1();
 	reachRunning(*od);
 	const size_t before = ErrorHandler::getErrors().size();
@@ -472,7 +503,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O70] characterization: CAN bus error states a
 	CHECK(od->motorReady());
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O70] characterization: after an axis error that drops the ODrive to IDLE the driver sends no state, mode or torque frame") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O70] after an axis error that drops the ODrive to IDLE the driver sends no state, mode or torque frame") {
 	auto od = makeOdrive1();
 	reachRunning(*od);
 	clearTxFrames();
@@ -487,7 +519,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O70] characterization: after an axis error th
 
 // ---------------------------------------------------------------- O71 bus-off, silent node, TX failures
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O71] characterization: a silent node is detected through the timeout while the driver keeps requesting the bus voltage") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O71] a silent node is detected through the timeout while the driver keeps requesting the bus voltage") {
 	auto od = makeOdrive1();
 	peer0.setSilent(true);
 	runFor(10000);
@@ -496,7 +529,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O71] characterization: a silent node is detec
 	CHECK(txFramesCmd(0, 0x17).size() == 18);
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O71] characterization: after bus-off no frame reaches the driver and the loss is detected through the timeout") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O71] after bus-off no frame reaches the driver and the loss is detected through the timeout") {
 	auto od = makeOdrive1();
 	reachRunning(*od);
 	HostTarget::canSetErrorState(HostTarget::CanErrorState::BusOff);
@@ -505,7 +539,8 @@ TEST_CASE_FIXTURE(OdriveFixture, "[O71] characterization: after bus-off no frame
 	CHECK_FALSE(od->motorReady());
 }
 
-TEST_CASE_FIXTURE(OdriveFixture, "[O71] characterization: with TX mailboxes that never complete the driver thread keeps running and still detects a node loss") {
+// NEEDS REVIEW 357
+TEST_CASE_FIXTURE(OdriveFixture, "characterization: [O71] with TX mailboxes that never complete the driver thread keeps running and still detects a node loss") {
 	setTxAutoComplete(false);
 	auto od = makeOdrive1();
 	runFor(5000); // 0x07 and 0x17 requests fill the three mailboxes; the heartbeats still arrive

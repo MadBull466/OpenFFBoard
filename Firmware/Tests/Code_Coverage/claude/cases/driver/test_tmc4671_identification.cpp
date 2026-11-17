@@ -123,7 +123,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R11] tmctype says no driver connected when SI_TY
 
 // ---------------------------------------------------------------- R12
 
-TEST_CASE_FIXTURE(TmcFixture, "[R12] characterization: an engineering sample (SI_VERSION 0x00010000) lowers the SPI clock to about 1 MHz") {
+// NEEDS REVIEW 166
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R12] an engineering sample (SI_VERSION 0x00010000) lowers the SPI clock to about 1 MHz") {
 	auto tmc = makeTmc1();
 	chip1.setChipInfo(1, 0x00010000);
 	const double before = 84e6 / double(2u << (hspi1.Init.BaudRatePrescaler >> 3));
@@ -135,7 +136,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R12] characterization: an engineering sample (SI
 	CHECK(after == doctest::Approx(1.3125e6));
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R12] characterization: an engineering sample does not write the PI precision (CONFIG_ADDR 62)") {
+// NEEDS REVIEW 166
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R12] an engineering sample does not write the PI precision (CONFIG_ADDR 62)") {
 	auto tmc = makeTmc1();
 	chip1.setChipInfo(1, 0x00010000);
 	reachShutdown(*tmc);
@@ -145,7 +147,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R12] characterization: an engineering sample doe
 	}
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R12] characterization: a V1.3 chip keeps the fast SPI clock and gets the PI precision write (control case of R12)") {
+// NEEDS REVIEW 371
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R12] a V1.3 chip keeps the fast SPI clock and gets the PI precision write (control case of R12)") {
 	auto tmc = makeTmc1();
 	reachShutdown(*tmc);
 	CHECK(hspi1.Init.BaudRatePrescaler == SPI_BAUDRATEPRESCALER_16); // HD: closest to 8 MHz below 10 MHz: 84/16 = 5.25 MHz
@@ -156,7 +159,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R12] characterization: a V1.3 chip keeps the fas
 
 // ---------------------------------------------------------------- R13
 
-TEST_CASE_FIXTURE(TmcFixture, "[R13] characterization: a silent chip leaves the driver uninitialized") {
+// NEEDS REVIEW 371
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R13] a silent chip leaves the driver uninitialized") {
 	auto tmc = makeTmc1();
 	chip1.setPresent(false);
 	powerOn();
@@ -166,7 +170,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R13] characterization: a silent chip leaves the 
 	CHECK_FALSE(tmc->motorReady());
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R13] characterization: a silent chip gets only the ping (write CHIPINFO_ADDR 0, read CHIPINFO_DATA)") {
+// NEEDS REVIEW 371
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R13] a silent chip gets only the ping (write CHIPINFO_ADDR 0, read CHIPINFO_DATA)") {
 	auto tmc = makeTmc1();
 	chip1.setPresent(false);
 	powerOn();
@@ -185,7 +190,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R13] characterization: a silent chip gets only t
 	CHECK(chip1.configWrites().empty());
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R13] characterization: a silent chip is pinged again every 250 ms") {
+// NEEDS REVIEW 371
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R13] a silent chip is pinged again every 250 ms") {
 	auto tmc = makeTmc1();
 	chip1.setPresent(false);
 	powerOn();
@@ -209,7 +215,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R13] characterization: a silent chip is pinged a
 	}
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R13] characterization: a chip that appears later is initialised by the retry") {
+// NEEDS REVIEW 371
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R13] a chip that appears later is initialised by the retry") {
 	auto tmc = makeTmc1();
 	chip1.setPresent(false);
 	powerOn();

@@ -482,7 +482,8 @@ TEST_CASE("[C4 arm_atan2_q31] the most negative inputs are handled like the larg
 	CHECK(std::fabs((double)r + 3.0 * kPi / 4.0 * kTwo29) <= 3.0);
 }
 
-TEST_CASE("[C4 arm_atan2_q31] characterization: atan2(0, 0) returns ARM_MATH_NANINF") {
+// NEEDS REVIEW 194
+TEST_CASE("characterization: [C4 arm_atan2_q31] atan2(0, 0) returns ARM_MATH_NANINF") {
 	// DOC is silent about (0, 0). The angle is mathematically undefined, so an error status is the sensible
 	// result; NEEDS REVIEW: the exact code (ARM_MATH_NANINF) is what the source returns (arm_atan2_q31.c, last return)
 	q31_t r = 0;

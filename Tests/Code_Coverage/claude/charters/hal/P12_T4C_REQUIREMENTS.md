@@ -1,6 +1,8 @@
 # P12 T4c requirements charter: I2C (real ST HAL, F407VG and F407VG_DISCO)
 
 Status: 2026-11-12 (lead). Charter and platform (`fakes/stm32_hal/HalI2c.{h,c}`, lead probe `test_hal_i2c_probe.cpp`) done; tests, review, gate pending.
+
+**Final status (2026-11-17): done, approved, committed and pushed, commit `9ba9d9c6`. Statements about pending approval or gates in the line above were true when it was written.**
 Plan: `Tests/Code_Coverage/claude/plans/P12_ST_HAL_PLAN.md`. Rules as in the T1-T4b charters. `stm32f4xx_hal_i2c_ex.c` is compiled out on this target
 (its body is inside `#if defined(I2C_FLTR_ANOFF) && defined(I2C_FLTR_DNF)`, and the F407 CMSIS header defines neither; RM0090 27.6.10: I2C_FLTR is
 "available on STM32F42xxx and STM32F43xxx only"): nothing to test, recorded as a scope note (one lead case checks the macros are undefined).

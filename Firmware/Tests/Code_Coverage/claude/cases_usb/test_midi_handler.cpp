@@ -238,6 +238,7 @@ TEST_CASE_FIXTURE(MidiFixture, "[R2.4 midiRx] pitch bend is delivered with the c
 	}
 }
 
+// NEEDS REVIEW 263
 TEST_CASE_FIXTURE(MidiFixture, "characterization: [R2.4 midiRx] bit 7 of the pitch bend data bytes is masked off") {
 	// MS: data bytes are 7 bit, so bit 7 is not part of the value; the firmware masks with 0x7f (MidiHandler.cpp:99).
 	// The documents do not say what a receiver does with a malformed byte: FW, NEEDS REVIEW.
@@ -465,6 +466,7 @@ TEST_CASE_FIXTURE(MidiFixture, "[R2.8 midiRx] the base class noteOn and noteOff 
 	CHECK(h.noteOffs == 0);
 }
 
+// NEEDS REVIEW 264
 TEST_CASE_FIXTURE(MidiFixture, "characterization: [R2.8 midiRx] poly key pressure 0A An kk vv calls otherPacket with the exact bytes on every channel") {
 	for (int chan = 0; chan < 16; chan++) {
 		MidiProbe probe;
@@ -475,6 +477,7 @@ TEST_CASE_FIXTURE(MidiFixture, "characterization: [R2.8 midiRx] poly key pressur
 	}
 }
 
+// NEEDS REVIEW 399
 TEST_CASE_FIXTURE(MidiFixture, "characterization: [R2.8 midiRx] system common F1, F2, F3, F4, F5, F6 call otherPacket with the exact bytes") {
 	for (int status : {0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6}) {
 		MidiProbe probe;
@@ -485,6 +488,7 @@ TEST_CASE_FIXTURE(MidiFixture, "characterization: [R2.8 midiRx] system common F1
 	}
 }
 
+// NEEDS REVIEW 399
 TEST_CASE_FIXTURE(MidiFixture, "characterization: [R2.8 midiRx] real-time messages F9, FA, FB, FC, FD, FE, FF call otherPacket with the exact bytes") {
 	for (int status : {0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF}) {
 		MidiProbe probe;
@@ -495,6 +499,7 @@ TEST_CASE_FIXTURE(MidiFixture, "characterization: [R2.8 midiRx] real-time messag
 	}
 }
 
+// NEEDS REVIEW 399
 TEST_CASE_FIXTURE(MidiFixture, "characterization: [R2.8 midiRx] a data byte as byte 1 (a value below 0x80) calls otherPacket") {
 	MidiProbe probe;
 	const Packet p = pkt(0, 0x4, 0x3C, 0x40, 0x41);
@@ -504,6 +509,7 @@ TEST_CASE_FIXTURE(MidiFixture, "characterization: [R2.8 midiRx] a data byte as b
 
 // ======================================================================= R2.9 channel pressure
 
+// NEEDS REVIEW 265
 TEST_CASE_FIXTURE(MidiFixture, "characterization: [R2.9 midiRx] channel pressure 0D Dn vv 00 calls no hook on any channel") {
 	// FW, NEEDS REVIEW (question 56): the case 0xD0 of MidiHandler.cpp:93 is empty
 	for (int chan = 0; chan < 16; chan++) {
@@ -516,6 +522,7 @@ TEST_CASE_FIXTURE(MidiFixture, "characterization: [R2.9 midiRx] channel pressure
 
 // ======================================================================= R2.10 cable number
 
+// NEEDS REVIEW 399
 TEST_CASE_FIXTURE(MidiFixture, "characterization: [R2.10 midiRx] the cable number does not change the decoded call (cables 0..15)") {
 	// FW, NEEDS REVIEW (question 57): UM 5.1 would route by cable number, midiRx never reads the high nibble of byte 0
 	MidiProbe reference;
@@ -660,6 +667,7 @@ TEST_CASE_FIXTURE(MidiFixture, "[R3.2 tud_midi_rx_cb] without a handler the call
 	CHECK(probe.hooks[0] == hook("noteOn", 0, 60, 100));
 }
 
+// NEEDS REVIEW 267
 TEST_CASE_FIXTURE(MidiFixture, "characterization: [R3.3 tud_midi_rx_cb] a second handler replaces the first in the global pointer and receives the packets") {
 	startAndEnumerate();
 	auto first = std::make_unique<MidiProbe>();
@@ -670,6 +678,7 @@ TEST_CASE_FIXTURE(MidiFixture, "characterization: [R3.3 tud_midi_rx_cb] a second
 	CHECK(second->hooks.size() == 1);
 }
 
+// NEEDS REVIEW 267
 TEST_CASE_FIXTURE(MidiFixture, "characterization: [R3.3 tud_midi_rx_cb] destroying the first handler clears the pointer of the second, so no packet is delivered afterwards") {
 	startAndEnumerate();
 	auto first = std::make_unique<MidiProbe>();

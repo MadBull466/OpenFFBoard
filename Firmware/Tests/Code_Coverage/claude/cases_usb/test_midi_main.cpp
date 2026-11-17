@@ -376,6 +376,7 @@ TEST_CASE_FIXTURE(NoteFixture, "[R4.3 MidiMain] control changes that are not cha
 	}
 }
 
+// NEEDS REVIEW 400
 TEST_CASE_FIXTURE(NoteFixture, "characterization: [R4.4 MidiMain] control changes 124-127 (omni off / on, mono, poly) do not clear the notes") {
 	for (uint8_t c = 124; c <= 127; c++) {
 		INFO("controller " << int(c));
@@ -390,12 +391,14 @@ TEST_CASE_FIXTURE(NoteFixture, "characterization: [R4.4 MidiMain] control change
 	}
 }
 
+// NEEDS REVIEW 269
 TEST_CASE_FIXTURE(NoteFixture, "characterization: [R4.5 MidiMain] a pitch bend of 0 keeps the pitch step 1") {
 	m->noteOn(0, 69, 127);
 	m->pitchBend(0, 0); // 2^(0 / 8192) = 1
 	CHECK_NEAR(phi1(), 2257, 1);
 }
 
+// NEEDS REVIEW 269
 TEST_CASE_FIXTURE(NoteFixture, "characterization: [R4.5 MidiMain] a pitch bend of -8192 halves the pitch step (octave range)") {
 	m->noteOn(0, 69, 127);
 	m->pitchBend(0, -8192); // 2^(-1) = 0.5: counter 0.5e-4 per tick
@@ -405,6 +408,7 @@ TEST_CASE_FIXTURE(NoteFixture, "characterization: [R4.5 MidiMain] a pitch bend o
 	CHECK_NEAR(v[1], 2257, 1); // counter 1e-4 = tick 1 of the unbent note
 }
 
+// NEEDS REVIEW 400
 TEST_CASE_FIXTURE(NoteFixture, "characterization: [R4.5 MidiMain] a pitch bend of +4096 multiplies the pitch step by the square root of two") {
 	m->noteOn(0, 69, 127);
 	m->pitchBend(0, 4096); // 2^(0.5) = 1.41421356: counter 1.41421e-4 per tick
@@ -414,6 +418,7 @@ TEST_CASE_FIXTURE(NoteFixture, "characterization: [R4.5 MidiMain] a pitch bend o
 	CHECK_NEAR(v[1], 6243, 1); // counter 2.82843e-4: 6243
 }
 
+// NEEDS REVIEW 400
 TEST_CASE_FIXTURE(NoteFixture, "characterization: [R4.5 MidiMain] a pitch bend of +8191 is the factor 2^(8191 / 8192), not exactly 2 (tick 100)") {
 	m->noteOn(0, 69, 127);
 	m->pitchBend(0, 8191); // 2^(8191 / 8192) = 1.99991551
@@ -423,6 +428,7 @@ TEST_CASE_FIXTURE(NoteFixture, "characterization: [R4.5 MidiMain] a pitch bend o
 	CHECK_NEAR(v[99], 9660, 2);
 }
 
+// NEEDS REVIEW 400
 TEST_CASE_FIXTURE(NoteFixture, "characterization: [R4.5 MidiMain] a pitch bend applies to all notes of the channel that exist at that moment") {
 	m->noteOn(0, 57, 127);
 	m->noteOn(0, 69, 127);
@@ -558,12 +564,14 @@ TEST_CASE_FIXTURE(NoteFixture, "[R5.3 MidiMain] a note after a pause makes a new
 	CHECK(calls()[1].name == "setPhiE_ext");
 }
 
+// NEEDS REVIEW 270
 TEST_CASE_FIXTURE(NoteFixture, "characterization: [R5.4 MidiMain] A4 (note 69, velocity 127, range 0x3fff) gives 2257 at tick 1") {
 	m->noteOn(0, 69, 127);
 	// HD: counter 1e-4, p = 440 * 1e-4 = 0.044, sinf(pi * 0.044) = 0.137790, * 16383 = 2257.4 -> 2257 (the argument pi * f * t is the firmware's choice, question 54)
 	CHECK_NEAR(phi1(), 2257, 1);
 }
 
+// NEEDS REVIEW 270
 TEST_CASE_FIXTURE(NoteFixture, "characterization: [R5.4 MidiMain] A4 (note 69, velocity 127, range 0x3fff) gives 4471 at tick 2") {
 	m->noteOn(0, 69, 127);
 	const std::vector<int> v = ticks(2);
@@ -572,6 +580,7 @@ TEST_CASE_FIXTURE(NoteFixture, "characterization: [R5.4 MidiMain] A4 (note 69, v
 	CHECK_NEAR(v[1], 4471, 1);
 }
 
+// NEEDS REVIEW 400
 TEST_CASE_FIXTURE(NoteFixture, "characterization: [R5.4 MidiMain] A4 gives 6600, 8603 and 10442 at ticks 3, 4 and 5") {
 	m->noteOn(0, 69, 127);
 	const std::vector<int> v = ticks(5);
@@ -582,6 +591,7 @@ TEST_CASE_FIXTURE(NoteFixture, "characterization: [R5.4 MidiMain] A4 gives 6600,
 	CHECK_NEAR(v[4], 10442, 1);
 }
 
+// NEEDS REVIEW 400
 TEST_CASE_FIXTURE(NoteFixture, "characterization: [R5.4 MidiMain] note 60 gives 1345 and 2680 at ticks 1 and 2") {
 	m->noteOn(0, 60, 127);
 	const std::vector<int> v = ticks(2);
@@ -591,6 +601,7 @@ TEST_CASE_FIXTURE(NoteFixture, "characterization: [R5.4 MidiMain] note 60 gives 
 	CHECK_NEAR(v[1], 2680, 1);
 }
 
+// NEEDS REVIEW 400
 TEST_CASE_FIXTURE(NoteFixture, "characterization: [R5.4 MidiMain] note 0 (first entry of the table, 8.1758 Hz) gives 42 and 84 at ticks 1 and 2") {
 	m->noteOn(0, 0, 127);
 	const std::vector<int> v = ticks(2);
@@ -600,6 +611,7 @@ TEST_CASE_FIXTURE(NoteFixture, "characterization: [R5.4 MidiMain] note 0 (first 
 	CHECK_NEAR(v[1], 84, 1);
 }
 
+// NEEDS REVIEW 400
 TEST_CASE_FIXTURE(NoteFixture, "characterization: [R5.4 MidiMain] note 127 (last entry of the table, 12543.85 Hz) gives -11743 and 16376 at ticks 1 and 2") {
 	m->noteOn(0, 127, 127);
 	const std::vector<int> v = ticks(2);
@@ -656,6 +668,7 @@ TEST_CASE_FIXTURE(NoteFixture, "[R5.5 MidiMain] the range command 0x1000 scales 
 	CHECK_NEAR(v[1], 1118, 1);
 }
 
+// NEEDS REVIEW 271
 TEST_CASE_FIXTURE(NoteFixture, "characterization: [R5.6 MidiMain] notes on channels 1 to 15 never cause a driver call") {
 	for (uint8_t chan = 1; chan < 16; chan++) {
 		INFO("channel " << int(chan));
@@ -665,6 +678,7 @@ TEST_CASE_FIXTURE(NoteFixture, "characterization: [R5.6 MidiMain] notes on chann
 	CHECK(calls().empty());
 }
 
+// NEEDS REVIEW 269
 TEST_CASE_FIXTURE(NoteFixture, "characterization: [R5.6 MidiMain] with notes on channel 0 and 5 only the note of channel 0 is played") {
 	m->noteOn(0, 57, 127);
 	m->noteOn(5, 69, 127);
@@ -695,6 +709,7 @@ TEST_CASE_FIXTURE(NoteFixture, "[R5.8 MidiMain] a note number above 127 is ignor
 	CHECK(v.empty());
 }
 
+// NEEDS REVIEW 270
 TEST_CASE_FIXTURE(NoteFixture, "characterization: [R5.9 MidiMain] the output has its first zero crossing between ticks 22 and 23 (half of the note frequency)") {
 	m->noteOn(0, 69, 127);
 	const std::vector<int> v = ticks(25);
@@ -705,6 +720,7 @@ TEST_CASE_FIXTURE(NoteFixture, "characterization: [R5.9 MidiMain] the output has
 	CHECK(v[22] < 0);
 }
 
+// NEEDS REVIEW 270
 TEST_CASE_FIXTURE(NoteFixture, "characterization: [R5.9 MidiMain] the output stays positive through ticks 1 to 22, no zero crossing at 1 / 880 s (ticks 11 and 12)") {
 	m->noteOn(0, 69, 127);
 	const std::vector<int> v = ticks(22);
@@ -754,6 +770,7 @@ TEST_CASE_FIXTURE(MidiMainFixture, "[R6.1 MidiMain] the update interrupt of htim
 	CHECK(FakeTmcPhase::count("setPhiE_ext") == 1);
 }
 
+// NEEDS REVIEW 273
 TEST_CASE_FIXTURE(MidiMainFixture, "characterization: [R6.2 MidiMain] the constructor calls the driver in the order construct, setLimits, setEncoderType, setPhiEtype, setUdUq, initialize, setPhiEtype, setMotionMode") {
 	createMidiMain();
 	const std::vector<std::string> expected = {"construct",  "setLimits", "setEncoderType", "setPhiEtype",
@@ -1032,6 +1049,7 @@ TEST_CASE_FIXTURE(MidiMainFixture, "[R6.7 MidiMain] destroying MidiMain removes 
 	CHECK(TimerHandler::timerHandlers.size() == before);
 }
 
+// NEEDS REVIEW 280
 TEST_CASE_FIXTURE(MidiMainFixture, "characterization: [R6.7 MidiMain] the user timer keeps running after the destruction and its events make no driver call") {
 	MidiMain &m = createMidiMain();
 	m.noteOn(0, 69, 127);

@@ -256,12 +256,14 @@ TEST_CASE_FIXTURE(StreamFixture, "[R9.3 stream_write] F6 (tune request) gives CI
 	CHECK(hex(read()) == "05 F6 00 00");
 }
 
+// NEEDS REVIEW 279
 TEST_CASE_FIXTURE(StreamFixture, "characterization: [R9.3 stream_write] a lone F7 outside a SysEx gives CIN 5: 05 F7 00 00") {
 	up();
 	CHECK(write(0, {0xF7}) == 1);
 	CHECK(hex(read()) == "05 F7 00 00"); // FW: Table 4-1 does not decide a stray EOX; CIN 5 is what the firmware writes
 }
 
+// NEEDS REVIEW 279
 TEST_CASE_FIXTURE(StreamFixture, "characterization: [R9.3 stream_write] the undefined system bytes F4 and F5 give CIN 5 single byte packets") {
 	up();
 	// Table 4-1 note 1: F4 / F5 are undefined; if they were ever defined they would be CIN 2 or 3. FW: CIN 5.
@@ -380,12 +382,14 @@ TEST_CASE_FIXTURE(StreamFixture, "[R9.6 stream_write] a real-time byte in the mi
 	CHECK(hex(got) == "3F F8 00 00 | 34 F0 01 02 | 35 F7 00 00");
 }
 
+// NEEDS REVIEW 279
 TEST_CASE_FIXTURE(StreamFixture, "characterization: [R9.7 stream_write] a data byte as the first byte of an event gives a single byte packet with CIN 0xF" ) {
 	up();
 	CHECK(write(2, {0x3C}) == 1);
 	CHECK(hex(read()) == "2F 3C 00 00"); // Table 4-1 note 2: CIN 0xF is for unparsed single bytes; FW: the stream API packs them
 }
 
+// NEEDS REVIEW 401
 TEST_CASE_FIXTURE(StreamFixture, "characterization: [R9.7 stream_write] running status data bytes 3C 7F give one CIN 0xF packet each") {
 	up();
 	CHECK(write(0, {0x3C, 0x7F}) == 2);

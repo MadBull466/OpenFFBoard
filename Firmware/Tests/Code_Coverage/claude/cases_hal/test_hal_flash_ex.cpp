@@ -414,7 +414,7 @@ TEST_CASE_FIXTURE(FeFix, "FE1 an erase of a locked flash does not return HAL_OK"
 	CHECK(hostFlashLockedWrites() > 0u);
 }
 
-TEST_CASE_FIXTURE(FeFix, "FE1 characterization: NbSectors 0 erases nothing and returns HAL_OK with SectorError 0xFFFFFFFF") {
+TEST_CASE_FIXTURE(FeFix, "characterization: FE1 NbSectors 0 erases nothing and returns HAL_OK with SectorError 0xFFFFFFFF") {
 	// NEEDS REVIEW 343/2: UM1725 requires NbSectors between 1 and max; the value 0 is outside that range and defines no status (the parameter assert is off in the firmware).
 	feFillAll();
 	feUnlock();
@@ -425,7 +425,7 @@ TEST_CASE_FIXTURE(FeFix, "FE1 characterization: NbSectors 0 erases nothing and r
 	CHECK(feSectorMask() == 0u);
 }
 
-TEST_CASE_FIXTURE(FeFix, "FE1 characterization: a range running past sector 11 erases the valid sectors and returns HAL_OK") {
+TEST_CASE_FIXTURE(FeFix, "characterization: FE1 a range running past sector 11 erases the valid sectors and returns HAL_OK") {
 	// NEEDS REVIEW 343/3: UM1725 requires Sector + NbSectors <= 12; beyond that no status is defined (the parameter assert is off). RM0090 CR: SNB 12-15 are not defined sectors.
 	feFillAll();
 	feUnlock();
@@ -1195,7 +1195,7 @@ TEST_CASE_FIXTURE(FeFix, "FE3 option byte programming with a pending error flag 
 	CHECK(feReg(&FLASH->OPTCR) == feOptcrAfterUnlock);
 }
 
-TEST_CASE_FIXTURE(FeFix, "FE3 characterization: OBProgram on locked option bytes returns HAL_OK and changes nothing") {
+TEST_CASE_FIXTURE(FeFix, "characterization: FE3 OBProgram on locked option bytes returns HAL_OK and changes nothing") {
 	// NEEDS REVIEW 343/6: UM1725 requires HAL_FLASH_OB_Unlock first but defines no status for a locked option control register; RM0090: writes to OPTCR are ignored while OPTLOCK = 1.
 	FLASH_OBProgramInitTypeDef o = feOb();
 	o.OptionType = OPTIONBYTE_WRP | OPTIONBYTE_RDP | OPTIONBYTE_USER | OPTIONBYTE_BOR;
@@ -1208,7 +1208,7 @@ TEST_CASE_FIXTURE(FeFix, "FE3 characterization: OBProgram on locked option bytes
 	CHECK(feReg(&FLASH->OPTCR) == 0x0FFFAAEDu);
 }
 
-TEST_CASE_FIXTURE(FeFix, "FE3 characterization: OptionType 0 does nothing and returns HAL_ERROR") {
+TEST_CASE_FIXTURE(FeFix, "characterization: FE3 OptionType 0 does nothing and returns HAL_ERROR") {
 	// NEEDS REVIEW 343/7: UM1725 does not define the status for an empty option type; the HAL returns its initial HAL_ERROR.
 	hostRegsPoke(reinterpret_cast<uintptr_t>(&FLASH->OPTCR), feOptcrAfterUnlock);
 	FLASH_OBProgramInitTypeDef o = feOb();
@@ -1218,7 +1218,7 @@ TEST_CASE_FIXTURE(FeFix, "FE3 characterization: OptionType 0 does nothing and re
 	CHECK(pFlash.Lock == HAL_UNLOCKED);
 }
 
-TEST_CASE_FIXTURE(FeFix, "FE3 characterization: the status of OBProgram is the one of the last option type processed") {
+TEST_CASE_FIXTURE(FeFix, "characterization: FE3 the status of OBProgram is the one of the last option type processed") {
 	// NEEDS REVIEW 343/8: UM1725 gives only "HAL Status". With the flash busy the WRP step times out, then the BOR step (which never waits) runs and returns HAL_OK; the HAL_OK hides the timeout.
 	hostRegsPoke(reinterpret_cast<uintptr_t>(&FLASH->OPTCR), feOptcrAfterUnlock);
 	hostRegsPoke(reinterpret_cast<uintptr_t>(&FLASH->SR), feSrBsy);
@@ -1233,7 +1233,7 @@ TEST_CASE_FIXTURE(FeFix, "FE3 characterization: the status of OBProgram is the o
 	CHECK(((feReg(&FLASH->OPTCR) >> 16) & 8u) == 8u); // the WRP step did not happen
 }
 
-TEST_CASE_FIXTURE(FeFix, "FE3 characterization: the HAL does not wait for a running operation before writing the BOR level") {
+TEST_CASE_FIXTURE(FeFix, "characterization: FE3 the HAL does not wait for a running operation before writing the BOR level") {
 	// NEEDS REVIEW 343/9: UM1725 / RM0090 3.6.1 do not say the BOR step must wait; the HAL writes OPTCR at once and returns HAL_OK although an erase is running (the other steps wait).
 	feUnlock();
 	hostRegsPoke(reinterpret_cast<uintptr_t>(&FLASH->OPTCR), feOptcrAfterUnlock);
@@ -1321,7 +1321,7 @@ TEST_CASE_FIXTURE(FeFix, "FE4 the BOR level is bits 3:2 of OPTCR for all four va
 	CHECK(OB_BOR_OFF == 0x0Cu);
 }
 
-TEST_CASE_FIXTURE(FeFix, "FE4 characterization: WRPSector is the raw nWRP field, a 0 bit meaning protected") {
+TEST_CASE_FIXTURE(FeFix, "characterization: FE4 WRPSector is the raw nWRP field, a 0 bit meaning protected") {
 	// NEEDS REVIEW 343/10: the struct field is documented as "the sector(s) to be write protected", which would suggest 1 = protected; the HAL returns the nWRP bits (RM0090: nWRPi = 0 protects).
 	const uint32_t v[5] = {0xFFFu, 0x000u, 0x5A5u, 0x001u, 0x800u};
 	for (unsigned i = 0; i < 5u; ++i) {
@@ -1333,7 +1333,7 @@ TEST_CASE_FIXTURE(FeFix, "FE4 characterization: WRPSector is the raw nWRP field,
 	}
 }
 
-TEST_CASE_FIXTURE(FeFix, "FE4 characterization: OBGetConfig leaves WRPState and Banks as the caller set them") {
+TEST_CASE_FIXTURE(FeFix, "characterization: FE4 OBGetConfig leaves WRPState and Banks as the caller set them") {
 	// NEEDS REVIEW 343/11: UM1725 describes only OptionType, WRPSector, RDPLevel, USERConfig and BORLevel as results of the call.
 	FLASH_OBProgramInitTypeDef o = feOb();
 	o.WRPState = 0x1234u;
@@ -1386,7 +1386,7 @@ TEST_CASE_FIXTURE(FeFix, "FE2 Erase_IT clears a pending OPERR flag before it sta
 	CHECK((feReg(&FLASH->SR) & 0x2u) == 0u);
 }
 
-TEST_CASE_FIXTURE(FeFix, "FE4 characterization: a sector protected with OBProgram reads back as a 0 bit in OBGetConfig WRPSector") {
+TEST_CASE_FIXTURE(FeFix, "characterization: FE4 a sector protected with OBProgram reads back as a 0 bit in OBGetConfig WRPSector") {
 	// NEEDS REVIEW 343/10 evidence: OBProgram(ENABLE, sector 4) then OBGetConfig; the struct field says "sectors to be write protected" but the bit read back is 0 for the protected sector.
 	feObUnlock();
 	FLASH_OBProgramInitTypeDef w = feOb();
@@ -1401,7 +1401,7 @@ TEST_CASE_FIXTURE(FeFix, "FE4 characterization: a sector protected with OBProgra
 	CHECK(r.WRPSector != OB_WRP_SECTOR_4);
 }
 
-TEST_CASE_FIXTURE(FeFix, "FE1 characterization: SectorError is left untouched when the first wait fails (stale error flag)") {
+TEST_CASE_FIXTURE(FeFix, "characterization: FE1 SectorError is left untouched when the first wait fails (stale error flag)") {
 	// NEEDS REVIEW 343/12: UM1725 defines SectorError only for sectors that failed or 0xFFFFFFFF; when the call fails before any sector starts the HAL writes nothing to it.
 	feUnlock();
 	hostRegsPoke(reinterpret_cast<uintptr_t>(&FLASH->SR), feSrPgserr);
@@ -1411,7 +1411,7 @@ TEST_CASE_FIXTURE(FeFix, "FE1 characterization: SectorError is left untouched wh
 	CHECK(err == 0x1234u);
 }
 
-TEST_CASE_FIXTURE(FeFix, "FE1 characterization: SectorError is left untouched when the first wait times out (flash busy)") {
+TEST_CASE_FIXTURE(FeFix, "characterization: FE1 SectorError is left untouched when the first wait times out (flash busy)") {
 	// NEEDS REVIEW 343/13: as NEEDS REVIEW 343/12 for a busy flash.
 	feUnlock();
 	hostRegsPoke(reinterpret_cast<uintptr_t>(&FLASH->SR), feSrBsy);

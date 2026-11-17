@@ -2,6 +2,8 @@
 
 Status: **T0 approved by the owner 2026-11-10; T1 committed (`ff86dd7e`); T2 written 2026-11-10, waiting for approval.** Amendments made in T2 (lead): R1.2, R6.2, R6.1, R12 items 10-11 (marked "T2 amendment").
 
+**Final status (2026-11-17): done, approved, committed and pushed, commit `999872fa` (T2). Statements about pending approval or gates in the line above were true when it was written.**
+
 Unit under test: `Firmware/FFBoard/UserExtensions/Src/MotorSimplemotion.cpp` (528 lines, `MS` below) and `Inc/MotorSimplemotion.h` (288 lines, `MH`), classes `MotorSimplemotion : MotorDriver, Encoder, CommandHandler, UARTDevice` and the two instances `MotorSimplemotion1` / `MotorSimplemotion2`, behind the macro `SIMPLEMOTION`, class ids `CLSID_MOT_SM1` 0x89 / `CLSID_MOT_SM2` 0x8A, motor drivers 9 and 10 in `MotorDriver.cpp:46-49`, `Axis.cpp`.
 Executable: `ffb_driver_tests` (owner's decision, question 28). Plan: `Tests/Code_Coverage/claude/plans/P14_P17_REMAINING_DRIVERS_PLAN.md`. Tests: `Firmware/Tests/Code_Coverage/claude/cases/driver/test_sm_*.cpp`, fixture `support/SmFixture.h`, peer fake `fakes/FakeSmDevice.{h,cpp}`.
 

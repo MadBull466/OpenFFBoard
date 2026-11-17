@@ -307,7 +307,8 @@ TEST_CASE_FIXTURE(UartFixture, "UP3 receive of an 8 bit no parity word returns t
 	}
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UP3 characterization: receive of an 8 bit even parity word returns the 7 data bits without the parity bit") {
+// NEEDS REVIEW 315
+TEST_CASE_FIXTURE(UartFixture, "characterization: UP3 receive of an 8 bit even parity word returns the 7 data bits without the parity bit") {
 	// Line frames (hand derived, even): data 0x41 -> 0x41 (2 ones), data 0x07 -> 0x87 (3 ones + parity 1), data 0x7F -> 0xFF (7 ones + parity 1).
 	static const uint16_t line[] = {0x41, 0x87, 0xFF};
 	UartPollRig r;
@@ -321,7 +322,8 @@ TEST_CASE_FIXTURE(UartFixture, "UP3 characterization: receive of an 8 bit even p
 	CHECK((uartPollSr(r) & USART_SR_PE) == 0u);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UP3 characterization: receive of an 8 bit odd parity word returns the 7 data bits without the parity bit") {
+// NEEDS REVIEW 315
+TEST_CASE_FIXTURE(UartFixture, "characterization: UP3 receive of an 8 bit odd parity word returns the 7 data bits without the parity bit") {
 	// Line frames (odd): data 0x41 -> 0xC1 (2 ones + parity 1), data 0x07 -> 0x07 (3 ones), data 0x7F -> 0x7F (7 ones).
 	static const uint16_t line[] = {0xC1, 0x07, 0x7F};
 	UartPollRig r;
@@ -467,7 +469,8 @@ TEST_CASE_FIXTURE(UartFixture, "UP4 receive completes when the frames come withi
 	CHECK(buf[2] == 0x03);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UP4 characterization: a timed out transmit and receive leave the error code NONE and the state READY") {
+// NEEDS REVIEW 315
+TEST_CASE_FIXTURE(UartFixture, "characterization: UP4 a timed out transmit and receive leave the error code NONE and the state READY") {
 	static const uint8_t data[] = {0x01};
 	UartPollRig r;
 	uartPollInit(r, 0);
@@ -481,7 +484,8 @@ TEST_CASE_FIXTURE(UartFixture, "UP4 characterization: a timed out transmit and r
 	CHECK(r.h.RxState == HAL_UART_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UP4 characterization: Timeout 0 times a transmit out at once") {
+// NEEDS REVIEW 308
+TEST_CASE_FIXTURE(UartFixture, "characterization: UP4 Timeout 0 times a transmit out at once") {
 	// One frame takes a tick, so TC is not yet set when the HAL looks at it once.
 	static const uint8_t data[] = {0x44};
 	UartPollRig r;
@@ -492,7 +496,8 @@ TEST_CASE_FIXTURE(UartFixture, "UP4 characterization: Timeout 0 times a transmit
 	CHECK(HAL_UART_GetState(&r.h) == HAL_UART_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UP4 characterization: Timeout 0 receive returns a frame that is already there and times out otherwise") {
+// NEEDS REVIEW 427
+TEST_CASE_FIXTURE(UartFixture, "characterization: UP4 Timeout 0 receive returns a frame that is already there and times out otherwise") {
 	UartPollRig r;
 	uartPollInit(r, 1);
 	uint8_t b = 0;
@@ -677,7 +682,8 @@ TEST_CASE_FIXTURE(UartFixture, "UP6 an overrun leaves no receive interrupt enabl
 	CHECK((HalFixture::peek(&r.inst()->CR3) & USART_CR3_EIE) == 0u);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UP6 characterization: a parity error in a polling receive is not reported") {
+// NEEDS REVIEW 315
+TEST_CASE_FIXTURE(UartFixture, "characterization: UP6 a parity error in a polling receive is not reported") {
 	// 8 bit even parity: 0x41 has 2 ones, so the frame 0xC1 (3 ones) has the wrong parity.
 	UartPollRig r;
 	uartPollInit(r, 0, UART_WORDLENGTH_8B, UART_PARITY_EVEN);
@@ -689,7 +695,8 @@ TEST_CASE_FIXTURE(UartFixture, "UP6 characterization: a parity error in a pollin
 	CHECK(r.h.ErrorCode == HAL_UART_ERROR_NONE);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UP6 characterization: a framing error in a polling receive is not reported") {
+// NEEDS REVIEW 427
+TEST_CASE_FIXTURE(UartFixture, "characterization: UP6 a framing error in a polling receive is not reported") {
 	UartPollRig r;
 	uartPollInit(r, 1);
 	hostUartRxNow(1, 0x55, HOST_UART_RX_FE);
@@ -700,7 +707,8 @@ TEST_CASE_FIXTURE(UartFixture, "UP6 characterization: a framing error in a polli
 	CHECK(r.h.ErrorCode == HAL_UART_ERROR_NONE);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UP6 characterization: a noise error in a polling receive is not reported") {
+// NEEDS REVIEW 427
+TEST_CASE_FIXTURE(UartFixture, "characterization: UP6 a noise error in a polling receive is not reported") {
 	UartPollRig r;
 	uartPollInit(r, 2);
 	hostUartRxNow(2, 0xAA, HOST_UART_RX_NOISE);
@@ -711,7 +719,8 @@ TEST_CASE_FIXTURE(UartFixture, "UP6 characterization: a noise error in a polling
 	CHECK(r.h.ErrorCode == HAL_UART_ERROR_NONE);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UP6 characterization: receive to idle does not look at the overrun flag and times out") {
+// NEEDS REVIEW 427
+TEST_CASE_FIXTURE(UartFixture, "characterization: UP6 receive to idle does not look at the overrun flag and times out") {
 	UartPollRig r;
 	uartPollInit(r, 0);
 	uartPollMakePendingOre(0, r);
@@ -721,7 +730,8 @@ TEST_CASE_FIXTURE(UartFixture, "UP6 characterization: receive to idle does not l
 	CHECK(r.h.ErrorCode == HAL_UART_ERROR_NONE);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UP6 characterization: a HAL_MAX_DELAY receive ignores a pending overrun") {
+// NEEDS REVIEW 315
+TEST_CASE_FIXTURE(UartFixture, "characterization: UP6 a HAL_MAX_DELAY receive ignores a pending overrun") {
 	UartPollRig r;
 	uartPollInit(r, 0);
 	uartPollMakePendingOre(0, r);
@@ -779,7 +789,8 @@ TEST_CASE_FIXTURE(UartFixture, "UP7 receive to idle times out with HAL_TIMEOUT a
 	CHECK(r.h.RxState == HAL_UART_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UP7 characterization: a receive to idle that times out reports the frames received so far in RxLen") {
+// NEEDS REVIEW 427
+TEST_CASE_FIXTURE(UartFixture, "characterization: UP7 a receive to idle that times out reports the frames received so far in RxLen") {
 	static const uint16_t line[] = {0x51, 0x52};
 	UartPollRig r;
 	uartPollInit(r, 3);
@@ -860,7 +871,8 @@ TEST_CASE_FIXTURE(UartFixture, "UP7 receive to idle of 9 bit words with parity g
 	CHECK(buf[1] == 0x55);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UP7 characterization: receive to idle of 8 bit words with parity gives the 7 data bits") {
+// NEEDS REVIEW 315
+TEST_CASE_FIXTURE(UartFixture, "characterization: UP7 receive to idle of 8 bit words with parity gives the 7 data bits") {
 	// Odd parity: data 0x41 -> 0xC1, data 0x7F -> 0x7F.
 	static const uint16_t line[] = {0xC1, 0x7F};
 	UartPollRig r;
@@ -1013,7 +1025,8 @@ TEST_CASE_FIXTURE(UartFixture, "UP7 the Rx state is BUSY_RX while a receive to i
 	CHECK(r.h.RxState == HAL_UART_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UP7 characterization: receive to idle clears a stale error code at its start") {
+// NEEDS REVIEW 427
+TEST_CASE_FIXTURE(UartFixture, "characterization: UP7 receive to idle clears a stale error code at its start") {
 	static const uint16_t line[] = {0x01, 0x02};
 	UartPollRig r;
 	uartPollInit(r, 0);

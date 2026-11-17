@@ -1,6 +1,8 @@
 # P12 T7 requirements charter: FLASH / FLASH_Ex and IWDG (real ST HAL, F407VG and F407VG_DISCO)
 
 Status: 2026-11-13 (lead). T7 follows T6b (ADC; T6a and T6b are gated and awaiting approval). Platform (`fakes/stm32_hal/HalFlash.{h,c}`, `HalIwdg.{h,c}`, the extended register bus, lead probe `test_hal_flash_probe.cpp`, shared callbacks `FlashTestSupport.h` / `test_hal_flash_support.cpp`) done; tests, review, gate pending.
+
+**Final status (2026-11-17): done, approved, committed and pushed, commit `5231f41d`. Statements about pending approval or gates in the line above were true when it was written.**
 Plan: `Tests/Code_Coverage/claude/plans/P12_ST_HAL_PLAN.md`. Rules as in the T1-T6 charters. Both targets compile identical files; the same test files run in both executables.
 
 ## Oracles

@@ -376,7 +376,8 @@ TEST_CASE_FIXTURE(SpiFixture, "SP3 master Receive returns the words the peer sen
 
 // Note for the receive-only master cases below: the model counter hostSpiDisabledBusy and RM0090 28.3.8 (SPE is cleared during the
 // last frame of a receive-only master) are in tension, so those cases assert only what the manual states (SPE clear, no OVR, no BSY).
-TEST_CASE_FIXTURE(SpiFixture, "SP3 characterization: master RX only and 1 line Receive stop the clock, SPE is clear on return") {
+// NEEDS REVIEW 308
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SP3 master RX only and 1 line Receive stop the clock, SPE is clear on return") {
 	// NEEDS REVIEW (proposed): RM0090 28.3.8 clears SPE during the last frame of a receive-only master; the extra free-running frame
 	// depends on the frame timing of the model, so only SPE clear on return is recorded (hostSpiDisabledBusy is not asserted here).
 	SPIPOLL_INSTANCES
@@ -397,7 +398,8 @@ TEST_CASE_FIXTURE(SpiFixture, "SP3 characterization: master RX only and 1 line R
 	}
 }
 
-TEST_CASE_FIXTURE(SpiFixture, "SP3 characterization: master RX only and 1 line Receive leave no OVR and no BSY") {
+// NEEDS REVIEW 308
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SP3 master RX only and 1 line Receive leave no OVR and no BSY") {
 	// NEEDS REVIEW (proposed): the HAL stops the free-running clock after the last frame; whether an extra frame sets OVR depends on
 	// the frame timing of the model; observed: OVR and BSY clear on return.
 	SPIPOLL_INSTANCES
@@ -682,7 +684,8 @@ TEST_CASE_FIXTURE(SpiFixture, "SP6 HAL_MAX_DELAY waits for slow frames and retur
 	CHECK(got == spiPollWords(2, false, 1));
 }
 
-TEST_CASE_FIXTURE(SpiFixture, "SP6 characterization: Timeout 0 on a silent bus returns HAL_TIMEOUT at once") {
+// NEEDS REVIEW 308
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SP6 Timeout 0 on a silent bus returns HAL_TIMEOUT at once") {
 	// NEEDS REVIEW (proposed): UM1725 gives no meaning for Timeout = 0. Observed: HAL_TIMEOUT within a few ticks, state READY,
 	// unlocked. No spec says whether 0 means "do not wait" or "wait forever".
 	SPIPOLL_INSTANCES
@@ -699,7 +702,8 @@ TEST_CASE_FIXTURE(SpiFixture, "SP6 characterization: Timeout 0 on a silent bus r
 	}
 }
 
-TEST_CASE_FIXTURE(SpiFixture, "SP6 characterization: the error code after a timeout") {
+// NEEDS REVIEW 308
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SP6 the error code after a timeout") {
 	// NEEDS REVIEW (proposed): UM1725 names HAL_SPI_ERROR_FLAG ("Flag: RXNE, TXE, BSY") but does not say which code a timeout of
 	// a polling call sets. Observed: the call returns HAL_TIMEOUT and the error code stays HAL_SPI_ERROR_NONE.
 	SPIPOLL_INSTANCES
@@ -762,20 +766,23 @@ void spiPollCheckRejected(unsigned inst, spiPollBad bad) {
 }
 } // namespace
 
-TEST_CASE_FIXTURE(SpiFixture, "SP7 characterization: a NULL data pointer returns HAL_ERROR at once and starts nothing") {
+// NEEDS REVIEW 308
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SP7 a NULL data pointer returns HAL_ERROR at once and starts nothing") {
 	// NEEDS REVIEW (proposed): UM1725 does not give the return code for a NULL buffer. Observed: HAL_ERROR within 1 tick,
 	// state READY, handle unlocked, SPE clear, nothing on the bus (each call on a freshly initialised handle).
 	SPIPOLL_INSTANCES
 	spiPollCheckRejected(inst, spiPollBadNull);
 }
 
-TEST_CASE_FIXTURE(SpiFixture, "SP7 characterization: Size 0 returns HAL_ERROR at once and starts nothing") {
+// NEEDS REVIEW 308
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SP7 Size 0 returns HAL_ERROR at once and starts nothing") {
 	// NEEDS REVIEW (proposed): as above for Size = 0.
 	SPIPOLL_INSTANCES
 	spiPollCheckRejected(inst, spiPollBadSize0);
 }
 
-TEST_CASE_FIXTURE(SpiFixture, "SP7 characterization: a NULL receive buffer of TransmitReceive returns HAL_ERROR at once") {
+// NEEDS REVIEW 308
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SP7 a NULL receive buffer of TransmitReceive returns HAL_ERROR at once") {
 	// NEEDS REVIEW (proposed): as above, for pRxData = NULL.
 	SPIPOLL_INSTANCES
 	SPI_HandleTypeDef h;
@@ -814,7 +821,8 @@ TEST_CASE_FIXTURE(SpiFixture, "SP7 master 2 lines Receive stays usable after a r
 	CHECK(spiPollReceive(h, got, 2, false) == HAL_OK);
 }
 
-TEST_CASE_FIXTURE(SpiFixture, "SP7 characterization: a state that is not READY returns HAL_BUSY and leaves the state alone") {
+// NEEDS REVIEW 421
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SP7 a state that is not READY returns HAL_BUSY and leaves the state alone") {
 	// NEEDS REVIEW (proposed): UM1725 does not give the return code when a transfer is running. Observed: HAL_BUSY, state
 	// unchanged, nothing on the bus.
 	SPIPOLL_INSTANCES
@@ -833,7 +841,8 @@ TEST_CASE_FIXTURE(SpiFixture, "SP7 characterization: a state that is not READY r
 	}
 }
 
-TEST_CASE_FIXTURE(SpiFixture, "SP7 characterization: a locked handle returns HAL_BUSY and starts nothing") {
+// NEEDS REVIEW 308
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SP7 a locked handle returns HAL_BUSY and starts nothing") {
 	// NEEDS REVIEW (proposed): UM1725 does not describe the lock. Observed: HAL_BUSY, handle stays locked, state READY,
 	// nothing on the bus (Receive of a 2 lines master: see the KNOWN_ISSUE case below).
 	SPIPOLL_INSTANCES
@@ -987,7 +996,8 @@ TEST_CASE_FIXTURE(SpiFixture, "SP8 slave Receive with a missed frame keeps the o
 	CHECK(got[0] == 0xB1u);
 }
 
-TEST_CASE_FIXTURE(SpiFixture, "SP8 characterization: slave Receive with a missed frame never sets HAL_SPI_ERROR_OVR") {
+// NEEDS REVIEW 308
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SP8 slave Receive with a missed frame never sets HAL_SPI_ERROR_OVR") {
 	// NEEDS REVIEW (proposed): a slave Receive that loses frames to an overrun times out and never sets HAL_SPI_ERROR_OVR;
 	// RM0090 28.3.10 sets the OVR flag and UM1725 lists HAL_SPI_ERROR_OVR as the overrun error, but neither says what a polling
 	// call reports. Observed: error code NONE.
@@ -999,7 +1009,8 @@ TEST_CASE_FIXTURE(SpiFixture, "SP8 characterization: slave Receive with a missed
 	CHECK((HAL_SPI_GetError(&h) & HAL_SPI_ERROR_OVR) == 0u);
 }
 
-TEST_CASE_FIXTURE(SpiFixture, "SP8 characterization: slave Receive with a missed frame returns HAL_TIMEOUT with the state READY") {
+// NEEDS REVIEW 308
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SP8 slave Receive with a missed frame returns HAL_TIMEOUT with the state READY") {
 	// NEEDS REVIEW (proposed): UM1725 gives no result for a polling Receive that lost frames. Observed: the lost frame is never
 	// received, the call waits for the missing data until the Timeout and returns HAL_TIMEOUT, error code NONE, state READY,
 	// handle unlocked, OVR clear on return.
@@ -1041,7 +1052,8 @@ TEST_CASE_FIXTURE(SpiFixture, "SP9 a mode fault during Transmit does not return 
 	CHECK((HalFixture::peek(&spiPollBase(inst)->SR) & spiPollSR_MODF) == 0u);
 }
 
-TEST_CASE_FIXTURE(SpiFixture, "SP9 characterization: a mode fault during Transmit makes the call time out") {
+// NEEDS REVIEW 308
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SP9 a mode fault during Transmit makes the call time out") {
 	// NEEDS REVIEW (proposed): UM1725 does not describe MODF for the polling functions. Observed: HAL_TIMEOUT after the
 	// Timeout (the transmit loop waits for TXE that never comes), error code NONE, state READY, handle unlocked, SPE and MSTR
 	// stay cleared (hardware), the MODF flag stays set.
@@ -1081,7 +1093,8 @@ TEST_CASE_FIXTURE(SpiFixture, "SP6 a silent bus makes a 16 bit Transmit and Tran
 	}
 }
 
-TEST_CASE_FIXTURE(SpiFixture, "SP6 characterization: a one frame Transmit and TransmitReceive on a silent bus") {
+// NEEDS REVIEW 308
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SP6 a one frame Transmit and TransmitReceive on a silent bus") {
 	// NEEDS REVIEW (proposed): with Size = 1 the only wait is the end-of-transaction wait for BSY = 0. UM1725 gives neither the
 	// return code nor the error code of that timeout. Observed: Transmit returns HAL_ERROR with HAL_SPI_ERROR_FLAG (the
 	// end-of-transaction wait failed), TransmitReceive returns HAL_TIMEOUT with error code NONE: the two functions report the same
@@ -1108,7 +1121,8 @@ TEST_CASE_FIXTURE(SpiFixture, "SP6 characterization: a one frame Transmit and Tr
 
 /* ============================================================================================== SP1 (CR2 enables) */
 
-TEST_CASE_FIXTURE(SpiFixture, "SP1 characterization: polling transfers leave TXEIE, RXNEIE and ERRIE clear in CR2") {
+// NEEDS REVIEW 344
+TEST_CASE_FIXTURE(SpiFixture, "characterization: SP1 polling transfers leave TXEIE, RXNEIE and ERRIE clear in CR2") {
 	// NEEDS REVIEW (proposed): RM0090 28.5.2: TXEIE bit 7, RXNEIE bit 6, ERRIE bit 5. Polling mode needs no interrupts; UM1725
 	// does not say whether the polling functions leave ERRIE alone. Observed: all three clear after completion.
 	SPIPOLL_INSTANCES

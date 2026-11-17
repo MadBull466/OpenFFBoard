@@ -250,7 +250,8 @@ TEST_CASE_FIXTURE(HalFixture, "RC2 HAL_RCC_DeInit returns RCC_PLLI2SCFGR to its 
 	CHECK(RCC->PLLI2SCFGR == 0x20003000u); // RM0090 7.3.23
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC2 characterization: HAL_RCC_DeInit only sets HSITRIM bit 4") {
+// NEEDS REVIEW 288
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC2 HAL_RCC_DeInit only sets HSITRIM bit 4") {
 	// NEEDS REVIEW: UM1725 does not list HSITRIM. DeInit only sets HSITRIM bit 4, so a start trim of 5 ends as 0x15;
 	// the RM0090 7.3.1 reset value is 0x10.
 	configuredSystem();
@@ -289,7 +290,8 @@ TEST_CASE_FIXTURE(HalFixture, "RC2 HAL_RCC_DeInit does not switch the LSI off" *
 	CHECK((RCC->CSR & CSR_LSION) != 0u);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC2 characterization: HAL_RCC_DeInit sets SystemCoreClock to the HSI frequency") {
+// NEEDS REVIEW 406
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC2 HAL_RCC_DeInit sets SystemCoreClock to the HSI frequency") {
 	// NEEDS REVIEW: derived (HSI is SYSCLK, prescaler 1 = 16 MHz); UM1725 does not name the variable.
 	configuredSystem();
 	SystemCoreClock = 168000000u;
@@ -306,7 +308,8 @@ TEST_CASE_FIXTURE(HalFixture, "RC2 HAL_RCC_DeInit clears a pending HSE ready fla
 	CHECK(RCC->CIR == 0u); // UM1725: all interrupts disabled; the flags are cleared through the RDYC bits
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC2 characterization: HAL_RCC_DeInit returns HAL_TIMEOUT when the HSI never gets ready") {
+// NEEDS REVIEW 289
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC2 HAL_RCC_DeInit returns HAL_TIMEOUT when the HSI never gets ready") {
 	// NEEDS REVIEW: UM1725 gives no return codes.
 	uwTickPrio = 15u;
 	hostRccFail(HOST_OSC_HSI, 1);
@@ -350,7 +353,8 @@ TEST_CASE_FIXTURE(HalFixture, "RC3 HSE OFF after bypass clears HSEBYP and HSEON"
 	CHECK((RCC->CR & (CR_HSEBYP | CR_HSEON | CR_HSERDY)) == 0u);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC3 characterization: HSE ON then bypass without OFF leaves HSEBYP clear") {
+// NEEDS REVIEW 289
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC3 HSE ON then bypass without OFF leaves HSEBYP clear") {
 	// NEEDS REVIEW: UM1725 only says the transition is "not supported"; the asserted result is the model rule of
 	// RM0090 7.3.1 (HSEBYP writable only while the HSE is off), not a UM1725 statement.
 	REQUIRE(oscHse(RCC_HSE_ON) == HAL_OK);
@@ -359,7 +363,8 @@ TEST_CASE_FIXTURE(HalFixture, "RC3 characterization: HSE ON then bypass without 
 	CHECK((RCC->CR & CR_HSEON) != 0u);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC3 characterization: HSE bypass then ON without OFF leaves HSEBYP set") {
+// NEEDS REVIEW 289
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC3 HSE bypass then ON without OFF leaves HSEBYP set") {
 	// NEEDS REVIEW: as above (RM0090 7.3.1 model rule, UM1725 only says "not supported").
 	REQUIRE(oscHse(RCC_HSE_BYPASS) == HAL_OK);
 	oscHse(RCC_HSE_ON);
@@ -373,7 +378,8 @@ TEST_CASE_FIXTURE(HalFixture, "RC3 an oscillator type without HSE leaves the HSE
 	CHECK((RCC->CR & (CR_HSEON | CR_HSERDY)) == (CR_HSEON | CR_HSERDY));
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC3 characterization: HSE that never gets ready returns HAL_TIMEOUT after the HSE start-up timeout") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC3 HSE that never gets ready returns HAL_TIMEOUT after the HSE start-up timeout") {
 	// NEEDS REVIEW: UM1725 gives no return codes; HSE_STARTUP_TIMEOUT is 100 ms in stm32f4xx_hal_conf.h.
 	hostRccFail(HOST_OSC_HSE, 1);
 	const uint32_t t0 = hostTickPeek();
@@ -383,12 +389,14 @@ TEST_CASE_FIXTURE(HalFixture, "RC3 characterization: HSE that never gets ready r
 	CHECK((RCC->CR & CR_HSERDY) == 0u);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC3 characterization: HAL_RCC_OscConfig(NULL) returns HAL_ERROR") {
+// NEEDS REVIEW 289
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC3 HAL_RCC_OscConfig(NULL) returns HAL_ERROR") {
 	// NEEDS REVIEW: UM1725 lists no error case for a null pointer.
 	CHECK(HAL_RCC_OscConfig(nullptr) == HAL_ERROR);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC3 characterization: HSE OFF whose HSERDY never clears returns HAL_TIMEOUT after the HSE start-up timeout") {
+// NEEDS REVIEW 289
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC3 HSE OFF whose HSERDY never clears returns HAL_TIMEOUT after the HSE start-up timeout") {
 	// NEEDS REVIEW: UM1725 gives no return codes; sticky ready flag models an oscillator that does not stop.
 	REQUIRE(oscHse(RCC_HSE_ON) == HAL_OK);
 	hostRccStickyReady(HOST_OSC_HSE, 1);
@@ -414,13 +422,15 @@ TEST_CASE_FIXTURE(HalFixture, "RC4 HSE OFF is refused while the HSE is the PLL s
 	CHECK(sws() == 2u);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC4 characterization: HSE OFF while the HSE is the system clock returns HAL_ERROR") {
+// NEEDS REVIEW 406
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC4 HSE OFF while the HSE is the system clock returns HAL_ERROR") {
 	// NEEDS REVIEW: UM1725 gives no return codes.
 	hseIsSysclk();
 	CHECK(oscHse(RCC_HSE_OFF) == HAL_ERROR);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC4 characterization: HSE OFF while the HSE is the PLL source of the system clock returns HAL_ERROR") {
+// NEEDS REVIEW 406
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC4 HSE OFF while the HSE is the PLL source of the system clock returns HAL_ERROR") {
 	// NEEDS REVIEW: UM1725 gives no return codes.
 	pllIsSysclk();
 	CHECK(oscHse(RCC_HSE_OFF) == HAL_ERROR);
@@ -478,13 +488,15 @@ TEST_CASE_FIXTURE(HalFixture, "RC5 HSI OFF is refused while the HSI is the PLL s
 	CHECK((RCC->CR & CR_HSION) != 0u);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC5 characterization: HSI OFF while the HSI is the system clock returns HAL_ERROR") {
+// NEEDS REVIEW 301
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC5 HSI OFF while the HSI is the system clock returns HAL_ERROR") {
 	// NEEDS REVIEW: UM1725 gives no return codes.
 	REQUIRE(sws() == 0u);
 	CHECK(oscHsi(RCC_HSI_OFF, 0x10u) == HAL_ERROR);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC5 characterization: HSI that never gets ready returns HAL_TIMEOUT") {
+// NEEDS REVIEW 301
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC5 HSI that never gets ready returns HAL_TIMEOUT") {
 	// NEEDS REVIEW: UM1725 gives no return codes.
 	hseIsSysclk();
 	REQUIRE(oscHsi(RCC_HSI_OFF, 0x10u) == HAL_OK);
@@ -495,7 +507,8 @@ TEST_CASE_FIXTURE(HalFixture, "RC5 characterization: HSI that never gets ready r
 	CHECK(hostTickPeek() - t0 <= 4u); // characterization: the loop ends within the HAL timeout + 2 ticks
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC5 characterization: HSI OFF whose HSIRDY never clears returns HAL_TIMEOUT") {
+// NEEDS REVIEW 301
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC5 HSI OFF whose HSIRDY never clears returns HAL_TIMEOUT") {
 	// NEEDS REVIEW: UM1725 gives no return codes; ticks waited: more than the 2 ms HSI timeout.
 	hseIsSysclk();
 	hostRccStickyReady(HOST_OSC_HSI, 1);
@@ -526,7 +539,8 @@ TEST_CASE_FIXTURE(HalFixture, "RC6 LSI OFF clears LSION and LSIRDY and returns H
 	CHECK((RCC->CSR & (CSR_LSION | CSR_LSIRDY)) == 0u);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC6 characterization: LSI that never gets ready returns HAL_TIMEOUT") {
+// NEEDS REVIEW 289
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC6 LSI that never gets ready returns HAL_TIMEOUT") {
 	// NEEDS REVIEW: UM1725 gives no return codes.
 	hostRccFail(HOST_OSC_LSI, 1);
 	const uint32_t t0 = hostTickPeek();
@@ -536,7 +550,8 @@ TEST_CASE_FIXTURE(HalFixture, "RC6 characterization: LSI that never gets ready r
 	CHECK((RCC->CSR & CSR_LSIRDY) == 0u);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC6 characterization: LSI OFF whose LSIRDY never clears returns HAL_TIMEOUT") {
+// NEEDS REVIEW 301
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC6 LSI OFF whose LSIRDY never clears returns HAL_TIMEOUT") {
 	// NEEDS REVIEW: UM1725 gives no return codes; ticks waited: more than the 2 ms LSI timeout.
 	REQUIRE(oscLsi(RCC_LSI_ON) == HAL_OK);
 	hostRccStickyReady(HOST_OSC_LSI, 1);
@@ -592,7 +607,8 @@ TEST_CASE_FIXTURE(HalFixture, "RC7 LSE OFF after bypass clears LSEBYP and LSEON"
 	CHECK((RCC->BDCR & (BDCR_LSEBYP | BDCR_LSEON | BDCR_LSERDY)) == 0u);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC7 characterization: LSE ON then bypass without OFF leaves LSEBYP clear") {
+// NEEDS REVIEW 289
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC7 LSE ON then bypass without OFF leaves LSEBYP clear") {
 	// NEEDS REVIEW: UM1725 only says the transition is "not supported"; the asserted result is the model rule of
 	// RM0090 7.3.20 (LSEBYP writable only while the LSE is off), not a UM1725 statement.
 	REQUIRE(oscLse(RCC_LSE_ON) == HAL_OK);
@@ -601,7 +617,8 @@ TEST_CASE_FIXTURE(HalFixture, "RC7 characterization: LSE ON then bypass without 
 	CHECK((RCC->BDCR & BDCR_LSEON) != 0u);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC7 characterization: LSE bypass then ON without OFF leaves LSEBYP set") {
+// NEEDS REVIEW 289
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC7 LSE bypass then ON without OFF leaves LSEBYP set") {
 	// NEEDS REVIEW: as above (RM0090 7.3.20 model rule, UM1725 only says "not supported").
 	REQUIRE(oscLse(RCC_LSE_BYPASS) == HAL_OK);
 	oscLse(RCC_LSE_ON);
@@ -609,7 +626,8 @@ TEST_CASE_FIXTURE(HalFixture, "RC7 characterization: LSE bypass then ON without 
 	CHECK((RCC->BDCR & BDCR_LSEON) != 0u);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC7 characterization: LSE that never gets ready returns HAL_TIMEOUT") {
+// NEEDS REVIEW 289
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC7 LSE that never gets ready returns HAL_TIMEOUT") {
 	// NEEDS REVIEW: UM1725 gives no return codes; the timeout is LSE_STARTUP_TIMEOUT (5000 ms).
 	hostRccFail(HOST_OSC_LSE, 1);
 	const uint32_t t0 = hostTickPeek();
@@ -619,7 +637,8 @@ TEST_CASE_FIXTURE(HalFixture, "RC7 characterization: LSE that never gets ready r
 	CHECK((RCC->BDCR & BDCR_LSERDY) == 0u);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC7 characterization: LSE OFF whose LSERDY never clears returns HAL_TIMEOUT") {
+// NEEDS REVIEW 301
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC7 LSE OFF whose LSERDY never clears returns HAL_TIMEOUT") {
 	// NEEDS REVIEW: UM1725 gives no return codes; ticks waited: more than LSE_STARTUP_TIMEOUT (5000).
 	REQUIRE(oscLse(RCC_LSE_ON) == HAL_OK);
 	hostRccStickyReady(HOST_OSC_LSE, 1);
@@ -743,7 +762,8 @@ TEST_CASE_FIXTURE(HalFixture, "RC8 HAL_RCC_GetSysClockFreq returns 168 MHz with 
 	CHECK(HAL_RCC_GetSysClockFreq() == 168000000u);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC8 characterization: PLL that never gets ready returns HAL_TIMEOUT") {
+// NEEDS REVIEW 301
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC8 PLL that never gets ready returns HAL_TIMEOUT") {
 	// NEEDS REVIEW: UM1725 gives no return codes.
 	REQUIRE(oscHse(RCC_HSE_ON) == HAL_OK);
 	hostRccFail(HOST_OSC_PLL, 1);
@@ -754,7 +774,8 @@ TEST_CASE_FIXTURE(HalFixture, "RC8 characterization: PLL that never gets ready r
 	CHECK((RCC->CR & CR_PLLRDY) == 0u);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC8 characterization: PLL with the HSE as source returns HAL_TIMEOUT while the HSE is off") {
+// NEEDS REVIEW 321
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC8 PLL with the HSE as source returns HAL_TIMEOUT while the HSE is off") {
 	// NEEDS REVIEW: the PLL does not lock without its input clock (RM0090 7.3.2 asks to enable the source first);
 	// UM1725 gives no return codes.
 	const uint32_t t0 = hostTickPeek();
@@ -764,7 +785,8 @@ TEST_CASE_FIXTURE(HalFixture, "RC8 characterization: PLL with the HSE as source 
 	CHECK((RCC->CR & CR_PLLRDY) == 0u);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC8 characterization: PLL OFF whose PLLRDY never clears returns HAL_TIMEOUT") {
+// NEEDS REVIEW 301
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC8 PLL OFF whose PLLRDY never clears returns HAL_TIMEOUT") {
 	// NEEDS REVIEW: UM1725 gives no return codes; ticks waited: more than the 2 ms PLL timeout.
 	REQUIRE(oscHse(RCC_HSE_ON) == HAL_OK);
 	REQUIRE(oscPllFirmware() == HAL_OK);
@@ -804,19 +826,22 @@ TEST_CASE_FIXTURE(HalFixture, "RC9 a different PLL source is not applied while t
 	CHECK((RCC->CR & CR_PLLON) != 0u);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC9 characterization: PLL OFF while the PLL is the system clock returns HAL_ERROR") {
+// NEEDS REVIEW 406
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC9 PLL OFF while the PLL is the system clock returns HAL_ERROR") {
 	// NEEDS REVIEW: UM1725 only says the PLL is not disabled; it gives no return codes.
 	pllIsSysclk();
 	CHECK(oscPll(RCC_PLL_OFF, RCC_PLLSOURCE_HSE, 4u, 168u, RCC_PLLP_DIV2, 7u) == HAL_ERROR);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC9 characterization: a different PLL configuration while the PLL is the system clock returns HAL_ERROR") {
+// NEEDS REVIEW 290
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC9 a different PLL configuration while the PLL is the system clock returns HAL_ERROR") {
 	// NEEDS REVIEW: UM1725 gives no return codes.
 	pllIsSysclk();
 	CHECK(oscPll(RCC_PLL_ON, RCC_PLLSOURCE_HSE, 8u, 100u, RCC_PLLP_DIV4, 5u) == HAL_ERROR);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "RC9 characterization: repeating the running PLL configuration while it is the system clock returns HAL_OK") {
+// NEEDS REVIEW 406
+TEST_CASE_FIXTURE(HalFixture, "characterization: RC9 repeating the running PLL configuration while it is the system clock returns HAL_OK") {
 	// NEEDS REVIEW: UM1725 gives no return codes; the PLL stays on and PLLCFGR does not change.
 	pllIsSysclk();
 	const uint32_t cfg = RCC->PLLCFGR;

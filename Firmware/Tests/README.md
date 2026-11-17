@@ -58,6 +58,7 @@ and build/test that chosen directory. Do not create build output under `Firmware
 `ffb_rtos_tests`, `ffb_usb_tests`, `ffb_driver_tests` and `ffb_dsp_tests` (each with its exclusion list), `ffb_unit_tests_baseline` (the baseline check, see
 below) and `python_helper_tests`, `codex_python_tests` and `codex_usb_setup_guard` (the baseline and Python entries only if Python 3 is found; `ffb_flash_tests` is not built on macOS;
 `ffb_dsp_tests` only with CMSIS-DSP and its `Testing/Patterns`, so 10 entries without them; the optional `codex_st_hal` entry needs `-DFFB_TESTS_ST_HAL=ON`).
+With `-DFFB_TESTS_32BIT=ON -DFFB_TESTS_REAL_HAL=ON` (Linux) `ffb_hal_tests` and `ffb_hal_tests_disco` and the identity check `hal_identity_f407vg_disco` are added: 14 entries (the 32-bit real-HAL gate is 14 of 14). Their ctest timeout is 120 s, 600 s in sanitizer builds.
 
 | Executable | Test cases | Section |
 |---|---|---|
@@ -68,6 +69,7 @@ below) and `python_helper_tests`, `codex_python_tests` and `codex_usb_setup_guar
 | `ffb_usb_tests` | `Code_Coverage/claude/cases_usb/`, `Code_Coverage/codex/cases_usb/` | [`ffb_usb_tests`](#ffb_usb_tests-the-tinyusb-device-stack-on-a-fake-usb-device-controller) |
 | `ffb_driver_tests` | `Code_Coverage/claude/cases/driver/`, `Code_Coverage/codex/cases/driver/` | [`ffb_driver_tests`](#ffb_driver_tests-the-tmc4671-odrive-and-vesc-drivers-driver-track) |
 | `ffb_dsp_tests` | `Code_Coverage/claude/cases_dsp/` | [`ffb_dsp_tests`](#ffb_dsp_tests-the-cmsis-dsp-modules-phase-p11) |
+| `ffb_hal_tests`, `ffb_hal_tests_disco` | `Code_Coverage/claude/cases_hal/` (same files, F407VG and F407VG_DISCO HAL) | [`ffb_hal_tests`](#ffb_hal_tests--ffb_hal_tests_disco-the-real-st-hal-phase-p12) (only with `FFB_TESTS_32BIT=ON` and `FFB_TESTS_REAL_HAL=ON`) |
 | `python_helper_tests` | `Code_Coverage/claude/python/` | [Python helper tests](#python-helper-tests) |
 | `codex_python_tests` | `Code_Coverage/codex/python/` | Mandatory nonempty stdlib tooling/discovery regressions |
 | `codex_usb_setup_guard` | `Code_Coverage/codex/python/check_usb_guard.py` | Guard script for the USB setup (Codex) |
@@ -87,7 +89,7 @@ sanitizer build with CMSIS-DSP also the two spline cases of `FFB_TESTS_EXCLUDE_S
 ```
 
 Expected result of `ffb_unit_tests` with the documented exclusions (GCC 16, Linux): 654 passed, 0 failed, 4 skipped
-(re-measured 2026-11-10 on the P16 gate builds: the same with clang 23 and without CMSIS-DSP; sanitizer build with CMSIS-DSP, with the
+(re-measured 2026-11-17 on the default build, 2026-11-10 on the P16 gate builds for the others: the same with clang 23 and without CMSIS-DSP; sanitizer build with CMSIS-DSP, with the
 spline exclusion: 651 / 0 / 7; the sanitizer build without CMSIS-DSP was not re-measured). doctest counts a
 `KNOWN_ISSUE` case that fails as expected as passed. The 318 baseline cases are a subset of these; their own result
 (316 passed, 2 skipped on GCC 16 with the exclusion) is checked by `Code_Coverage/tools/check_baseline.py` (see below).
@@ -173,7 +175,7 @@ python3 -B Code_Coverage/tools/run_all_tests.py --build-dir build [--out FILE] [
 |---|---|
 | `Code_Coverage/cases/test_*.cpp` | The original 318 baseline cases of `ffb_unit_tests`. Every file is picked up automatically (together with `Code_Coverage/claude/cases/test_*.cpp`). |
 | `Code_Coverage/claude/cases/test_*.cpp` | Claude's gap tests of `ffb_unit_tests`. |
-| `Code_Coverage/claude/python/` | Python helper tests (`python_helper_tests`). |
+| `Code_Coverage/claude/python/` | `test_*.py`: stdlib `unittest` tests of the Python helper scripts (`python_helper_tests`, 125 tests with the tests of the report tools); `helper_paths.py` (paths, loader). |
 | `Code_Coverage/codex/` | Codex's test cases and fakes (own folder; see `AGENTS.md`). |
 | `Code_Coverage/claude/cases_target/test_*.cpp` | Test cases of `ffb_target_tests` (F407 feature set, real `Axis`). |
 | `Code_Coverage/claude/cases_flash/test_*.cpp` | Test cases of `ffb_flash_tests` (real `flash_helpers.cpp` and `eeprom.c` on the fake HAL FLASH). |
@@ -184,8 +186,7 @@ python3 -B Code_Coverage/tools/run_all_tests.py --build-dir build [--out FILE] [
 | `Code_Coverage/claude/cases_hal/` | Test cases of `ffb_hal_tests` / `ffb_hal_tests_disco` (`test_hal_*.cpp`, `HalFixture.h`) and the F407VG / DISCO identity check `check_hal_identity.cmake` (P12). |
 | (`Tests/Code_Coverage/claude/charters/dsp/`) | Requirement charter of the CMSIS-DSP track (`CMSIS_DSP_REQUIREMENTS.md`); documents live under `Tests/`, not here. |
 | (`Tests/Code_Coverage/claude/charters/driver/`) | Requirement charters and work orders of the driver track and P13-P17 (`<name>_REQUIREMENTS.md`, `P1x_WORK_ORDERS.md`). |
-| `specs/` | Local copies of vendor specifications for the driver track. Ignored by git (`.gitignore`), never committed. |
-| `python/` | `test_*.py`: stdlib `unittest` tests of the Python helper scripts; `helper_paths.py` (paths, loader). |
+| (`Tests/Code_Coverage/shared/specs/`) | Vendor specifications supplied by the owner (driver, HAL and MIDI oracles). Outside `Firmware/`, ignored by git, never committed; see `Tests/Code_Coverage/shared/README.md`. |
 | `Code_Coverage/mocks/` | Implementations of firmware class interfaces for tests (`Mock*.h`, see "Mocks and helpers"). |
 | `Code_Coverage/fakes/` | Headers replacing firmware headers in `ffb_unit_tests` only (currently only `Axis.h`). |
 | `Code_Coverage/fakes/stm32_hal/` | Host platform of the real ST HAL (P12): `host_cmsis_gcc.h` (force-included CPU intrinsics), `HalRegisterSpace` (register ranges mapped at their real addresses, access trapping, faults, access log), `HalPeripherals` (RM0090 register models), `HalHostSystem` (CMSIS system globals, host `HAL_GetTick`). |
@@ -315,6 +316,8 @@ Headers in `Code_Coverage/support/`:
 | `MidiClass` | `test_midi_class.cpp` | P17 (68 cases): the descriptors of `usb_cdc_midi_conf` against the USB class definition 1.0 tables, mount and reset, class requests stall, RX / TX FIFO behaviour, transfers and zero length packets, end to end host to handler and to `MidiMain` |
 | `MidiStream` | `test_midi_stream.cpp` | P17 (67 cases): byte stream to USB-MIDI packets and back (Tables 4-1 and 4-2: all channel statuses, system common, real-time, five SysEx lengths, cables), split writes, FIFO limits; vendor bugs B-MIDI-V1 / V2 / V3 as `KNOWN_ISSUE` |
 
+`ffb_dsp_tests` (`Code_Coverage/claude/cases_dsp/`) and `ffb_hal_tests` / `ffb_hal_tests_disco` (`Code_Coverage/claude/cases_hal/`) have their own sections below: [`ffb_dsp_tests`](#ffb_dsp_tests-the-cmsis-dsp-modules-phase-p11) and [`ffb_hal_tests`](#ffb_hal_tests--ffb_hal_tests_disco-the-real-st-hal-phase-p12).
+
 Python (`python/`, ctest entry `python_helper_tests`): `test_generate_memory.py` (`Firmware/scripts/generate_memory.py`),
 `test_dwc2_info.py` (`dwc2_info.py`).
 
@@ -379,10 +382,10 @@ Rules:
 
 ### Naming conventions
 
-* **`characterization: ...`** documents what the firmware does today where the correct behaviour still has to be
+* **`characterization: ...`** (the title **starts** with the word; a requirement or case tag follows it, e.g. `characterization: [R2.5] ...` or `characterization: SI1 ...`, because `run_all_tests.py` lists only titles that start with it as open questions) documents what the firmware does today where the correct behaviour still has to be
   verified (for example the axis magnitudes against the PID specification). These tests protect against
-  unintended changes during refactoring but do not claim the behaviour is correct. Every such open question is a
-  **NEEDS REVIEW** item: a numbered row of the "NEEDS REVIEW items" table in `Tests/Code_Coverage/claude/plans/PROGRESS.md` (repository root),
+  unintended changes during refactoring but do not claim the behaviour is correct. Every such open question is meant to be a
+  **NEEDS REVIEW** item (since 2026-11-17 every case has a number: NEEDS REVIEW 351-427 are bundled rows, one per test file, for the cases no earlier row fitted): a numbered row of the "NEEDS REVIEW items" table in `Tests/Code_Coverage/claude/plans/PROGRESS.md` (repository root),
   collected with the suspected bugs in `Tests/Code_Coverage/claude/reports/BUG_REPORT.md`. The test names its item in a comment next to the case
   (`// NEEDS REVIEW 29: ...`, above the case or at the start of its body) or in its name; the table row names the test.
   When the item is answered the test is renamed (correct behaviour) or turned into a `KNOWN_ISSUE` test (defect).
@@ -819,7 +822,7 @@ descriptors and the TinyUSB callbacks of `global_callbacks.cpp`.
 ## `ffb_driver_tests`: the TMC4671, ODrive and VESC drivers (driver track)
 
 A sixth executable built by the same `CMakeLists.txt` and run by `ctest` (driver track, `Tests/Code_Coverage/claude/plans/DRIVER_TEST_PLAN.md`,
-phases D0-D3). It tests the real motor drivers against simulated peers, not their hardware (1717 cases on 2026-11-10: 1701 run in the sanitizer build, 1494 with clang because SimpleMotion is not built there; TMC4671, ODrive, VESC and
+phases D0-D3). It tests the real motor drivers against simulated peers, not their hardware (1722 cases run, 9 skipped, on 2026-11-17; on 2026-11-10, with 1717 cases: 1701 run in the sanitizer build, 1494 with clang because SimpleMotion is not built there; TMC4671, ODrive, VESC and
 P13-P16: TMCDebugBridge, PWM, SimpleMotion, MyActuator; the final report of the first three is
 `Tests/Code_Coverage/claude/reports/DRIVER_TRACK_REPORT.md`, its numbers (938 cases) are historic):
 
@@ -903,7 +906,7 @@ source is compiled into it.
   contraction and out-of-range float to integer conversions can differ on the target (each affected test says so).
   `arm_copy_q15` / `arm_fill_q15` of SupportFunctions are linked for the `arm_conv_opt_*` / `arm_correlate_opt_*`
   variants (charter L6) and have no tests of their own.
-* **Test files (G1-G5, 2485 cases, 5 skipped):** FastMath and helpers `test_dsp_fastmath_{f32,f64,f16,q31,q15}.cpp`,
+* **Test files (G1-G5, 2486 cases, 5 skipped):** FastMath and helpers `test_dsp_fastmath_{f32,f64,f16,q31,q15}.cpp`,
   `test_dsp_basicmath_helpers.cpp`; Interpolation `test_dsp_interp_{f32,f16,fixed}.cpp`; Controller
   `test_dsp_controller_{pid,sincos,transforms}.cpp`; Statistics `test_dsp_stats_{f32,f64,f16,q31,q15,q7}.cpp`; Filtering
   `test_dsp_filt_{biquad_f32,biquad_f64,biquad_f16,biquad_q,fir_float,fir_f16,fir_q,decim_float,decim_q,conv_float,conv_f16,conv_q31,conv_q15,conv_q7,lms,lattice,sparse}.cpp`.
@@ -966,12 +969,15 @@ with the target's `stm32f4xx_hal_conf.h`, plus the host platform in `Code_Covera
   (priority by identifier or order, NART, abort, loop back, `hostCanQueueTxOutcome`, `hostCanSetBusAck`, `hostCanHoldBus`, the sent-frame log `hostCanTxAt`), two three-deep receive FIFOs fed by `hostCanRx` through the 28 filter banks (scale, mode, FIFO,
   CAN2SB split, filter match index, priority), error state (`hostCanSetCounters`, `hostCanRaiseError`), wake-up (`hostCanBusActivity`) and the four interrupt request lines (`hostCanIrqPending`; the tests call `HAL_CAN_IRQHandler`). Bit timing,
   bus-off recovery and interrupt delivery are not modelled.
+* **Timers (T6a, `HalTim`):** TIM1-TIM14 (RM0090 chapters 17-20): CR1 / CR2 / SMCR / DIER / SR / EGR / CCMRx / CCER / CNT / PSC / ARR / RCR / CCRx / BDTR / DCR / DMAR with the per-type write masks and reset values (a register a timer type does not have is a fault), update, capture / compare and break event generation, flag clear rules, one-pulse mode, the break-and-dead-time lock levels, input capture (a CCR read clears CCxIF) and counting by events the test gives (`hostTim*`); the prescaler is stored and does not divide. Pins (outputs, inputs) are not modelled; the DMA modes use the DMA model of T3.
+* **ADC (T6b, `HalAdc`):** ADC1-ADC3 and the common registers (RM0090 chapter 13): SR / CR1 / CR2 / SMPRx / JOFRx / HTR / LTR / SQRx / JSQR / JDRx / DR with masks and the flag clear rules, a conversion engine that converts one channel per step when the test says so (`hostAdcConvert`, analog values from `hostAdcSetAnalog`), regular and injected groups, scan, continuous and discontinuous modes, alignment (RM0090 13.4), analog watchdog, overrun. Not modelled: time, sampling time, the ADC clock, the multi ADC modes, the sensor channels beyond the analog value given.
+* **Flash and IWDG (T7, `HalFlash`, `HalIwdg`):** the flash interface (ACR / KEYR / OPTKEYR / SR / CR / OPTCR with key sequences and lock), the 1 MB main memory with NOR semantics and the F405/407 sector layout, OTP with lock bytes, option bytes, erase and program with the error flags (`hostFlashComplete`, `hostFlashSetPollReads`, fault injection); the independent watchdog (KR key protocol, PR / RLR, update flags, a counter that counts events the test gives, `hostIwdgAdvance`). Not modelled: LSI time, the hardware watchdog option, flash timing.
 * **CPU intrinsics:** `host_cmsis_gcc.h` is force-included and replaces `cmsis_gcc.h` (barriers, `__WFI`, exclusive monitor
   for `__LDREXW` / `__STREXW`, `__RBIT`, `__CLZ`).
 * **Tick:** a strong host `HAL_GetTick` runs one simulated 1 ms tick interrupt (the real `HAL_IncTick`) per call, so HAL
-  polling loops see time pass without sleeping. Limit: the real `HAL_GetTick` is replaced. ctest `TIMEOUT` 120 s reports a
-  loop that never ends.
-* **Test files (T1 - T5, 2434 cases per executable):** T1: `test_hal_gpio.cpp`, `test_hal_exti.cpp`, `test_hal_core.cpp`,
+  polling loops see time pass without sleeping. Limit: the real `HAL_GetTick` is replaced. ctest `TIMEOUT` (120 s, 600 s in sanitizer builds) reports a
+  loop that never ends. A full run takes about 70 s unloaded, mostly system time from the register trapping.
+* **Test files (T1 - T9 and the review fixes, 4067 cases per executable):** T1: `test_hal_gpio.cpp`, `test_hal_exti.cpp`, `test_hal_core.cpp`,
   `test_hal_core_systick.cpp`, `test_hal_cortex.cpp`, `test_hal_t0_smoke.cpp`. T2: `test_hal_rcc_osc.cpp` (oscillators, PLL,
   DeInit), `test_hal_rcc_clock.cpp` (ClockConfig, frequencies, MCO, CSS), `test_hal_rcc_ex.cpp` (RTC / I2S clocks, PLLI2S),
   `test_hal_pwr.cpp` (PWR, PWR_Ex). T3: `test_hal_dma_init.cpp` (Init / DeInit / state), `test_hal_dma_xfer.cpp` (Start, Abort, Poll,
@@ -980,9 +986,9 @@ with the target's `stm32f4xx_hal_conf.h`, plus the host platform in `Code_Covera
   `test_hal_uart_modes.cpp`, `test_hal_uart_poll.cpp`, `test_hal_uart_irq.cpp`, `test_hal_uart_dma.cpp`, `test_hal_uart_abort.cpp` and the shared callbacks `test_hal_uart_support.cpp`
   (`UartTestSupport.h`). T4c (I2C): `test_hal_i2c_init.cpp`, `_poll`, `_slave`, `_irq`, `_seq`, `_dma`, the lead probe `test_hal_i2c_probe.cpp` and the shared callbacks `test_hal_i2c_support.cpp`
   (`I2cTestSupport.h`). T5 (CAN): `test_hal_can_init.cpp`, `_filter`, `_txrx`, `_irq`, the lead probe `test_hal_can_probe.cpp` and the shared callbacks `test_hal_can_support.cpp`
-  (`CanTestSupport.h`). `KNOWN_ISSUE` marks the
-  vendor bugs V89-V109 and V111; `characterization:` cases are NEEDS REVIEW 281-331. Combined with sanitizers the HAL executables run (32-bit ASan), but
-  the whole ctest does not: `ffb_flash_tests` cannot map 0x1FFF0000 there.
+  (`CanTestSupport.h`). T6a (timers): `test_hal_tim_{base,cfg,ic,irq,exn}.cpp` and `test_hal_tim_support.cpp` (`TimTestSupport.h`). T6b (ADC): `test_hal_adc_{base,ex,irq}.cpp`, `test_hal_adc_support.cpp` (`AdcTestSupport.h`). T7 (flash, IWDG): `test_hal_flash_{base,ex}.cpp`, `test_hal_iwdg.cpp`, `test_hal_flash_support.cpp` (`FlashTestSupport.h`). T8 (USB device): `test_hal_pcd_{init,ep,irq,flow}.cpp`, `test_hal_pcd_support.cpp` (`OtgTestSupport.h`). Review fixes (Codex review of P12): `test_hal_review_{core,spi,uart,i2c,can,tim,adc,otg,flash}.cpp` (witness cases RV1-RV19, each checked with a mutant of the HAL) and `test_hal_review_vendor_{uart,i2c}.cpp` (V128, V129). Lead probe cases per stage are in `test_hal_*_probe.cpp`. `KNOWN_ISSUE` marks the
+  vendor bugs V89-V129 (see `Tests/Code_Coverage/claude/reports/BUG_REPORT.md`); `characterization:` cases are NEEDS REVIEW 281-350. Combined with sanitizers the HAL executables run (32-bit ASan), but
+  the whole ctest does not in `m32-san`: `ffb_flash_tests` cannot map 0x1FFF0000 there (the 32-bit ASan runtime owns the address); the HAL-only sanitizer build passes.
   Tier D coverage: `coverage_report.py` prints "ST HAL in scope (tier D)" per target when the coverage build has `FFB_TESTS_REAL_HAL` (the host half of `stm32f4xx_ll_usb.c` is left out; `--no-exclusions` shows it); `run_all_tests.py` runs both HAL executables. The real-HAL build also passes with clang 23.
 * **DISCO:** both targets' HAL, CMSIS headers and `hal_conf` are byte-identical today; `hal_identity_f407vg_disco` fails as
   soon as they diverge, because the two executables share their test files.
@@ -1018,14 +1024,14 @@ report tool `Code_Coverage/tools/run_all_tests.py` with synthetic doctest XML an
   tests. `ffb_usb_tests` parses the configuration descriptor during the enumeration (interfaces and endpoints only).
 * macOS and Windows (MinGW) builds are unverified: no such toolchain was available. `ffb_flash_tests` is not built on
   macOS.
+* The real-HAL executables (P12) exist only in the 32-bit Linux build and run on a register model, not on silicon: bus timing, clocks, pin levels, DMA arbitration and interrupt delivery are not modelled; the USB host half of `stm32f4xx_ll_usb.c`, OTG_HS and the F411RE HAL copy are not tested.
+* `ffb_flash_tests` aborts in 32-bit sanitizer builds (the 32-bit ASan runtime occupies the fixed fake-flash address 0x1FFF0000).
 
 ## Next steps
 
-* **P17 (MIDI):** `MidiMain`, `MidiHandler` and the TinyUSB `class/midi` code are in scope since 2026-11-10 (macro `MIDI` in
-  `ffb_usb_tests` only); the tests are done (see the suite table). Oracles supplied: the USB class definition for MIDI devices 1.0 (`midi10.pdf`) and the MIDI 1.0
-  detailed specification. T0 (charter `Tests/Code_Coverage/claude/charters/driver/MIDI_REQUIREMENTS.md`), T1 (wiring, doubles, fixture) and T2 (319 cases, four reviewers, gate) are done, approved and pushed (`fe232b2d`).
-* **P18 (32-bit build):** option `FFB_TESTS_32BIT` and the bug 225 cases (`Code_Coverage/claude/cases_target/test_serial_ffb_32bit.cpp`).
-  Plan: `Tests/Code_Coverage/claude/plans/P18_32BIT_BUILD_PLAN.md`. What remains is the owner's decisions, see "Next action" in
-  `Tests/Code_Coverage/claude/plans/PROGRESS.md`.
-* Open questions (CI job, Windows / macOS verification, P11 to P16 decisions) are in `Tests/Code_Coverage/claude/reports/OPEN_QUESTIONS.md`;
+All phases P0 to P18 are done, approved and pushed; nothing is in progress. The open items (each needs the owner's go-ahead) are listed under "Next action" in `Tests/Code_Coverage/claude/plans/PROGRESS.md`:
+leave `ffb_flash_tests` out of 32-bit sanitizer builds, promote two more T7 characterizations and NEEDS REVIEW 308 to `KNOWN_ISSUE`, replace the bundled NEEDS REVIEW rows 351-427 by one question per behaviour.
+
+* Open questions (CI job, Windows / macOS verification, P11 to P17 decisions, `sysexState`) are in `Tests/Code_Coverage/claude/reports/OPEN_QUESTIONS.md`;
   suspected bugs and NEEDS REVIEW items in `Tests/Code_Coverage/claude/reports/BUG_REPORT.md`.
+* Per-phase history, coverage and decisions: `Tests/Code_Coverage/claude/plans/TEST_PLAN.md`, `PROGRESS.md` and `COVERAGE_AND_SCOPE.md`.

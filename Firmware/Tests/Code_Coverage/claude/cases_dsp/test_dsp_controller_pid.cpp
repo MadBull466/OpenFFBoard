@@ -372,7 +372,8 @@ TEST_CASE("[C4 arm_pid_reset_q31] the reset clears the three state values and ke
 	CHECK(s.Kp == q31From(0.25));
 }
 
-TEST_CASE("[C4 arm_pid_init_q31] characterization: a sum of gains above 1.0 saturates A0 and A1 (the header does not document it)") {
+// NEEDS REVIEW 382
+TEST_CASE("characterization: [C4 arm_pid_init_q31] a sum of gains above 1.0 saturates A0 and A1 (the header does not document it)") {
 	// Kp = Ki = Kd = 0.75: A0 = 2.25 -> 0x7FFFFFFF; A1 = -(1.5 + 0.75) = -(clip(2.25)) = -0x7FFFFFFF; A2 = Kd.
 	// Well-defined, not suspicious (the clip is explicit in arm_pid_init_q31.c:71-76); NEEDS REVIEW item.
 	arm_pid_instance_q31 s = makeQ31(0.75, 0.75, 0.75);
@@ -550,7 +551,8 @@ TEST_CASE("[C4 arm_pid_reset_q15] the reset clears the three state values and ke
 	CHECK(s.Kp == 8192);
 }
 
-TEST_CASE("[C4 arm_pid_init_q15] characterization: a sum of gains beyond +-1.0 saturates A0 and A1 to 16 bit (the header does not document it)") {
+// NEEDS REVIEW 382
+TEST_CASE("characterization: [C4 arm_pid_init_q15] a sum of gains beyond +-1.0 saturates A0 and A1 to 16 bit (the header does not document it)") {
 	// Kp = Ki = Kd = 0.75 (24576): A0 = 2.25 -> 32767; A1 = -(1.5 + 0.75) = -2.25 -> -32768; A2 = Kd.
 	// Well-defined (__SSAT in arm_pid_init_q15.c); NEEDS REVIEW item.
 	arm_pid_instance_q15 s = makeQ15(0.75, 0.75, 0.75);

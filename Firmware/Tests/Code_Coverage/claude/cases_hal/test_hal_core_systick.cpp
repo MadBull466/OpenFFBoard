@@ -71,7 +71,8 @@ TEST_CASE_FIXTURE(HalFixture, "C14 HAL_InitTick with priority 16 returns HAL_ERR
 	CHECK(HAL_InitTick(16u) == HAL_ERROR);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "C14 characterization: HAL_InitTick with priority 16 has already started SysTick when it fails") {
+// NEEDS REVIEW 287
+TEST_CASE_FIXTURE(HalFixture, "characterization: C14 HAL_InitTick with priority 16 has already started SysTick when it fails") {
 	// NEEDS REVIEW: neither UM1725 nor PM0214 says whether a rejected priority may leave SysTick running. The HAL
 	// configures the timer first and checks the priority afterwards.
 	REQUIRE(HAL_InitTick(16u) == HAL_ERROR);
@@ -127,13 +128,15 @@ TEST_CASE_FIXTURE(HalFixture, "C15 HAL_Init configures SysTick for a 1 ms time b
 	CHECK((SysTick->CTRL & 3u) == 3u); // ENABLE | TICKINT
 }
 
-TEST_CASE_FIXTURE(HalFixture, "C15 characterization: HAL_Init selects priority grouping 4") {
+// NEEDS REVIEW 285
+TEST_CASE_FIXTURE(HalFixture, "characterization: C15 HAL_Init selects priority grouping 4") {
 	// NEEDS REVIEW: UM1725 6.1.4 does not name the grouping; the HAL sets NVIC_PRIORITYGROUP_4 (PRIGROUP 0b011).
 	REQUIRE(HAL_Init() == HAL_OK);
 	CHECK(HAL_NVIC_GetPriorityGrouping() == NVIC_PRIORITYGROUP_4);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "C15 characterization: HAL_Init uses TICK_INT_PRIORITY for the tick") {
+// NEEDS REVIEW 285
+TEST_CASE_FIXTURE(HalFixture, "characterization: C15 HAL_Init uses TICK_INT_PRIORITY for the tick") {
 	// NEEDS REVIEW: UM1725 does not give the tick priority; the F407 hal_conf sets TICK_INT_PRIORITY.
 	REQUIRE(HAL_Init() == HAL_OK);
 	CHECK(HAL_GetTickPrio() == TICK_INT_PRIORITY);

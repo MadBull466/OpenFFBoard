@@ -513,7 +513,8 @@ TEST_CASE("[C4 arm_atan2_q15] the most negative operands (-1.0) are handled as i
 	checkAtan(0, -32768, kAtanLsb);
 }
 
-TEST_CASE("[C4 arm_atan2_q15] characterization: atan2(0, 0) returns ARM_MATH_NANINF") {
+// NEEDS REVIEW 194
+TEST_CASE("characterization: [C4 arm_atan2_q15] atan2(0, 0) returns ARM_MATH_NANINF") {
 	// DOC (fast_math_functions.h:366) only says "@return error status". atan2(0,0) is undefined; the code (arm_atan2_q15.c
 	// end of the function) returns ARM_MATH_NANINF without writing the result. NEEDS REVIEW: confirm the intended status.
 	q15_t res = 0x1234;

@@ -574,7 +574,8 @@ TEST_CASE("[C4 arm_absmax_q7] absmax of -128 saturates to 127 instead of wrappin
 	CHECK(r == 127);
 }
 
-TEST_CASE("[C4 arm_max_q7] characterization: with equal maxima the first occurrence wins (positions 1 and 8 of 9 samples: second unrolled group, last lane)") {
+// NEEDS REVIEW 397
+TEST_CASE("characterization: [C4 arm_max_q7] with equal maxima the first occurrence wins (positions 1 and 8 of 9 samples: second unrolled group, last lane)") {
 	// DOC silent; source compares with strict '<' ; numpy argmax (ARM's generator) also returns the first
 	const V x = {1, 9, 3, 4, 5, 6, 7, 8, 9};   // n = 9, maxima at 1 and 8
 	q7_t r = 0; uint32_t idx = 77;
@@ -582,14 +583,16 @@ TEST_CASE("[C4 arm_max_q7] characterization: with equal maxima the first occurre
 	CHECK(r == 9);
 	CHECK(idx == 1);
 }
-TEST_CASE("[C4 arm_min_q7] characterization: with equal minima the first occurrence wins (positions 1 and 8 of 9 samples: second unrolled group, last lane)") {
+// NEEDS REVIEW 397
+TEST_CASE("characterization: [C4 arm_min_q7] with equal minima the first occurrence wins (positions 1 and 8 of 9 samples: second unrolled group, last lane)") {
 	const V x = {5, -9, 3, 4, 5, 6, 7, 8, -9};
 	q7_t r = 0; uint32_t idx = 77;
 	arm_min_q7(x.data(), 9, &r, &idx);
 	CHECK(r == -9);
 	CHECK(idx == 1);
 }
-TEST_CASE("[C4 arm_absmax_q7] characterization: with equal absolute maxima (even of opposite sign) the first occurrence wins") {
+// NEEDS REVIEW 397
+TEST_CASE("characterization: [C4 arm_absmax_q7] with equal absolute maxima (even of opposite sign) the first occurrence wins") {
 	const V x = {1, -50, 3, 4, 5, 6, 7, 8, 50};
 	q7_t r = 0; uint32_t idx = 77;
 	arm_absmax_q7(x.data(), 9, &r, &idx);
@@ -600,7 +603,8 @@ TEST_CASE("[C4 arm_absmax_q7] characterization: with equal absolute maxima (even
 	CHECK(r == 127);
 	CHECK(idx == 1);
 }
-TEST_CASE("[C4 arm_absmin_q7] characterization: with equal absolute minima (even of opposite sign) the first occurrence wins") {
+// NEEDS REVIEW 210
+TEST_CASE("characterization: [C4 arm_absmin_q7] with equal absolute minima (even of opposite sign) the first occurrence wins") {
 	const V x = {90, -2, 90, 90, 90, 90, 90, 90, 2};
 	q7_t r = 0; uint32_t idx = 77;
 	arm_absmin_q7(x.data(), 9, &r, &idx);
@@ -626,10 +630,14 @@ static void tieTest(Mode m) {
 			}
 	CHECK_NOFAIL(f);
 }
-TEST_CASE("[C4 arm_max_q7] characterization: of two equal maxima at any positions p < q of blocks of 2..13 samples the first index is returned") { tieTest(MAX); }
-TEST_CASE("[C4 arm_min_q7] characterization: of two equal minima at any positions p < q of blocks of 2..13 samples the first index is returned") { tieTest(MIN); }
-TEST_CASE("[C4 arm_absmax_q7] characterization: of two equal maxima of |x| (opposite sign) at any positions p < q of blocks of 2..13 samples the first index is returned") { tieTest(ABSMAX); }
-TEST_CASE("[C4 arm_absmin_q7] characterization: of two equal minima of |x| (opposite sign) at any positions p < q of blocks of 2..13 samples the first index is returned") { tieTest(ABSMIN); }
+// NEEDS REVIEW 210
+TEST_CASE("characterization: [C4 arm_max_q7] of two equal maxima at any positions p < q of blocks of 2..13 samples the first index is returned") { tieTest(MAX); }
+// NEEDS REVIEW 210
+TEST_CASE("characterization: [C4 arm_min_q7] of two equal minima at any positions p < q of blocks of 2..13 samples the first index is returned") { tieTest(MIN); }
+// NEEDS REVIEW 210
+TEST_CASE("characterization: [C4 arm_absmax_q7] of two equal maxima of |x| (opposite sign) at any positions p < q of blocks of 2..13 samples the first index is returned") { tieTest(ABSMAX); }
+// NEEDS REVIEW 210
+TEST_CASE("characterization: [C4 arm_absmin_q7] of two equal minima of |x| (opposite sign) at any positions p < q of blocks of 2..13 samples the first index is returned") { tieTest(ABSMIN); }
 
 // ===============================================================================================================
 // C3 / C4: mean
@@ -730,7 +738,8 @@ TEST_CASE("[C4 arm_mean_q7] the mean of 16777216 samples of -128 is -128 and of 
 	CHECK(out == 127);
 }
 
-TEST_CASE("[C4 arm_mean_q7] characterization: a negative non-integer mean is truncated toward zero") {
+// NEEDS REVIEW 215
+TEST_CASE("characterization: [C4 arm_mean_q7] a negative non-integer mean is truncated toward zero") {
 	// DOC "truncated" is silent about the direction; the source divides with C '/' (toward zero). {-3, 0}: -1.5 -> -1; {-1, -1, 0}: -0.667 -> 0
 	q7_t r = 0x55;
 	const V a = {-3, 0};
@@ -796,7 +805,8 @@ TEST_CASE("[C4 arm_power_q7] the power of {127, -128} is 16129 + 16384 (hand der
 	CHECK(r == 32513);
 }
 
-TEST_CASE("[C4 arm_power_q7] characterization: the power of an empty block (blockSize 0) is 0") {
+// NEEDS REVIEW 397
+TEST_CASE("characterization: [C4 arm_power_q7] the power of an empty block (blockSize 0) is 0") {
 	// DOC silent; an empty sum is 0 and the source reads no sample. No sample is read; a one element buffer is passed anyway.
 	const V x(1, 55);
 	q31_t r = 0x55555555;
@@ -864,7 +874,8 @@ TEST_CASE("[C4 arm_mse_q7] identical blocks give an mse of exactly 0") {
 	}
 }
 
-TEST_CASE("[C4 arm_mse_q7] characterization: with all samples even the mse is exactly floor(sum((a-b)/2)^2 / (32 n)) clamped to 127 (all 128 x 128 even pairs)") {
+// NEEDS REVIEW 397
+TEST_CASE("characterization: [C4 arm_mse_q7] with all samples even the mse is exactly floor(sum((a-b)/2)^2 / (32 n)) clamped to 127 (all 128 x 128 even pairs)") {
 	// a = 2x, b = 2y: halves exact, D = x - y, result = floor(D^2 / 32) (n = 1). The truncation of the result is not documented.
 	Fails f;
 	for (int a = -128; a <= 126; a += 2)
@@ -879,7 +890,8 @@ TEST_CASE("[C4 arm_mse_q7] characterization: with all samples even the mse is ex
 	CHECK_NOFAIL(f);
 }
 
-TEST_CASE("[C4 arm_mse_q7] characterization: with all samples even the mse of blocks of 1..40 samples is exactly floor(sum D^2 / (32 n)) clamped to 127") {
+// NEEDS REVIEW 397
+TEST_CASE("characterization: [C4 arm_mse_q7] with all samples even the mse of blocks of 1..40 samples is exactly floor(sum D^2 / (32 n)) clamped to 127") {
 	Rng r(5004);
 	Fails f;
 	for (size_t n = 1; n <= 40; n++)

@@ -175,7 +175,8 @@ TEST_CASE_FIXTURE(HalFixture, "RX1 one call with I2S and RTC configures both") {
  * NEEDS REVIEW text: HAL_RCCEx_PeriphCLKConfig with the already selected RTC source does not reset the backup domain
  * (UM1725 note read literally would reset it on every call; the HAL resets only when RTCSEL changes).
  */
-TEST_CASE_FIXTURE(HalFixture, "RX1 characterization: re-selecting the same RTC source does not reset the backup domain") {
+// NEEDS REVIEW 295
+TEST_CASE_FIXTURE(HalFixture, "characterization: RX1 re-selecting the same RTC source does not reset the backup domain") {
 	REQUIRE(selectRtc(RCC_RTCCLKSOURCE_LSI) == HAL_OK);
 	setBackupRegulatorEnable();
 	CHECK(selectRtc(RCC_RTCCLKSOURCE_LSI) == HAL_OK);
@@ -188,7 +189,8 @@ TEST_CASE_FIXTURE(HalFixture, "RX1 characterization: re-selecting the same RTC s
  * NEEDS REVIEW text: the first RTC source selection (RTCSEL 00 to any source) does not reset the backup domain, because
  * RM0090 lets RTCSEL be written while it is 00; UM1725 note literally says the backup domain is reset.
  */
-TEST_CASE_FIXTURE(HalFixture, "RX1 characterization: the first RTC source selection does not reset the backup domain") {
+// NEEDS REVIEW 295
+TEST_CASE_FIXTURE(HalFixture, "characterization: RX1 the first RTC source selection does not reset the backup domain") {
 	setBackupRegulatorEnable(); // raw setup, RTCSEL is 00 after reset
 	REQUIRE(rtcsel() == 0u);
 	CHECK(selectRtc(RCC_RTCCLKSOURCE_LSE) == HAL_OK);
@@ -202,7 +204,8 @@ TEST_CASE_FIXTURE(HalFixture, "RX1 characterization: the first RTC source select
  * NEEDS REVIEW text: after an RTC source change HAL_RCCEx_PeriphCLKConfig restores the old BDCR content (RTCEN,
  * LSEON, LSEBYP), UM1725 says BDCR is set to its reset values; decide which is intended.
  */
-TEST_CASE_FIXTURE(HalFixture, "RX1 characterization: RTCEN set before a source change is still set afterwards") {
+// NEEDS REVIEW 295
+TEST_CASE_FIXTURE(HalFixture, "characterization: RX1 RTCEN set before a source change is still set afterwards") {
 	REQUIRE(selectRtc(RCC_RTCCLKSOURCE_LSI) == HAL_OK);
 	RCC->BDCR |= BDCR_RTCEN; // DBP was set by the call above
 	REQUIRE((RCC->BDCR & BDCR_RTCEN) != 0u);
@@ -215,7 +218,8 @@ TEST_CASE_FIXTURE(HalFixture, "RX1 characterization: RTCEN set before a source c
  * NEEDS REVIEW text: HAL_RCCEx_PeriphCLKConfig restores LSEON after the backup domain reset and waits for LSERDY
  * (UM1725 does not describe the LSE handling).
  */
-TEST_CASE_FIXTURE(HalFixture, "RX1 characterization: LSE enabled before a source change is ready again when the call returns") {
+// NEEDS REVIEW 405
+TEST_CASE_FIXTURE(HalFixture, "characterization: RX1 LSE enabled before a source change is ready again when the call returns") {
 	REQUIRE(selectRtc(RCC_RTCCLKSOURCE_LSI) == HAL_OK);
 	RCC->BDCR |= BDCR_LSEON;
 	hostRccSetStartupTicks(HOST_OSC_LSE, 3u);
@@ -230,7 +234,8 @@ TEST_CASE_FIXTURE(HalFixture, "RX1 characterization: LSE enabled before a source
  * NEEDS REVIEW text: LSE start-up timeout in HAL_RCCEx_PeriphCLKConfig returns HAL_TIMEOUT and leaves RTCSEL at 00
  * (the backup domain is already reset, the RTC has no clock); UM1725 gives no return code.
  */
-TEST_CASE_FIXTURE(HalFixture, "RX1 characterization: an LSE that never gets ready makes the source change time out") {
+// NEEDS REVIEW 295
+TEST_CASE_FIXTURE(HalFixture, "characterization: RX1 an LSE that never gets ready makes the source change time out") {
 	REQUIRE(selectRtc(RCC_RTCCLKSOURCE_LSI) == HAL_OK);
 	RCC->BDCR |= BDCR_LSEON;
 	hostRccFail(HOST_OSC_LSE, 1);
@@ -264,7 +269,8 @@ TEST_CASE_FIXTURE(HalFixture, "RX2 selecting the I2S clock source leaves the oth
  * NEEDS REVIEW text: HAL_RCCEx_PeriphCLKConfig(RCC_PERIPHCLK_I2S) never writes I2SSRC on F405/407; the source is chosen
  * with __HAL_RCC_I2S_CONFIG (UM1725 does not say).
  */
-TEST_CASE_FIXTURE(HalFixture, "RX2 characterization: the I2S peripheral clock configuration leaves I2SSRC unchanged") {
+// NEEDS REVIEW 296
+TEST_CASE_FIXTURE(HalFixture, "characterization: RX2 the I2S peripheral clock configuration leaves I2SSRC unchanged") {
 	__HAL_RCC_I2S_CONFIG(RCC_I2SCLKSOURCE_EXT);
 	CHECK(configI2s(192u, 2u) == HAL_OK);
 	CHECK((RCC->CFGR & CFGR_I2SSRC) != 0u);
@@ -303,7 +309,8 @@ TEST_CASE_FIXTURE(HalFixture, "RX2 the PLLI2S peripheral identifier writes PLLI2
  * NEEDS REVIEW text: HAL_RCCEx_PeriphCLKConfig(I2S) returns HAL_TIMEOUT when PLLI2SRDY does not rise; UM1725 gives no
  * return codes.
  */
-TEST_CASE_FIXTURE(HalFixture, "RX2 characterization: the I2S peripheral clock configuration times out when the PLLI2S never gets ready") {
+// NEEDS REVIEW 296
+TEST_CASE_FIXTURE(HalFixture, "characterization: RX2 the I2S peripheral clock configuration times out when the PLLI2S never gets ready") {
 	hostRccFail(HOST_OSC_PLLI2S, 1);
 	CHECK(configI2s(192u, 2u) == HAL_TIMEOUT);
 }
@@ -349,7 +356,8 @@ TEST_CASE_FIXTURE(HalFixture, "RX3 EnablePLLI2S does not change the main PLL con
  * NEEDS REVIEW text: HAL_RCCEx_EnablePLLI2S returns HAL_TIMEOUT when the PLLI2S never gets ready; UM1725 gives no
  * return codes.
  */
-TEST_CASE_FIXTURE(HalFixture, "RX3 characterization: EnablePLLI2S times out when the PLLI2S never gets ready") {
+// NEEDS REVIEW 296
+TEST_CASE_FIXTURE(HalFixture, "characterization: RX3 EnablePLLI2S times out when the PLLI2S never gets ready") {
 	hostRccFail(HOST_OSC_PLLI2S, 1);
 	CHECK(enableI2sPll(192u, 2u) == HAL_TIMEOUT);
 }
@@ -379,7 +387,8 @@ TEST_CASE_FIXTURE(HalFixture, "RX3 DisablePLLI2S keeps PLLI2SN and PLLI2SR") {
  * NEEDS REVIEW text: HAL_RCCEx_DisablePLLI2S returns HAL_TIMEOUT when PLLI2SRDY does not clear; UM1725 gives no return
  * codes.
  */
-TEST_CASE_FIXTURE(HalFixture, "RX3 characterization: DisablePLLI2S times out when PLLI2SRDY does not clear") {
+// NEEDS REVIEW 405
+TEST_CASE_FIXTURE(HalFixture, "characterization: RX3 DisablePLLI2S times out when PLLI2SRDY does not clear") {
 	REQUIRE(enableI2sPll(192u, 2u) == HAL_OK);
 	hostRccStickyReady(HOST_OSC_PLLI2S, 1);
 	const uint32_t t0 = hostTickPeek();
@@ -394,7 +403,8 @@ TEST_CASE_FIXTURE(HalFixture, "RX3 characterization: DisablePLLI2S times out whe
  * NEEDS REVIEW text: HAL_RCCEx_PeriphCLKConfig(I2S) returns HAL_TIMEOUT when PLLI2SRDY does not clear after the
  * PLLI2S is disabled and then does not write the new factors; UM1725 gives no return codes.
  */
-TEST_CASE_FIXTURE(HalFixture, "RX3 characterization: the I2S peripheral clock configuration times out when PLLI2SRDY does not clear") {
+// NEEDS REVIEW 296
+TEST_CASE_FIXTURE(HalFixture, "characterization: RX3 the I2S peripheral clock configuration times out when PLLI2SRDY does not clear") {
 	REQUIRE(configI2s(192u, 2u) == HAL_OK);
 	hostRccStickyReady(HOST_OSC_PLLI2S, 1);
 	CHECK(configI2s(100u, 4u) == HAL_TIMEOUT);
@@ -460,7 +470,8 @@ TEST_CASE_FIXTURE(HalFixture, "RX4 GetPeriphCLKConfig returns what PeriphCLKConf
  * NEEDS REVIEW text: HAL_RCCEx_GetPeriphCLKConfig sets PeriphClockSelection to RCC_PERIPHCLK_I2S | RCC_PERIPHCLK_RTC on
  * F405/407; UM1725 says only that the structure is configured from the registers.
  */
-TEST_CASE_FIXTURE(HalFixture, "RX4 characterization: GetPeriphCLKConfig reports the I2S and RTC clocks in PeriphClockSelection") {
+// NEEDS REVIEW 296
+TEST_CASE_FIXTURE(HalFixture, "characterization: RX4 GetPeriphCLKConfig reports the I2S and RTC clocks in PeriphClockSelection") {
 	RCC_PeriphCLKInitTypeDef c{};
 	HAL_RCCEx_GetPeriphCLKConfig(&c);
 	CHECK(c.PeriphClockSelection == (RCC_PERIPHCLK_I2S | RCC_PERIPHCLK_RTC));

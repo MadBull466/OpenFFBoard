@@ -781,7 +781,8 @@ TEST_CASE("[C4 arm_biquad_cascade_df2T_f16] the state after one impulse sample i
 	CHECK(two.stateVals() == std::vector<double>{2.5, 2.75, 1, 0});
 }
 
-TEST_CASE("[C4 arm_biquad_cascade_stereo_df2T_f16] characterization: the state layout of one stage is {d1a, d2a, d1b, d2b} (DOC gives no order)") {
+// NEEDS REVIEW 384
+TEST_CASE("characterization: [C4 arm_biquad_cascade_stereo_df2T_f16] the state layout of one stage is {d1a, d2a, d1b, d2b} (DOC gives no order)") {
 	// impulse in channel a only, channel b = 0: d1a = 2.5, d2a = 2.75 (as the mono filter), d1b = d2b = 0
 	Dut<Stereo> d({{1, 2, 3, 0.5, -0.25}});
 	d.run(std::vector<double>{1, 0});

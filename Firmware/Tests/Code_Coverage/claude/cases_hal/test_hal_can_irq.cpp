@@ -204,7 +204,7 @@ TEST_CASE_FIXTURE(Q, "CQ1 notifications can be activated and deactivated in the 
 	CHECK(h.ErrorCode == HAL_CAN_ERROR_NONE);
 }
 
-TEST_CASE_FIXTURE(Q, "CQ1 characterization: activating a notification in the states RESET, SLEEP_PENDING, SLEEP_ACTIVE and ERROR is refused with NOT_INITIALIZED (NEEDS REVIEW 330)") {
+TEST_CASE_FIXTURE(Q, "characterization: CQ1 activating a notification in the states RESET, SLEEP_PENDING, SLEEP_ACTIVE and ERROR is refused with NOT_INITIALIZED (NEEDS REVIEW 330)") {
 	const HAL_CAN_StateTypeDef states[4] = {HAL_CAN_STATE_RESET, HAL_CAN_STATE_SLEEP_PENDING, HAL_CAN_STATE_SLEEP_ACTIVE, HAL_CAN_STATE_ERROR};
 	for (unsigned k = 0; k < 4; ++k) {
 		h.State = states[k];
@@ -216,7 +216,7 @@ TEST_CASE_FIXTURE(Q, "CQ1 characterization: activating a notification in the sta
 	}
 }
 
-TEST_CASE_FIXTURE(Q, "CQ1 characterization: deactivating a notification in a state other than READY / LISTENING is refused with NOT_INITIALIZED and keeps IER (NEEDS REVIEW 330)") {
+TEST_CASE_FIXTURE(Q, "characterization: CQ1 deactivating a notification in a state other than READY / LISTENING is refused with NOT_INITIALIZED and keeps IER (NEEDS REVIEW 330)") {
 	init(h);
 	enable(h, kIerTme | kIerErr);
 	const HAL_CAN_StateTypeDef states[4] = {HAL_CAN_STATE_RESET, HAL_CAN_STATE_SLEEP_PENDING, HAL_CAN_STATE_SLEEP_ACTIVE, HAL_CAN_STATE_ERROR};
@@ -229,7 +229,7 @@ TEST_CASE_FIXTURE(Q, "CQ1 characterization: deactivating a notification in a sta
 	}
 }
 
-TEST_CASE_FIXTURE(Q, "CQ1 characterization: a refused call adds NOT_INITIALIZED to the error code already set (NEEDS REVIEW 330)") {
+TEST_CASE_FIXTURE(Q, "characterization: CQ1 a refused call adds NOT_INITIALIZED to the error code already set (NEEDS REVIEW 330)") {
 	h.State = HAL_CAN_STATE_ERROR;
 	h.ErrorCode = HAL_CAN_ERROR_EWG;
 	CHECK(HAL_CAN_ActivateNotification(&h, kIerTme) == HAL_ERROR);
@@ -244,7 +244,7 @@ TEST_CASE_FIXTURE(Q, "CQ1 a successful call leaves the error code unchanged") {
 	CHECK(h.ErrorCode == HAL_CAN_ERROR_EPV);
 }
 
-TEST_CASE_FIXTURE(Q, "CQ1 characterization: IER bits RM0090 marks reserved are not stored (NEEDS REVIEW 330)") {
+TEST_CASE_FIXTURE(Q, "characterization: CQ1 IER bits RM0090 marks reserved are not stored (NEEDS REVIEW 330)") {
 	init(h);
 	CHECK(HAL_CAN_ActivateNotification(&h, (1u << 7) | (1u << 12) | (1u << 18) | (1u << 31)) == HAL_OK);
 	CHECK(CAN1->IER == 0u);
@@ -509,7 +509,7 @@ TEST_CASE_FIXTURE(Q, "CQ2 abort of all three mailboxes runs the three abort call
 	CHECK(canCounts.order[2] == CAN_CB_ABORT2);
 }
 
-TEST_CASE_FIXTURE(Q, "CQ2 characterization: with ALST and TERR both set and no TXOK only the arbitration lost is reported (NEEDS REVIEW 330)") {
+TEST_CASE_FIXTURE(Q, "characterization: CQ2 with ALST and TERR both set and no TXOK only the arbitration lost is reported (NEEDS REVIEW 330)") {
 	start(h);  // automatic retransmission on: the failed frame stays pending and is sent again
 	enable(h, kIerTme);
 	hostCanSetFrameTicks(1);
@@ -740,7 +740,7 @@ TEST_CASE_FIXTURE(Q, "CQ3 overruns of both FIFOs give one error callback with bo
 	CHECK((CAN1->RF1R & kRfFovr) == 0u);
 }
 
-TEST_CASE_FIXTURE(Q, "CQ3 characterization: a second overrun after the clear is reported again and the error code only accumulates (NEEDS REVIEW 330)") {
+TEST_CASE_FIXTURE(Q, "characterization: CQ3 a second overrun after the clear is reported again and the error code only accumulates (NEEDS REVIEW 330)") {
 	start(h);
 	enable(h, kIerFov0);
 	h.ErrorCode = HAL_CAN_ERROR_NOT_STARTED;
@@ -754,7 +754,7 @@ TEST_CASE_FIXTURE(Q, "CQ3 characterization: a second overrun after the clear is 
 	CHECK(h.ErrorCode == (HAL_CAN_ERROR_NOT_STARTED | HAL_CAN_ERROR_RX_FOV0));
 }
 
-TEST_CASE_FIXTURE(Q, "CQ3 characterization: a full, overrun FIFO 0 runs the full callback, the pending callback, then the error callback (NEEDS REVIEW 330)") {
+TEST_CASE_FIXTURE(Q, "characterization: CQ3 a full, overrun FIFO 0 runs the full callback, the pending callback, then the error callback (NEEDS REVIEW 330)") {
 	start(h);
 	enable(h, kIerFmp0 | kIerFf0 | kIerFov0);
 	rx(h, 0x100, 4);
@@ -913,7 +913,7 @@ TEST_CASE_FIXTURE(Q, "CQ4 the last error codes 1 to 6 map to STF, FOR, ACK, BR, 
 	}
 }
 
-TEST_CASE_FIXTURE(Q, "CQ4 characterization: a software set last error code 7 maps to no error but is cleared (NEEDS REVIEW 330)") {
+TEST_CASE_FIXTURE(Q, "characterization: CQ4 a software set last error code 7 maps to no error but is cleared (NEEDS REVIEW 330)") {
 	cqErrSetup(*this, kIerLec | kIerEwg);
 	hostCanSetCounters(0, 96, 0);  // makes ERRI rise; EWGIE is switched off again so only LEC is looked at
 	CAN1->IER = kIerErr | kIerLec;
@@ -1121,7 +1121,7 @@ TEST_CASE_FIXTURE(Q, "CQ5 the four interrupt request lines are pending exactly f
 	CHECK(hostCanIrqPending(0) == (HOST_CAN_IRQ_TX | HOST_CAN_IRQ_FIFO0 | HOST_CAN_IRQ_FIFO1));
 }
 
-TEST_CASE_FIXTURE(Q, "CQ5 characterization: all sources in one handler call give the callbacks in the order TX, FIFO 0, FIFO 1, sleep, wake-up, error (NEEDS REVIEW 330)") {
+TEST_CASE_FIXTURE(Q, "characterization: CQ5 all sources in one handler call give the callbacks in the order TX, FIFO 0, FIFO 1, sleep, wake-up, error (NEEDS REVIEW 330)") {
 	start(h);
 	enable(h, 0x38F7Fu);
 	threeFrames(h, kOk);  // TXOK of mailbox 0, 1, 2

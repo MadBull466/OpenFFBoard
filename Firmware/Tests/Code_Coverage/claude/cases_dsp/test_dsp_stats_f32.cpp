@@ -746,9 +746,13 @@ TEST_CASE("[C4 arm_min_f32] blocks of only negative samples give the most negati
 TEST_CASE("[C4 arm_absmax_f32] blocks of only negative samples give the largest magnitude") { idxNegative(ABSMAX); }
 TEST_CASE("[C4 arm_absmin_f32] blocks of only negative samples give the smallest magnitude") { idxNegative(ABSMIN); }
 
+// NEEDS REVIEW 210
 TEST_CASE("characterization: [C4 arm_max_f32] equal maxima return the lowest index, and a block of equal samples returns index 0") { idxTies(MAX); }
+// NEEDS REVIEW 210
 TEST_CASE("characterization: [C4 arm_min_f32] equal minima return the lowest index, and a block of equal samples returns index 0") { idxTies(MIN); }
+// NEEDS REVIEW 210
 TEST_CASE("characterization: [C4 arm_absmax_f32] equal absolute maxima (opposite signs) return the lowest index, and a block of equal samples returns index 0") { idxTies(ABSMAX); }
+// NEEDS REVIEW 393
 TEST_CASE("characterization: [C4 arm_absmin_f32] equal absolute minima (+0 and -0) return the lowest index, and a block of equal samples returns index 0") { idxTies(ABSMIN); }
 
 // ---- infinities (ids B-DSF32-1 / B-DSF32-2 below) ----
@@ -1124,6 +1128,7 @@ TEST_CASE("[C4 arm_mse_f32] the mse of blocks of 1..40 identical vectors is exac
 	}
 }
 
+// NEEDS REVIEW 393
 TEST_CASE("characterization: [C4 arm_var_f32] a block of 0 or 1 sample gives variance 0 and standard deviation 0 (DOC is silent, the source returns 0 explicitly)") {
 	// mathematically the n-1 estimator of one sample is 0/0. NEEDS REVIEW (the existing test in cases_target documents the same).
 	const float x = 42.0f;
@@ -1141,6 +1146,7 @@ TEST_CASE("characterization: [C4 arm_var_f32] a block of 0 or 1 sample gives var
 	CHECK(r == 0.0f);
 }
 
+// NEEDS REVIEW 393
 TEST_CASE("characterization: [C4 arm_accumulate_f32] the sum of 0 samples is 0 and nothing is read (DOC is silent)") {
 	float r = -1.0f;
 	arm_accumulate_f32(nullptr, 0, &r);
@@ -1245,12 +1251,14 @@ TEST_CASE("[C4 arm_kullback_leibler_f32] the divergence of a distribution from i
 	}
 }
 
+// NEEDS REVIEW 393
 TEST_CASE("characterization: [C4 arm_entropy_f32] a zero probability gives NaN because 0*logf(0) = 0*(-inf) (DOC is silent about 0 ln 0)") {
 	// NEEDS REVIEW: the usual convention is 0 ln 0 = 0
 	const float p[3] = {0.5f, 0.0f, 0.5f};
 	CHECK(std::isnan(arm_entropy_f32(p, 3)));
 }
 
+// NEEDS REVIEW 212
 TEST_CASE("characterization: [C4 arm_kullback_leibler_f32] a zero in distribution A gives NaN on the portable path (DOC: A may contain 0 'with Neon version')") {
 	// pA * logf(pB / pA) = 0 * logf(inf) = 0 * inf = NaN. NEEDS REVIEW
 	const float a[3] = {0.5f, 0.0f, 0.5f}, b[3] = {0.3f, 0.4f, 0.3f};

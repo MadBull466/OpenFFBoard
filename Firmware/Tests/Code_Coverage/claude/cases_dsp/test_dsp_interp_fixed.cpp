@@ -762,12 +762,15 @@ TEST_CASE("[C4 arm_bilinear_interp_q7] the first and the last cell of a 4 x 5 ma
 	bilinearEndCells<TQ7>();
 }
 
+// NEEDS REVIEW 391
 TEST_CASE("characterization: [C4 arm_bilinear_interp_q31] a coordinate on the last column or last row returns zero (NEEDS REVIEW)") {
 	bilinearLastLine<TQ31>();
 }
+// NEEDS REVIEW 391
 TEST_CASE("characterization: [C4 arm_bilinear_interp_q15] a coordinate on the last column or last row returns zero (NEEDS REVIEW)") {
 	bilinearLastLine<TQ15>();
 }
+// NEEDS REVIEW 391
 TEST_CASE("characterization: [C4 arm_bilinear_interp_q7] a coordinate on the last column or last row returns zero (NEEDS REVIEW)") {
 	bilinearLastLine<TQ7>();
 }

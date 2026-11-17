@@ -356,7 +356,7 @@ template <class Tr>
 bool runPass(const std::vector<typename Tr::S> &c, const std::vector<typename Tr::S> &x, unsigned F, const std::vector<size_t> &chunks,
              size_t maxChunk, typename Tr::S *state, std::vector<typename Tr::S> &out) {
 	typedef typename Tr::S S;
-	typename Tr::Inst inst;
+	typename Tr::Inst inst{};
 	const arm_status st = Tr::init(&inst, static_cast<uint16_t>(c.size()), F, c.data(), state, static_cast<uint32_t>(maxChunk));
 	if (st != ARM_MATH_SUCCESS) return false;
 	bool ok = true;
@@ -448,9 +448,10 @@ void armPatternTest(double snrThr, int64_t lsb) {
 		REQUIRE(cp + T <= coefs.size());
 		sizes = sizes && R == Tr::outCount(B, F);
 		dsp::GuardedBuffer<S> state(Tr::stateLen(T, F, B));
-		typename Tr::Inst inst;
+		typename Tr::Inst inst{};
 		const arm_status st = Tr::init(&inst, static_cast<uint16_t>(T), F, coefs.data() + cp, state.data(), static_cast<uint32_t>(B));
 		ok = ok && st == ARM_MATH_SUCCESS;  // ARM: ASSERT_TRUE(status == ARM_MATH_SUCCESS)
+		REQUIRE(st == ARM_MATH_SUCCESS);  // do not process with an instance whose init failed
 		fields = fields && Tr::fields(inst, static_cast<uint16_t>(T), F, coefs.data() + cp, state.data());
 		dsp::GuardedBuffer<S> out(R);
 		Tr::run(&inst, input.data() + ip, out.data(), static_cast<uint32_t>(B));
@@ -728,9 +729,9 @@ void independentInstancesTest() {
 	const std::vector<S> x1 = genVec<Tr>(b1 * rounds, 13, Tr::amp(Tr::winLen(T1, F1)));
 	const std::vector<S> x2 = genVec<Tr>(b2 * rounds, 14, Tr::amp(Tr::winLen(T2, F2)));
 	dsp::GuardedBuffer<S> s1(Tr::stateLen(T1, F1, b1)), s2(Tr::stateLen(T2, F2, b2));
-	typename Tr::Inst i1, i2;
-	Tr::init(&i1, static_cast<uint16_t>(T1), F1, c1.data(), s1.data(), static_cast<uint32_t>(b1));
-	Tr::init(&i2, static_cast<uint16_t>(T2), F2, c2.data(), s2.data(), static_cast<uint32_t>(b2));
+	typename Tr::Inst i1{}, i2{};
+	REQUIRE(Tr::init(&i1, static_cast<uint16_t>(T1), F1, c1.data(), s1.data(), static_cast<uint32_t>(b1)) == ARM_MATH_SUCCESS);
+	REQUIRE(Tr::init(&i2, static_cast<uint16_t>(T2), F2, c2.data(), s2.data(), static_cast<uint32_t>(b2)) == ARM_MATH_SUCCESS);
 	std::vector<S> y1, y2;
 	for (size_t r = 0; r < rounds; r++) {
 		dsp::GuardedBuffer<S> o1(Tr::outCount(b1, F1)), o2(Tr::outCount(b2, F2));
@@ -760,13 +761,13 @@ void reinitTest() {
 	const size_t B = Tr::chunk(5, F);
 	const std::vector<S> x = genVec<Tr>(B, 22, Tr::amp(Tr::winLen(T, F)));
 	dsp::GuardedBuffer<S> state(Tr::stateLen(T, F, B));
-	typename Tr::Inst inst;
-	Tr::init(&inst, static_cast<uint16_t>(T), F, c.data(), state.data(), static_cast<uint32_t>(B));
+	typename Tr::Inst inst{};
+	REQUIRE(Tr::init(&inst, static_cast<uint16_t>(T), F, c.data(), state.data(), static_cast<uint32_t>(B)) == ARM_MATH_SUCCESS);
 	dsp::GuardedBuffer<S> o1(Tr::outCount(B, F)), o2(Tr::outCount(B, F)), o3(Tr::outCount(B, F));
 	Tr::run(&inst, x.data(), o1.data(), static_cast<uint32_t>(B));
 	Tr::run(&inst, x.data(), o2.data(), static_cast<uint32_t>(B));  // second call carries the history of the first
 	std::memset(static_cast<void *>(state.data()), 0x5A, state.size() * sizeof(S));
-	Tr::init(&inst, static_cast<uint16_t>(T), F, c.data(), state.data(), static_cast<uint32_t>(B));
+	REQUIRE(Tr::init(&inst, static_cast<uint16_t>(T), F, c.data(), state.data(), static_cast<uint32_t>(B)) == ARM_MATH_SUCCESS);
 	Tr::run(&inst, x.data(), o3.data(), static_cast<uint32_t>(B));
 	CHECK(o1.output() != o2.output());  // sanity: the history changes the output (random data, 6 phases of taps)
 	auto chk = dsp::exactEqual(o1.output(), o3.output());
@@ -1137,6 +1138,7 @@ TEST_CASE("[C4 arm_fir_decimate_init_q31] init stores numTaps, M, pCoeffs, pStat
 TEST_CASE("[C4 arm_fir_decimate_init_q31] a block size that is not a multiple of M returns ARM_MATH_LENGTH_ERROR, numTaps is not checked") {
 	decimInitErrorsTest<DecQ31>();
 }
+// NEEDS REVIEW 220
 TEST_CASE("characterization: [C4 arm_fir_decimate_init_q31] the error return leaves the instance and the state buffer untouched") {
 	decimInitErrorLeavesEverythingTest<DecQ31>();
 }
@@ -1148,6 +1150,7 @@ TEST_CASE("[C3 arm_fir_decimate_q31] a one tap filter over a strided sweep of th
 // NEEDS REVIEW (characterization): DOC says saturated, library wraps the final narrowing; suspected DOC/vendor defect, not decided.
 // DOC of the narrowing step: arm_fir_decimate_q31.c:55 "After all multiply-accumulates are performed, the 2.62 accumulator is truncated to 1.32 format and then saturated to 1.31 format."
 // (The DOC sentence "wraps around rather than clip" is about the int64 accumulator, which does not overflow here.)
+// NEEDS REVIEW 229
 TEST_CASE("characterization: [C4 arm_fir_decimate_q31] +1.0 (INT32_MIN * INT32_MIN) leaves the narrowing as 0x80000000, the DOC says saturated (NEEDS REVIEW)") {
 	const std::vector<int32_t> c = {INT32_MIN};
 	const int32_t r = lastOut<DecQ31>(c, INT32_MIN);
@@ -1156,12 +1159,15 @@ TEST_CASE("characterization: [C4 arm_fir_decimate_q31] +1.0 (INT32_MIN * INT32_M
 // NEEDS REVIEW (characterization): DOC says saturated, library wraps the final narrowing; suspected DOC/vendor defect, not decided.
 // DOC of the narrowing step: arm_fir_decimate_q31.c:55 "After all multiply-accumulates are performed, the 2.62 accumulator is truncated to 1.32 format and then saturated to 1.31 format."
 // (The DOC sentence "wraps around rather than clip" is about the int64 accumulator, which does not overflow here.)
+// NEEDS REVIEW 229
 TEST_CASE("characterization: [C4 arm_fir_decimate_q31] -(2^32-2) LSB leaves the narrowing as +2, the DOC says saturated (NEEDS REVIEW)") {
 	const std::vector<int32_t> c = {INT32_MAX, INT32_MAX};
 	const int32_t r = lastOut<DecQ31>(c, INT32_MIN);
 	CHECK(r == 2);  // V = 2*(-2^31)(2^31-1)/2^31 = -(2^32-2) = +2 mod 2^32
 }
+// NEEDS REVIEW 226
 TEST_CASE("characterization: [C4 arm_fir_decimate_q31] +1.0 at every output of a 9 output call (unrolled by 4 plus tail), M or L 1, 2, 3, 5, leaves the narrowing as 0x80000000, the DOC says saturated (NEEDS REVIEW)") { wrapPositiveUnrolledTest<DecQ31>(); }
+// NEEDS REVIEW 226
 TEST_CASE("characterization: [C4 arm_fir_decimate_q31] -(2^32-2) LSB at every full window of a 9 output call, M or L 1, 2, 3, 5, leaves the narrowing as +2, the DOC says saturated (NEEDS REVIEW)") { wrapNegativeUnrolledTest<DecQ31>(); }
 
 }  // TEST_SUITE
@@ -1209,11 +1215,13 @@ TEST_CASE("[C3 arm_fir_decimate_fast_q31] a one tap filter over a strided sweep 
 // NEEDS REVIEW (characterization): DOC says saturated, library wraps the final narrowing; suspected DOC/vendor defect, not decided.
 // DOC of the narrowing step: arm_fir_decimate_fast_q31.c:~51 "Finally, the accumulator is saturated and converted to a 1.31 result."
 // (The DOC sentence "wraps around rather than clip" is about the int64 accumulator, which does not overflow here.)
+// NEEDS REVIEW 226
 TEST_CASE("characterization: [C4 arm_fir_decimate_fast_q31] +1.0 (INT32_MIN * INT32_MIN) leaves the narrowing as 0x80000000, the DOC says saturated (NEEDS REVIEW)") {
 	const std::vector<int32_t> c = {INT32_MIN};
 	const int32_t r = lastOut<DecQ31Fast>(c, INT32_MIN);
 	CHECK(r == INT32_MIN);  // V = 2^62 / 2^31 = 2^31 (fast: acc 2^30 in 2.30, acc << 1 = 2^31), (q31_t) wraps to INT32_MIN
 }
+// NEEDS REVIEW 226
 TEST_CASE("characterization: [C4 arm_fir_decimate_fast_q31] +1.0 at every output of a 9 output call (unrolled by 4 plus tail), M or L 1, 2, 3, 5, leaves the narrowing as 0x80000000, the DOC says saturated (NEEDS REVIEW)") { wrapPositiveUnrolledTest<DecQ31Fast>(); }
 
 TEST_CASE("[C3 arm_fir_decimate_fast_q31] random non-negative data, M 1..5 and 1..25 taps equals the integer DEF bit for bit (no negative accumulator)") {
@@ -1261,6 +1269,7 @@ TEST_CASE("[C4 arm_fir_decimate_init_q15] init stores numTaps, M, pCoeffs, pStat
 TEST_CASE("[C4 arm_fir_decimate_init_q15] a block size that is not a multiple of M returns ARM_MATH_LENGTH_ERROR, numTaps is not checked") {
 	decimInitErrorsTest<DecQ15>();
 }
+// NEEDS REVIEW 220
 TEST_CASE("characterization: [C4 arm_fir_decimate_init_q15] the error return leaves the instance and the state buffer untouched") {
 	decimInitErrorLeavesEverythingTest<DecQ15>();
 }
@@ -1326,12 +1335,14 @@ TEST_CASE("[C4 arm_fir_interpolate_q31] init again clears the history and a garb
 TEST_CASE("[C4 arm_fir_interpolate_init_q31] init stores L, phaseLength, pCoeffs, pState and zeroes exactly numTaps/L + blockSize - 1 elements") {
 	initTest<IntQ31>();
 }
+// NEEDS REVIEW 225
 TEST_CASE("characterization: [C4 arm_fir_interpolate_init_q31] a numTaps that is not a multiple of L returns ARM_MATH_LENGTH_ERROR (DOC says ARM_MATH_ARGUMENT_ERROR), other cases succeed") {
 	interpInitErrorsTest<IntQ31>(true);
 }
 TEST_CASE("[C4 arm_fir_interpolate_init_q31] a numTaps that is not a multiple of L is rejected with a return value other than ARM_MATH_SUCCESS") {
 	interpInitErrorsTest<IntQ31>(false);
 }
+// NEEDS REVIEW 220
 TEST_CASE("characterization: [C4 arm_fir_interpolate_init_q31] the error return leaves the instance and the state buffer untouched") {
 	interpInitErrorLeavesEverythingTest<IntQ31>();
 }
@@ -1343,6 +1354,7 @@ TEST_CASE("[C3 arm_fir_interpolate_q31] a one tap filter over a strided sweep of
 // NEEDS REVIEW (characterization): DOC says saturated, library wraps the final narrowing; suspected DOC/vendor defect, not decided.
 // DOC of the narrowing step: arm_fir_interpolate_q31.c:56 "After all multiply-accumulates are performed, the 2.62 accumulator is truncated to 1.32 format and then saturated to 1.31 format."
 // (The DOC sentence "wraps around rather than clip" is about the int64 accumulator, which does not overflow here.)
+// NEEDS REVIEW 229
 TEST_CASE("characterization: [C4 arm_fir_interpolate_q31] +1.0 (INT32_MIN * INT32_MIN) leaves the narrowing as 0x80000000, the DOC says saturated (NEEDS REVIEW)") {
 	const std::vector<int32_t> c = {INT32_MIN};
 	const int32_t r = lastOut<IntQ31>(c, INT32_MIN);
@@ -1351,12 +1363,15 @@ TEST_CASE("characterization: [C4 arm_fir_interpolate_q31] +1.0 (INT32_MIN * INT3
 // NEEDS REVIEW (characterization): DOC says saturated, library wraps the final narrowing; suspected DOC/vendor defect, not decided.
 // DOC of the narrowing step: arm_fir_interpolate_q31.c:56 "After all multiply-accumulates are performed, the 2.62 accumulator is truncated to 1.32 format and then saturated to 1.31 format."
 // (The DOC sentence "wraps around rather than clip" is about the int64 accumulator, which does not overflow here.)
+// NEEDS REVIEW 229
 TEST_CASE("characterization: [C4 arm_fir_interpolate_q31] -(2^32-2) LSB leaves the narrowing as +2, the DOC says saturated (NEEDS REVIEW)") {
 	const std::vector<int32_t> c = {INT32_MAX, INT32_MAX};
 	const int32_t r = lastOut<IntQ31>(c, INT32_MIN);
 	CHECK(r == 2);  // V = 2*(-2^31)(2^31-1)/2^31 = -(2^32-2) = +2 mod 2^32
 }
+// NEEDS REVIEW 226
 TEST_CASE("characterization: [C4 arm_fir_interpolate_q31] +1.0 at every output of a 9 output call (unrolled by 4 plus tail), M or L 1, 2, 3, 5, leaves the narrowing as 0x80000000, the DOC says saturated (NEEDS REVIEW)") { wrapPositiveUnrolledTest<IntQ31>(); }
+// NEEDS REVIEW 226
 TEST_CASE("characterization: [C4 arm_fir_interpolate_q31] -(2^32-2) LSB at every full window of a 9 output call, M or L 1, 2, 3, 5, leaves the narrowing as +2, the DOC says saturated (NEEDS REVIEW)") { wrapNegativeUnrolledTest<IntQ31>(); }
 
 }  // TEST_SUITE
@@ -1394,12 +1409,14 @@ TEST_CASE("[C4 arm_fir_interpolate_q15] init again clears the history and a garb
 TEST_CASE("[C4 arm_fir_interpolate_init_q15] init stores L, phaseLength, pCoeffs, pState and zeroes exactly numTaps/L + blockSize - 1 elements") {
 	initTest<IntQ15>();
 }
+// NEEDS REVIEW 225
 TEST_CASE("characterization: [C4 arm_fir_interpolate_init_q15] a numTaps that is not a multiple of L returns ARM_MATH_LENGTH_ERROR (DOC says ARM_MATH_ARGUMENT_ERROR), other cases succeed") {
 	interpInitErrorsTest<IntQ15>(true);
 }
 TEST_CASE("[C4 arm_fir_interpolate_init_q15] a numTaps that is not a multiple of L is rejected with a return value other than ARM_MATH_SUCCESS") {
 	interpInitErrorsTest<IntQ15>(false);
 }
+// NEEDS REVIEW 389
 TEST_CASE("characterization: [C4 arm_fir_interpolate_init_q15] the error return leaves the instance and the state buffer untouched") {
 	interpInitErrorLeavesEverythingTest<IntQ15>();
 }

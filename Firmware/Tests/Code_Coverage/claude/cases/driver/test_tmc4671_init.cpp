@@ -221,7 +221,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R22] sel_nclk_mclk_i of a channel with MCLK 0 is
 	CHECK((chip1.reg(0x04) & 0x00100000) == 0x00100000);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R22] characterization: ADC_I_SELECT 0x0A is written with I0 <- ADC0, I1 <- ADC1, UX <- I0, V <- I2, WY <- I1") {
+// NEEDS REVIEW 372
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R22] ADC_I_SELECT 0x0A is written with I0 <- ADC0, I1 <- ADC1, UX <- I0, V <- I2, WY <- I1") {
 	// DS 0x0A p79: I0_SELECT [7:0], I1_SELECT [15:8], UX_SELECT [25:24], V_SELECT [27:26], WY_SELECT [29:28].
 	// The channel mapping is board specific (charter L1): layout from the DS, mapping from the firmware (0x18000100).
 	// Hand decode of the fields: 0x18000100 -> bits 7:0 = 0, 15:8 = 1, 25:24 = 0, 27:26 = 2, 29:28 = 1.
@@ -355,7 +356,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R25] the flux biquad is enabled (biquad_f_enable
 constexpr double kCoefTol = 1e-6;
 constexpr double kDcTol = 1e-3;
 
-TEST_CASE_FIXTURE(TmcFixture, "[R25] characterization: the flux biquad numerator b0, b1, b2 is the 350 Hz Q 0.7 bilinear lowpass in Q3.29") {
+// NEEDS REVIEW 372
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R25] the flux biquad numerator b0, b1, b2 is the 350 Hz Q 0.7 bilinear lowpass in Q3.29") {
 	// DS §4.8.1 p61 eq 40-42: b = round(b_z * 2^29). Oracle (HD): K = tan(pi fc/fs), norm = 1/(1+K/Q+K^2),
 	// b0 = K^2 norm, b1 = 2 b0, b2 = b0; fs = 100 MHz / 4096.
 	auto tmc = initialised(*this);
@@ -369,7 +371,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R25] characterization: the flux biquad numerator
 	CHECK(std::abs(double(int32_t(m[30])) / Q29 - o.b2) <= kCoefTol);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R25] characterization: the flux biquad feedback coefficients are the negated lowpass denominator in Q3.29") {
+// NEEDS REVIEW 372
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R25] the flux biquad feedback coefficients are the negated lowpass denominator in Q3.29") {
 	// DS §4.8.1 p61 eq 43-44: a1 = round(-a1_z * 2^29), a2 = round(-a2_z * 2^29), a_z = denominator coefficients
 	// of 1 + a1_z z^-1 + a2_z z^-2 (HD: a1_z = 2 (K^2-1) norm, a2_z = (1-K/Q+K^2) norm). The firmware negates in
 	// Filters.cpp calcBiquad. For 350 Hz: a1 ~ +1.87, a2 ~ -0.879.
@@ -382,7 +385,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R25] characterization: the flux biquad feedback 
 	CHECK(std::abs(double(int32_t(m[26])) / Q29 - (-o.denA2)) <= kCoefTol);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R25] characterization: the flux biquad has unity DC gain (b0+b1+b2) / (2^29 - a1 - a2) = 1") {
+// NEEDS REVIEW 372
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R25] the flux biquad has unity DC gain (b0+b1+b2) / (2^29 - a1 - a2) = 1") {
 	// DS eq 33 at DC: Y (1 - a1 - a2) = X (b0 + b1 + b2); a lowpass has gain 1 (HD). Tolerance 1e-3 (L19).
 	auto tmc = initialised(*this);
 	auto m = fluxBiquadWrites(chip1);

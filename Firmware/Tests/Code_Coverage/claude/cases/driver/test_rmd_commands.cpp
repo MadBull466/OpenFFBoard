@@ -218,6 +218,7 @@ TEST_CASE_FIXTURE(RmdFixture, "[R8.2 canid] canid set 256 does not leave the id 
 	CHECK(id <= 32);
 }
 
+// NEEDS REVIEW 359
 TEST_CASE_FIXTURE(RmdFixture, "characterization: [R8.3 canid] canid set 33 is answered OK and clamped to 32 (frame id 0x160)") {
 	auto rmd = makeRmd1();
 	CHECK(setCmd(*rmd, "canid", 33) == CommandStatus::OK);
@@ -229,6 +230,7 @@ TEST_CASE_FIXTURE(RmdFixture, "characterization: [R8.3 canid] canid set 33 is an
 	CHECK(HostTarget::canPort().filters[1].filter_id == 0x260);
 }
 
+// NEEDS REVIEW 359
 TEST_CASE_FIXTURE(RmdFixture, "characterization: [R8.3 canid] canid set 255 is answered OK and clamped to 32") {
 	auto rmd = makeRmd1();
 	CHECK(setCmd(*rmd, "canid", 255) == CommandStatus::OK);
@@ -566,6 +568,7 @@ TEST_CASE_FIXTURE(RmdFixture, "[R9.1 save] saveFlash reduces a position offset o
 	CHECK(word(ADR_RMD1_OFFSET) == 0xF060); // HD: -40000 % -36000 = -4000 -> 65536 - 4000 = 61536 = 0xF060
 }
 
+// NEEDS REVIEW 359
 TEST_CASE_FIXTURE(RmdFixture, "characterization: [R9.1 save] saveFlash masks a maxtorque of 40000 to 15 bits, word 2 = 7232") {
 	auto rmd = makeRmd1();
 	REQUIRE(setCmd(*rmd, "maxtorque", 40000) == CommandStatus::OK); // accepted today (B-RMD-3)
@@ -655,6 +658,7 @@ TEST_CASE_FIXTURE(RmdFixture, "[R9.2 restore] word 1 = 0x0010 gives canid 17 (bi
 	CHECK(getCmd(*rmd, "requestpos") == 0);
 }
 
+// NEEDS REVIEW 261
 TEST_CASE_FIXTURE(RmdFixture, "characterization: [R9.2 restore] restoreFlash() after construction changes the id but does not rebuild the reply filter") {
 	auto rmd = makeRmd1();
 	setWord(ADR_RMD1_DATA1, 0x0004); // id 5

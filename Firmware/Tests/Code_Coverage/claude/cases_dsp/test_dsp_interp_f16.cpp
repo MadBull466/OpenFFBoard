@@ -538,6 +538,7 @@ TEST_CASE("[C4 arm_bilinear_interp_f16] a coordinate between -1 and 0 is outside
 	CHECK(d(arm_bilinear_interp_f16(&S, h(0.0), h(-0.5))) == 0.0);
 }
 
+// NEEDS REVIEW 200
 TEST_CASE("characterization: [C4 arm_bilinear_interp_f16] a coordinate on the last column or last row returns zero (NEEDS REVIEW)") {
 	// DOC: points outside the table return zero, the last column (x = numCols-1) and row are table points, yet the code
 	// tests 'xIndex > numCols - 2' and returns 0 there. Documents today's behaviour; DOC is silent on the limit.

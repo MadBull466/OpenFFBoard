@@ -440,7 +440,8 @@ TEST_CASE_FIXTURE(SeqRig, "IQ1 master receive frame end disables the event and e
 	CHECK(i2cCounts.orderCount == 1u);
 }
 
-TEST_CASE_FIXTURE(SeqRig, "IQ1 characterization: a 1 byte receive with I2C_FIRST_AND_NEXT_FRAME does not complete and keeps reading") {
+// NEEDS REVIEW 324
+TEST_CASE_FIXTURE(SeqRig, "characterization: IQ1 a 1 byte receive with I2C_FIRST_AND_NEXT_FRAME does not complete and keeps reading") {
 	/* characterization: NEEDS REVIEW 324 (first proposed as a vendor bug, withdrawn). UM1725 only says "At reception end of current frame transfer,
 	 * HAL_I2C_MasterRxCpltCallback() is executed" for the interface and describes FIRST_AND_NEXT_FRAME as "transfer without a
 	 * final stop condition ... permit a call the same master sequential interface several times"; neither sentence promises a
@@ -500,7 +501,8 @@ TEST_CASE_FIXTURE(SeqRig, "IQ1 master receive I2C_OTHER_AND_LAST_FRAME of 1 and 
 	}
 }
 
-TEST_CASE_FIXTURE(SeqRig, "IQ1 characterization: the OTHER options are converted to FIRST_FRAME and FIRST_AND_LAST_FRAME at the start condition") {
+// NEEDS REVIEW 324
+TEST_CASE_FIXTURE(SeqRig, "characterization: IQ1 the OTHER options are converted to FIRST_FRAME and FIRST_AND_LAST_FRAME at the start condition") {
 	/* characterization: NEEDS REVIEW 324. I2C_ConvertOtherXferOptions: OTHER_FRAME -> FIRST_FRAME, OTHER_AND_LAST_FRAME ->
 	 * FIRST_AND_LAST_FRAME (the comments of the function, not UM1725, state it). */
 	CHECK(tx(I2C_FIRST_FRAME, 1) == HAL_OK);
@@ -801,7 +803,8 @@ TEST_CASE_FIXTURE(SeqRig, "IQ3 a byte sent between two receive frames is deliver
 	CHECK(rx[1] == 0x72);
 }
 
-TEST_CASE_FIXTURE(SeqRig, "IQ3 characterization: a stop before the receive frame is full ends the frame with an acknowledge failure error") {
+// NEEDS REVIEW 414
+TEST_CASE_FIXTURE(SeqRig, "characterization: IQ3 a stop before the receive frame is full ends the frame with an acknowledge failure error") {
 	/* characterization: NEEDS REVIEW 324 */
 	listen();
 	REQUIRE(addressed(0x30));
@@ -1034,7 +1037,8 @@ TEST_CASE_FIXTURE(SeqRig, "IQ4 after an error a new FIRST frame starts a fresh s
 	CHECK(h.ErrorCode == HAL_I2C_ERROR_NONE);
 }
 
-TEST_CASE_FIXTURE(SeqRig, "IQ4 characterization: a NEXT_FRAME after an error starts with a start condition") {
+// NEEDS REVIEW 414
+TEST_CASE_FIXTURE(SeqRig, "characterization: IQ4 a NEXT_FRAME after an error starts with a start condition") {
 	/* characterization: NEEDS REVIEW 324 */
 	hostI2cDeviceNackDataAt(0, dev, 0);
 	CHECK(tx(I2C_FIRST_FRAME, 2) == HAL_OK);
@@ -1045,14 +1049,16 @@ TEST_CASE_FIXTURE(SeqRig, "IQ4 characterization: a NEXT_FRAME after an error sta
 	CHECK(log() == "S OA0 OA1");
 }
 
-TEST_CASE_FIXTURE(SeqRig, "IQ4 characterization: a NEXT_FRAME as the first call of a sequence starts with a start condition") {
+// NEEDS REVIEW 324
+TEST_CASE_FIXTURE(SeqRig, "characterization: IQ4 a NEXT_FRAME as the first call of a sequence starts with a start condition") {
 	/* characterization: NEEDS REVIEW 324 */
 	CHECK(tx(I2C_NEXT_FRAME, 1) == HAL_OK);
 	CHECK(log() == "S OA0 OA1");
 	CHECK(i2cCounts.masterTx == 1u);
 }
 
-TEST_CASE_FIXTURE(SeqRig, "IQ4 characterization: a LAST_FRAME as the first call of a transmit sequence is start, address, data, stop") {
+// NEEDS REVIEW 324
+TEST_CASE_FIXTURE(SeqRig, "characterization: IQ4 a LAST_FRAME as the first call of a transmit sequence is start, address, data, stop") {
 	/* characterization: NEEDS REVIEW 324 */
 	CHECK(tx(I2C_LAST_FRAME, 2) == HAL_OK);
 	CHECK(log() == "S OA0 OA1 OA2 P");
@@ -1115,7 +1121,8 @@ TEST_CASE_FIXTURE(SeqRig, "IQ4 a pending stop request makes even a LAST_FRAME wa
 	HalFixture::poke(&I2C1->CR1, HalFixture::peek(&I2C1->CR1) & ~I2C_CR1_STOP);
 }
 
-TEST_CASE_FIXTURE(SeqRig, "IQ4 characterization: a LAST_FRAME call does not look at the BUSY flag") {
+// NEEDS REVIEW 324
+TEST_CASE_FIXTURE(SeqRig, "characterization: IQ4 a LAST_FRAME call does not look at the BUSY flag") {
 	/* characterization: NEEDS REVIEW 324. Only FIRST_FRAME, FIRST_AND_LAST_FRAME or a pending STOP make the call wait. */
 	hostI2cBusBusy(0, 1);
 	CHECK(HAL_I2C_Master_Seq_Transmit_IT(&h, 0xA0, txb, 1, I2C_LAST_FRAME) == HAL_OK);
@@ -1160,14 +1167,16 @@ TEST_CASE_FIXTURE(SeqRig, "IQ4 lost arbitration during a receive frame ends it w
 	CHECK((I2C1->CR1 & I2C_CR1_POS) == 0u);
 }
 
-TEST_CASE_FIXTURE(SeqRig, "IQ4 characterization: SEQ_NO_OPTION_FRAME as a transmit option ends the frame with a stop") {
+// NEEDS REVIEW 414
+TEST_CASE_FIXTURE(SeqRig, "characterization: IQ4 SEQ_NO_OPTION_FRAME as a transmit option ends the frame with a stop") {
 	/* characterization: NEEDS REVIEW 324 */
 	CHECK(tx(SEQ_NO_OPTION_FRAME, 2) == HAL_OK);
 	CHECK(log() == "S OA0 OA1 OA2 P");
 	CHECK(i2cCounts.masterTx == 1u);
 }
 
-TEST_CASE_FIXTURE(SeqRig, "IQ4 characterization: SEQ_NO_OPTION_FRAME as a receive option of 1 byte nacks the byte and ends with a stop") {
+// NEEDS REVIEW 324
+TEST_CASE_FIXTURE(SeqRig, "characterization: IQ4 SEQ_NO_OPTION_FRAME as a receive option of 1 byte nacks the byte and ends with a stop") {
 	/* characterization: NEEDS REVIEW 324 */
 	feed(4);
 	CHECK(rxf(SEQ_NO_OPTION_FRAME, 1) == HAL_OK);
@@ -1176,7 +1185,8 @@ TEST_CASE_FIXTURE(SeqRig, "IQ4 characterization: SEQ_NO_OPTION_FRAME as a receiv
 	CHECK(i2cCounts.masterRx == 1u);
 }
 
-TEST_CASE_FIXTURE(SeqRig, "IQ4 characterization: a receive of size 0 reads one byte and ends with a stop") {
+// NEEDS REVIEW 324
+TEST_CASE_FIXTURE(SeqRig, "characterization: IQ4 a receive of size 0 reads one byte and ends with a stop") {
 	/* characterization: NEEDS REVIEW 324 */
 	feed(4);
 	CHECK(rxf(I2C_FIRST_AND_LAST_FRAME, 0) == HAL_OK);
@@ -1329,7 +1339,8 @@ TEST_CASE_FIXTURE(SeqRig, "IQ3 a multi byte slave transmit frame that starts whi
 	CHECK(h.State == HAL_I2C_STATE_LISTEN);
 }
 
-TEST_CASE_FIXTURE(SeqRig, "IQ3 characterization: bytes still in the data register at the stop are stored, then the short frame ends with an acknowledge failure") {
+// NEEDS REVIEW 322
+TEST_CASE_FIXTURE(SeqRig, "characterization: IQ3 bytes still in the data register at the stop are stored, then the short frame ends with an acknowledge failure") {
 	/* characterization: NEEDS REVIEW 324. Two bytes were acknowledged (RM0090 27.3.2: a byte the target acked was received) and are
 	 * waiting in DR and the shift register when the stop arrives with the frame not full (Size 3). */
 	listen();
@@ -1368,7 +1379,8 @@ TEST_CASE_FIXTURE(SeqRig, "IQ3 two bytes held between two receive frames are del
 	CHECK(h.State == HAL_I2C_STATE_LISTEN);
 }
 
-TEST_CASE_FIXTURE(SeqRig, "IQ4 characterization: a stop request that does not complete ends a 1 byte receive with a timeout error") {
+// NEEDS REVIEW 304
+TEST_CASE_FIXTURE(SeqRig, "characterization: IQ4 a stop request that does not complete ends a 1 byte receive with a timeout error") {
 	/* characterization: NEEDS REVIEW 324. UM1725 names HAL_I2C_ERROR_TIMEOUT but not this path: the RXNE handler of the last byte waits
 	 * for the hardware to clear CR1.STOP (5 ms); the stop request is kept set with a raw poke to model a stop that never ends. */
 	feed(4);
@@ -1409,7 +1421,8 @@ TEST_CASE_FIXTURE(SeqRig, "IQ2 a FIRST_FRAME of size 0 that ends in the TXE hand
 	CHECK(i2cCounts.masterTx == 2u);
 }
 
-TEST_CASE_FIXTURE(SeqRig, "IQ2 characterization: PreviousState after a TXE handler completion is master busy transmit") {
+// NEEDS REVIEW 324
+TEST_CASE_FIXTURE(SeqRig, "characterization: IQ2 PreviousState after a TXE handler completion is master busy transmit") {
 	/* characterization: NEEDS REVIEW 324 */
 	CHECK(tx(I2C_FIRST_FRAME, 0) == HAL_OK);
 	CHECK(h.PreviousState == SEQ_PS_MASTER_TX);

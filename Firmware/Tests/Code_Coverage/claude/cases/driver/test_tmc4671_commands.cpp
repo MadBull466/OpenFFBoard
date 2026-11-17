@@ -97,7 +97,8 @@ TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] cpr set 4000 writes 4000 to ABN_DECODER
 	CHECK(get(*tmc, "cpr") == 4000);
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: cpr set 0 is raised to 1 before it is written") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] cpr set 0 is raised to 1 before it is written") {
 	auto tmc = makeTmc1();
 	setCmd(*tmc, "cpr", 0);
 	CHECK(chip1.reg(0x26) == 1u);
@@ -117,7 +118,8 @@ TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] mtype set 3 writes MOTOR_TYPE 3 (BLDC) 
 	CHECK(get(*tmc, "mtype") == 3);
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: mtype set 1 (DC) forces the pole pair count to 1: register 0x1B = 0x00010001") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] mtype set 1 (DC) forces the pole pair count to 1: register 0x1B = 0x00010001") {
 	auto tmc = makeTmc1();
 	setCmd(*tmc, "mtype", 1);
 	CHECK(chip1.reg(0x1B) == 0x00010001u);
@@ -149,7 +151,8 @@ TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] mtype get on a handler with the info ty
 	CHECK_FALSE(replies.front().reply.empty()); // L7: format only, not the text
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R102] characterization: mtype set 9 (invalid) is mapped to NONE (0) in the register and in get") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R102] mtype set 9 (invalid) is mapped to NONE (0) in the register and in get") {
 	auto tmc = makeTmc1();
 	setCmd(*tmc, "mtype", 3);
 	REQUIRE(get(*tmc, "mtype") == 3);
@@ -159,7 +162,8 @@ TEST_CASE_FIXTURE(TmcCmdFixture, "[R102] characterization: mtype set 9 (invalid)
 	CHECK(((chip1.reg(0x1B) >> 16) & 0xFF) == 0u);
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R102] characterization: mtype set 4 (first value above BLDC) is mapped to NONE (0)") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R102] mtype set 4 (first value above BLDC) is mapped to NONE (0)") {
 	auto tmc = makeTmc1();
 	setCmd(*tmc, "mtype", 3);
 	setCmd(*tmc, "mtype", 4);
@@ -209,14 +213,16 @@ TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] encsrc set 4 selects hall: get returns 
 	CHECK(chip1.reg(0x52) == 5u); // DS 0x52 p87: 5 = phi_e_hal
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: encsrc set 99 (unsupported) falls back to NONE (0)") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] encsrc set 99 (unsupported) falls back to NONE (0)") {
 	auto tmc = makeTmc1();
 	setCmd(*tmc, "encsrc", 1);
 	setCmd(*tmc, "encsrc", 99);
 	CHECK(get(*tmc, "encsrc") == 0);
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: encsrc set 5 (external) without an external encoder falls back to NONE (0)") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] encsrc set 5 (external) without an external encoder falls back to NONE (0)") {
 	auto tmc = makeTmc1();
 	setCmd(*tmc, "encsrc", 5);
 	CHECK(get(*tmc, "encsrc") == 0);
@@ -226,12 +232,14 @@ TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: encsrc set 5 (externa
 // R100 tmcHwType (3)
 // ---------------------------------------------------------------------------------------------------------------
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: tmcHwType get returns 6 (v1.3 ACS724) for a driver without stored configuration") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] tmcHwType get returns 6 (v1.3 ACS724) for a driver without stored configuration") {
 	auto tmc = makeTmc1();
 	CHECK(get(*tmc, "tmcHwType") == 6); // tmc4671_hw_configs[0] (CFG.cpp)
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: tmcHwType set 3 selects v1.2.2: get returns 3, ADC_VM_LIMITS 0x75 = 50700 | 50900 << 16, BBM 0x19 = 20 | 20 << 8") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] tmcHwType set 3 selects v1.2.2: get returns 3, ADC_VM_LIMITS 0x75 = 50700 | 50900 << 16, BBM 0x19 = 20 | 20 << 8") {
 	auto tmc = makeTmc1();
 	setCmd(*tmc, "tmcHwType", 3);
 	CHECK(get(*tmc, "tmcHwType") == 3);
@@ -241,7 +249,8 @@ TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: tmcHwType set 3 selec
 	setCmd(*tmc, "tmcHwType", 6); // vSenseMult is a global of the voltage sense module: restore
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: tmcHwType set 4 (version without configuration) keeps the current hardware configuration") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] tmcHwType set 4 (version without configuration) keeps the current hardware configuration") {
 	auto tmc = makeTmc1();
 	setCmd(*tmc, "tmcHwType", 4);
 	CHECK(get(*tmc, "tmcHwType") == 6);
@@ -262,19 +271,22 @@ TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] tmcHwType info answers one string reply
 // R100 encalign (4), calibrate (26), autohome (29), pidautotune (39): accepted only
 // ---------------------------------------------------------------------------------------------------------------
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: encalign get is accepted without an immediate reply (NO_REPLY)") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] encalign get is accepted without an immediate reply (NO_REPLY)") {
 	auto tmc = makeTmc1();
 	std::vector<CommandReply> replies;
 	CHECK(run(*tmc, "encalign", CMDtype::get, 0, &replies) == CommandStatus::NO_REPLY);
 	CHECK(replies.empty());
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: encalign set is rejected with ERR") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] encalign set is rejected with ERR") {
 	auto tmc = makeTmc1();
 	CHECK(run(*tmc, "encalign", CMDtype::set, 1) == CommandStatus::ERR);
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: calibrate get is accepted (OK) without a reply and without SPI traffic of its own") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] calibrate get is accepted (OK) without a reply and without SPI traffic of its own") {
 	auto tmc = makeTmc1();
 	chip1.clearLog();
 	std::vector<CommandReply> replies;
@@ -283,7 +295,8 @@ TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: calibrate get is acce
 	CHECK(chip1.log().empty()); // only requests the state change, the thread does the work
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: autohome get is accepted (OK) without a reply and without SPI traffic of its own") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] autohome get is accepted (OK) without a reply and without SPI traffic of its own") {
 	auto tmc = makeTmc1();
 	chip1.clearLog();
 	std::vector<CommandReply> replies;
@@ -292,7 +305,8 @@ TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: autohome get is accep
 	CHECK(chip1.log().empty());
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: pidautotune get is accepted without an immediate reply (NO_REPLY) and without SPI traffic of its own") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] pidautotune get is accepted without an immediate reply (NO_REPLY) and without SPI traffic of its own") {
 	auto tmc = makeTmc1();
 	chip1.clearLog();
 	std::vector<CommandReply> replies;
@@ -474,7 +488,8 @@ TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] invertForce set 1 is stored for get onc
 	CHECK(get(*tmc, "invertForce") == 1);
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: switching combineEncoder off also switches invertForce off") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] switching combineEncoder off also switches invertForce off") {
 	auto tmc = makeTmc1();
 	setCmd(*tmc, "combineEncoder", 1);
 	setCmd(*tmc, "invertForce", 1);
@@ -525,7 +540,8 @@ TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] svpwm set 0 for a BLDC motor clears SVP
 // R100 iScale (21)
 // ---------------------------------------------------------------------------------------------------------------
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: iScale get replies the current scaler of the v1.3 board as text 0.001156") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] iScale get replies the current scaler of the v1.3 board as text 0.001156") {
 	auto tmc = makeTmc1();
 	std::vector<CommandReply> replies;
 	CHECK(run(*tmc, "iScale", CMDtype::get, 0, &replies) == CommandStatus::OK);
@@ -593,7 +609,8 @@ TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] abnindex set 0 after 1 is stored for ge
 // R100 temp (23), vm (34)
 // ---------------------------------------------------------------------------------------------------------------
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: temp get of a thermistor reading of 25 C replies 2500 (C * 100) and selects ADC_RAW_ADDR 2") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] temp get of a thermistor reading of 25 C replies 2500 (C * 100) and selects ADC_RAW_ADDR 2") {
 	auto tmc = makeTmc1();
 	// Hand derivation (v1.3 board: R2 1500, R 10000, beta 4300, adcOffset 0): adcval = raw - 0x7FFF; the thermistor
 	// resistance is r = 1500 * 43252 / adcval. 25 C is r = 10000 -> adcval = 6487.8, use 6488: r = 9999.7,
@@ -606,7 +623,8 @@ TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: temp get of a thermis
 	CHECK(chip1.writesTo(0x03).front() == 2u); // DS 0x03 p77: ADC_RAW_ADDR
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: temp get replies 0 for a hardware version without thermistor (v1.0)") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] temp get replies 0 for a hardware version without thermistor (v1.0)") {
 	auto tmc = makeTmc1();
 	setCmd(*tmc, "tmcHwType", 1);
 	chip1.setAdcRaw(2, 0x7FFFu + 6488u);
@@ -614,7 +632,8 @@ TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: temp get replies 0 fo
 	setCmd(*tmc, "tmcHwType", 6); // restore the global vSenseMult
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: vm get of ADC raw 0x993B replies about 23986 mV and selects ADC_RAW_ADDR 1") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] vm get of ADC raw 0x993B replies about 23986 mV and selects ADC_RAW_ADDR 1") {
 	auto tmc = makeTmc1();
 	// Hand derivation: raw low word 0x993B = 39227, minus 0x7FFF (32767) = 6460 counts (adcOffset 0 for v1.3).
 	// vmScaler = (2.5 / 32767) * ((1.5 + 71.5) / 1.5) = 3.71309 mV per count -> 6460 * 3.71309 = 23985.9 mV
@@ -656,7 +675,8 @@ TEST_CASE_FIXTURE(TmcCmdFixture, "[R101] reg getat reads the register at the add
 	CHECK(replies.front().val == 0x1234);
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R101] characterization: reg with a plain get or set is rejected with ERR") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R101] reg with a plain get or set is rejected with ERR") {
 	auto tmc = makeTmc1();
 	CHECK(run(*tmc, "reg", CMDtype::get) == CommandStatus::ERR);
 	CHECK(run(*tmc, "reg", CMDtype::set, 1) == CommandStatus::ERR);
@@ -671,14 +691,16 @@ TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] calibrated get replies 0 for a driver t
 	CHECK(get(*tmc, "calibrated") == 0);
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: calibrated get replies 0 after start up when no ADC offsets are stored in flash (full calibration required)") {
+// NEEDS REVIEW 172
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] calibrated get replies 0 after start up when no ADC offsets are stored in flash (full calibration required)") {
 	auto tmc = makeTmc1();
 	reachShutdown(*tmc);
 	// The ADC offsets were measured at start up but recalibrationRequired stays set until a full calibration ran
 	CHECK(get(*tmc, "calibrated") == 0);
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: calibrated get replies 1 after start up when ADC offsets are stored in flash") {
+// NEEDS REVIEW 172
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] calibrated get replies 1 after start up when ADC offsets are stored in flash") {
 	REQUIRE(Flash_Write(ADR_TMC1_ADC_I0_OFS, 0x7FFF));
 	REQUIRE(Flash_Write(ADR_TMC1_ADC_I1_OFS, 0x7FFF));
 	auto tmc = makeTmc1();
@@ -738,7 +760,8 @@ TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] trqbq_mode set 2 and 3 are stored for g
 	CHECK(get(*tmc, "trqbq_mode") == 3);
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: trqbq_mode set 4 (invalid) leaves the mode unchanged and answers a string instead") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] trqbq_mode set 4 (invalid) leaves the mode unchanged and answers a string instead") {
 	auto tmc = makeTmc1();
 	setCmd(*tmc, "trqbq_mode", 2);
 	std::vector<CommandReply> replies;
@@ -754,13 +777,15 @@ TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] trqbq_f set 500 is stored for get") {
 	CHECK(get(*tmc, "trqbq_f") == 500);
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: trqbq_f set 0 is raised to 1 (the help text says 0 disables the filter)") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] trqbq_f set 0 is raised to 1 (the help text says 0 disables the filter)") {
 	auto tmc = makeTmc1();
 	setCmd(*tmc, "trqbq_f", 0);
 	CHECK(get(*tmc, "trqbq_f") == 1);
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: trqbq_f set 100000 is clipped to 0x1FFF (8191)") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] trqbq_f set 100000 is clipped to 0x1FFF (8191)") {
 	auto tmc = makeTmc1();
 	setCmd(*tmc, "trqbq_f", 100000);
 	CHECK(get(*tmc, "trqbq_f") == 0x1FFF);
@@ -772,7 +797,8 @@ TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] trqbq_q set 60 is stored for get") {
 	CHECK(get(*tmc, "trqbq_q") == 60);
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: trqbq_q set 200 is clipped to 127 and set -5 to 0") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] trqbq_q set 200 is clipped to 127 and set -5 to 0") {
 	auto tmc = makeTmc1();
 	setCmd(*tmc, "trqbq_q", 200);
 	CHECK(get(*tmc, "trqbq_q") == 127);
@@ -815,7 +841,8 @@ TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] pwmfreq set 100000 writes PWM_MAXCNT 0x
 	CHECK(get(*tmc, "pwmfreq") == 100000);
 }
 
-TEST_CASE_FIXTURE(TmcCmdFixture, "[R100] characterization: pwmfreq set 0 is ignored: no write to PWM_MAXCNT") {
+// NEEDS REVIEW 366
+TEST_CASE_FIXTURE(TmcCmdFixture, "characterization: [R100] pwmfreq set 0 is ignored: no write to PWM_MAXCNT") {
 	auto tmc = makeTmc1();
 	chip1.clearLog();
 	setCmd(*tmc, "pwmfreq", 0);

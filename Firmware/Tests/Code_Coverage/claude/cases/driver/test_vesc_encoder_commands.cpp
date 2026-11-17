@@ -135,7 +135,8 @@ TEST_CASE_FIXTURE(EncFixture, "[V60] getPos_f outside READY sends no request") {
 
 // ---------------------------------------------------------------- V61
 
-TEST_CASE_FIXTURE(EncFixture, "[V61] characterization: a forward wrap 350 -> 10 degrees counts one turn: 1.0278 turns") {
+// NEEDS REVIEW 377
+TEST_CASE_FIXTURE(EncFixture, "characterization: [V61] a forward wrap 350 -> 10 degrees counts one turn: 1.0278 turns") {
 	auto v = makeVesc1();
 	// Steps below 180 degrees each; the first sample is 0 (delta 0) to stay clear of B-V10.
 	for (double deg : {0.0, 90.0, 180.0, 270.0, 350.0}) {
@@ -146,7 +147,8 @@ TEST_CASE_FIXTURE(EncFixture, "[V61] characterization: a forward wrap 350 -> 10 
 	CHECK_NEAR(v->getPos_f(), 10.0 / 360.0 + 1.0, 1e-6); // = 1.027778
 }
 
-TEST_CASE_FIXTURE(EncFixture, "[V61] characterization: a backward wrap 10 -> 350 degrees counts one turn back: -0.0278 turns") {
+// NEEDS REVIEW 377
+TEST_CASE_FIXTURE(EncFixture, "characterization: [V61] a backward wrap 10 -> 350 degrees counts one turn back: -0.0278 turns") {
 	auto v = makeVesc1();
 	rotor(0.0);
 	rotor(10.0);
@@ -155,7 +157,8 @@ TEST_CASE_FIXTURE(EncFixture, "[V61] characterization: a backward wrap 10 -> 350
 	CHECK_NEAR(v->getPos_f(), 350.0 / 360.0 - 1.0, 1e-6);
 }
 
-TEST_CASE_FIXTURE(EncFixture, "[V61] characterization: a jump of 181 degrees counts a turn, a jump of 180 does not") {
+// NEEDS REVIEW 377
+TEST_CASE_FIXTURE(EncFixture, "characterization: [V61] a jump of 181 degrees counts a turn, a jump of 180 does not") {
 	auto v = makeVesc1();
 	rotor(0.0);
 	rotor(90.0);
@@ -165,7 +168,8 @@ TEST_CASE_FIXTURE(EncFixture, "[V61] characterization: a jump of 181 degrees cou
 	CHECK_NEAR(v->getPos_f(), 89.0 / 360.0 + 1.0, 1e-6);
 }
 
-TEST_CASE_FIXTURE(EncFixture, "[V61] characterization: two full forward revolutions accumulate 2 turns") {
+// NEEDS REVIEW 377
+TEST_CASE_FIXTURE(EncFixture, "characterization: [V61] two full forward revolutions accumulate 2 turns") {
 	auto v = makeVesc1();
 	for (int rev = 0; rev < 2; rev++) {
 		for (double deg : {0.0, 90.0, 180.0, 270.0}) {
@@ -209,7 +213,8 @@ TEST_CASE_FIXTURE(VescFixture, "[V63] getEncoderType with useencoder off and no 
 	CHECK(true);
 }
 
-TEST_CASE_FIXTURE(VescFixture, "[V63] characterization: with useencoder off and no external encoder getEncoder is not the driver and hasIntegratedEncoder is false") {
+// NEEDS REVIEW 377
+TEST_CASE_FIXTURE(VescFixture, "characterization: [V63] with useencoder off and no external encoder getEncoder is not the driver and hasIntegratedEncoder is false") {
 	auto v = makeVesc1();
 	setCmd(*v, "useencoder", 0);
 	CHECK(v->getEncoder() != static_cast<Encoder *>(v.get()));
@@ -239,7 +244,8 @@ TEST_CASE_FIXTURE(EncFixture, "[V64] setPos(32767) at 0.25 turns sets a negative
 	CHECK_NEAR(v->getPos_f(), 32767.0 / 65535.0, 1e-6);
 }
 
-TEST_CASE_FIXTURE(EncFixture, "[V64] characterization: the offset command sets the offset in turns * 10000, shifts the position and stores 0x09C4") {
+// NEEDS REVIEW 377
+TEST_CASE_FIXTURE(EncFixture, "characterization: [V64] the offset command sets the offset in turns * 10000, shifts the position and stores 0x09C4") {
 	auto v = makeVesc1();
 	rotor(90.0);
 	CHECK(setCmd(*v, "offset", 2500) == CommandStatus::OK);
@@ -249,7 +255,8 @@ TEST_CASE_FIXTURE(EncFixture, "[V64] characterization: the offset command sets t
 	CHECK(word(ADR_V1_OFFSET) == 0x09C4);
 }
 
-TEST_CASE_FIXTURE(EncFixture, "[V64] characterization: a negative offset command stores the two's complement word 0xF63C and moves the position up") {
+// NEEDS REVIEW 377
+TEST_CASE_FIXTURE(EncFixture, "characterization: [V64] a negative offset command stores the two's complement word 0xF63C and moves the position up") {
 	auto v = makeVesc1();
 	rotor(90.0);
 	setCmd(*v, "offset", -2500);
@@ -361,13 +368,15 @@ TEST_CASE_FIXTURE(VescFixture, "[V70] errorflags answers the fault code of the V
 	CHECK(getCmd(*v, "vescstate") == STATE_READY);
 }
 
-TEST_CASE_FIXTURE(EncFixture, "[V70] characterization: pos answers turns * 1e9: 90 degrees -> 250000000") {
+// NEEDS REVIEW 377
+TEST_CASE_FIXTURE(EncFixture, "characterization: [V70] pos answers turns * 1e9: 90 degrees -> 250000000") {
 	auto v = makeVesc1();
 	rotor(90.0); // HD: 0.25 * 1e9 = 250000000 (= 5^9 * 2^7, exact in float)
 	CHECK(getCmd(*v, "pos") == 250000000);
 }
 
-TEST_CASE_FIXTURE(EncFixture, "[V70] characterization: pos subtracts the offset: offset 2500 at 90 degrees -> 0, offset -2500 -> 500000000") {
+// NEEDS REVIEW 377
+TEST_CASE_FIXTURE(EncFixture, "characterization: [V70] pos subtracts the offset: offset 2500 at 90 degrees -> 0, offset -2500 -> 500000000") {
 	auto v = makeVesc1();
 	rotor(90.0);
 	setCmd(*v, "offset", 2500);
@@ -376,7 +385,8 @@ TEST_CASE_FIXTURE(EncFixture, "[V70] characterization: pos subtracts the offset:
 	CHECK(getCmd(*v, "pos") == 500000000);
 }
 
-TEST_CASE_FIXTURE(VescFixture, "[V70] characterization: torque answers the last torque ratio * 10000 truncated: turn(16384) -> 5000, turn(-32767) -> -10000, turn(0) -> 0") {
+// NEEDS REVIEW 377
+TEST_CASE_FIXTURE(VescFixture, "characterization: [V70] torque answers the last torque ratio * 10000 truncated: turn(16384) -> 5000, turn(-32767) -> -10000, turn(0) -> 0") {
 	auto v = makeVesc1();
 	v->turn(16384); // HD: 16384 / 32767 = 0.5000153 * 10000 = 5000.15 -> 5000
 	CHECK(getCmd(*v, "torque") == 5000);
@@ -418,12 +428,14 @@ TEST_CASE_FIXTURE(VescFixture, "[V70] useencoder set to any non-zero value (7) e
 	CHECK(getCmd(*v, "useencoder") == 1);
 }
 
-TEST_CASE_FIXTURE(VescFixture, "[V70] characterization: encrate answers 0 before any position sample") {
+// NEEDS REVIEW 377
+TEST_CASE_FIXTURE(VescFixture, "characterization: [V70] encrate answers 0 before any position sample") {
 	auto v = makeVesc1();
 	CHECK(getCmd(*v, "encrate") == 0);
 }
 
-TEST_CASE_FIXTURE(EncFixture, "[V70] characterization: encrate answers the position samples per second of the last full period: 3 samples in 1.5 s -> 2") {
+// NEEDS REVIEW 377
+TEST_CASE_FIXTURE(EncFixture, "characterization: [V70] encrate answers the position samples per second of the last full period: 3 samples in 1.5 s -> 2") {
 	auto v = makeVesc1();
 	REQUIRE(HAL_GetTick() == 0); // encStartPeriod starts at 0 (VescCAN.h:130)
 	rotor(10.0);
@@ -469,14 +481,16 @@ TEST_CASE_FIXTURE(EncFixture, "[V71] pos reports 3000000000 at 3.0 turns" * KNOW
 
 // ---------------------------------------------------------------- V72
 
-TEST_CASE_FIXTURE(VescFixture, "[V72] characterization: canspd set 260 is narrowed to uint8 4 and applied as preset 4" * doctest::description("NEEDS REVIEW")) {
+// NEEDS REVIEW 377
+TEST_CASE_FIXTURE(VescFixture, "characterization: [V72] canspd set 260 is narrowed to uint8 4 and applied as preset 4" * doctest::description("NEEDS REVIEW")) {
 	auto v = makeVesc1();
 	setCmd(*v, "canspd", 5);
 	setCmd(*v, "canspd", 260); // HD: (uint8_t)260 = 4; max(3, 4) = 4 (VC:288, cmd.val is int64)
 	CHECK(getCmd(*v, "canspd") == 4);
 }
 
-TEST_CASE_FIXTURE(VescFixture, "[V72] characterization: canspd set 9 is ignored by the port (presets above 5 are rejected)") {
+// NEEDS REVIEW 377
+TEST_CASE_FIXTURE(VescFixture, "characterization: [V72] canspd set 9 is ignored by the port (presets above 5 are rejected)") {
 	auto v = makeVesc1();
 	setCmd(*v, "canspd", 4);
 	setCmd(*v, "canspd", 9); // max(3, 9) = 9 > 5: CANPort_2B::setSpeedPreset returns (CANPort2B.cpp:137)
@@ -641,7 +655,8 @@ TEST_CASE_FIXTURE(VescFixture, "[V80] a save and a restart round trip keeps ids,
 
 // ---------------------------------------------------------------- V81
 
-TEST_CASE_FIXTURE(VescFixture, "[V81] characterization: an offset of 2.75 turns is stored as the fractional -0.25 (0xF63C): the whole turns are lost" * doctest::description("NEEDS REVIEW")) {
+// NEEDS REVIEW 190
+TEST_CASE_FIXTURE(VescFixture, "characterization: [V81] an offset of 2.75 turns is stored as the fractional -0.25 (0xF63C): the whole turns are lost" * doctest::description("NEEDS REVIEW")) {
 	auto v = makeVesc1();
 	setCmd(*v, "offset", 27500);
 	// HD: posOffset = 2.75 (exact); 2.75 - (int)2.75 = 0.75 > 0.5 -> 0.75 - 1 = -0.25 -> -2500 -> 0xF63C
@@ -650,7 +665,8 @@ TEST_CASE_FIXTURE(VescFixture, "[V81] characterization: an offset of 2.75 turns 
 	CHECK(word(ADR_V1_OFFSET) == 0xF63C);
 }
 
-TEST_CASE_FIXTURE(VescFixture, "[V81] characterization: after a restart an offset of 1.5 turns reads as 0.5 turns (multi-turn part lost)" * doctest::description("NEEDS REVIEW")) {
+// NEEDS REVIEW 190
+TEST_CASE_FIXTURE(VescFixture, "characterization: [V81] after a restart an offset of 1.5 turns reads as 0.5 turns (multi-turn part lost)" * doctest::description("NEEDS REVIEW")) {
 	{
 		auto v = makeVesc1();
 		setCmd(*v, "offset", 15000);
@@ -662,7 +678,8 @@ TEST_CASE_FIXTURE(VescFixture, "[V81] characterization: after a restart an offse
 	CHECK(getCmd(*v, "offset") == 5000);
 }
 
-TEST_CASE_FIXTURE(VescFixture, "[V81] characterization: only the fractional offset is stored: 1.25 turns of offset are stored as 0.25 (0x09C4)" * doctest::description("NEEDS REVIEW")) {
+// NEEDS REVIEW 377
+TEST_CASE_FIXTURE(VescFixture, "characterization: [V81] only the fractional offset is stored: 1.25 turns of offset are stored as 0.25 (0x09C4)" * doctest::description("NEEDS REVIEW")) {
 	auto v = makeVesc1();
 	setCmd(*v, "offset", 12500); // 1.25 turns
 	// HD: 1.25 - 1 = 0.25 -> 2500 = 0x09C4
@@ -708,7 +725,8 @@ TEST_CASE_FIXTURE(VescFixture, "[V80] a VESC id of 0xC0 restored from flash word
 	CHECK(v->getPos_f() == 0.25f);
 }
 
-TEST_CASE_FIXTURE(EncFixture, "[V70] characterization: encrate restarts its counter every period: 3 samples in the first period give 2, 6 in the second give 4") {
+// NEEDS REVIEW 377
+TEST_CASE_FIXTURE(EncFixture, "characterization: [V70] encrate restarts its counter every period: 3 samples in the first period give 2, 6 in the second give 4") {
 	auto v = makeVesc1();
 	REQUIRE(HAL_GetTick() == 0);
 	for (double d : {10.0, 20.0, 30.0}) rotor(d);

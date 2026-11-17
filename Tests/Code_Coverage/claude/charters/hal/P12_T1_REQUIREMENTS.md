@@ -1,6 +1,8 @@
 # P12 T1 requirements: HAL core, CORTEX, GPIO, EXTI
 
 Status: charter by the lead (2026-11-11), not yet approved. Plan: `Tests/Code_Coverage/claude/plans/P12_ST_HAL_PLAN.md`.
+
+**Final status (2026-11-17): done, approved, committed and pushed, commit `f774247b`. Statements about pending approval or gates in the line above were true when it was written.**
 Executables: `ffb_hal_tests` (F407VG) and `ffb_hal_tests_disco` (F407VG_DISCO), same test files. Sources under test
 (read-only): `Firmware/Targets/F407VG/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c`, `stm32f4xx_hal_gpio.c`,
 `stm32f4xx_hal_exti.c` and `stm32f4xx_hal_cortex.c` (group C).

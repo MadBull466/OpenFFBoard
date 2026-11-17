@@ -207,6 +207,7 @@ TEST_CASE_FIXTURE(PiFx, "PI1 HAL_PCD_Init without Sof_enable keeps the SOF inter
 // 34.17.1 step 3 says to unmask the mode mismatch interrupt: MMISM stays masked. The exact mask the HAL programs is recorded here:
 // RXFLVL, USBSUSP, USBRST, ENUMDNE, IEPINT, OEPINT, IISOIXFR, PXFR_IISOOXFR (bits 4, 11, 12, 13, 18, 19, 20, 21), WUI (31) and with VBUS sensing SRQ (30) and OTGINT (2).
 // Hand sum: 0x10 + 0x800 + 0x1000 + 0x2000 + 0x40000 + 0x80000 + 0x100000 + 0x200000 + 0x80000000 + 0x40000000 + 0x4 = 0xC03C3814.
+// NEEDS REVIEW 345
 TEST_CASE_FIXTURE(PiFx, "characterization: PI1 GINTMSK after HAL_PCD_Init of the firmware init has early suspend, SOF and mode mismatch masked and wakeup unmasked") {
 	REQUIRE(init() == HAL_OK);
 	CHECK(rd(oGINTMSK) == 0xC03C3814u);
@@ -243,6 +244,7 @@ TEST_CASE_FIXTURE(PiFx, "PI1 HAL_PCD_Init zeroes the IN endpoint FIFO size regis
 }
 
 // NR345_2: USB_DevInit clears DIEPTXF[0..14], the OTG_FS core has three (0x104-0x10C). The twelve writes to 0x110-0x13C are accesses to registers that do not exist on this core.
+// NEEDS REVIEW 349
 TEST_CASE_FIXTURE(PiFx, "characterization: PI1 HAL_PCD_Init writes twelve IN FIFO size registers DIEPTXF4 to DIEPTXF15 that the OTG_FS core does not have") {
 	REQUIRE(init() == HAL_OK);
 	REQUIRE(hostOtgHsOnlyAccesses() == 12u);
@@ -334,6 +336,7 @@ TEST_CASE_FIXTURE(PiFx, "PI1 HAL_PCD_Init with dev_endpoints 3 initialises endpo
 
 // NR345_3: UM1725 allows dev_endpoints 1..15 for the generic driver; the OTG_FS core has 4 endpoints (RM0090 34.2). The HAL does not reject a larger number and
 // USB_DevInit then writes the control registers of endpoints that do not exist (reserved offsets).
+// NEEDS REVIEW 345
 TEST_CASE_FIXTURE(PiFx, "characterization: PI1 HAL_PCD_Init with dev_endpoints 5 accepts it and touches the registers of a fifth endpoint") {
 	h.Init.dev_endpoints = 5;
 	CHECK(init() == HAL_OK);
@@ -357,6 +360,7 @@ TEST_CASE_FIXTURE(PiFx, "PI1 HAL_PCD_Init forces dma_enable to 0 for the OTG_FS 
 
 // NR345_4: the OTG_FS core has no ULPI; RM0090 does not describe the ULPI selection of the HAL. With phy_itface ULPI the HAL clears PWRDWN and the ULPI select bits and
 // then sets DCFG.DSPD to 0 (high speed) or 1 (high speed core in full speed mode); the registers of this core ignore the bits it does not implement. Recorded as is.
+// NEEDS REVIEW 345
 TEST_CASE_FIXTURE(PiFx, "characterization: PI1 HAL_PCD_Init with the ULPI interface and high speed sets DSPD to 00 and clears PWRDWN") {
 	h.Init.phy_itface = PCD_PHY_ULPI;
 	h.Init.speed = PCD_SPEED_HIGH;
@@ -365,6 +369,7 @@ TEST_CASE_FIXTURE(PiFx, "characterization: PI1 HAL_PCD_Init with the ULPI interf
 	CHECK((rd(oGCCFG) & CC_PWRDWN) == 0);
 }
 
+// NEEDS REVIEW 416
 TEST_CASE_FIXTURE(PiFx, "characterization: PI1 HAL_PCD_Init with the ULPI interface and full speed sets DSPD to 01") {
 	h.Init.phy_itface = PCD_PHY_ULPI;
 	h.Init.speed = PCD_SPEED_FULL;
@@ -372,6 +377,7 @@ TEST_CASE_FIXTURE(PiFx, "characterization: PI1 HAL_PCD_Init with the ULPI interf
 	CHECK(dspd() == 1u);
 }
 
+// NEEDS REVIEW 416
 TEST_CASE_FIXTURE(PiFx, "characterization: PI1 HAL_PCD_Init with the ULPI interface and external VBUS drive still ends READY") {
 	h.Init.phy_itface = PCD_PHY_ULPI;
 	h.Init.use_external_vbus = 1;
@@ -456,6 +462,7 @@ TEST_CASE_FIXTURE(PiFx, "PI1 HAL_PCD_DeInit clears the pending endpoint flags, t
 }
 
 // NR345_5: UM1725 does not say what HAL_PCD_DeInit does when the FIFO flush fails. The HAL returns HAL_ERROR and leaves the state BUSY, without calling MspDeInit.
+// NEEDS REVIEW 345
 TEST_CASE_FIXTURE(PiFx, "characterization: PI1 HAL_PCD_DeInit returns HAL_ERROR and stays BUSY without MspDeInit when the FIFO flush never completes") {
 	REQUIRE(init() == HAL_OK);
 	hostOtgSetPollReads(0);
@@ -466,6 +473,7 @@ TEST_CASE_FIXTURE(PiFx, "characterization: PI1 HAL_PCD_DeInit returns HAL_ERROR 
 }
 
 // NR345_6: RM0090 and UM1725 do not say whether DeInit must disconnect. The HAL does not set SDIS: after DeInit the pull-up state is the one before.
+// NEEDS REVIEW 345
 TEST_CASE_FIXTURE(PiFx, "characterization: PI1 HAL_PCD_DeInit does not change the soft disconnect bit") {
 	bringUp();
 	REQUIRE(HAL_PCD_DevConnect(&h) == HAL_OK);
@@ -659,6 +667,7 @@ TEST_CASE_FIXTURE(PiFx, "PI2 HAL_PCD_SetAddress keeps the device speed bits and 
 }
 
 // NR345_7: the USB address is 7 bits (RM0090 DAD bits 10:4); UM1725 says nothing about values above 127. The HAL stores the 8 bit value in USB_Address and masks DAD.
+// NEEDS REVIEW 416
 TEST_CASE_FIXTURE(PiFx, "characterization: PI2 HAL_PCD_SetAddress of 0xFF keeps USB_Address 0xFF and programs DAD 0x7F") {
 	REQUIRE(init() == HAL_OK);
 	CHECK(HAL_PCD_SetAddress(&h, 0xFF) == HAL_OK);
@@ -666,6 +675,7 @@ TEST_CASE_FIXTURE(PiFx, "characterization: PI2 HAL_PCD_SetAddress of 0xFF keeps 
 	CHECK(dad() == 0x7Fu);
 }
 
+// NEEDS REVIEW 416
 TEST_CASE_FIXTURE(PiFx, "characterization: PI2 HAL_PCD_SetAddress of 0x80 programs DAD 0") {
 	REQUIRE(init() == HAL_OK);
 	CHECK(HAL_PCD_SetAddress(&h, 0x80) == HAL_OK);
@@ -711,6 +721,7 @@ TEST_CASE_FIXTURE(PiFx, "PI2 HAL_PCD_SetTestMode keeps the soft disconnect bit")
 
 // NR345_21: RM0090 DCTL TCTL "010: Test_K mode" selects a mode; HAL_PCD_SetTestMode ORs the mode into TCTL, so Test_J (001) then Test_K (010) gives 011 =
 // Test_SE0_NAK. USB 2.0 7.1.20 (test modes): a device leaves a test mode only by power cycle, so changing mode without a reset is not a defined use. Recorded as is.
+// NEEDS REVIEW 345
 TEST_CASE_FIXTURE(PiFx, "characterization: PI2 HAL_PCD_SetTestMode of Test_K after Test_J ORs the codes and gives TCTL 011") {
 	REQUIRE(init() == HAL_OK);
 	REQUIRE(HAL_PCD_SetTestMode(&h, TEST_J) == HAL_OK);
@@ -729,6 +740,7 @@ TEST_CASE_FIXTURE(PiFx, "PI2 HAL_PCD_ActivateRemoteWakeup sets RWUSIG while the 
 
 // NR345_8: RM0090 DCTL RWUSIG: "the application must set this bit to instruct the core to exit the Suspend state". The HAL sets RWUSIG only when DSTS.SUSPSTS is 1
 // (USB 2.0 allows remote wakeup only from suspend) and returns HAL_OK in both cases.
+// NEEDS REVIEW 338
 TEST_CASE_FIXTURE(PiFx, "characterization: PI2 HAL_PCD_ActivateRemoteWakeup without suspend leaves RWUSIG clear and returns HAL_OK") {
 	REQUIRE(init() == HAL_OK);
 	REQUIRE((rd(oDSTS) & DSTS_SUSPSTS) == 0);
@@ -859,6 +871,7 @@ TEST_CASE_FIXTURE(PiFx, "PI3 HAL_PCDEx_SetTxFiFo of TxFIFO 0 does not change the
 }
 
 // NR345_9: the start addresses are computed from the registers at the time of the call. If TxFIFO 2 is set before TxFIFO 1, the depth of TxFIFO 1 is still 0 and the two overlap.
+// NEEDS REVIEW 345
 TEST_CASE_FIXTURE(PiFx, "characterization: PI3 HAL_PCDEx_SetTxFiFo computes the start of TxFIFO 2 from the current depth of TxFIFO 1, 0 if it is not yet set") {
 	REQUIRE(init() == HAL_OK);
 	REQUIRE(HAL_PCDEx_SetRxFiFo(&h, 0x80) == HAL_OK);
@@ -868,6 +881,7 @@ TEST_CASE_FIXTURE(PiFx, "characterization: PI3 HAL_PCDEx_SetTxFiFo computes the 
 }
 
 // NR345_10: RM0090 DIEPTXFx INEPTXFD minimum 16 words and the total RAM of 320 words (34.12): the HAL checks neither (its comment says "TXn min size = 16 words").
+// NEEDS REVIEW 345
 TEST_CASE_FIXTURE(PiFx, "characterization: PI3 HAL_PCDEx_SetTxFiFo and SetRxFiFo accept depths below the 16 word minimum and above the 320 word RAM") {
 	REQUIRE(init() == HAL_OK);
 	CHECK(HAL_PCDEx_SetTxFiFo(&h, 0, 4) == HAL_OK);
@@ -877,6 +891,7 @@ TEST_CASE_FIXTURE(PiFx, "characterization: PI3 HAL_PCDEx_SetTxFiFo and SetRxFiFo
 }
 
 // NR345_11: the OTG_FS core has TxFIFOs 0-3 (DIEPTXF0 + three DIEPTXFx). Fifo number 4 addresses DIEPTXF[3] at 0x110, which only the OTG_HS core has.
+// NEEDS REVIEW 345
 TEST_CASE_FIXTURE(PiFx, "characterization: PI3 HAL_PCDEx_SetTxFiFo of FIFO number 4 writes a register the OTG_FS core does not have") {
 	REQUIRE(init() == HAL_OK);
 	const uint32_t before = hostOtgHsOnlyAccesses();
@@ -1006,6 +1021,7 @@ TEST_CASE_FIXTURE(PiFx, "PI4 USB_SetCurrentMode returns HAL_OK when the requeste
 }
 
 // NR345_13: an invalid mode value is not described by RM0090; the HAL clears FHMOD and FDMOD, returns HAL_ERROR and does not wait.
+// NEEDS REVIEW 349
 TEST_CASE_FIXTURE(PiFx, "characterization: PI4 USB_SetCurrentMode with an invalid mode clears FDMOD and FHMOD and returns HAL_ERROR without waiting") {
 	wr(oGUSBCFG, rd(oGUSBCFG) | G_FDMOD);
 	CHECK(USB_SetCurrentMode(USB_OTG_FS, (USB_OTG_ModeTypeDef)2) == HAL_ERROR);
@@ -1040,6 +1056,7 @@ TEST_CASE_FIXTURE(PiFx, "PI4 USB_SetDevSpeed with the high speed codes 0 and 1 p
 }
 
 // NR345_14: RM0090 DCFG DSPD describes the speed the application requires; the HAL ORs the new code into the field, so a later lower code cannot replace a set bit.
+// NEEDS REVIEW 416
 TEST_CASE_FIXTURE(PiFx, "characterization: PI4 USB_SetDevSpeed ORs the speed code into DSPD, so full speed then code 01 stays 11") {
 	REQUIRE(USB_SetDevSpeed(USB_OTG_FS, USB_OTG_SPEED_FULL) == HAL_OK);
 	CHECK(USB_SetDevSpeed(USB_OTG_FS, USB_OTG_SPEED_HIGH_IN_FULL) == HAL_OK);
@@ -1058,6 +1075,7 @@ TEST_CASE_FIXTURE(PiFx, "PI4 USB_GetDevSpeed returns USBD_FS_SPEED after the hos
 }
 
 // NR345_15: RM0090 DSTS ENUMSPD lists 01 and 10 as reserved and does not describe 00 for the OTG_FS core. The HAL decodes 00 as high speed, 01 as full speed and 10 as 0xF.
+// NEEDS REVIEW 416
 TEST_CASE_FIXTURE(PiFx, "characterization: PI4 USB_GetDevSpeed decodes ENUMSPD 00 as USBD_HS_SPEED, 01 as USBD_FS_SPEED and 10 as 0xF") {
 	wr(oDSTS, 0u << 1);
 	CHECK(USB_GetDevSpeed(USB_OTG_FS) == USBD_HS_SPEED);
@@ -1126,6 +1144,7 @@ TEST_CASE_FIXTURE(PiFx, "PI4 USB_SetTurnaroundTime programs TRDT 0x6 from 32 MHz
 
 // NR345_16: Table 203 lists 24-27.5 MHz as 0x8 and 27.5-32 MHz as 0x7 (the values are minimums). The HAL switches at 27.7 MHz, so 27.6 MHz gets 0x8, which is still
 // not below the table's minimum 0x7.
+// NEEDS REVIEW 345
 TEST_CASE_FIXTURE(PiFx, "characterization: PI4 USB_SetTurnaroundTime programs TRDT 0x8 between 27.5 and 27.7 MHz") {
 	CHECK(trdtFor(27500000) == 0x8u);
 	CHECK(trdtFor(27600000) == 0x8u);
@@ -1133,6 +1152,7 @@ TEST_CASE_FIXTURE(PiFx, "characterization: PI4 USB_SetTurnaroundTime programs TR
 
 // NR345_17: below 14.2 MHz Table 203 has no entry (the OTG_FS needs at least 14.2 MHz AHB). The HAL's last branch gives the smallest value 0x6 to any frequency below
 // 14.2 MHz, although a lower AHB frequency needs a longer turnaround time (Table 203 trend: 0xF at 14.2 MHz).
+// NEEDS REVIEW 349
 TEST_CASE_FIXTURE(PiFx, "characterization: PI4 USB_SetTurnaroundTime programs TRDT 0x6 below 14.2 MHz") {
 	CHECK(trdtFor(14199999) == 0x6u);
 	CHECK(trdtFor(8000000) == 0x6u);
@@ -1148,6 +1168,7 @@ TEST_CASE_FIXTURE(PiFx, "PI4 USB_SetTurnaroundTime replaces a previous TRDT and 
 }
 
 // NR345_18: RM0090 Table 203 covers full speed only; the HAL uses 9 for USBD_HS_SPEED (USBD_HS_TRDT_VALUE) and 9 for any other speed value (USBD_DEFAULT_TRDT_VALUE).
+// NEEDS REVIEW 416
 TEST_CASE_FIXTURE(PiFx, "characterization: PI4 USB_SetTurnaroundTime programs TRDT 9 for the high speed code and for an unknown speed code") {
 	CHECK(USB_SetTurnaroundTime(USB_OTG_FS, 168000000, USBD_HS_SPEED) == HAL_OK);
 	CHECK(((rd(oGUSBCFG) >> 10) & 0xFu) == 9u);
@@ -1213,6 +1234,7 @@ TEST_CASE_FIXTURE(PiFx, "PI4 USB_DevInit with the embedded PHY programs DSPD 11"
 	CHECK(dspd() == 3u);
 }
 
+// NEEDS REVIEW 345
 TEST_CASE_FIXTURE(PiFx, "characterization: PI4 USB_DevInit with ULPI and high speed leaves DSPD 00, with ULPI and another speed programs 01") {
 	h.Init.phy_itface = USB_OTG_ULPI_PHY;
 	h.Init.speed = USBD_HS_SPEED;
@@ -1322,6 +1344,7 @@ TEST_CASE_FIXTURE(PiFx, "PI4 USB_DevInit clears pending global interrupts such a
 }
 
 // NR345_19: USB_DevInit clears pending interrupts with GINTSTS = 0xBFFFFFFF, which leaves bit 30 (SRQINT, rc_w1 in RM0090) untouched: a pending session request survives.
+// NEEDS REVIEW 345
 TEST_CASE_FIXTURE(PiFx, "characterization: PI4 USB_DevInit does not clear a pending session request interrupt") {
 	hostOtgVbus(1);
 	REQUIRE((rd(oGINTSTS) & M_SRQ) == M_SRQ);
@@ -1419,6 +1442,7 @@ TEST_CASE_FIXTURE(PiFx, "PI4 USB_StopDevice flushes the receive FIFO and all tra
 }
 
 // NR345_20: USB_StopDevice clears DIEPINT / DOEPINT of 15 endpoints; the OTG_FS core has 4, so endpoints 4 to 14 are 22 writes to reserved offsets (counted, no fault).
+// NEEDS REVIEW 349
 TEST_CASE_FIXTURE(PiFx, "characterization: PI4 USB_StopDevice writes the interrupt flag registers of endpoints 4 to 14 which the OTG_FS core does not have") {
 	CHECK(USB_StopDevice(USB_OTG_FS) == HAL_OK);
 	CHECK(hostOtgReservedAccesses() == 22u);
@@ -1445,6 +1469,7 @@ TEST_CASE_FIXTURE(PiFx, "PI4 USB_ActivateRemoteWakeup sets RWUSIG when the bus i
 	CHECK((rd(oDCTL) & DCTL_RWUSIG) == DCTL_RWUSIG);
 }
 
+// NEEDS REVIEW 416
 TEST_CASE_FIXTURE(PiFx, "characterization: PI4 USB_ActivateRemoteWakeup does not set RWUSIG when the bus is not suspended") {
 	wr(oDSTS, 0);
 	CHECK(USB_ActivateRemoteWakeup(USB_OTG_FS) == HAL_OK);
@@ -1469,6 +1494,7 @@ TEST_CASE_FIXTURE(PiFx, "PI4 USB_DevInit keeps an enabled OUT endpoint 0 enabled
 }
 
 // NR345_22: RM0090 DIEPCTL0 EPDIS does not say whether IN endpoint 0 can be disabled; the HAL writes SNAK only, so EPENA stays set, NAKSTS is set, EPDISD is clear.
+// NEEDS REVIEW 345
 TEST_CASE_FIXTURE(PiFx, "characterization: PI4 USB_DevInit keeps an enabled IN endpoint 0 enabled with NAKSTS set and EPDISD clear") {
 	wr(inCtl(0), C_EPENA);
 	wr(inInt(0), I_EPDISD);

@@ -1118,9 +1118,11 @@ TEST_CASE("[C3 arm_lms_norm_q15] with mu = 0 and non-negative data the output is
           KNOWN_ISSUE_UB_HIDDEN("B-DLMS-3: dsp/none.h __SMLALD / read_q15x2 shift packed pairs left in the unrolled path (numTaps >= 4)")) {
 	psSweep<TrNQ15>(kT49, {0, 1, 2, 3, 5, 7});
 }
+// NEEDS REVIEW 234
 TEST_CASE("characterization: [C3 arm_lms_q15] with non-negative data the plain update is exactly c += floor(floor(e mu / 2^15) x / 2^15), numTaps 1 to 3 (detects a gain error of 2^-9)") {
 	teacherAll<TrQ15>(kT13, true, {0, 1}, true);
 }
+// NEEDS REVIEW 234
 TEST_CASE("characterization: [C3 arm_lms_q31] with non-negative data the plain update is exactly c += 2 floor(floor(e mu / 2^31) x / 2^32), numTaps 1 to 9") {
 	teacherAll<TrQ31>(kAllT, true, {0, 1}, true);
 }

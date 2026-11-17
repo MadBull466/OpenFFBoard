@@ -1,6 +1,8 @@
 # P12 T5 requirements charter: CAN (real ST HAL, F407VG and F407VG_DISCO)
 
 Status: 2026-11-12 (lead). Charter and platform (`fakes/stm32_hal/HalCan.{h,c}`, lead probe `test_hal_can_probe.cpp`, shared callbacks `CanTestSupport.h` / `test_hal_can_support.cpp`) done; tests, review, gate pending.
+
+**Final status (2026-11-17): done, approved, committed and pushed, commit `baf1f855`. Statements about pending approval or gates in the line above were true when it was written.**
 Plan: `Tests/Code_Coverage/claude/plans/P12_ST_HAL_PLAN.md`. Rules as in the T1-T4c charters. Both targets compile the same `stm32f4xx_hal_can.c` (identity check); the same test files run in both executables.
 
 ## Oracles

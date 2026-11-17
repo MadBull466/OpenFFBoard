@@ -323,8 +323,8 @@ RunResult<Tr> firRun(const std::vector<typename Tr::S> &c, const std::vector<typ
 	std::unique_ptr<S[]> tight(new S[stateLen]);
 	std::memset(static_cast<void *>(tight.get()), 0xCD, stateLen * sizeof(S));
 	S *const statePtr = guardedState ? state.data() : tight.get();
-	typename Tr::Inst inst;
-	Tr::init(&inst, static_cast<uint16_t>(c.size()), c.data(), statePtr, static_cast<uint32_t>(maxChunk));
+	typename Tr::Inst inst{};
+	REQUIRE(Tr::init(&inst, static_cast<uint16_t>(c.size()), c.data(), statePtr, static_cast<uint32_t>(maxChunk)) == 0);
 	size_t pos = 0, ci = 0;
 	while (pos < x.size()) {
 		size_t b = chunks[ci++ % chunks.size()];
@@ -398,9 +398,13 @@ void armPatternTest(double snrThr, int64_t absLsb, size_t maxBlock, bool useSnr)
 			// tight heap state of exactly the length used here (no slack: ARM's own test uses a larger buffer), poisoned
 			std::unique_ptr<S[]> state(new S[Tr::procLen(T, B)]);
 			std::memset(static_cast<void *>(state.get()), 0xCD, Tr::procLen(T, B) * sizeof(S));
-			typename Tr::Inst inst;
-			status = status && Tr::init(&inst, static_cast<uint16_t>(T), coefs.data() + cp, state.get(), static_cast<uint32_t>(B)) == 0;
-			fields = fields && inst.numTaps == T && inst.pCoeffs == coefs.data() + cp && inst.pState == state.get();
+			typename Tr::Inst inst{};
+			// init is called for every config (no short circuit); a failed init or wrong stored fields ends the sweep before the instance is used
+			const bool initOk = Tr::init(&inst, static_cast<uint16_t>(T), coefs.data() + cp, state.get(), static_cast<uint32_t>(B)) == 0;
+			const bool fieldsOk = inst.numTaps == T && inst.pCoeffs == coefs.data() + cp && inst.pState == state.get();
+			status = status && initOk;
+			fields = fields && fieldsOk;
+			if (!initOk || !fieldsOk) break;
 			for (size_t blk = 0; blk < 2; blk++) {
 				dsp::GuardedBuffer<S> out(B);
 				Tr::run(&inst, input.data() + blk * B, out.data(), static_cast<uint32_t>(B));
@@ -883,9 +887,9 @@ void independentInstancesTest(const Var &v) {
 	const std::vector<S> xa = makeInput<Tr>(rng, B * blocks, v);
 	const std::vector<S> xb = makeInput<Tr>(rng, B * blocks, v);
 	dsp::GuardedBuffer<S> sa(Tr::procLen(Ta, B)), sb(Tr::procLen(Tb, B));
-	typename Tr::Inst ia, ib;
-	Tr::init(&ia, static_cast<uint16_t>(Ta), ca.data(), sa.data(), static_cast<uint32_t>(B));
-	Tr::init(&ib, static_cast<uint16_t>(Tb), cb.data(), sb.data(), static_cast<uint32_t>(B));
+	typename Tr::Inst ia{}, ib{};
+	REQUIRE(Tr::init(&ia, static_cast<uint16_t>(Ta), ca.data(), sa.data(), static_cast<uint32_t>(B)) == 0);
+	REQUIRE(Tr::init(&ib, static_cast<uint16_t>(Tb), cb.data(), sb.data(), static_cast<uint32_t>(B)) == 0);
 	std::vector<S> oa, ob;
 	for (size_t k = 0; k < blocks; k++) {
 		std::vector<S> pa(B), pb(B);
@@ -921,13 +925,13 @@ void reinitTest(const Var &v) {
 	const std::vector<S> c = makeCoefs<Tr>(rng, T, v);
 	const std::vector<S> x = makeInput<Tr>(rng, 3 * B, v);
 	dsp::GuardedBuffer<S> state(Tr::procLen(T, B));
-	typename Tr::Inst inst;
-	Tr::init(&inst, static_cast<uint16_t>(T), c.data(), state.data(), static_cast<uint32_t>(B));
+	typename Tr::Inst inst{};
+	REQUIRE(Tr::init(&inst, static_cast<uint16_t>(T), c.data(), state.data(), static_cast<uint32_t>(B)) == 0);
 	std::vector<S> first(3 * B), second(3 * B);
 	for (size_t k = 0; k < 3; k++) Tr::run(&inst, x.data() + k * B, first.data() + k * B, static_cast<uint32_t>(B));
 	// the state now holds the last T-1 inputs: re-init must clear it even if the buffer is full of garbage
 	std::memset(static_cast<void *>(state.data()), 0xCD, Tr::initLen(T, B) * sizeof(S));
-	Tr::init(&inst, static_cast<uint16_t>(T), c.data(), state.data(), static_cast<uint32_t>(B));
+	REQUIRE(Tr::init(&inst, static_cast<uint16_t>(T), c.data(), state.data(), static_cast<uint32_t>(B)) == 0);
 	for (size_t k = 0; k < 3; k++) Tr::run(&inst, x.data() + k * B, second.data() + k * B, static_cast<uint32_t>(B));
 	CHECK(std::memcmp(first.data(), second.data(), first.size() * sizeof(S)) == 0);
 	CHECK(state.guardIntact());
@@ -1117,6 +1121,7 @@ TEST_CASE("[C3 arm_fir_q31] the output is the floor of the exact sum: 0 <= acc -
 TEST_CASE("[C5 arm_fir_q31] the result agrees with the double computation of the converted input to one LSB below it") { doubleAgreementTest<Q31T>(Q31T::cleanVar()); }
 TEST_CASE("[C3 arm_fir_q31] products of the extreme values that do not overflow give the exact floor results") { q31ExtremesTest(); }
 TEST_CASE("[C3 arm_fir_q31] the 64 bit accumulator holds partial sums above 2^62 (one guard bit) and ends exactly at zero") { q31GuardBitTest(); }
+// NEEDS REVIEW 226
 TEST_CASE("characterization: [C4 arm_fir_q31] a result above the 1.31 range wraps around (DOC: wraps rather than clip; the DOC sentence 'saturated to 1.31' contradicts it, NEEDS REVIEW)") { q31WrapTest(); }
 TEST_CASE("[C2 arm_fir_q31] a call writes exactly blockSize outputs and nothing behind them or behind the exact size state") { writesExactlyBlockTest<Q31T>(Q31T::cleanVar()); }
 TEST_CASE("[C4 arm_fir_q31] consecutive blocks of sizes 1, 2, 3, 4, 5, 7 and mixed carry the state like one long block") { continuityTest<Q31T>(Q31T::cleanVar()); }
@@ -1129,18 +1134,24 @@ TEST_CASE("[C3 arm_fir_q31] one and two tap filters equal the model over a strid
 // ---------------------------------------------------------------------------------------------------------------
 // arm_fir_fast_q31 (no ARM id: ARM's patterns with a derived bound)
 // ---------------------------------------------------------------------------------------------------------------
+// NEEDS REVIEW 220
 TEST_CASE("characterization: [C3 arm_fir_fast_q31] a product exactly half way between two 2.30 values is rounded up (SMMLAR), not truncated") { fastQ31RoundingTieTest(); }
 TEST_CASE("[C3 arm_fir_fast_q31] ARM's FIR pattern is reproduced within numTaps + 3 LSB" * UB_FQ31) { fastPatternTest<FQ31T>(100); }
+// NEEDS REVIEW 220
 CASE2C("C3", "arm_fir_fast_q31", "random data of every block size and 1..33 taps equals the exact model 2 * sum(rounded products)", randomVsModelTest, FQ31T, TAG_NONNEG, TAG_SIGNED, UB_FQ31)
 CASE2("C3", "arm_fir_fast_q31", "the result is within numTaps LSB of the exact sum", errorBoundTest, FQ31T, TAG_NONNEG, TAG_SIGNED, UB_FQ31)
 CASE2("C5", "arm_fir_fast_q31", "the result agrees with the double computation of the converted input within numTaps LSB", doubleAgreementTest, FQ31T, TAG_NONNEG, TAG_SIGNED, UB_FQ31)
 CASE2("C3", "arm_fir_fast_q31", "the impulse response is the coefficients in reverse order times 0.5, for 1 to 12 taps", impulseTest, FQ31T, TAG_NONNEG, TAG_SIGNED, UB_FQ31)
 CASE2("C3", "arm_fir_fast_q31", "the step response is the running sum of the coefficients times 0.5", stepTest, FQ31T, TAG_NONNEG, TAG_SIGNED, UB_FQ31)
+// NEEDS REVIEW 223
 CASE2C("C2", "arm_fir_fast_q31", "a call writes exactly blockSize outputs and nothing behind them or behind the exact size state", writesExactlyBlockTest, FQ31T, TAG_NONNEG, TAG_SIGNED, UB_FQ31)
+// NEEDS REVIEW 223
 CASE2C("C4", "arm_fir_fast_q31", "consecutive blocks of mixed sizes carry the state like one long block", continuityTest, FQ31T, TAG_NONNEG, TAG_SIGNED, UB_FQ31)
+// NEEDS REVIEW 220
 CASE2C("C4", "arm_fir_fast_q31", "two instances with different coefficients do not influence each other", independentInstancesTest, FQ31T, TAG_NONNEG, TAG_SIGNED, UB_FQ31)
 CASE2("C4", "arm_fir_fast_q31", "init again clears a garbage state: the run repeats bit for bit", reinitTest, FQ31T, TAG_NONNEG, TAG_SIGNED, UB_FQ31)
 CASE2("C4", "arm_fir_fast_q31", "the coefficient and input arrays are not modified", constInputsTest, FQ31T, TAG_NONNEG, TAG_SIGNED, UB_FQ31)
+// NEEDS REVIEW 224
 CASE2C("C3", "arm_fir_fast_q31", "one and two tap filters equal the model over a strided sweep of the input range", q31SweepTest, FQ31T, TAG_NONNEG, TAG_SIGNED, UB_FQ31)
 
 }  // TEST_SUITE
@@ -1226,8 +1237,8 @@ void exactStateTest() {
 		const std::vector<int16_t> c = makeCoefs<Tr>(rng, T, v);
 		const std::vector<int16_t> x = makeInput<Tr>(rng, 8, v);
 		dsp::GuardedBuffer<int16_t> state(T + 4 - 1);  // DOC: numTaps + blockSize - 1
-		typename Tr::Inst inst;
-		Tr::init(&inst, static_cast<uint16_t>(T), c.data(), state.data(), 4);
+		typename Tr::Inst inst{};
+		REQUIRE(Tr::init(&inst, static_cast<uint16_t>(T), c.data(), state.data(), 4) == 0);
 		std::vector<int16_t> y(8);
 		Tr::run(&inst, x.data(), y.data(), 4);
 		Tr::run(&inst, x.data() + 4, y.data() + 4, 4);
@@ -1269,6 +1280,7 @@ TEST_CASE("[C3 arm_fir_q7] a two tap filter equals the model for every pair of i
 
 // DOC: "the result is truncated to 1.7 format" ; the code saturates (__SSAT(acc >> 7, 8)). Saturation is what the other q functions do, the DOC wording is
 // ambiguous: characterization (listed for the lead).
+// NEEDS REVIEW 223
 TEST_CASE("characterization: [C4 arm_fir_q7] a result that does not fit 1.7 is clipped to 127 / -128 (the DOC says truncated), blocks of 1 to 8") {
 	// (-128) * (-128) = 16384 >> 7 = 128 -> 127;  2 * 127 * 127 = 32258 >> 7 = 252 -> 127;  2 * 127 * -128 = -32512 >> 7 = -254 -> -128.
 	// Block sizes 1, 2, 3 (scalar loop), 4, 8 (unrolled by 4), 5, 7 (unrolled + tail).
@@ -1290,6 +1302,7 @@ TEST_CASE("characterization: [C4 arm_fir_q7] a result that does not fit 1.7 is c
 
 // Saturation of the q7 filter over ALL pairs of input values, for coefficient pairs that clip: the output is SSAT(acc >> 7, 8) of the exact sum
 // (characterization: the DOC says "truncated"). Block sizes of the scalar loop (1, 2, 3), the unrolled loop (4, 8) and both (5, 7).
+// NEEDS REVIEW 223
 TEST_CASE("characterization: [C3 arm_fir_q7] a two tap filter clips every pair of input values to 8 bits like SSAT(acc >> 7), blocks of 1 to 8") {
 	std::vector<int8_t> x(2 * 65536);
 	for (size_t i = 0; i < 65536; i++) {
@@ -1316,6 +1329,7 @@ TEST_CASE("characterization: [C3 arm_fir_q7] a two tap filter clips every pair o
 	}
 }
 
+// NEEDS REVIEW 390
 TEST_CASE("characterization: [C3 arm_fir_q7] the one tap filter clips the pair (-128, -128) to 127 in the scalar loop and the unrolled loop") {
 	for (size_t B : {size_t(1), size_t(2), size_t(3), size_t(4), size_t(5), size_t(256)}) {
 		const std::vector<int8_t> x(256, -128);

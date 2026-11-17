@@ -331,7 +331,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID1 Master_Receive_DMA sets DMAEN, ITEVTEN, ITERREN an
 	}
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID1 characterization: Master_Transmit_DMA and Master_Receive_DMA with Size 0 start no stream and enable the event, buffer and error interrupts") {
+// NEEDS REVIEW 411
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID1 Master_Transmit_DMA and Master_Receive_DMA with Size 0 start no stream and enable the event, buffer and error interrupts") {
 	/* NEEDS REVIEW 325: UM1725 silent on Size 0. */
 	SUBCASE("transmit") {
 		I2dRig r(0);
@@ -407,7 +408,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID1 Slave_Transmit_DMA and Slave_Receive_DMA enable AC
 	}
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID1 characterization: Slave_Transmit_DMA and Slave_Receive_DMA with a NULL buffer or Size 0 return HAL_ERROR and start nothing") {
+// NEEDS REVIEW 411
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID1 Slave_Transmit_DMA and Slave_Receive_DMA with a NULL buffer or Size 0 return HAL_ERROR and start nothing") {
 	/* NEEDS REVIEW 325 */
 	I2dRig r(1);
 	CHECK(HAL_I2C_Slave_Transmit_DMA(&r.h, nullptr, 3) == HAL_ERROR);
@@ -486,7 +488,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID1 Mem_Read_DMA of one byte clears ACK and of two or 
 	}
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID1 characterization: Mem_Write_DMA with Size 0 returns HAL_ERROR with HAL_I2C_ERROR_SIZE, Mem_Read_DMA with Size 0 does the address phase, a STOP and returns HAL_OK") {
+// NEEDS REVIEW 321
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID1 Mem_Write_DMA with Size 0 returns HAL_ERROR with HAL_I2C_ERROR_SIZE, Mem_Read_DMA with Size 0 does the address phase, a STOP and returns HAL_OK") {
 	/* NEEDS REVIEW 325 */
 	SUBCASE("write") {
 		I2dRig r(0);
@@ -508,7 +511,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID1 characterization: Mem_Write_DMA with Size 0 return
 	}
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID1 characterization: Mem_Write_DMA and Mem_Read_DMA to an address that nacks return HAL_ERROR, set AF, stop the stream and disable the I2C") {
+// NEEDS REVIEW 411
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID1 Mem_Write_DMA and Mem_Read_DMA to an address that nacks return HAL_ERROR, set AF, stop the stream and disable the I2C") {
 	/* NEEDS REVIEW 325 */
 	for (int rd = 0; rd < 2; ++rd) {
 		SUBCASE(rd ? "read" : "write") {
@@ -534,7 +538,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID1 characterization: Mem_Write_DMA and Mem_Read_DMA t
 	}
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID1 characterization: every DMA call returns HAL_BUSY while the handle is not READY and touches no stream") {
+// NEEDS REVIEW 411
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID1 every DMA call returns HAL_BUSY while the handle is not READY and touches no stream") {
 	/* NEEDS REVIEW 325 */
 	I2dRig r(0);
 	r.addPeer();
@@ -579,7 +584,8 @@ std::vector<I2dCall> i2dCalls() {
 }
 } // namespace
 
-TEST_CASE_FIXTURE(I2dFx, "ID1 characterization: a DMA call whose HAL_DMA_Start_IT fails returns HAL_ERROR with HAL_I2C_ERROR_DMA, state READY, mode NONE, unlocked and no START or DMAEN") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID1 a DMA call whose HAL_DMA_Start_IT fails returns HAL_ERROR with HAL_I2C_ERROR_DMA, state READY, mode NONE, unlocked and no START or DMAEN") {
 	/* NEEDS REVIEW 325: the stream is busy (started by the test) so that HAL_DMA_Start_IT returns HAL_BUSY. */
 	for (const auto &c : i2dCalls()) {
 		SUBCASE(c.name) {
@@ -601,7 +607,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID1 characterization: a DMA call whose HAL_DMA_Start_I
 	}
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID1 characterization: a missing DMA handle returns HAL_ERROR with HAL_I2C_ERROR_DMA_PARAM, master and memory calls leave READY, slave calls leave LISTEN") {
+// NEEDS REVIEW 325
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID1 a missing DMA handle returns HAL_ERROR with HAL_I2C_ERROR_DMA_PARAM, master and memory calls leave READY, slave calls leave LISTEN") {
 	/* NEEDS REVIEW 325 */
 	for (const auto &c : i2dCalls()) {
 		SUBCASE(c.name) {
@@ -800,7 +807,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID2 Mem_Read_DMA delivers the bytes in order and ends 
 	}
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID2 characterization: completion of a receive with an error code set calls the error callback and not MasterRxCplt, completion after the mode was reset does nothing") {
+// NEEDS REVIEW 411
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID2 completion of a receive with an error code set calls the error callback and not MasterRxCplt, completion after the mode was reset does nothing") {
 	/* NEEDS REVIEW 325 */
 	SUBCASE("error code set") {
 		I2dRig r(0);
@@ -892,7 +900,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID2 Slave_Transmit_DMA: after the last byte the contro
 	}
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID2 characterization: Slave_Receive_DMA stopped by the controller before Size bytes ends with HAL_I2C_ERROR_AF and the error callback") {
+// NEEDS REVIEW 411
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID2 Slave_Receive_DMA stopped by the controller before Size bytes ends with HAL_I2C_ERROR_AF and the error callback") {
 	/* NEEDS REVIEW 325 */
 	I2dRig r(0);
 	REQUIRE(HAL_I2C_Slave_Receive_DMA(&r.h, r.buf, 4) == HAL_OK);
@@ -914,7 +923,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID2 characterization: Slave_Receive_DMA stopped by the
 	CHECK((r.inst->CR2 & i2dCR2_DMAEN) == 0u);
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID2 characterization: Slave_Transmit_DMA with a controller NACK before the last byte stops the stream first and reports HAL_I2C_ERROR_AF afterwards") {
+// NEEDS REVIEW 411
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID2 Slave_Transmit_DMA with a controller NACK before the last byte stops the stream first and reports HAL_I2C_ERROR_AF afterwards") {
 	/* NEEDS REVIEW 325 */
 	I2dRig r(1);
 	r.fillTx(4);
@@ -992,7 +1002,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID3 a DMA transfer error ends the transfer with HAL_I2
 	}
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID3 characterization: a DMA FIFO error is ignored, state, error code and callbacks stay as they were") {
+// NEEDS REVIEW 325
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID3 a DMA FIFO error is ignored, state, error code and callbacks stay as they were") {
 	/* NEEDS REVIEW 325: with the FIFO error interrupt enabled the stream reports FEIF and I2C_DMAError ignores it. */
 	I2dRig r(0, true, true, true);
 	r.addPeer();
@@ -1026,7 +1037,8 @@ std::vector<I2dErr> i2dErrors() {
 }
 } // namespace
 
-TEST_CASE_FIXTURE(I2dFx, "ID3 characterization: an I2C error during a DMA master transmit stops the stream, then reports the error once with state READY and the I2C disabled") {
+// NEEDS REVIEW 308
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID3 an I2C error during a DMA master transmit stops the stream, then reports the error once with state READY and the I2C disabled") {
 	/* NEEDS REVIEW 325 */
 	for (const auto &e : i2dErrors()) {
 		SUBCASE(e.name) {
@@ -1074,7 +1086,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID3 an address nack during a DMA master transmit sets 
 	CHECK((r.sr2() & i2dSR2_BUSY) == 0u);
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID3 characterization: an I2C error during a DMA master receive stops the Rx stream and reports the error once") {
+// NEEDS REVIEW 411
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID3 an I2C error during a DMA master receive stops the Rx stream and reports the error once") {
 	/* NEEDS REVIEW 325 */
 	I2dRig r(2);
 	r.addPeer();
@@ -1096,7 +1109,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID3 characterization: an I2C error during a DMA master
 	CHECK(i2cCounts.masterRx == 0u);
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID3 characterization: an I2C error in a slave DMA transfer stops the stream and reports the error once") {
+// NEEDS REVIEW 411
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID3 an I2C error in a slave DMA transfer stops the stream and reports the error once") {
 	/* NEEDS REVIEW 325 */
 	for (int rx = 0; rx < 2; ++rx) {
 		SUBCASE(rx ? "slave receive" : "slave transmit") {
@@ -1117,7 +1131,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID3 characterization: an I2C error in a slave DMA tran
 	}
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID3 characterization: when the Tx stream cannot be aborted the HAL disables the I2C, sets state READY and still reports the error") {
+// NEEDS REVIEW 325
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID3 when the Tx stream cannot be aborted the HAL disables the I2C, sets state READY and still reports the error") {
 	/* NEEDS REVIEW 325: the stream is already in the ABORT state, so HAL_DMA_Abort_IT returns HAL_ERROR. */
 	I2dRig r(0);
 	r.addPeer();
@@ -1134,7 +1149,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID3 characterization: when the Tx stream cannot be abo
 	CHECK(r.tx.XferAbortCallback == nullptr);
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID3 characterization: when the Rx stream cannot be aborted the HAL stores the byte waiting in DR, disables the I2C and reports the error") {
+// NEEDS REVIEW 325
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID3 when the Rx stream cannot be aborted the HAL stores the byte waiting in DR, disables the I2C and reports the error") {
 	/* NEEDS REVIEW 325: the Rx stream ended (state READY) while DMAEN is still set, so HAL_DMA_Abort_IT returns HAL_ERROR. */
 	I2dRig r(1);
 	r.addPeer();
@@ -1151,7 +1167,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID3 characterization: when the Rx stream cannot be abo
 	CHECK((r.inst->CR1 & i2dCR1_PE) == 0u);
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID3 characterization: the DMA abort callback gives up waiting for a STOP that never completes and records HAL_I2C_ERROR_TIMEOUT") {
+// NEEDS REVIEW 321
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID3 the DMA abort callback gives up waiting for a STOP that never completes and records HAL_I2C_ERROR_TIMEOUT") {
 	/* NEEDS REVIEW 325 */
 	I2dRig r(0);
 	r.addPeer();
@@ -1393,7 +1410,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID4 Master_Seq_Receive_DMA sets LAST at the call for t
 	}
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID4 characterization: a FIRST_FRAME master receive of 3 or more bytes has LAST set by the ADDR handler") {
+// NEEDS REVIEW 321
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID4 a FIRST_FRAME master receive of 3 or more bytes has LAST set by the ADDR handler") {
 	/* NEEDS REVIEW 325: LAST makes the last byte of the FIRST_FRAME a NACK although the sequence goes on (RM0090 27.6.2 LAST). */
 	I2dRig r(0);
 	r.addPeer();
@@ -1515,7 +1533,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID4 Slave_Seq_Transmit_DMA and Slave_Seq_Receive_DMA r
 	CHECK(r.h.Lock == HAL_UNLOCKED);
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID4 characterization: switching a slave sequential receive to a transmit stops the Rx stream, starts the Tx stream and reports the error after the abort") {
+// NEEDS REVIEW 324
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID4 switching a slave sequential receive to a transmit stops the Rx stream, starts the Tx stream and reports the error after the abort") {
 	/* NEEDS REVIEW 325: the HAL comment says the abort "will lead to call HAL_I2C_ErrorCallback() at end of DMA abort procedure". */
 	I2dRig r(1);
 	r.fillTx(2);
@@ -1532,7 +1551,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID4 characterization: switching a slave sequential rec
 	CHECK(i2cCounts.error == 1u);
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID4 characterization: switching a slave sequential transmit to a receive stops the Tx stream, starts the Rx stream and reports the error after the abort") {
+// NEEDS REVIEW 325
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID4 switching a slave sequential transmit to a receive stops the Tx stream, starts the Rx stream and reports the error after the abort") {
 	/* NEEDS REVIEW 325 */
 	I2dRig r(1);
 	REQUIRE(HAL_I2C_EnableListen_IT(&r.h) == HAL_OK);
@@ -1547,7 +1567,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID4 characterization: switching a slave sequential tra
 	CHECK(i2cCounts.error == 1u);
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID4 characterization: a slave sequential switch with a stream that cannot be aborted calls the abort callback directly") {
+// NEEDS REVIEW 325
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID4 a slave sequential switch with a stream that cannot be aborted calls the abort callback directly") {
 	/* NEEDS REVIEW 325: the Rx stream already ended (state READY) while DMAEN is set, so HAL_DMA_Abort_IT returns HAL_ERROR. */
 	I2dRig r(0);
 	REQUIRE(HAL_I2C_EnableListen_IT(&r.h) == HAL_OK);
@@ -1561,7 +1582,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID4 characterization: a slave sequential switch with a
 
 /* ------------------------------------------------------------------------------------------------------------------ more ID1 */
 
-TEST_CASE_FIXTURE(I2dFx, "ID1 characterization: a DMA call with the bus held busy returns HAL_BUSY with HAL_I2C_ERROR_TIMEOUT, state READY, mode NONE and starts nothing") {
+// NEEDS REVIEW 321
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID1 a DMA call with the bus held busy returns HAL_BUSY with HAL_I2C_ERROR_TIMEOUT, state READY, mode NONE and starts nothing") {
 	/* NEEDS REVIEW 325 */
 	const auto calls = i2dCalls();
 	for (unsigned idx : {0u, 1u, 4u, 5u, 6u, 7u}) {
@@ -1596,7 +1618,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID1 every DMA call enables the I2C peripheral (PE) whe
 	}
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID1 characterization: Mem_Read_DMA with Size 0 to an address that nacks returns HAL_ERROR with AF") {
+// NEEDS REVIEW 325
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID1 Mem_Read_DMA with Size 0 to an address that nacks returns HAL_ERROR with AF") {
 	/* NEEDS REVIEW 325 */
 	I2dRig r(1);
 	CHECK(HAL_I2C_Mem_Read_DMA(&r.h, i2dDev, 0x10, I2C_MEMADD_SIZE_8BIT, r.buf, 0) == HAL_ERROR);
@@ -1604,7 +1627,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID1 characterization: Mem_Read_DMA with Size 0 to an a
 	CHECK(r.h.State == HAL_I2C_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID2 characterization: Size 0 DMA calls start no stream and the address phase ends with a STOP") {
+// NEEDS REVIEW 325
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID2 Size 0 DMA calls start no stream and the address phase ends with a STOP") {
 	/* NEEDS REVIEW 325 / NEEDS REVIEW 325: S, address, P; no callback for the receive. */
 	SUBCASE("Master_Transmit_DMA") {
 		I2dRig r(0);
@@ -1685,7 +1709,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID2 10 bit addressing: Master_Receive_DMA sends the wr
 	}
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID4 characterization: Master_Seq_Receive_DMA in the ADDR handler: FIRST_FRAME of one byte clears ACK, FIRST_AND_LAST_FRAME of one byte clears ACK and requests the STOP, FIRST_AND_NEXT_FRAME keeps ACK on") {
+// NEEDS REVIEW 324
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID4 Master_Seq_Receive_DMA in the ADDR handler: FIRST_FRAME of one byte clears ACK, FIRST_AND_LAST_FRAME of one byte clears ACK and requests the STOP, FIRST_AND_NEXT_FRAME keeps ACK on") {
 	/* NEEDS REVIEW 325 for the FIRST_FRAME and FIRST_AND_NEXT_FRAME rows (the UM1725 option text does not say how the last byte of a frame is answered). */
 	struct Row {
 		uint32_t option;
@@ -1738,7 +1763,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID4 the event handler of a OTHER frame ignores every e
 
 /* ------------------------------------------------------------------------------------------------------------------ more ID3 */
 
-TEST_CASE_FIXTURE(I2dFx, "ID3 characterization: Master_Abort_IT after the Tx stream ended and before the BTF event ends at once with AbortCpltCallback") {
+// NEEDS REVIEW 411
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID3 Master_Abort_IT after the Tx stream ended and before the BTF event ends at once with AbortCpltCallback") {
 	/* NEEDS REVIEW 325: no DMA runs any more (DMAEN cleared by the end of the stream), so the abort needs no DMA abort callback. */
 	I2dRig r(0);
 	r.addPeer();
@@ -1756,7 +1782,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID3 characterization: Master_Abort_IT after the Tx str
 	CHECK(i2dEnds(i2dLog(0), "P"));
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID3 characterization: with DMAEN cleared and a byte waiting in DR, Master_Abort_IT and an I2C error both store that byte at the start of the buffer") {
+// NEEDS REVIEW 323
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID3 with DMAEN cleared and a byte waiting in DR, Master_Abort_IT and an I2C error both store that byte at the start of the buffer") {
 	/* NEEDS REVIEW 325 */
 	SUBCASE("abort") {
 		I2dRig r(1);
@@ -1789,7 +1816,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID3 characterization: with DMAEN cleared and a byte wa
 	}
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID3 characterization: an I2C error during a slave sequential DMA transfer keeps the listen state, the error is reported when the DMA abort ends") {
+// NEEDS REVIEW 325
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID3 an I2C error during a slave sequential DMA transfer keeps the listen state, the error is reported when the DMA abort ends") {
 	/* NEEDS REVIEW 325 */
 	for (int rx = 0; rx < 2; ++rx) {
 		SUBCASE(rx ? "receive" : "transmit") {
@@ -1819,7 +1847,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID3 characterization: an I2C error during a slave sequ
 	}
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID3 characterization: a controller NACK before the end of a slave sequential DMA transmit ends the listen phase and reports AF after the DMA abort") {
+// NEEDS REVIEW 325
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID3 a controller NACK before the end of a slave sequential DMA transmit ends the listen phase and reports AF after the DMA abort") {
 	/* NEEDS REVIEW 325 */
 	I2dRig r(2);
 	r.fillTx(4);
@@ -1863,7 +1892,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID4 a controller NACK after a FIRST_FRAME slave sequen
 
 /* ------------------------------------------------------------------------------------------------------------------ more slave */
 
-TEST_CASE_FIXTURE(I2dFx, "ID2 characterization: Slave_Transmit_DMA stopped by the controller before the end reports AF through the DMA abort") {
+// NEEDS REVIEW 411
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID2 Slave_Transmit_DMA stopped by the controller before the end reports AF through the DMA abort") {
 	/* NEEDS REVIEW 325 */
 	I2dRig r(0);
 	r.fillTx(4);
@@ -1886,7 +1916,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID2 characterization: Slave_Transmit_DMA stopped by th
 	CHECK(r.h.State == HAL_I2C_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID2 characterization: a STOP while the stream is already being aborted calls the abort callback directly") {
+// NEEDS REVIEW 325
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID2 a STOP while the stream is already being aborted calls the abort callback directly") {
 	/* NEEDS REVIEW 325 */
 	for (int rx = 0; rx < 2; ++rx) {
 		SUBCASE(rx ? "receive" : "transmit") {
@@ -1911,7 +1942,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID2 characterization: a STOP while the stream is alrea
 	}
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID2 characterization: a STOP with a byte left in DR stores the byte and counts it") {
+// NEEDS REVIEW 411
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID2 a STOP with a byte left in DR stores the byte and counts it") {
 	/* NEEDS REVIEW 325: STOPF with the DMA still running: the HAL reads DR for a byte the stream did not take. */
 	I2dRig r(2);
 	REQUIRE(HAL_I2C_Slave_Receive_DMA(&r.h, r.buf, 4) == HAL_OK);
@@ -1926,7 +1958,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID2 characterization: a STOP with a byte left in DR st
 	CHECK((r.h.ErrorCode & HAL_I2C_ERROR_AF) != 0u);
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID2 characterization: a STOP with BTF set stores the byte of the data register and the byte of the shift register") {
+// NEEDS REVIEW 326
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID2 a STOP with BTF set stores the byte of the data register and the byte of the shift register") {
 	/* NEEDS REVIEW 325: two bytes arrive and nobody reads: the second one waits in the shift register with BTF = 1 and the SCL held. */
 	I2dRig r(0);
 	REQUIRE(HAL_I2C_Slave_Receive_DMA(&r.h, r.buf, 4) == HAL_OK);
@@ -1944,7 +1977,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID2 characterization: a STOP with BTF set stores the b
 	CHECK(r.h.XferCount == 2u);
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID4 characterization: a STOP right after the last byte but before the DMA transfer complete interrupt ends the listen phase with SlaveRxCplt then ListenCplt") {
+// NEEDS REVIEW 323
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID4 a STOP right after the last byte but before the DMA transfer complete interrupt ends the listen phase with SlaveRxCplt then ListenCplt") {
 	/* NEEDS REVIEW 325 */
 	I2dRig r(0);
 	REQUIRE(HAL_I2C_EnableListen_IT(&r.h) == HAL_OK);
@@ -1966,7 +2000,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID4 characterization: a STOP right after the last byte
 	CHECK(r.h.State == HAL_I2C_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID4 characterization: a slave sequential call of the same direction while its stream aborts returns HAL_ERROR with HAL_I2C_ERROR_DMA") {
+// NEEDS REVIEW 325
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID4 a slave sequential call of the same direction while its stream aborts returns HAL_ERROR with HAL_I2C_ERROR_DMA") {
 	/* NEEDS REVIEW 325: the stream is still in the ABORT state, so HAL_DMA_Start_IT cannot start it. */
 	for (int rx = 0; rx < 2; ++rx) {
 		SUBCASE(rx ? "receive" : "transmit") {
@@ -1987,7 +2022,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID4 characterization: a slave sequential call of the s
 	}
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID4 characterization: a slave sequential call with a stream that cannot be aborted calls the abort callback at once and starts the new stream") {
+// NEEDS REVIEW 325
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID4 a slave sequential call with a stream that cannot be aborted calls the abort callback at once and starts the new stream") {
 	/* NEEDS REVIEW 325: first call, stream stopped by the test (state READY, DMAEN still set), second call in each direction pair. */
 	for (int firstRx = 0; firstRx < 2; ++firstRx) {
 		for (int secondRx = 0; secondRx < 2; ++secondRx) {
@@ -2015,7 +2051,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID4 characterization: a slave sequential call with a s
 	}
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID3 characterization: after an ignored DMA FIFO error the end of the stream does not complete the transfer") {
+// NEEDS REVIEW 411
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID3 after an ignored DMA FIFO error the end of the stream does not complete the transfer") {
 	/* NEEDS REVIEW 325 */
 	I2dRig r(0, true, true, true);
 	r.addPeer();
@@ -2035,7 +2072,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID3 characterization: after an ignored DMA FIFO error 
 	CHECK(!i2dEnds(i2dLog(0), "P"));
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID4 characterization: after a slave sequential receive to transmit switch the DMA abort callback sets state LISTEN while the Tx stream runs") {
+// NEEDS REVIEW 325
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID4 after a slave sequential receive to transmit switch the DMA abort callback sets state LISTEN while the Tx stream runs") {
 	/* NEEDS REVIEW 325 */
 	I2dRig r(1);
 	r.fillTx(2);
@@ -2119,7 +2157,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID4 10 bit addressing: a FIRST_FRAME sequential DMA tr
 	}
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID4 characterization: a STOP during a Slave_Seq_Receive_DMA before Size bytes ends with AF, XferCount from the stream and the listen phase ended") {
+// NEEDS REVIEW 325
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID4 a STOP during a Slave_Seq_Receive_DMA before Size bytes ends with AF, XferCount from the stream and the listen phase ended") {
 	/* NEEDS REVIEW 325 */
 	I2dRig r(0);
 	REQUIRE(HAL_I2C_EnableListen_IT(&r.h) == HAL_OK);
@@ -2253,7 +2292,8 @@ TEST_CASE_FIXTURE(I2dFx, "ID4 a slave sequential receive to transmit switch clea
 	CHECK((r.inst->CR2 & i2dCR2_DMAEN) == 0u);
 }
 
-TEST_CASE_FIXTURE(I2dFx, "ID3 characterization: a Master_Abort_IT whose stream cannot be aborted ends with the error callback, not AbortCpltCallback") {
+// NEEDS REVIEW 325
+TEST_CASE_FIXTURE(I2dFx, "characterization: ID3 a Master_Abort_IT whose stream cannot be aborted ends with the error callback, not AbortCpltCallback") {
 	/* NEEDS REVIEW 325: ITError sets State READY before it calls the DMA abort callback directly, so I2C_DMAAbort no longer sees the ABORT state. */
 	I2dRig r(0);
 	r.addPeer();

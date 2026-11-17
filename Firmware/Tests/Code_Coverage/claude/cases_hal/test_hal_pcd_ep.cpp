@@ -227,12 +227,14 @@ TEST_CASE_FIXTURE(PeFixture, "PE1 opening an interrupt IN endpoint starts the da
 	CHECK((lw(inCtl(3)) & kSD0PID) != 0u);
 }
 
+// NEEDS REVIEW 346
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE1 opening an isochronous IN endpoint writes the SEVNFRM bit (NR346_j)") {
 	// The bit 28 is SD0PID for bulk / interrupt and SEVNFRM for isochronous endpoints (RM0090 34.16.4); RM0090 does not say which frame an open endpoint starts in.
 	open(0x82, 64, EP_TYPE_ISOC);
 	CHECK((lw(inCtl(2)) & kSD0PID) != 0u);
 }
 
+// NEEDS REVIEW 346
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE1 opening a bulk endpoint resets data_pid_start and an interrupt endpoint leaves it (NR346_l)") {
 	h.IN_ep[1].data_pid_start = 1;
 	h.IN_ep[2].data_pid_start = 1;
@@ -295,6 +297,7 @@ TEST_CASE_FIXTURE(PeFixture, "PE1 opening an endpoint reports HAL_OK and leaves 
 	CHECK(h.Lock == HAL_UNLOCKED);
 }
 
+// NEEDS REVIEW 346
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE1 opening an endpoint on a locked handle returns HAL_BUSY and writes no register (NR346_a)") {
 	h.Lock = HAL_LOCKED;
 	const std::uint32_t msk = rd(kDAINTMSK), ctl = rd(inCtl(1));
@@ -304,6 +307,7 @@ TEST_CASE_FIXTURE(PeFixture, "characterization: PE1 opening an endpoint on a loc
 	CHECK(rd(inCtl(1)) == ctl);
 }
 
+// NEEDS REVIEW 349
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE1 opening an endpoint above the four endpoints touches only reserved registers (NR346_b)") {
 	const std::uint32_t ctl1 = rd(inCtl(1)), ctl2 = rd(outCtl(2)), msk = rd(kDAINTMSK);
 	const std::uint32_t reserved = hostOtgReservedAccesses();
@@ -358,6 +362,7 @@ TEST_CASE_FIXTURE(PeFixture, "PE1 closing endpoint 0 masks both endpoint 0 inter
 	CHECK((rd(kDAINTMSK) & 0x00010001u) == 0u);
 }
 
+// NEEDS REVIEW 415
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE1 closing an endpoint clears the size, type, TxFIFO and toggle fields with USBAEP (NR346_c)") {
 	open(0x81, 32, EP_TYPE_INTR);
 	open(0x01, 32, EP_TYPE_INTR);
@@ -415,6 +420,7 @@ TEST_CASE_FIXTURE(PeFixture, "PE1 closing an endpoint that was never opened retu
 	CHECK(h.Lock == HAL_UNLOCKED);
 }
 
+// NEEDS REVIEW 346
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE1 closing an endpoint writes the DEACHMSK offset that the OTG_FS core does not have (NR346_d)") {
 	open(0x81, 64, EP_TYPE_BULK);
 	const unsigned from = hostOtgHsOnlyAccesses();
@@ -423,6 +429,7 @@ TEST_CASE_FIXTURE(PeFixture, "characterization: PE1 closing an endpoint writes t
 	CHECK(hostOtgReservedAccesses() == 0u);
 }
 
+// NEEDS REVIEW 346
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE1 closing an endpoint on a locked handle returns HAL_BUSY and writes no register (NR346_a)") {
 	open(0x81, 64, EP_TYPE_BULK);
 	h.Lock = HAL_LOCKED;
@@ -456,6 +463,7 @@ TEST_CASE_FIXTURE(PeFixture, "PE1 an endpoint closed and opened again takes the 
 	CHECK((rd(kDAINTMSK) & (1u << 1)) != 0u);
 }
 
+// NEEDS REVIEW 346
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE1 USB_ActivateDedicatedEndpoint activates an IN endpoint and writes DEACHMSK (NR346_h)") {
 	USB_OTG_EPTypeDef ep;
 	std::memset(&ep, 0, sizeof ep);
@@ -474,6 +482,7 @@ TEST_CASE_FIXTURE(PeFixture, "characterization: PE1 USB_ActivateDedicatedEndpoin
 	CHECK(rd(kDAINTMSK) == msk);
 }
 
+// NEEDS REVIEW 346
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE1 USB_ActivateDedicatedEndpoint activates an OUT endpoint and writes DEACHMSK (NR346_h)") {
 	USB_OTG_EPTypeDef ep;
 	std::memset(&ep, 0, sizeof ep);
@@ -489,6 +498,7 @@ TEST_CASE_FIXTURE(PeFixture, "characterization: PE1 USB_ActivateDedicatedEndpoin
 	CHECK(hsOnlyWrites(from, 0x83Cu) == 1u);
 }
 
+// NEEDS REVIEW 415
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE1 USB_ActivateDedicatedEndpoint keeps the registers of an endpoint that is already active (NR346_h)") {
 	USB_OTG_EPTypeDef ep;
 	std::memset(&ep, 0, sizeof ep);
@@ -502,6 +512,7 @@ TEST_CASE_FIXTURE(PeFixture, "characterization: PE1 USB_ActivateDedicatedEndpoin
 	CHECK(rd(inCtl(1)) == ctl);
 }
 
+// NEEDS REVIEW 415
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE1 USB_DeactivateDedicatedEndpoint of an armed IN endpoint disables it and masks its interrupt (NR346_h)") {
 	USB_OTG_EPTypeDef ep;
 	std::memset(&ep, 0, sizeof ep);
@@ -517,6 +528,7 @@ TEST_CASE_FIXTURE(PeFixture, "characterization: PE1 USB_DeactivateDedicatedEndpo
 	CHECK((rd(kDAINTMSK) & (1u << 1)) == 0u);
 }
 
+// NEEDS REVIEW 415
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE1 USB_DeactivateDedicatedEndpoint of an armed OUT endpoint disables it and masks its interrupt (NR346_h)") {
 	USB_OTG_EPTypeDef ep;
 	std::memset(&ep, 0, sizeof ep);
@@ -532,6 +544,7 @@ TEST_CASE_FIXTURE(PeFixture, "characterization: PE1 USB_DeactivateDedicatedEndpo
 	CHECK((rd(kDAINTMSK) & (1u << 18)) == 0u);
 }
 
+// NEEDS REVIEW 415
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE1 USB_DeactivateDedicatedEndpoint of endpoints that are not armed only clears USBAEP and the mask (NR346_h)") {
 	USB_OTG_EPTypeDef epIn, epOut;
 	std::memset(&epIn, 0, sizeof epIn);
@@ -668,6 +681,7 @@ TEST_CASE_FIXTURE(PeFixture, "PE2 receive on endpoint 0 of length 0 still progra
 	CHECK(h.OUT_ep[0].xfer_len == 0u);
 }
 
+// NEEDS REVIEW 349
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE2 receive on endpoint 0 of more than one packet is cut to one packet (NR346_g)") {
 	open(0x00, 64, EP_TYPE_CTRL);
 	arm(0, 200);
@@ -805,6 +819,7 @@ TEST_CASE_FIXTURE(PeFixture, "PE2 transmit on endpoint 0 of length 0 programs a 
 	CHECK(rd(kDIEPEMPMSK) == 0u);
 }
 
+// NEEDS REVIEW 415
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE2 transmit on endpoint 0 of more than one packet is cut to one packet (NR346_g)") {
 	open(0x80, 64, EP_TYPE_CTRL);
 	send(0, 100);
@@ -813,6 +828,7 @@ TEST_CASE_FIXTURE(PeFixture, "characterization: PE2 transmit on endpoint 0 of mo
 	CHECK(pktcntOf(rd(inTsiz(0))) == 1u);
 }
 
+// NEEDS REVIEW 415
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE2 transmit on endpoint 0 with an endpoint structure size of 8 bytes is cut to 8 bytes (NR346_g)") {
 	open(0x80, 8, EP_TYPE_CTRL);
 	send(0, 18);
@@ -835,6 +851,7 @@ TEST_CASE_FIXTURE(PeFixture, "PE2 transmit on an isochronous endpoint writes the
 	CHECK(rd(kDIEPEMPMSK) == 0u);
 }
 
+// NEEDS REVIEW 415
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE2 transmit on an isochronous endpoint in an even frame sets the odd frame bit (NR346_e)") {
 	open(0x81, 64, EP_TYPE_ISOC);
 	hostOtgSof(4);
@@ -842,6 +859,7 @@ TEST_CASE_FIXTURE(PeFixture, "characterization: PE2 transmit on an isochronous e
 	CHECK((lw(inCtl(1)) & kSODDFRM) != 0u);
 }
 
+// NEEDS REVIEW 415
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE2 transmit on an isochronous endpoint in an odd frame sets the even frame bit (NR346_e)") {
 	open(0x81, 64, EP_TYPE_ISOC);
 	hostOtgSof(5);
@@ -850,6 +868,7 @@ TEST_CASE_FIXTURE(PeFixture, "characterization: PE2 transmit on an isochronous e
 	CHECK((lw(inCtl(1)) & kSD0PID) != 0u);
 }
 
+// NEEDS REVIEW 415
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE2 receive on an isochronous endpoint in an even frame sets the odd frame bit (NR346_e)") {
 	open(0x01, 64, EP_TYPE_ISOC);
 	hostOtgSof(4);
@@ -857,6 +876,7 @@ TEST_CASE_FIXTURE(PeFixture, "characterization: PE2 receive on an isochronous en
 	CHECK(wroteBits(outCtl(1), kSODDFRM));
 }
 
+// NEEDS REVIEW 346
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE2 receive on an isochronous endpoint in an odd frame sets the even frame bit (NR346_e)") {
 	open(0x01, 64, EP_TYPE_ISOC);
 	hostOtgSof(5);
@@ -872,6 +892,7 @@ TEST_CASE_FIXTURE(PeFixture, "PE2 transmit on a non isochronous endpoint does no
 	CHECK((lw(inCtl(1)) & kSODDFRM) == 0u);
 }
 
+// NEEDS REVIEW 346
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE2 an isochronous IN transfer of two packets writes the HS only MCNT bits 30:29 of the transfer size register (NR346_m)") {
 	// RM0090 marks DIEPTSIZx bits 31:29 of the OTG_FS core reserved and says nothing about writing them; the HAL writes MULCNT = PKTCNT = 2 there.
 	open(0x81, 64, EP_TYPE_ISOC);
@@ -880,6 +901,7 @@ TEST_CASE_FIXTURE(PeFixture, "characterization: PE2 an isochronous IN transfer o
 	CHECK(pktcntOf(rd(inTsiz(1))) == 2u);
 }
 
+// NEEDS REVIEW 346
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE2 transmit of more packets than the 10 bit packet count holds is truncated (NR346_f)") {
 	// 70000 bytes / 64 = 1094 packets; PKTCNT is 10 bits (RM0090 DIEPTSIZx 28:19), 1094 mod 1024 = 70. XFRSIZ (19 bits) holds 70000.
 	open(0x81, 64, EP_TYPE_BULK);
@@ -888,6 +910,7 @@ TEST_CASE_FIXTURE(PeFixture, "characterization: PE2 transmit of more packets tha
 	CHECK(xfrsizOf(rd(inTsiz(1))) == 70000u);
 }
 
+// NEEDS REVIEW 415
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE2 receive of more packets than the 10 bit packet count holds is truncated (NR346_f)") {
 	open(0x01, 64, EP_TYPE_BULK);
 	arm(1, 70000);
@@ -1042,6 +1065,7 @@ TEST_CASE_FIXTURE(PeFixture, "PE3 writing more than the depth of the TxFIFO is a
 	clearFaults();
 }
 
+// NEEDS REVIEW 346
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE3 writing a packet with dma 1 writes nothing (NR346_k)") {
 	CHECK(USB_WritePacket(USB_OTG_FS, tx, 1, 16, 1) == HAL_OK);
 	CHECK(hostOtgTxWordsUsed(1) == 0u);
@@ -1218,6 +1242,7 @@ TEST_CASE_FIXTURE(PeFixture, "PE4 setting a stall on a locked handle returns HAL
 	CHECK((rd(inCtl(1)) & kSTALL) == 0u);
 }
 
+// NEEDS REVIEW 346
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE4 setting a stall on an armed IN endpoint leaves it enabled with STALL set (NR346_n)") {
 	// RM0090 'Stalling non-isochronous IN endpoints' lists EPDIS = 1 for an enabled endpoint but also says STALL always takes precedence over NAK;
 	// USB_EPSetStall never sets EPDIS: the armed endpoint stays enabled and answers STALL.
@@ -1406,6 +1431,7 @@ TEST_CASE_FIXTURE(PeFixture, "PE4 aborting an armed OUT endpoint first sets the 
 	CHECK((rd(kDCTL) & (1u << 3)) != 0u);
 }
 
+// NEEDS REVIEW 346
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE4 aborting an armed IN endpoint leaves the data in its TxFIFO (NR346_i)") {
 	// RM0090 IN endpoint disable step 7: the application flushes the FIFO itself; HAL_PCD_EP_Abort does not.
 	open(0x81, 64, EP_TYPE_BULK);
@@ -1629,6 +1655,7 @@ TEST_CASE_FIXTURE(PeFixture, "PE1 opening with a maximum packet size of 0x400 ke
 	CHECK(h.OUT_ep[2].maxpacket == 0x400u);
 }
 
+// NEEDS REVIEW 346
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE1 opening with a maximum packet size above 11 bits drops the bit 11 (NR346_o)") {
 	// MPSIZ is 11 bits (RM0090); the HAL masks the uint16 argument with 0x7FF: 0x840 gives 0x40.
 	open(0x83, 0x840, EP_TYPE_BULK);
@@ -1720,6 +1747,7 @@ TEST_CASE_FIXTURE(PeFixture, "PE4 aborting an OUT endpoint whose disable does no
 	hostOtgReleaseDisable();
 }
 
+// NEEDS REVIEW 346
 TEST_CASE_FIXTURE(PeFixture, "characterization: PE1 closing an endpoint whose disable does not finish still returns HAL_OK and deactivates it (NR346_p)") {
 	// HAL_PCD_EP_Close does not wait for EPDISD (the Close paths of USB_DeactivateEndpoint never poll).
 	open(0x81, 64, EP_TYPE_BULK);

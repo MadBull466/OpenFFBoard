@@ -552,7 +552,8 @@ TEST_CASE_FIXTURE(HalFixture, "C13 HAL_NVIC_SystemReset ends in the endless __NO
 	CHECK(hostCmsisNopCount >= 1u);
 }
 
-TEST_CASE_FIXTURE(HalFixture, "C13 characterization: HAL_NVIC_SystemReset keeps the PRIGROUP of AIRCR") {
+// NEEDS REVIEW 284
+TEST_CASE_FIXTURE(HalFixture, "characterization: C13 HAL_NVIC_SystemReset keeps the PRIGROUP of AIRCR") {
 	// NEEDS REVIEW: PM0214 4.4.5 does not say whether the reset request write must repeat PRIGROUP; the HAL does.
 	HAL_NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_4);
 	REQUIRE(systemResetReturnsViaHook() == 1);

@@ -423,6 +423,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R3.7] requestConstantReports with enable fals
 
 // ---------------------------------------------------------------- R3.8 no brake release
 
+// NEEDS REVIEW 360
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R3.8] no 0x77 brake release frame is sent in a full session (owner question 50)") {
 	auto rmd = makeRmd1();
 	reachAvailable(*rmd);
@@ -444,6 +445,7 @@ TEST_CASE_FIXTURE(FramesFixture, "characterization: [R3.8] no 0x77 brake release
 
 // ---------------------------------------------------------------- R4.1 thread against a silent motor
 
+// NEEDS REVIEW 258
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R4.1] against a silent motor 0xB5 is sent at 100, 1270 and 2440 ms and the 0xB6 enable 20 ms after each, nothing else") {
 	auto rmd = makeRmd1();
 	peer1.setSilent(true);
@@ -478,6 +480,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R4.1] the 0xB6 enable of the thread is {0xB6,
 
 // ---------------------------------------------------------------- R4.2 replying motor
 
+// NEEDS REVIEW 360
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R4.2] motorReady turns true at 1270 ms (end of the first cycle) and not before") {
 	auto rmd = makeRmd1();
 	runFor(1269);
@@ -508,6 +511,7 @@ void silenceAndRunToLastAvailableMs(FramesFixture &fx, RmdMotorCAN &d, FakeRmdPe
 }
 } // namespace
 
+// NEEDS REVIEW 360
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R4.3] a motor that falls silent clears motorReady at the end of the next full cycle (3270 ms), not before") {
 	auto rmd = makeRmd1();
 	silenceAndRunToLastAvailableMs(*this, *rmd, peer1);
@@ -529,6 +533,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R4.3] turn sends nothing after the motor fell
 	CHECK(frames().empty());
 }
 
+// NEEDS REVIEW 258
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R4.3] the 0xB5 probe resumes in the cycle after the motor fell silent (3270 ms)") {
 	auto rmd = makeRmd1();
 	silenceAndRunToLastAvailableMs(*this, *rmd, peer1);
@@ -556,6 +561,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R4.4] switching to requestpos 1 sends the dis
 	CHECK(b6(0).size() == 1); // not repeated by the thread
 }
 
+// NEEDS REVIEW 360
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R4.4] with requestpos 1 the 0x9A status request is sent once per 1000 ms cycle (2270, 3270, 4270 ms) and no 0xB6 enable") {
 	auto rmd = makeRmd1();
 	reachAvailable(*rmd);
@@ -574,6 +580,7 @@ TEST_CASE_FIXTURE(FramesFixture, "characterization: [R4.4] with requestpos 1 the
 	CHECK(rmd->motorReady()); // the replies to 0x9A keep the motor available
 }
 
+// NEEDS REVIEW 258
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R4.4] with requestpos 1 and a silent motor the thread probes 0xB5 then 0x9A each cycle, sends no 0xB6 enable and motorReady stays false") {
 	auto rmd = makeRmd1();
 	peer1.setSilent(true);

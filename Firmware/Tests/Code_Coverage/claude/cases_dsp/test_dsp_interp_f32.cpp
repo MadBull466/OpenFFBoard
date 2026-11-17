@@ -679,7 +679,8 @@ TEST_CASE("[C4 arm_bilinear_interp_f32] a 2x2 table {1,2,3,5} at X = -0.5, Y = 0
 	CHECK(arm_bilinear_interp_f32(&S, -0.5f, 0.0f) == 0.0f);
 }
 
-TEST_CASE("[C4 arm_bilinear_interp_f32] characterization: a coordinate on the last column or last row returns zero (NEEDS REVIEW)") {
+// NEEDS REVIEW 200
+TEST_CASE("characterization: [C4 arm_bilinear_interp_f32] a coordinate on the last column or last row returns zero (NEEDS REVIEW)") {
 	// DOC is ambiguous: the last column / row is on the table, but the code requires xIndex <= numCols-2 and yIndex <= numRows-2,
 	// so X = 1 or Y = 1 of a 2x2 table gives 0 although the interpolated value would not be 0 (table {1,2,3,5}: f(1,0) = 2,
 	// f(1,0.5) = 3.5, f(1,1) = 5, f(0,1) = 3, f(0.5,1) = 4). NEEDS REVIEW (listed in the report).

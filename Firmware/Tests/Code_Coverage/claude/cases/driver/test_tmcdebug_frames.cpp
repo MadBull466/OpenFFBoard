@@ -463,6 +463,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.5 read] cmd 148 of a register with the hig
 	CHECK(reply()[7] == 0x01);
 }
 
+// NEEDS REVIEW 238
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.5 read] command number 148 (0x94) is the register read and its reply carries 0x94") {
 	// not in the supplied TMCL documents (FW): NEEDS REVIEW
 	begin();
@@ -507,6 +508,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.6 write] cmd 146 writes exactly one regist
 	CHECK(chip2.log().empty());
 }
 
+// NEEDS REVIEW 238
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.6 write] the reply to command 146 (0x92) echoes request bytes 3 to 6 in the value field") {
 	// FW: the value is in request bytes 4..7, the code echoes dat[3..6] (R5 item 6). NEEDS REVIEW.
 	begin();
@@ -516,6 +518,7 @@ TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.6 write] the reply to co
 	CHECK(hex(reply()) == hex({2, 1, 0x64, 0x92, 0x00, 0x11, 0x22, 0x33, 0x5F}));
 }
 
+// NEEDS REVIEW 238
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.6 write] the reply to command 146 echoes request byte 3 (motor/bank 0x5A) as the first value byte") {
 	// FW. NEEDS REVIEW. Request {1, 146, 0x26, 0x5A, 0x11, 0x22, 0x33, 0x44, cs}: 1+146+38+90+17+34+51+68 = 445 = 256 + 189 -> 0xBD.
 	// Reply head {2, 1, 0x64, 0x92, 0x5A, 0x11, 0x22, 0x33}: 2+1+100+146 = 249; 90+17+34+51 = 192; 441 = 256 + 185 -> 0xB9.
@@ -525,6 +528,7 @@ TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.6 write] the reply to co
 	CHECK(chip1.reg(kReg) == 0x11223344);
 }
 
+// NEEDS REVIEW 238
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.6 write] command number 146 (0x92) is the register write and its reply carries 0x92") {
 	// not in the supplied TMCL documents (FW): NEEDS REVIEW
 	begin();
@@ -537,6 +541,7 @@ TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.6 write] command number 
 // R2.7 command 143
 // ---------------------------------------------------------------------------------------------------------------------
 
+// NEEDS REVIEW 375
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.7 cmd143] command 143 type 3 answers {2, 1, 40, 0x8F, 0, 0, 0, 2, checksum}") {
 	// FW (R5 item 4: opcode and meaning not in the supplied documents). NEEDS REVIEW. Status 40 is not 100 (TMCL 2.2.1).
 	begin();
@@ -545,6 +550,7 @@ TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.7 cmd143] command 143 ty
 	CHECK(hex(reply()) == hex({2, 1, 40, 0x8F, 0, 0, 0, 2, 0xBC}));
 }
 
+// NEEDS REVIEW 375
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.7 cmd143] command 143 type 4 answers {2, 1, 40, 0x8F, 2, 6, 2, 2, checksum}") {
 	// FW. NEEDS REVIEW.
 	begin();
@@ -603,6 +609,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.8 ggp] command 10 causes no register traff
 	CHECK(noChipTraffic());
 }
 
+// NEEDS REVIEW 375
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.8 ggp] GGP type 5 returns the value 2") {
 	// FW (comment in the code: hwid). NEEDS REVIEW.
 	begin();
@@ -611,6 +618,7 @@ TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.8 ggp] GGP type 5 return
 	CHECK(valueOf(reply()) == Bytes({0, 0, 0, 2}));
 }
 
+// NEEDS REVIEW 375
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.8 ggp] GGP type 2 returns the value 1") {
 	// FW (comment in the code: active). NEEDS REVIEW.
 	begin();
@@ -619,6 +627,7 @@ TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.8 ggp] GGP type 2 return
 	CHECK(valueOf(reply()) == Bytes({0, 0, 0, 1}));
 }
 
+// NEEDS REVIEW 375
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.8 ggp] GGP types other than 2 and 5 return the value 0") {
 	// FW. NEEDS REVIEW.
 	begin();
@@ -640,6 +649,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.8 gio] command 15 is answered with command
 	CHECK(reply()[8] == TmcDebugFixture::sum8(reply(), 8));
 }
 
+// NEEDS REVIEW 239
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.8 gio] GIO type 5 returns the internal supply in units of 0.1 V, big endian") {
 	// FW (not in the supplied documents). NEEDS REVIEW.
 	// Derivation: TmcFixture reference 4095 mV -> 1 ADC count = 1 mV at the pin, getIntV() = counts * vSenseMult in mV
@@ -654,6 +664,7 @@ TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.8 gio] GIO type 5 return
 	CHECK(valueOf(reply()) == Bytes({0, 0, 0x00, 0xF5}));
 }
 
+// NEEDS REVIEW 375
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.8 gio] GIO type 5 puts the high byte of the voltage into value byte 2") {
 	// FW. Derivation: setSupply(24000, 25650) -> getIntV() = 25650 mV (+- a few mV, inside 25600..25699);
 	// 25650 / 100 = 256 = 0x0100 -> value bytes {0, 0, 0x01, 0x00}. NEEDS REVIEW.
@@ -666,6 +677,7 @@ TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.8 gio] GIO type 5 puts t
 	CHECK(valueOf(reply()) == Bytes({0, 0, 0x01, 0x00}));
 }
 
+// NEEDS REVIEW 375
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.8 gio] GIO type 5 truncates the supply to 0.1 V steps (24550 mV or more stays 245)") {
 	// FW. NEEDS REVIEW. Derivation: a supply request of 24599 mV gives getIntV() in 24550..24599 mV (REQUIRE below); integer
 	// division by 100 truncates to 245 = 0x00F5, a rounding implementation would give 246 for values from 24550 up.
@@ -678,6 +690,7 @@ TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.8 gio] GIO type 5 trunca
 	CHECK(valueOf(reply()) == Bytes({0, 0, 0x00, 0xF5}));
 }
 
+// NEEDS REVIEW 375
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.8 gio] GIO types other than 5 return the value 0 whatever the supply is") {
 	// FW. NEEDS REVIEW.
 	begin();
@@ -726,6 +739,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.9 version] command 136 type 0 is one write
 	CHECK(reply().size() == 9);
 }
 
+// NEEDS REVIEW 239
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.9 version] the version string is 0015V307") {
 	// FW (TDB:198). NEEDS REVIEW.
 	begin();
@@ -734,6 +748,7 @@ TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.9 version] the version s
 	CHECK(hex(reply()) == hex({2, '0', '0', '1', '5', 'V', '3', '0', '7'}));
 }
 
+// NEEDS REVIEW 239
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.9 version] the binary version of command 136 type 1 is the value bytes 0, 15, 3, 7") {
 	// FW. Hand derivation from "0015V307": module high = (0 * 10) + 0 = 0, module low = (1 * 10) + 5 = 15,
 	// firmware high = 3, firmware low = (0 * 10) + 7 = 7. The spec layout of the value field (TMCL 3.35) differs, see the
@@ -876,6 +891,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.11 write] two requests produce two separat
 // R2.12 short CDC buffer
 // ---------------------------------------------------------------------------------------------------------------------
 
+// NEEDS REVIEW 375
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.12 cdc] with 5 bytes of CDC buffer free the reply is truncated to its first 5 bytes") {
 	// FW: tud_cdc_n_write accepts what fits, the bridge ignores the return value. NEEDS REVIEW.
 	begin();
@@ -886,6 +902,7 @@ TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.12 cdc] with 5 bytes of 
 	CHECK(cdcFlushes() == 1);
 }
 
+// NEEDS REVIEW 375
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.12 cdc] with no CDC buffer free nothing is sent and the bridge does not fail") {
 	// FW. NEEDS REVIEW.
 	begin();
@@ -899,6 +916,7 @@ TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.12 cdc] with no CDC buff
 // R4.1 / R4.2 / R4.3 robustness
 // ---------------------------------------------------------------------------------------------------------------------
 
+// NEEDS REVIEW 375
 TEST_CASE_FIXTURE(FramesFixture, "characterization: [R4.1 split] a frame split into 5 and 4 bytes is not reassembled, both parts go to the text parser") {
 	// FW. NEEDS REVIEW.
 	begin();

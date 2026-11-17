@@ -1,6 +1,8 @@
 # P12 T3 requirements charter: DMA / DMA_Ex (real ST HAL, F407VG and F407VG_DISCO)
 
 Status: 2026-11-11 (lead). Platform, tests, review and gate done (see the plan, section "T3 result"). Amendments after the work: the callback registration API is compiled unconditionally in this HAL version (group DC added); DS2 (FEIE in `Start_IT`), DS7 (FE / DME while polling), DQ7 (no `Abort_IT` timeout; completion by the TCIF of the stop) and DI7 (no DeInit timeout) are characterization cases. Plan: `Tests/Code_Coverage/claude/plans/P12_ST_HAL_PLAN.md` (stage T3).
+
+**Final status (2026-11-17): done, approved, committed and pushed, commit `29c3cae1`. Statements about pending approval or gates in the line above were true when it was written.**
 Platform and rules as in `P12_T1_REQUIREMENTS.md` and `P12_T2_REQUIREMENTS.md` (trapping bus, fixture, `KNOWN_ISSUE`,
 `characterization:`, no sleeping, expected values never from the HAL source).
 

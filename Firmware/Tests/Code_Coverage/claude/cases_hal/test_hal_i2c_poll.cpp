@@ -214,7 +214,8 @@ TEST_CASE_FIXTURE(Rig, "IP1 Master_Transmit works on I2C1, I2C2 and I2C3 alike")
 	}
 }
 
-TEST_CASE_FIXTURE(Rig, "IP1 characterization: Master_Transmit of 0 bytes addresses the device and stops") {
+// NEEDS REVIEW 413
+TEST_CASE_FIXTURE(Rig, "characterization: IP1 Master_Transmit of 0 bytes addresses the device and stops") {
 	up();
 	uint8_t d[1] = {0x55};
 	REQUIRE(HAL_I2C_Master_Transmit(&h, 0xA0, d, 0, 100) == HAL_OK);
@@ -317,7 +318,8 @@ TEST_CASE_FIXTURE(Rig, "IP1 IsDeviceReady returns HAL_BUSY without touching the 
 	h.State = HAL_I2C_STATE_READY;
 }
 
-TEST_CASE_FIXTURE(Rig, "IP1 characterization: State RESET and an already locked handle give HAL_BUSY from every blocking function") {
+// NEEDS REVIEW 321
+TEST_CASE_FIXTURE(Rig, "characterization: IP1 State RESET and an already locked handle give HAL_BUSY from every blocking function") {
 	up();
 	for (Fn f : kAllFns) {
 		INFO(fnName(f));
@@ -382,7 +384,8 @@ TEST_CASE_FIXTURE(Rig, "IP2 Master_Receive works on I2C1, I2C2 and I2C3 alike") 
 	}
 }
 
-TEST_CASE_FIXTURE(Rig, "IP2 characterization: Master_Receive of 0 bytes addresses the device, stops and writes nothing") {
+// NEEDS REVIEW 413
+TEST_CASE_FIXTURE(Rig, "characterization: IP2 Master_Receive of 0 bytes addresses the device, stops and writes nothing") {
 	up();
 	uint8_t got[2] = {0xEE, 0xEE};
 	REQUIRE(HAL_I2C_Master_Receive(&h, 0xA0, got, 0, 100) == HAL_OK);
@@ -681,7 +684,8 @@ TEST_CASE_FIXTURE(Rig, "IP3 Mem_Write: a nack of the memory address byte ends wi
 	}
 }
 
-TEST_CASE_FIXTURE(Rig, "IP3 characterization: Mem_Read with a nacked 8 bit memory address byte goes on with the repeated start and returns HAL_OK") {
+// NEEDS REVIEW 321
+TEST_CASE_FIXTURE(Rig, "characterization: IP3 Mem_Read with a nacked 8 bit memory address byte goes on with the repeated start and returns HAL_OK") {
 	up();
 	queue(2);
 	hostI2cDeviceNackDataAt(0, dev, 0);
@@ -694,7 +698,8 @@ TEST_CASE_FIXTURE(Rig, "IP3 characterization: Mem_Read with a nacked 8 bit memor
 	CHECK(hostI2cLogAt(0, 3).type == HOST_I2C_EV_RESTART);
 }
 
-TEST_CASE_FIXTURE(Rig, "IP3 characterization: the BUSY flag wait gives up after 25 ms with HAL_BUSY and leaves the handle READY and unlocked") {
+// NEEDS REVIEW 321
+TEST_CASE_FIXTURE(Rig, "characterization: IP3 the BUSY flag wait gives up after 25 ms with HAL_BUSY and leaves the handle READY and unlocked") {
 	for (Fn f : kAllFns) {
 		INFO(fnName(f));
 		up();
@@ -714,7 +719,8 @@ TEST_CASE_FIXTURE(Rig, "IP3 characterization: the BUSY flag wait gives up after 
 	}
 }
 
-TEST_CASE_FIXTURE(Rig, "IP3 characterization: the BUSY timeout leaves ErrorCode TIMEOUT") {
+// NEEDS REVIEW 321
+TEST_CASE_FIXTURE(Rig, "characterization: IP3 the BUSY timeout leaves ErrorCode TIMEOUT") {
 	up();
 	hostI2cBusBusy(0, 1);
 	uint8_t d[1] = {1};
@@ -722,7 +728,8 @@ TEST_CASE_FIXTURE(Rig, "IP3 characterization: the BUSY timeout leaves ErrorCode 
 	CHECK(h.ErrorCode == HAL_I2C_ERROR_TIMEOUT);
 }
 
-TEST_CASE_FIXTURE(Rig, "IP3 characterization: the BUSY wait is 25 ms whatever the Timeout argument is (0 and HAL_MAX_DELAY)") {
+// NEEDS REVIEW 413
+TEST_CASE_FIXTURE(Rig, "characterization: IP3 the BUSY wait is 25 ms whatever the Timeout argument is (0 and HAL_MAX_DELAY)") {
 	for (uint32_t to : {0u, 1u, (uint32_t)HAL_MAX_DELAY}) {
 		INFO("timeout " << to);
 		up();
@@ -750,7 +757,8 @@ TEST_CASE_FIXTURE(Rig, "IP3 a transfer starts once the other controller releases
 	CHECK(h.ErrorCode == HAL_I2C_ERROR_NONE);
 }
 
-TEST_CASE_FIXTURE(Rig, "IP3 characterization: START that never completes (stuck bus) ends with HAL_ERROR and ErrorCode WRONG_START after Timeout ms") {
+// NEEDS REVIEW 413
+TEST_CASE_FIXTURE(Rig, "characterization: IP3 START that never completes (stuck bus) ends with HAL_ERROR and ErrorCode WRONG_START after Timeout ms") {
 	for (Fn f : kAllFns) {
 		for (uint32_t to : {0u, 1u, 7u}) {
 			INFO(fnName(f) << " timeout " << to);
@@ -784,7 +792,8 @@ TEST_CASE_FIXTURE(Rig, "IP3 a stuck bus makes IsDeviceReady return HAL_TIMEOUT, 
 	CHECK(hostI2cLogCount(0) == 0u);
 }
 
-TEST_CASE_FIXTURE(Rig, "IP3 characterization: a timeout in the address phase (address takes longer than Timeout) ends with HAL_ERROR, ErrorCode TIMEOUT, READY") {
+// NEEDS REVIEW 321
+TEST_CASE_FIXTURE(Rig, "characterization: IP3 a timeout in the address phase (address takes longer than Timeout) ends with HAL_ERROR, ErrorCode TIMEOUT, READY") {
 	for (Fn f : kAllFns) {
 		INFO(fnName(f));
 		up();
@@ -800,7 +809,8 @@ TEST_CASE_FIXTURE(Rig, "IP3 characterization: a timeout in the address phase (ad
 	}
 }
 
-TEST_CASE_FIXTURE(Rig, "IP3 characterization: a timeout in the data phase of Master_Transmit (byte slower than Timeout) ends with HAL_ERROR, TIMEOUT, READY") {
+// NEEDS REVIEW 321
+TEST_CASE_FIXTURE(Rig, "characterization: IP3 a timeout in the data phase of Master_Transmit (byte slower than Timeout) ends with HAL_ERROR, TIMEOUT, READY") {
 	up();
 	hostI2cSetByteTicks(30);
 	uint8_t d[2] = {1, 2};
@@ -810,7 +820,8 @@ TEST_CASE_FIXTURE(Rig, "IP3 characterization: a timeout in the data phase of Mas
 	CHECK(h.Lock == HAL_UNLOCKED);
 }
 
-TEST_CASE_FIXTURE(Rig, "IP3 characterization: a timeout waiting for the single byte of Master_Receive ends with HAL_ERROR, TIMEOUT, READY") {
+// NEEDS REVIEW 321
+TEST_CASE_FIXTURE(Rig, "characterization: IP3 a timeout waiting for the single byte of Master_Receive ends with HAL_ERROR, TIMEOUT, READY") {
 	up();
 	queue(1);
 	hostI2cSetByteTicks(30);
@@ -821,7 +832,8 @@ TEST_CASE_FIXTURE(Rig, "IP3 characterization: a timeout waiting for the single b
 	CHECK(h.Lock == HAL_UNLOCKED);
 }
 
-TEST_CASE_FIXTURE(Rig, "IP3 characterization: a timeout waiting for BTF in the 2, 3 and N byte branches of Master_Receive ends with HAL_ERROR, TIMEOUT, READY") {
+// NEEDS REVIEW 413
+TEST_CASE_FIXTURE(Rig, "characterization: IP3 a timeout waiting for BTF in the 2, 3 and N byte branches of Master_Receive ends with HAL_ERROR, TIMEOUT, READY") {
 	for (unsigned n : {2u, 3u, 4u, 6u}) {
 		for (uint32_t to : {40u, 70u, 100u, 140u}) {
 			INFO("size " << n << " timeout " << to);
@@ -843,7 +855,8 @@ TEST_CASE_FIXTURE(Rig, "IP3 characterization: a timeout waiting for BTF in the 2
 	}
 }
 
-TEST_CASE_FIXTURE(Rig, "IP3 characterization: a timeout while the last byte of Mem_Write is on the bus ends with HAL_ERROR, TIMEOUT, READY") {
+// NEEDS REVIEW 323
+TEST_CASE_FIXTURE(Rig, "characterization: IP3 a timeout while the last byte of Mem_Write is on the bus ends with HAL_ERROR, TIMEOUT, READY") {
 	for (uint32_t msz : {(uint32_t)I2C_MEMADD_SIZE_8BIT, (uint32_t)I2C_MEMADD_SIZE_16BIT}) {
 		/* on the bus: address, 1 or 2 memory address bytes, 2 data bytes = 4 or 5 bytes of 30 ticks = 120 / 150 ticks: every Timeout below that runs out */
 		for (uint32_t to : {40u, 70u, 100u}) {
@@ -862,7 +875,8 @@ TEST_CASE_FIXTURE(Rig, "IP3 characterization: a timeout while the last byte of M
 	}
 }
 
-TEST_CASE_FIXTURE(Rig, "IP3 characterization: a timeout while the memory address of Mem_Read is on the bus ends with HAL_ERROR, TIMEOUT, READY") {
+// NEEDS REVIEW 321
+TEST_CASE_FIXTURE(Rig, "characterization: IP3 a timeout while the memory address of Mem_Read is on the bus ends with HAL_ERROR, TIMEOUT, READY") {
 	for (uint32_t msz : {(uint32_t)I2C_MEMADD_SIZE_8BIT, (uint32_t)I2C_MEMADD_SIZE_16BIT}) {
 		/* on the bus before the data: address, 1 or 2 memory bytes, restart, address = 4 or 5 bytes of 30 ticks (the restart waits for the byte in flight) */
 		for (uint32_t to : {40u, 70u, 100u}) {
@@ -883,7 +897,8 @@ TEST_CASE_FIXTURE(Rig, "IP3 characterization: a timeout while the memory address
 	}
 }
 
-TEST_CASE_FIXTURE(Rig, "IP3 characterization: arbitration lost during Master_Transmit is not looked at by the HAL: the call ends with a timeout and ARLO stays set") {
+// NEEDS REVIEW 321
+TEST_CASE_FIXTURE(Rig, "characterization: IP3 arbitration lost during Master_Transmit is not looked at by the HAL: the call ends with a timeout and ARLO stays set") {
 	up();
 	hostI2cSetByteTicks(2);
 	trigArm(0, 3, [](unsigned i) { hostI2cArbitrationLost(i); }); /* after S, address, first byte */
@@ -896,7 +911,8 @@ TEST_CASE_FIXTURE(Rig, "IP3 characterization: arbitration lost during Master_Tra
 	CHECK(h.State == HAL_I2C_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(Rig, "IP3 characterization: a bus error during Master_Transmit is not looked at by the HAL: BERR stays set, the transfer completes") {
+// NEEDS REVIEW 413
+TEST_CASE_FIXTURE(Rig, "characterization: IP3 a bus error during Master_Transmit is not looked at by the HAL: BERR stays set, the transfer completes") {
 	up();
 	hostI2cSetByteTicks(2);
 	trigArm(0, 3, [](unsigned i) { hostI2cRaiseSr1(i, I2C_SR1_BERR); });
@@ -907,7 +923,8 @@ TEST_CASE_FIXTURE(Rig, "IP3 characterization: a bus error during Master_Transmit
 	CHECK(h.ErrorCode == HAL_I2C_ERROR_NONE);
 }
 
-TEST_CASE_FIXTURE(Rig, "IP3 characterization: arbitration lost during Master_Receive ends with a timeout and ARLO stays set") {
+// NEEDS REVIEW 321
+TEST_CASE_FIXTURE(Rig, "characterization: IP3 arbitration lost during Master_Receive ends with a timeout and ARLO stays set") {
 	up();
 	queue(6);
 	hostI2cSetByteTicks(2);
@@ -920,7 +937,8 @@ TEST_CASE_FIXTURE(Rig, "IP3 characterization: arbitration lost during Master_Rec
 	CHECK(h.State == HAL_I2C_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(Rig, "IP3 characterization: a STOPF seen while Master_Receive waits for RXNE ends the call with HAL_ERROR and no error code") {
+// NEEDS REVIEW 321
+TEST_CASE_FIXTURE(Rig, "characterization: IP3 a STOPF seen while Master_Receive waits for RXNE ends the call with HAL_ERROR and no error code") {
 	up();
 	queue(1);
 	hostI2cSetByteTicks(5);
@@ -994,7 +1012,8 @@ TEST_CASE_FIXTURE(Rig, "IP4 Mem_Write works on I2C1, I2C2 and I2C3 alike") {
 	}
 }
 
-TEST_CASE_FIXTURE(Rig, "IP4 characterization: Mem_Write of 0 bytes sends the address phase and the memory address only") {
+// NEEDS REVIEW 413
+TEST_CASE_FIXTURE(Rig, "characterization: IP4 Mem_Write of 0 bytes sends the address phase and the memory address only") {
 	up();
 	uint8_t d[1] = {1};
 	const HAL_StatusTypeDef r = HAL_I2C_Mem_Write(&h, 0xA0, 0x10, I2C_MEMADD_SIZE_8BIT, d, 0, 100);
@@ -1119,7 +1138,8 @@ TEST_CASE_FIXTURE(Rig, "IP4 Mem_Read works on I2C1, I2C2 and I2C3 alike") {
 	}
 }
 
-TEST_CASE_FIXTURE(Rig, "IP4 characterization: Mem_Read of 0 bytes does the address phases and stops") {
+// NEEDS REVIEW 413
+TEST_CASE_FIXTURE(Rig, "characterization: IP4 Mem_Read of 0 bytes does the address phases and stops") {
 	up();
 	uint8_t got[1] = {0xEE};
 	const HAL_StatusTypeDef r = HAL_I2C_Mem_Read(&h, 0xA0, 0x10, I2C_MEMADD_SIZE_8BIT, got, 0, 100);
@@ -1130,7 +1150,8 @@ TEST_CASE_FIXTURE(Rig, "IP4 characterization: Mem_Read of 0 bytes does the addre
 	CHECK(hostI2cLogAt(0, hostI2cLogCount(0) - 1).type == HOST_I2C_EV_STOP);
 }
 
-TEST_CASE_FIXTURE(Rig, "IP4 characterization: a MemAddSize that is neither 8 nor 16 bit is sent as 16 bit") {
+// NEEDS REVIEW 321
+TEST_CASE_FIXTURE(Rig, "characterization: IP4 a MemAddSize that is neither 8 nor 16 bit is sent as 16 bit") {
 	up();
 	uint8_t d[1] = {0x77};
 	REQUIRE(HAL_I2C_Mem_Write(&h, 0xA0, 0x1234, 0x55, d, 1, 100) == HAL_OK);
@@ -1212,7 +1233,8 @@ TEST_CASE_FIXTURE(Rig, "IP5 IsDeviceReady with a missing device tries Trials tim
 	}
 }
 
-TEST_CASE_FIXTURE(Rig, "IP5 characterization: IsDeviceReady with Trials 0 tries once") {
+// NEEDS REVIEW 321
+TEST_CASE_FIXTURE(Rig, "characterization: IP5 IsDeviceReady with Trials 0 tries once") {
 	up();
 	CHECK(HAL_I2C_IsDeviceReady(&h, 0xA4, 0, 100) == HAL_ERROR);
 	expectLog(0, Log{evS(), evO(0xA4, 0), evP()});
@@ -1263,7 +1285,8 @@ TEST_CASE_FIXTURE(Rig, "IP5 IsDeviceReady with a missing device and a slow bus u
 	CHECK(two >= 6u); /* each trial waits for the 3 tick address byte */
 }
 
-TEST_CASE_FIXTURE(Rig, "IP5 characterization: IsDeviceReady whose ADDR wait runs into the Timeout treats the trial as not answered") {
+// NEEDS REVIEW 321
+TEST_CASE_FIXTURE(Rig, "characterization: IP5 IsDeviceReady whose ADDR wait runs into the Timeout treats the trial as not answered") {
 	up();
 	hostI2cSetByteTicks(20);
 	/* Timeout 5 ms: the address byte takes 20 ticks, the wait loop gives up first. */
@@ -1273,7 +1296,8 @@ TEST_CASE_FIXTURE(Rig, "IP5 characterization: IsDeviceReady whose ADDR wait runs
 	CHECK(h.Lock == HAL_UNLOCKED);
 }
 
-TEST_CASE_FIXTURE(Rig, "IP5 characterization: IsDeviceReady with a bus held busy by another controller returns HAL_BUSY after 25 ms") {
+// NEEDS REVIEW 321
+TEST_CASE_FIXTURE(Rig, "characterization: IP5 IsDeviceReady with a bus held busy by another controller returns HAL_BUSY after 25 ms") {
 	up();
 	hostI2cBusBusy(0, 1);
 	const uint32_t t0 = uwTick;
@@ -1512,7 +1536,8 @@ TEST_CASE_FIXTURE(Rig, "IP3 Mem_Read with a 16 bit address on a slow bus: a nack
  * Timeout T times out at the address phase iff the flag is still 0 at the first tick with tick - 1 > T, i.e. tick T + 2 < 31, T < 29.
  * So T = 29 completes the address phase (tick 31 re-reads the flag after the model advanced), T = 28 times out. A transmit of 0 bytes ends there.
  * A 1 byte receive starts its data byte when ADDR is cleared at tick 31 and it ends at tick 61: T = 59 completes, T = 58 times out. */
-TEST_CASE_FIXTURE(Rig, "IP3 characterization: Master_Transmit of 0 bytes completes with Timeout 29 and times out with Timeout 28 (30 tick address byte)") {
+// NEEDS REVIEW 413
+TEST_CASE_FIXTURE(Rig, "characterization: IP3 Master_Transmit of 0 bytes completes with Timeout 29 and times out with Timeout 28 (30 tick address byte)") {
 	for (uint32_t to : {29u, 28u}) {
 		INFO("timeout " << to);
 		up();
@@ -1531,7 +1556,8 @@ TEST_CASE_FIXTURE(Rig, "IP3 characterization: Master_Transmit of 0 bytes complet
 	}
 }
 
-TEST_CASE_FIXTURE(Rig, "IP3 characterization: Master_Receive of 1 byte completes with Timeout 59 and times out with Timeout 58 (30 tick bytes)") {
+// NEEDS REVIEW 413
+TEST_CASE_FIXTURE(Rig, "characterization: IP3 Master_Receive of 1 byte completes with Timeout 59 and times out with Timeout 58 (30 tick bytes)") {
 	for (uint32_t to : {59u, 58u}) {
 		INFO("timeout " << to);
 		up();
@@ -1571,7 +1597,8 @@ void sweepCheck(Rig &t, HAL_StatusTypeDef r, uint32_t to, unsigned busBytes) {
 const uint32_t kSweepTimeouts[] = {1, 10, 28, 35, 40, 55, 70, 85, 100, 115, 130, 145, 160, 175, 190, 205, 220, 235, 250, 265, 280, 295, 310, 340, 370, 400, 450, 500};
 } // namespace
 
-TEST_CASE_FIXTURE(Rig, "IP3 characterization: Mem_Read and Master_Receive over a range of Timeouts: short ones fail, long ones complete, all end cleanly") {
+// NEEDS REVIEW 413
+TEST_CASE_FIXTURE(Rig, "characterization: IP3 Mem_Read and Master_Receive over a range of Timeouts: short ones fail, long ones complete, all end cleanly") {
 	for (int mem = 0; mem < 3; ++mem) { /* 0: Master_Receive, 1: Mem_Read 8 bit, 2: Mem_Read 16 bit */
 		for (unsigned n : {1u, 2u, 3u, 4u, 6u}) {
 			for (uint32_t to : kSweepTimeouts) {
@@ -1597,7 +1624,8 @@ TEST_CASE_FIXTURE(Rig, "IP3 characterization: Mem_Read and Master_Receive over a
 	}
 }
 
-TEST_CASE_FIXTURE(Rig, "IP3 characterization: Master_Transmit and Mem_Write over a range of Timeouts: short ones fail, long ones complete, all end cleanly") {
+// NEEDS REVIEW 413
+TEST_CASE_FIXTURE(Rig, "characterization: IP3 Master_Transmit and Mem_Write over a range of Timeouts: short ones fail, long ones complete, all end cleanly") {
 	for (int mem = 0; mem < 3; ++mem) {
 		for (unsigned n : {1u, 2u, 3u, 4u}) {
 			for (uint32_t to : kSweepTimeouts) {
@@ -1706,7 +1734,7 @@ TEST_CASE_FIXTURE(Rig, "IP7 no data byte is on the bus while ADDR is still set, 
 	}
 }
 
-TEST_CASE_FIXTURE(Rig, "IP4 characterization: Mem_Read with a nacked LSB of a 16 bit memory address (slow bus) sends the repeated start, then the stale AF ends the call with HAL_ERROR (NEEDS REVIEW 321)") {
+TEST_CASE_FIXTURE(Rig, "characterization: IP4 Mem_Read with a nacked LSB of a 16 bit memory address (slow bus) sends the repeated start, then the stale AF ends the call with HAL_ERROR (NEEDS REVIEW 321)") {
 	up();
 	queue(2);
 	hostI2cSetByteTicks(2);

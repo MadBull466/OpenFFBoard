@@ -579,6 +579,7 @@ FFB_IDX_UNITS(IDX_NEGATIVE)
 			checkIdx(U, v); \
 		} \
 	}
+// NEEDS REVIEW 210
 FFB_IDX_UNITS(IDX_TIES)
 
 TEST_CASE("[C3 arm_max_f64 arm_min_f64 arm_absmax_f64 arm_absmin_f64] block sizes 1 and 2 with hand-derived results") {
@@ -901,6 +902,7 @@ TEST_CASE("[C3 arm_mean_f64] the mean of constant 0.1 (n = 1 to 33) is within (n
 	}
 }
 
+// NEEDS REVIEW 394
 TEST_CASE("characterization: [C4 arm_var_f64] a block of one sample has variance 0 and a block of zero samples too (no division by n-1 = 0)") {
 	// DOC is silent; the code has 'if (blockSize <= 1U) { *pResult = 0; return; }'. Well defined, not suspicious.
 	const double v[1] = {42.0};
@@ -911,6 +913,7 @@ TEST_CASE("characterization: [C4 arm_var_f64] a block of one sample has variance
 	arm_var_f64(v, 0, &r);
 	CHECK(r == 0.0);
 }
+// NEEDS REVIEW 394
 TEST_CASE("characterization: [C4 arm_std_f64] a block of one sample has standard deviation 0 and a block of zero samples too") {
 	const double v[1] = {42.0};
 	double r = -1.0;
@@ -933,6 +936,7 @@ TEST_CASE("[C4 arm_mse_f64] block size 1 returns the square of the difference") 
 	arm_mse_f64(a, b, 1, &r);
 	CHECK(r == 4.0);
 }
+// NEEDS REVIEW 394
 TEST_CASE("characterization: [C4 arm_power_f64 arm_accumulate_f64] results that exceed the range are +inf (IEEE overflow, no wrap)") {
 	const double v[2] = {1e200, 1e200};
 	double r = 0.0;
@@ -940,6 +944,7 @@ TEST_CASE("characterization: [C4 arm_power_f64 arm_accumulate_f64] results that 
 	const double w[2] = {DBL_MAX, DBL_MAX};
 	arm_accumulate_f64(w, 2, &r); CHECK(r == kInf);
 }
+// NEEDS REVIEW 394
 TEST_CASE("characterization: [C4 arm_power_f64] squares of tiny values underflow to 0 without error") {
 	const double v[3] = {1e-200, -1e-200, 1e-160};   // squares 1e-400 (0), 1e-400 (0), 1e-320 (denormal, > 0)
 	double r = -1.0;
@@ -1004,11 +1009,13 @@ TEST_CASE("[C3 arm_kullback_leibler_f64] random distribution pairs of 1 to 33 ou
 	}
 }
 
+// NEEDS REVIEW 394
 TEST_CASE("characterization: [C4 arm_entropy_f64] a zero probability makes the entropy NaN (0 * log(0) = 0 * -inf), the convention 0 ln 0 = 0 is not applied") {
 	// NEEDS REVIEW: DOC says only '-Sum(p ln p)'; mathematically lim p ln p = 0, so {0.5, 0.5, 0} would have entropy ln 2.
 	const double p[3] = {0.5, 0.5, 0.0};
 	CHECK(std::isnan(arm_entropy_f64(p, 3)));
 }
+// NEEDS REVIEW 394
 TEST_CASE("characterization: [C4 arm_kullback_leibler_f64] a zero in A makes the divergence NaN (0 * log(pB / 0) = 0 * inf)") {
 	// NEEDS REVIEW: DOC says only 'Divergence D(A || B)'; the convention 0 ln(0/q) = 0 is not applied.
 	const double a[2] = {0.0, 1.0}, b[2] = {0.5, 1.0};

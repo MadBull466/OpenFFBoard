@@ -1222,7 +1222,8 @@ TEST_CASE("[C4 arm_fir_decimate_f32] two instances with different M and coeffici
 TEST_CASE("[C4 arm_fir_decimate_f32] init again clears a garbage state: the run repeats bit for bit") { decimReinitTest<DF32>(); }
 TEST_CASE("[C4 arm_fir_decimate_init_f32] init stores numTaps, M, pCoeffs, pState, returns success and zeroes exactly numTaps + blockSize - 1 elements") { decimInitTest<DF32>(); }
 TEST_CASE("[C4 arm_fir_decimate_init_f32] init returns ARM_MATH_LENGTH_ERROR if blockSize is not a multiple of M") { decimInitErrorTest<DF32>(); }
-TEST_CASE("[C4 arm_fir_decimate_init_f32] characterization: after the length error the instance and the state buffer are unchanged") { decimInitErrorUnmodifiedTest<DF32>(); }
+// NEEDS REVIEW 225
+TEST_CASE("characterization: [C4 arm_fir_decimate_init_f32] after the length error the instance and the state buffer are unchanged") { decimInitErrorUnmodifiedTest<DF32>(); }
 TEST_CASE("[C4 arm_fir_decimate_f32] numTaps need not be a multiple of M (taps 5 with M 2 and 3 match the DEF)") { decimTapsNotMultipleOfMTest<DF32>(); }
 TEST_CASE("[C4 arm_fir_decimate_f32] the coefficient and input arrays are not modified") { decimConstInputsTest<DF32>(); }
 TEST_CASE("[C3 arm_fir_decimate_f32] a one tap decimator by 3 returns the correctly rounded product for strided inputs over the whole float range") { sweepDecimOneTapF32(); }
@@ -1268,7 +1269,8 @@ TEST_CASE("[C4 arm_fir_decimate_f64] two instances with different M and coeffici
 TEST_CASE("[C4 arm_fir_decimate_f64] init again clears a garbage state: the run repeats bit for bit") { decimReinitTest<DF64>(); }
 TEST_CASE("[C4 arm_fir_decimate_init_f64] init stores numTaps, M, pCoeffs, pState, returns success and zeroes exactly numTaps + blockSize - 1 elements") { decimInitTest<DF64>(); }
 TEST_CASE("[C4 arm_fir_decimate_init_f64] init returns ARM_MATH_LENGTH_ERROR if blockSize is not a multiple of M") { decimInitErrorTest<DF64>(); }
-TEST_CASE("[C4 arm_fir_decimate_init_f64] characterization: after the length error the instance and the state buffer are unchanged") { decimInitErrorUnmodifiedTest<DF64>(); }
+// NEEDS REVIEW 225
+TEST_CASE("characterization: [C4 arm_fir_decimate_init_f64] after the length error the instance and the state buffer are unchanged") { decimInitErrorUnmodifiedTest<DF64>(); }
 TEST_CASE("[C4 arm_fir_decimate_f64] numTaps need not be a multiple of M (taps 5 with M 2 and 3 match the DEF)") { decimTapsNotMultipleOfMTest<DF64>(); }
 TEST_CASE("[C4 arm_fir_decimate_f64] the coefficient and input arrays are not modified") { decimConstInputsTest<DF64>(); }
 TEST_CASE("[C3 arm_fir_decimate_f64] a one tap decimator by 3 returns the IEEE product for strided inputs over the whole double range") { sweepDecimOneTapF64(); }
@@ -1289,8 +1291,10 @@ TEST_CASE("[C4 arm_fir_interpolate_f32] consecutive blocks of sizes 1, 2, 3, 4, 
 TEST_CASE("[C4 arm_fir_interpolate_f32] two instances with different L and coefficients do not influence each other") { interpIndependentInstancesTest(); }
 TEST_CASE("[C4 arm_fir_interpolate_f32] init again clears a garbage state: the run repeats bit for bit") { interpReinitTest(); }
 TEST_CASE("[C4 arm_fir_interpolate_init_f32] init stores L, phaseLength = numTaps/L, pCoeffs, pState, returns success and zeroes exactly phaseLength + blockSize - 1 elements") { interpInitTest(); }
-TEST_CASE("[C4 arm_fir_interpolate_init_f32] characterization: init returns ARM_MATH_LENGTH_ERROR if numTaps is not a multiple of L (DOC says ARGUMENT_ERROR)") { interpInitErrorTest(); }
-TEST_CASE("[C4 arm_fir_interpolate_init_f32] characterization: after the error for numTaps not a multiple of L the instance and the state buffer are unchanged") { interpInitErrorUnmodifiedTest(); }
+// NEEDS REVIEW 225
+TEST_CASE("characterization: [C4 arm_fir_interpolate_init_f32] init returns ARM_MATH_LENGTH_ERROR if numTaps is not a multiple of L (DOC says ARGUMENT_ERROR)") { interpInitErrorTest(); }
+// NEEDS REVIEW 220
+TEST_CASE("characterization: [C4 arm_fir_interpolate_init_f32] after the error for numTaps not a multiple of L the instance and the state buffer are unchanged") { interpInitErrorUnmodifiedTest(); }
 TEST_CASE("[C4 arm_fir_interpolate_f32] the coefficient and input arrays are not modified") { interpConstInputsTest(); }
 TEST_CASE("[C3 arm_fir_interpolate_f32] a one tap per phase interpolator by 3 returns the correctly rounded products for strided inputs over the whole float range") { sweepInterpOneTap(); }
 TEST_CASE("[C3 arm_fir_interpolate_f32] a two taps per phase interpolator by 2 is within the bound of the DEF over 2^-57 .. 2^58, strided") { sweepInterpTwoTap(); }

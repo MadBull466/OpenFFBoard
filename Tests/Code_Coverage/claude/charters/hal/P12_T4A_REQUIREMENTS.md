@@ -1,6 +1,8 @@
 # P12 T4a requirements charter: SPI (real ST HAL, F407VG and F407VG_DISCO)
 
 Status: 2026-11-12 (lead). Tests, review and gate done (see the plan, section "T4a result"; amendments: SI7 compiled out, SD6 no conversion in this HAL version, interrupt-mode abort success path untestable on the host, SQ6 abort in interrupt mode added). Platform done (`fakes/stm32_hal/HalSpi.{h,c}`, lead probe: `HAL_SPI_Init` and a 3 byte
+
+**Final status (2026-11-17): done, approved, committed and pushed, commit `538b2ba0`. Statements about pending approval or gates in the line above were true when it was written.**
 `HAL_SPI_TransmitReceive` through the real HAL). Tests: writers. T4 is split (owner's "Start T4", plan: "largest stage, may split"):
 T4a SPI (this charter), T4b UART, T4c I2C / I2C_Ex; each gets its own charter, model, review, gate and approval.
 Plan: `Tests/Code_Coverage/claude/plans/P12_ST_HAL_PLAN.md`. Rules as in `P12_T1_REQUIREMENTS.md` ... `P12_T3_REQUIREMENTS.md`.

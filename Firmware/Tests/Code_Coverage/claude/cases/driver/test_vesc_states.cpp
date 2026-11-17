@@ -69,7 +69,8 @@ TEST_SUITE("VESC states") {
 
 // ---------------------------------------------------------------- V40 request cycle
 
-TEST_CASE_FIXTURE(VescStates, "[V40] characterization: in UNKNOWN the FW version request repeats every 500 ms and no values request is sent") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V40] in UNKNOWN the FW version request repeats every 500 ms and no values request is sent") {
 	auto v = makeVesc1();
 	const uint32_t t0 = nowMs();
 	peer0.setSilent(true);
@@ -87,7 +88,8 @@ TEST_CASE_FIXTURE(VescStates, "[V40] characterization: in UNKNOWN the FW version
 	CHECK(stateOf(*v) == ST_UNKNOWN);
 }
 
-TEST_CASE_FIXTURE(VescStates, "[V40] characterization: in COMPATIBLE a values request is sent every 500 ms and the FW version is not requested again") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V40] in COMPATIBLE a values request is sent every 500 ms and the FW version is not requested again") {
 	auto v = makeVesc1();
 	runFor(500); // body 1: FW request, reply 7.01 -> COMPATIBLE
 	REQUIRE(stateOf(*v) == ST_COMPATIBLE);
@@ -111,7 +113,8 @@ TEST_CASE_FIXTURE(VescStates, "[V40] characterization: in COMPATIBLE a values re
 // isWaiting() of the port is true only while a task is blocked inside sendMessage (CANPort2B.cpp:206-212, sendTimeout
 // 20 ms), not merely because all mailboxes are pending. The "port waiting" branch of Run (VescCAN.cpp:366) therefore
 // needs a second task blocked on the port: not reachable with the fixture (reported). What is observable:
-TEST_CASE_FIXTURE(VescStates, "[V40] characterization: with a bus that acknowledges nothing the values request is still sent at every body (mailboxes pending is not 'port waiting')") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V40] with a bus that acknowledges nothing the values request is still sent at every body (mailboxes pending is not 'port waiting')") {
 	auto v = makeVesc1();
 	runFor(500);
 	REQUIRE(stateOf(*v) == ST_COMPATIBLE);
@@ -125,7 +128,8 @@ TEST_CASE_FIXTURE(VescStates, "[V40] characterization: with a bus that acknowled
 
 // ---------------------------------------------------------------- V41 liveness timeout
 
-TEST_CASE_FIXTURE(VescStates, "[V41] characterization: READY is kept 1000 ms after the last frame and falls back to UNKNOWN at the body 1500 ms after it") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V41] READY is kept 1000 ms after the last frame and falls back to UNKNOWN at the body 1500 ms after it") {
 	auto v = makeVesc1();
 	reachReady(*v);
 	const uint32_t r = lastReplyMs(peer0);
@@ -138,7 +142,8 @@ TEST_CASE_FIXTURE(VescStates, "[V41] characterization: READY is kept 1000 ms aft
 	CHECK(stateOf(*v) == ST_UNKNOWN);
 }
 
-TEST_CASE_FIXTURE(VescStates, "[V41] characterization: ERROR falls back to UNKNOWN at the body 1500 ms after the last frame") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V41] ERROR falls back to UNKNOWN at the body 1500 ms after the last frame") {
 	auto v = makeVesc1();
 	reachReady(*v);
 	peer0.setFaultCode(3);
@@ -152,7 +157,8 @@ TEST_CASE_FIXTURE(VescStates, "[V41] characterization: ERROR falls back to UNKNO
 	CHECK(stateOf(*v) == ST_UNKNOWN);
 }
 
-TEST_CASE_FIXTURE(VescStates, "[V41] characterization: after the fall back the FW version request restarts and the next reply brings the driver back to READY") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V41] after the fall back the FW version request restarts and the next reply brings the driver back to READY") {
 	auto v = makeVesc1();
 	reachReady(*v);
 	const uint32_t r = lastReplyMs(peer0);
@@ -192,7 +198,8 @@ TEST_CASE_FIXTURE(VescStates, "[V42] the driver is READY again within 5 s after 
 
 // ---------------------------------------------------------------- V43 states without timeout
 
-TEST_CASE_FIXTURE(VescStates, "[V43] characterization: INCOMPATIBLE stays INCOMPATIBLE for 30 s and sends no further request") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V43] INCOMPATIBLE stays INCOMPATIBLE for 30 s and sends no further request") {
 	peer0.fw().major = 5; // 5.2 release < 5.3 (the driver's own rule, V31)
 	peer0.fw().minor = 2;
 	auto v = makeVesc1();
@@ -204,7 +211,8 @@ TEST_CASE_FIXTURE(VescStates, "[V43] characterization: INCOMPATIBLE stays INCOMP
 	CHECK(HostTarget::canTxFrames().empty());
 }
 
-TEST_CASE_FIXTURE(VescStates, "[V43] characterization: COMPATIBLE stays COMPATIBLE for 30 s without any reply") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V43] COMPATIBLE stays COMPATIBLE for 30 s without any reply") {
 	auto v = makeVesc1();
 	runFor(500);
 	REQUIRE(stateOf(*v) == ST_COMPATIBLE);
@@ -213,7 +221,8 @@ TEST_CASE_FIXTURE(VescStates, "[V43] characterization: COMPATIBLE stays COMPATIB
 	CHECK(stateOf(*v) == ST_COMPATIBLE);
 }
 
-TEST_CASE_FIXTURE(VescStates, "[V43] characterization: any frame accepted by the filters (a rotor position reply) keeps READY alive although the values replies stop") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V43] any frame accepted by the filters (a rotor position reply) keeps READY alive although the values replies stop") {
 	auto v = makeVesc1();
 	reachReady(*v);
 	peer0.setRespond(false);
@@ -224,7 +233,8 @@ TEST_CASE_FIXTURE(VescStates, "[V43] characterization: any frame accepted by the
 	CHECK(stateOf(*v) == ST_READY);
 }
 
-TEST_CASE_FIXTURE(VescStates, "[V43] characterization: a frame the filters reject does not keep READY alive") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V43] a frame the filters reject does not keep READY alive") {
 	auto v = makeVesc1();
 	reachReady(*v);
 	peer0.setFaultDest(0x41); // replies go to another id: rejected by the filters
@@ -239,20 +249,23 @@ TEST_CASE_FIXTURE(VescStates, "[V43] characterization: a frame the filters rejec
 
 // ---------------------------------------------------------------- V44 motorReady
 
-TEST_CASE_FIXTURE(VescStates, "[V44] characterization: motorReady is true in READY") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V44] motorReady is true in READY") {
 	auto v = makeVesc1();
 	reachReady(*v);
 	CHECK(stateOf(*v) == ST_READY);
 	CHECK(v->motorReady());
 }
 
-TEST_CASE_FIXTURE(VescStates, "[V44] characterization: motorReady is false in UNKNOWN") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V44] motorReady is false in UNKNOWN") {
 	auto v = makeVesc1();
 	CHECK(stateOf(*v) == ST_UNKNOWN);
 	CHECK_FALSE(v->motorReady());
 }
 
-TEST_CASE_FIXTURE(VescStates, "[V44] characterization: motorReady is false in INCOMPATIBLE") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V44] motorReady is false in INCOMPATIBLE") {
 	peer0.fw().major = 5;
 	peer0.fw().minor = 2;
 	auto v = makeVesc1();
@@ -261,14 +274,16 @@ TEST_CASE_FIXTURE(VescStates, "[V44] characterization: motorReady is false in IN
 	CHECK_FALSE(v->motorReady());
 }
 
-TEST_CASE_FIXTURE(VescStates, "[V44] characterization: motorReady is false in COMPATIBLE") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V44] motorReady is false in COMPATIBLE") {
 	auto v = makeVesc1();
 	runFor(500);
 	CHECK(stateOf(*v) == ST_COMPATIBLE);
 	CHECK_FALSE(v->motorReady());
 }
 
-TEST_CASE_FIXTURE(VescStates, "[V44] characterization: motorReady is false in ERROR") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V44] motorReady is false in ERROR") {
 	peer0.setFaultCode(3);
 	auto v = makeVesc1();
 	runFor(1000); // FW reply, values reply with fault 3
@@ -276,7 +291,8 @@ TEST_CASE_FIXTURE(VescStates, "[V44] characterization: motorReady is false in ER
 	CHECK_FALSE(v->motorReady());
 }
 
-TEST_CASE_FIXTURE(VescStates, "[V44] characterization: motorReady is false in PONG") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V44] motorReady is false in PONG") {
 	auto v = makeVesc1();
 	REQUIRE(peer0.sendPong() > 0);
 	CHECK(stateOf(*v) == ST_PONG);
@@ -285,7 +301,8 @@ TEST_CASE_FIXTURE(VescStates, "[V44] characterization: motorReady is false in PO
 
 // ---------------------------------------------------------------- V50 turn sends only when READY and started
 
-TEST_CASE_FIXTURE(VescStates, "[V50] characterization: turn in READY and started sends one SET_CURRENT_REL frame, id 0x0AFF, DLC 4, 00 00 C3 51") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V50] turn in READY and started sends one SET_CURRENT_REL frame, id 0x0AFF, DLC 4, 00 00 C3 51") {
 	auto v = makeVesc1();
 	reachReady(*v);
 	v->turn(0);
@@ -303,7 +320,8 @@ TEST_CASE_FIXTURE(VescStates, "[V50] characterization: turn in READY and started
 	CHECK(peer0.lastCurrentRaw() == 50001);
 }
 
-TEST_CASE_FIXTURE(VescStates, "[V50] characterization: turn in READY without startMotor sends nothing") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V50] turn in READY without startMotor sends nothing") {
 	auto v = makeVesc1();
 	reachReady(*v);
 	clearTxFrames();
@@ -311,7 +329,8 @@ TEST_CASE_FIXTURE(VescStates, "[V50] characterization: turn in READY without sta
 	CHECK(setFrames().empty());
 }
 
-TEST_CASE_FIXTURE(VescStates, "[V50] characterization: turn after startMotor in UNKNOWN sends nothing, also not from the thread") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V50] turn after startMotor in UNKNOWN sends nothing, also not from the thread") {
 	auto v = makeVesc1();
 	peer0.setSilent(true);
 	v->startMotor();
@@ -321,7 +340,8 @@ TEST_CASE_FIXTURE(VescStates, "[V50] characterization: turn after startMotor in 
 	CHECK(stateOf(*v) == ST_UNKNOWN);
 }
 
-TEST_CASE_FIXTURE(VescStates, "[V50] characterization: turn after startMotor in COMPATIBLE sends nothing, also not from the thread") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V50] turn after startMotor in COMPATIBLE sends nothing, also not from the thread") {
 	auto v = makeVesc1();
 	runFor(500);
 	REQUIRE(stateOf(*v) == ST_COMPATIBLE);
@@ -332,7 +352,8 @@ TEST_CASE_FIXTURE(VescStates, "[V50] characterization: turn after startMotor in 
 	CHECK(setFrames().empty());
 }
 
-TEST_CASE_FIXTURE(VescStates, "[V50] characterization: turn after startMotor in INCOMPATIBLE sends nothing") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V50] turn after startMotor in INCOMPATIBLE sends nothing") {
 	peer0.fw().major = 5;
 	peer0.fw().minor = 2;
 	auto v = makeVesc1();
@@ -344,7 +365,8 @@ TEST_CASE_FIXTURE(VescStates, "[V50] characterization: turn after startMotor in 
 	CHECK(setFrames().empty());
 }
 
-TEST_CASE_FIXTURE(VescStates, "[V50] characterization: turn after startMotor in ERROR sends nothing, also not from the thread") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V50] turn after startMotor in ERROR sends nothing, also not from the thread") {
 	peer0.setFaultCode(3);
 	auto v = makeVesc1();
 	runFor(1000);
@@ -357,7 +379,8 @@ TEST_CASE_FIXTURE(VescStates, "[V50] characterization: turn after startMotor in 
 
 // ---------------------------------------------------------------- V51 repeat
 
-TEST_CASE_FIXTURE(VescStates, "[V51] characterization: while running the last torque is repeated so that the gap between SET frames is at most 1000 ms and the VESC never times out") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V51] while running the last torque is repeated so that the gap between SET frames is at most 1000 ms and the VESC never times out") {
 	auto v = makeVesc1();
 	reachReady(*v);
 	v->turn(0);
@@ -386,7 +409,8 @@ TEST_CASE_FIXTURE(VescStates, "[V51] characterization: while running the last to
 	CHECK(peer0.effectiveRatio() > 0.4f);
 }
 
-TEST_CASE_FIXTURE(VescStates, "[V51] characterization: turn(0) sends a zero ratio once and the repeats stop") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V51] turn(0) sends a zero ratio once and the repeats stop") {
 	auto v = makeVesc1();
 	reachReady(*v);
 	v->turn(0);
@@ -401,7 +425,8 @@ TEST_CASE_FIXTURE(VescStates, "[V51] characterization: turn(0) sends a zero rati
 	CHECK(bytes(f[0]) == Bytes({0, 0, 0, 0}));
 }
 
-TEST_CASE_FIXTURE(VescStates, "[V51] characterization: the torque is not repeated while the driver is not started") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V51] the torque is not repeated while the driver is not started") {
 	auto v = makeVesc1();
 	reachReady(*v);
 	v->turn(16384); // not started: nothing sent, lastTorque is 0.5
@@ -411,7 +436,8 @@ TEST_CASE_FIXTURE(VescStates, "[V51] characterization: the torque is not repeate
 
 // ---------------------------------------------------------------- V52 stop
 
-TEST_CASE_FIXTURE(VescStates, "[V52] characterization: stopMotor sends one SET_CURRENT_REL with ratio 0 (00 00 00 00)") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V52] stopMotor sends one SET_CURRENT_REL with ratio 0 (00 00 00 00)") {
 	auto v = makeVesc1();
 	reachReady(*v);
 	v->turn(0);
@@ -428,7 +454,8 @@ TEST_CASE_FIXTURE(VescStates, "[V52] characterization: stopMotor sends one SET_C
 	CHECK(peer0.lastCurrentRaw() == 0);
 }
 
-TEST_CASE_FIXTURE(VescStates, "[V52] characterization: after stopMotor no SET_CURRENT_REL is sent by the thread while stopped") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V52] after stopMotor no SET_CURRENT_REL is sent by the thread while stopped") {
 	auto v = makeVesc1();
 	reachReady(*v);
 	v->turn(0);
@@ -440,7 +467,8 @@ TEST_CASE_FIXTURE(VescStates, "[V52] characterization: after stopMotor no SET_CU
 	CHECK(setFrames().empty());
 }
 
-TEST_CASE_FIXTURE(VescStates, "[V52] characterization: stopMotor when not started sends nothing") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V52] stopMotor when not started sends nothing") {
 	auto v = makeVesc1();
 	reachReady(*v);
 	clearTxFrames();
@@ -463,7 +491,8 @@ TEST_CASE_FIXTURE(VescStates, "[V52] after a stop and a new start no old torque 
 
 // ---------------------------------------------------------------- V53 no clamp
 
-TEST_CASE_FIXTURE(VescStates, "[V53] characterization: power -32768 gives ratio -1.00003 (not clamped): FF FE 79 5D") {
+// NEEDS REVIEW 381
+TEST_CASE_FIXTURE(VescStates, "characterization: [V53] power -32768 gives ratio -1.00003 (not clamped): FF FE 79 5D") {
 	auto v = makeVesc1();
 	reachReady(*v);
 	v->turn(0);

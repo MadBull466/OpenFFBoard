@@ -137,7 +137,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AB1 Init of a handle that is not in state RESET d
 	CHECK(h.State == HAL_ADC_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AB1 characterization: Init clears the busy state bits and sets READY, other state bits stay (NEEDS REVIEW 338/AB-1)") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AB1 Init clears the busy state bits and sets READY, other state bits stay (NEEDS REVIEW 338/AB-1)") {
 	ADC_HandleTypeDef h = abHandle(2);
 	h.State = HAL_ADC_STATE_REG_BUSY | HAL_ADC_STATE_INJ_BUSY | HAL_ADC_STATE_REG_EOC;
 	REQUIRE(HAL_ADC_Init(&h) == HAL_OK);
@@ -596,7 +596,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AB2 ConfigChannel of the internal channels 16, 17
 	}
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AB2 characterization: on ADC1 the VBAT channel keeps TSVREFE and the temperature channel keeps VBATE (NEEDS REVIEW 338/AB-3)") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AB2 on ADC1 the VBAT channel keeps TSVREFE and the temperature channel keeps VBATE (NEEDS REVIEW 338/AB-3)") {
 	ADC_HandleTypeDef h = abHandle(1);
 	abInitOk(h);
 	REQUIRE(abCfg(h, ADC_CHANNEL_TEMPSENSOR, 1) == HAL_OK);
@@ -703,7 +703,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AB3 Start with JAUTO set marks the injected group
 	CHECK((h.State & HAL_ADC_STATE_REG_BUSY) == HAL_ADC_STATE_REG_BUSY);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AB3 characterization: Start with the injected group busy clears only the OVR and DMA error bits (NEEDS REVIEW 338/AB-2)") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AB3 Start with the injected group busy clears only the OVR and DMA error bits (NEEDS REVIEW 338/AB-2)") {
 	ADC_HandleTypeDef h;
 	abSingle(h, 1, ADC_CHANNEL_1, 10);
 	h.State |= HAL_ADC_STATE_INJ_BUSY;
@@ -731,7 +731,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AB3 Start of a locked handle returns HAL_BUSY wit
 	CHECK(h.State == HAL_ADC_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AB3 characterization: Start of a handle that is already running returns HAL_OK (NEEDS REVIEW 338/AB-5)") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AB3 Start of a handle that is already running returns HAL_OK (NEEDS REVIEW 338/AB-5)") {
 	ADC_HandleTypeDef h;
 	abSingle(h, 1, ADC_CHANNEL_1, 10);
 	REQUIRE(HAL_ADC_Start(&h) == HAL_OK);
@@ -816,7 +816,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AB3 Stop of a locked handle returns HAL_BUSY and 
 	CHECK(h.State == HAL_ADC_STATE_REG_BUSY);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AB3 characterization: Stop of a converter that was never started returns HAL_OK (NEEDS REVIEW 338/AB-5)") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AB3 Stop of a converter that was never started returns HAL_OK (NEEDS REVIEW 338/AB-5)") {
 	ADC_HandleTypeDef h = abHandle(3);
 	abInitOk(h);
 	CHECK(HAL_ADC_Stop(&h) == HAL_OK);
@@ -1015,7 +1015,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AB4 PollForConversion with Timeout 0 and no conve
 	CHECK(h.Lock == HAL_UNLOCKED);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AB4 characterization: the TIMEOUT state bit stays set next to REG_BUSY after a poll timeout (NEEDS REVIEW 338/AB-6)") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AB4 the TIMEOUT state bit stays set next to REG_BUSY after a poll timeout (NEEDS REVIEW 338/AB-6)") {
 	ADC_HandleTypeDef h;
 	abSingle(h, 1, ADC_CHANNEL_7, 5);
 	REQUIRE(HAL_ADC_Start(&h) == HAL_OK);
@@ -1276,7 +1276,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AB4 PollForEvent OVR with no overrun times out") 
 	CHECK(h.ErrorCode == HAL_ADC_ERROR_NONE);
 }
 
-TEST_CASE_FIXTURE(AdcFixture, "AB4 characterization: PollForEvent with EOC takes the overrun path and leaves EOC set (NEEDS REVIEW 338/AB-4)") {
+TEST_CASE_FIXTURE(AdcFixture, "characterization: AB4 PollForEvent with EOC takes the overrun path and leaves EOC set (NEEDS REVIEW 338/AB-4)") {
 	ADC_HandleTypeDef h;
 	abSingle(h, 1, ADC_CHANNEL_0, 9);
 	REQUIRE(HAL_ADC_Start(&h) == HAL_OK);

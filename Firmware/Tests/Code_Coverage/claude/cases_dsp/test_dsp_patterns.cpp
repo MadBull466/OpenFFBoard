@@ -256,6 +256,23 @@ TEST_CASE("[compare] withinLsb is inclusive, symmetric and safe at the extremes 
 	CHECK_FALSE(dsp::withinLsb(std::vector<int8_t>{1}, std::vector<int8_t>{1, 1}, 5));
 }
 
+TEST_CASE("[compare] withinLsb does not overflow for the endpoints of the 64 bit range (NP11-003)") {
+	// differences of 2^63 and more do not fit int64_t; they must be reported as errors, not wrap or be undefined behaviour
+	CHECK_FALSE(dsp::withinLsb(std::vector<int64_t>{INT64_MIN}, std::vector<int64_t>{INT64_MAX}, INT64_MAX));
+	CHECK_FALSE(dsp::withinLsb(std::vector<int64_t>{INT64_MAX}, std::vector<int64_t>{INT64_MIN}, INT64_MAX));
+	CHECK_FALSE(dsp::withinLsb(std::vector<int64_t>{0}, std::vector<int64_t>{INT64_MIN}, 5));
+	CHECK_FALSE(dsp::withinLsb(std::vector<int64_t>{-1}, std::vector<int64_t>{INT64_MAX}, INT64_MAX));
+	CHECK(dsp::withinLsb(std::vector<int64_t>{INT64_MIN}, std::vector<int64_t>{INT64_MIN}, 0));
+	CHECK(dsp::withinLsb(std::vector<int64_t>{INT64_MIN}, std::vector<int64_t>{INT64_MIN + 1}, 1));
+	CHECK(dsp::withinLsb(std::vector<int64_t>{INT64_MAX}, std::vector<int64_t>{INT64_MAX - 3}, 3));
+	CHECK_FALSE(dsp::withinLsb(std::vector<int64_t>{INT64_MAX}, std::vector<int64_t>{INT64_MAX - 3}, 2));
+	// mixed widths and an unsigned 32 bit sample against a signed reference
+	CHECK_FALSE(dsp::withinLsb(std::vector<int64_t>{-1}, std::vector<uint32_t>{UINT32_MAX}, 100));
+	CHECK(dsp::withinLsb(std::vector<int64_t>{int64_t(UINT32_MAX)}, std::vector<uint32_t>{UINT32_MAX}, 0));
+	// a negative tolerance accepts nothing, not even equal samples
+	CHECK_FALSE(dsp::withinLsb(std::vector<int32_t>{1}, std::vector<int32_t>{1}, -1));
+}
+
 TEST_CASE("[compare] exactEqual compares values and lengths") {
 	CHECK(dsp::exactEqual(std::vector<int>{1, 2, 3}, std::vector<int>{1, 2, 3}));
 	dsp::Check c = dsp::exactEqual(std::vector<int>{1, 2, 3}, std::vector<int>{1, 2, 4});

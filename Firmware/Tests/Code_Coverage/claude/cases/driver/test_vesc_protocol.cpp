@@ -259,7 +259,8 @@ TEST_CASE_FIXTURE(ProtoFixture, "[V24] a FILL_RX_BUFFER_LONG frame at offset 60 
 // ---------------------------------------------------------------------------------------------------------------
 // V25 / V26 malformed traffic (L4: characterization)
 // ---------------------------------------------------------------------------------------------------------------
-TEST_CASE_FIXTURE(ProtoFixture, "[V25] characterization: FILL frames in reverse order are all copied at their offsets and the message is decoded (a VESC would drop them)") {
+// NEEDS REVIEW 188
+TEST_CASE_FIXTURE(ProtoFixture, "characterization: [V25] FILL frames in reverse order are all copied at their offsets and the message is decoded (a VESC would drop them)") {
 	// SRC comm_can.c:1652-1660 drops a FILL whose offset does not continue the running offset (and the PROCESS then
 	// finds no buffer with the announced count). The driver copies by offset, the CRC matches -> COMPATIBLE.
 	// NEEDS REVIEW (L4): only reachable with a broken sender.
@@ -268,7 +269,8 @@ TEST_CASE_FIXTURE(ProtoFixture, "[V25] characterization: FILL frames in reverse 
 	CHECK(state() == COMPATIBLE);
 }
 
-TEST_CASE_FIXTURE(ProtoFixture, "[V26] characterization: a PROCESS_RX_BUFFER with DLC 4 (CRC bytes absent, read as 0) is not decoded") {
+// NEEDS REVIEW 379
+TEST_CASE_FIXTURE(ProtoFixture, "characterization: [V26] a PROCESS_RX_BUFFER with DLC 4 (CRC bytes absent, read as 0) is not decoded") {
 	// NEEDS REVIEW (L4). Host: bytes beyond the DLC are 0, CRC of message A (0x523A) != 0x0000. On the target the
 	// bytes beyond the DLC are not guaranteed to be 0.
 	sendA();
@@ -278,13 +280,15 @@ TEST_CASE_FIXTURE(ProtoFixture, "[V26] characterization: a PROCESS_RX_BUFFER wit
 	CHECK(state() == ERROR_ST);
 }
 
-TEST_CASE_FIXTURE(ProtoFixture, "[V26] characterization: a PROCESS_SHORT_BUFFER with DLC 2 (no payload) decodes nothing") {
+// NEEDS REVIEW 379
+TEST_CASE_FIXTURE(ProtoFixture, "characterization: [V26] a PROCESS_SHORT_BUFFER with DLC 2 (no payload) decodes nothing") {
 	// NEEDS REVIEW (L4). length - 2 = 0 -> decode_buffer returns at once
 	CHECK(inj(Peer::PKT_PROCESS_SHORT_BUFFER, {0x01, 0x01}) > 0);
 	CHECK(state() == UNKNOWN);
 }
 
-TEST_CASE_FIXTURE(ProtoFixture, "[V26] characterization: a FILL_RX_BUFFER frame with DLC 1 (offset only, no data) copies nothing and decodes nothing") {
+// NEEDS REVIEW 379
+TEST_CASE_FIXTURE(ProtoFixture, "characterization: [V26] a FILL_RX_BUFFER frame with DLC 1 (offset only, no data) copies nothing and decodes nothing") {
 	// NEEDS REVIEW (L4). memcpy of 0 bytes
 	CHECK(inj(Peer::PKT_FILL_RX_BUFFER, {0x00}) > 0);
 	CHECK(state() == UNKNOWN);
@@ -322,35 +326,40 @@ TEST_CASE_FIXTURE(ProtoFixture, "[V30] a release 5.3 with pairing 0 is COMPATIBL
 	CHECK(state() == COMPATIBLE);
 }
 
-TEST_CASE_FIXTURE(ProtoFixture, "[V31] characterization: release 7.01 is COMPATIBLE") {
+// NEEDS REVIEW 186
+TEST_CASE_FIXTURE(ProtoFixture, "characterization: [V31] release 7.01 is COMPATIBLE") {
 	sendFw(7, 1, 0);
 	CHECK(state() == COMPATIBLE);
 }
 
-TEST_CASE_FIXTURE(ProtoFixture, "[V31] characterization: release 5.2 is INCOMPATIBLE") {
+// NEEDS REVIEW 186
+TEST_CASE_FIXTURE(ProtoFixture, "characterization: [V31] release 5.2 is INCOMPATIBLE") {
 	// FW_MIN_RELEASE = 5.3.51 (VescCAN.h:25): releases compare (major << 8 | minor) with 0x0503
 	sendFw(5, 2, 0);
 	CHECK(state() == INCOMPATIBLE);
 }
 
-TEST_CASE_FIXTURE(ProtoFixture, "[V31] characterization: test build 5.3.51 is COMPATIBLE") {
+// NEEDS REVIEW 186
+TEST_CASE_FIXTURE(ProtoFixture, "characterization: [V31] test build 5.3.51 is COMPATIBLE") {
 	sendFw(5, 3, 51);
 	CHECK(state() == COMPATIBLE);
 }
 
-TEST_CASE_FIXTURE(ProtoFixture, "[V31] characterization: test build 5.3.50 is INCOMPATIBLE" * KNOWN_ISSUE("B-V6: the driver never reads the test version byte (VescCAN.cpp:529-530 reads the pairing flag), so a test build is judged by the release rule and 5.3.50 is COMPATIBLE")) {
+TEST_CASE_FIXTURE(ProtoFixture, "characterization: [V31] test build 5.3.50 is INCOMPATIBLE" * KNOWN_ISSUE("B-V6: the driver never reads the test version byte (VescCAN.cpp:529-530 reads the pairing flag), so a test build is judged by the release rule and 5.3.50 is COMPATIBLE")) {
 	// intended rule (VescCAN.h:25 FW_MIN_RELEASE 5.3.51): 5.3.50 < 5.3.51. Note: [V31] 5.3.51 passes only by accident
 	// (the release rule accepts 5.3).
 	sendFw(5, 3, 50);
 	CHECK(state() == INCOMPATIBLE);
 }
 
-TEST_CASE_FIXTURE(ProtoFixture, "[V31] characterization: release 6.0 is COMPATIBLE") {
+// NEEDS REVIEW 379
+TEST_CASE_FIXTURE(ProtoFixture, "characterization: [V31] release 6.0 is COMPATIBLE") {
 	sendFw(6, 0, 0);
 	CHECK(state() == COMPATIBLE);
 }
 
-TEST_CASE_FIXTURE(ProtoFixture, "[V31] characterization: a FW reply moves INCOMPATIBLE to COMPATIBLE when a newer version is reported") {
+// NEEDS REVIEW 379
+TEST_CASE_FIXTURE(ProtoFixture, "characterization: [V31] a FW reply moves INCOMPATIBLE to COMPATIBLE when a newer version is reported") {
 	sendFw(5, 2, 0);
 	CHECK(state() == INCOMPATIBLE);
 	sendFw(7, 1, 0);

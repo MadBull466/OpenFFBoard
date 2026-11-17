@@ -103,7 +103,8 @@ TEST_SUITE("TMC4671 states") {
 // R70 start-up path
 // ---------------------------------------------------------------------------------------------------------------------
 
-TEST_CASE_FIXTURE(TmcFixture, "[R70] characterization: start-up passes uninitialized, waitPower, Shutdown in this order") {
+// NEEDS REVIEW 373
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R70] start-up passes uninitialized, waitPower, Shutdown in this order") {
 	auto tmc = makeTmc1();
 	chip1.setPresent(true);
 	chip1.setAdcRaw(0, 0x7FFF7FFF);
@@ -135,7 +136,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R70] characterization: start-up passes uninitial
 	CHECK(seq[2] == TMC_ControlState::Shutdown);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R70] characterization: waitPower needs exactly 6 powered checks before the driver reaches Shutdown") {
+// NEEDS REVIEW 373
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R70] waitPower needs exactly 6 powered checks before the driver reaches Shutdown") {
 	auto tmc = makeTmc1();
 	chip1.setPresent(true);
 	chip1.setAdcRaw(0, 0x7FFF7FFF);
@@ -170,7 +172,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R70] characterization: waitPower needs exactly 6
 	CHECK(elapsedMs <= 1195.0);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R70] characterization: motorReady stays false in Shutdown and becomes true only after startMotor") {
+// NEEDS REVIEW 373
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R70] motorReady stays false in Shutdown and becomes true only after startMotor") {
 	auto tmc = makeTmc1();
 	reachShutdown(*tmc);
 	CHECK_FALSE(tmc->motorReady());
@@ -182,7 +185,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R70] characterization: motorReady stays false in
 	CHECK(tmc->motorReady());
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R70] characterization: an absent chip keeps the driver uninitialized and it leaves uninitialized once the chip answers") {
+// NEEDS REVIEW 373
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R70] an absent chip keeps the driver uninitialized and it leaves uninitialized once the chip answers") {
 	auto tmc = makeTmc1();
 	chip1.setPresent(false);
 	chip1.setAdcRaw(0, 0x7FFF7FFF);
@@ -242,7 +246,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R71] with the internal supply above 78 V the dri
 	runWithoutPower(*this, 24000, 79000);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R71] characterization: hasPower needs both supplies above 10 V and the internal one below 78 V") {
+// NEEDS REVIEW 373
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R71] hasPower needs both supplies above 10 V and the internal one below 78 V") {
 	auto tmc = makeTmc1();
 	struct Case {
 		int32_t ext, in;
@@ -369,7 +374,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R74] after ENABLE_IN is high again the emergency
 // R75 undervoltage while running
 // ---------------------------------------------------------------------------------------------------------------------
 
-TEST_CASE_FIXTURE(TmcFixture, "[R75] characterization: losing the supply in Running stops the motion, raises the undervoltage warning and goes to waitPower") {
+// NEEDS REVIEW 373
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R75] losing the supply in Running stops the motion, raises the undervoltage warning and goes to waitPower") {
 	auto tmc = makeTmc1();
 	reachRunning(*tmc);
 	powerOff();
@@ -381,7 +387,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R75] characterization: losing the supply in Runn
 	CHECK_FALSE(tmc->motorReady());
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R75] characterization: when the supply returns the driver is in Running again") {
+// NEEDS REVIEW 373
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R75] when the supply returns the driver is in Running again") {
 	auto tmc = makeTmc1();
 	reachRunning(*tmc);
 	powerOff();
@@ -531,13 +538,15 @@ TEST_CASE_FIXTURE(CalibFixture, "[R78] calibrateAdcOffset averages alternating s
 	CHECK(std::abs(int(chip1.reg(0x08) & 0xFFFF) - int(m1)) <= 1);
 }
 
-TEST_CASE_FIXTURE(CalibFixture, "[R78] characterization: calibrateAdcOffset succeeds when both means are exactly 5000 counts from 0x7FFF") {
+// NEEDS REVIEW 373
+TEST_CASE_FIXTURE(CalibFixture, "characterization: [R78] calibrateAdcOffset succeeds when both means are exactly 5000 counts from 0x7FFF") {
 	chip1.setAdcRaw(0, word(0x7FFF - 5000, 0x7FFF + 5000)); // lastraw start 33415 (default offset): within the 10000 sample filter
 	CHECK(tmc->calibrateAdcOffset(150));
 	CHECK_FALSE(ErrorProbe::stored(ErrorCode::adcCalibrationError));
 }
 
-TEST_CASE_FIXTURE(CalibFixture, "[R78] characterization: calibrateAdcOffset fails with the critical adcCalibrationError when the I0 mean is 5001 counts from 0x7FFF") {
+// NEEDS REVIEW 373
+TEST_CASE_FIXTURE(CalibFixture, "characterization: [R78] calibrateAdcOffset fails with the critical adcCalibrationError when the I0 mean is 5001 counts from 0x7FFF") {
 	chip1.setAdcRaw(0, word(0x7FFF, 0x7FFF + 5001));
 	chip1.setReg(0x09, 0xABCD1234);
 	CHECK_FALSE(tmc->calibrateAdcOffset(150));
@@ -546,7 +555,8 @@ TEST_CASE_FIXTURE(CalibFixture, "[R78] characterization: calibrateAdcOffset fail
 	CHECK(chip1.reg(0x09) == 0xABCD1234); // offsets are not written on failure
 }
 
-TEST_CASE_FIXTURE(CalibFixture, "[R78] characterization: calibrateAdcOffset fails when the I1 mean is 5001 counts below 0x7FFF") {
+// NEEDS REVIEW 373
+TEST_CASE_FIXTURE(CalibFixture, "characterization: [R78] calibrateAdcOffset fails when the I1 mean is 5001 counts below 0x7FFF") {
 	chip1.setAdcRaw(0, word(0x7FFF - 5001, 0x7FFF));
 	CHECK_FALSE(tmc->calibrateAdcOffset(150));
 	CHECK(ErrorProbe::stored(ErrorCode::adcCalibrationError));
@@ -570,7 +580,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R79] readFlags(false) returns the unmasked conte
 	CHECK(tmc->readFlags(false).asInt == ((1u << 19) | (1u << 26))); // DS 0x7C bit 19 not_PLL_locked, 26 adc_i_clipped
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R79] characterization: readFlags(true) masks the flags with the mask the driver last wrote to 0x7D") {
+// NEEDS REVIEW 170
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R79] readFlags(true) masks the flags with the mask the driver last wrote to 0x7D") {
 	auto tmc = makeTmc1();
 	tmc->statusMask.asInt = 1u << 19; // member used by readFlags; the register write below keeps the chip in step
 	tmc->setStatusMask(tmc->statusMask); // writes DS 0x7D
@@ -595,7 +606,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R79] an interrupt on another pin does not touch 
 	CHECK(chip1.reg(0x7C) == (1u << 26));
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R79] characterization: an enc_n flag with an ABN encoder records the index hit and clears enc_n in the mask") {
+// NEEDS REVIEW 373
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R79] an enc_n flag with an ABN encoder records the index hit and clears enc_n in the mask") {
 	auto tmc = makeTmc1();
 	tmc->conf.motconf.enctype = EncoderType_TMC::abn;
 	tmc->abnconf.useIndex = true;
@@ -609,7 +621,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R79] characterization: an enc_n flag with an ABN
 	CHECK(chip1.reg(0x7C) == 0);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R79] characterization: an aenc_n flag with a sincos encoder clears aenc_n in the mask") {
+// NEEDS REVIEW 373
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R79] an aenc_n flag with a sincos encoder clears aenc_n in the mask") {
 	auto tmc = makeTmc1();
 	tmc->conf.motconf.enctype = EncoderType_TMC::sincos;
 	tmc->setEncoderIndexFlagEnabled(true, false);
@@ -620,7 +633,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R79] characterization: an aenc_n flag with a sin
 	CHECK(chip1.reg(0x7C) == 0);
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R79] characterization: an enc_n flag without an ABN encoder does not record an index hit") {
+// NEEDS REVIEW 373
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R79] an enc_n flag without an ABN encoder does not record an index hit") {
 	auto tmc = makeTmc1();
 	tmc->conf.motconf.enctype = EncoderType_TMC::hall;
 	tmc->abnconf.useIndex = true;
@@ -677,7 +691,8 @@ TEST_CASE_FIXTURE(TmcFixture, "[R81] TMC_1 talks only to CS PA4 and TMC_2 only t
 	CHECK(chip1.log().empty());
 }
 
-TEST_CASE_FIXTURE(TmcFixture, "[R81] characterization: the flash addresses of TMC_2 are those of TMC_1 plus 0x40") {
+// NEEDS REVIEW 373
+TEST_CASE_FIXTURE(TmcFixture, "characterization: [R81] the flash addresses of TMC_2 are those of TMC_1 plus 0x40") {
 	auto tmc1 = makeTmc1();
 	auto tmc2 = makeTmc2();
 	const TMC4671FlashAddrs &a = tmc1->flashAddrs;

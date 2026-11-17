@@ -381,7 +381,8 @@ TEST_CASE_FIXTURE(UartDmaFx, "UD1 a Tx and an Rx DMA transfer run at the same ti
 	CHECK((r.cr3() & (USART_CR3_DMAT | USART_CR3_DMAR)) == (USART_CR3_DMAT | USART_CR3_DMAR));
 }
 
-TEST_CASE_FIXTURE(UartDmaFx, "UD1 characterization: starting a Tx DMA transfer clears the error code") {
+// NEEDS REVIEW 317
+TEST_CASE_FIXTURE(UartDmaFx, "characterization: UD1 starting a Tx DMA transfer clears the error code") {
 	UartDmaRig r(uartDmaCfgs[1]);
 	r.fillTx(2);
 	r.h.ErrorCode = HAL_UART_ERROR_FE;
@@ -389,14 +390,16 @@ TEST_CASE_FIXTURE(UartDmaFx, "UD1 characterization: starting a Tx DMA transfer c
 	CHECK(HAL_UART_GetError(&r.h) == HAL_UART_ERROR_NONE);
 }
 
-TEST_CASE_FIXTURE(UartDmaFx, "UD1 characterization: starting an Rx DMA transfer clears the error code") {
+// NEEDS REVIEW 317
+TEST_CASE_FIXTURE(UartDmaFx, "characterization: UD1 starting an Rx DMA transfer clears the error code") {
 	UartDmaRig r(uartDmaCfgs[1]);
 	r.h.ErrorCode = HAL_UART_ERROR_PE;
 	REQUIRE(HAL_UART_Receive_DMA(&r.h, r.rxPtr(), 2) == HAL_OK);
 	CHECK(HAL_UART_GetError(&r.h) == HAL_UART_ERROR_NONE);
 }
 
-TEST_CASE_FIXTURE(UartDmaFx, "UD1 characterization: Transmit_DMA with a Tx stream that is already busy returns HAL_OK, sets BUSY_TX and DMAT") {
+// NEEDS REVIEW 317
+TEST_CASE_FIXTURE(UartDmaFx, "characterization: UD1 Transmit_DMA with a Tx stream that is already busy returns HAL_OK, sets BUSY_TX and DMAT") {
 	UartDmaRig r(uartDmaCfgs[1]);
 	r.fillTx(2);
 	REQUIRE(HAL_DMA_Start_IT(&r.tx, r.txAddr(), uartDmaCfgs[1].dr, 2) == HAL_OK);
@@ -642,7 +645,8 @@ TEST_CASE_FIXTURE(UartDmaFx, "UD3 a stream error of the Rx stream during Receive
 	CHECK((r.cr1() & USART_CR1_IDLEIE) == 0u);
 }
 
-TEST_CASE_FIXTURE(UartDmaFx, "UD3 characterization: a stream error of the Tx stream also ends a running Rx DMA reception") {
+// NEEDS REVIEW 317
+TEST_CASE_FIXTURE(UartDmaFx, "characterization: UD3 a stream error of the Tx stream also ends a running Rx DMA reception") {
 	UartDmaRig r(uartDmaCfgs[1]);
 	r.fillTx(4);
 	REQUIRE(HAL_UART_Transmit_DMA(&r.h, r.txPtr(), 4) == HAL_OK);
@@ -738,7 +742,8 @@ TEST_CASE_FIXTURE(UartDmaFx, "UD3 an Rx error during ReceiveToIdle_DMA ends the 
 	CHECK(uartCounts.rxEvent == 0u);
 }
 
-TEST_CASE_FIXTURE(UartDmaFx, "UD3 characterization: an Rx error with the DMA stream no longer running calls ErrorCallback at once") {
+// NEEDS REVIEW 317
+TEST_CASE_FIXTURE(UartDmaFx, "characterization: UD3 an Rx error with the DMA stream no longer running calls ErrorCallback at once") {
 	UartDmaRig r(uartDmaCfgs[1]);
 	REQUIRE(HAL_UART_Receive_DMA(&r.h, r.rxPtr(), 4) == HAL_OK);
 	REQUIRE(HAL_DMA_Abort(&r.rx) == HAL_OK);
@@ -750,7 +755,8 @@ TEST_CASE_FIXTURE(UartDmaFx, "UD3 characterization: an Rx error with the DMA str
 	CHECK(r.h.RxState == HAL_UART_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(UartDmaFx, "UD3 characterization: an Rx error with a NULL hdmarx calls ErrorCallback at once") {
+// NEEDS REVIEW 424
+TEST_CASE_FIXTURE(UartDmaFx, "characterization: UD3 an Rx error with a NULL hdmarx calls ErrorCallback at once") {
 	UartDmaRig r(uartDmaCfgs[1]);
 	REQUIRE(HAL_UART_Receive_DMA(&r.h, r.rxPtr(), 4) == HAL_OK);
 	r.h.hdmarx = nullptr;
@@ -907,7 +913,8 @@ TEST_CASE_FIXTURE(UartDmaFx, "UD4 DMAStop after a DMAPause stops the paused Rx t
 	CHECK_FALSE(r.streamEnabled(r.rxI));
 }
 
-TEST_CASE_FIXTURE(UartDmaFx, "UD4 characterization: DMAStop with a NULL hdmatx or hdmarx skips the stream abort and still ends the transfer") {
+// NEEDS REVIEW 317
+TEST_CASE_FIXTURE(UartDmaFx, "characterization: UD4 DMAStop with a NULL hdmatx or hdmarx skips the stream abort and still ends the transfer") {
 	UartDmaRig r(uartDmaCfgs[1]);
 	r.fillTx(2);
 	REQUIRE(HAL_UART_Transmit_DMA(&r.h, r.txPtr(), 2) == HAL_OK);
@@ -1036,7 +1043,8 @@ TEST_CASE_FIXTURE(UartDmaFx, "UD5 an idle line with 9 bit words gives the length
 	CHECK(r.rxBuf[1] == r.data(1));
 }
 
-TEST_CASE_FIXTURE(UartDmaFx, "UD5 characterization: an idle line before the DMA moved any item gives no RxEvent and leaves the reception running") {
+// NEEDS REVIEW 317
+TEST_CASE_FIXTURE(UartDmaFx, "characterization: UD5 an idle line before the DMA moved any item gives no RxEvent and leaves the reception running") {
 	UartDmaRig r(uartDmaCfgs[1]);
 	REQUIRE(HAL_UARTEx_ReceiveToIdle_DMA(&r.h, r.rxPtr(), 8) == HAL_OK);
 	hostUartRxNow(1, 0x41, 0);
@@ -1205,7 +1213,8 @@ TEST_CASE_FIXTURE(UartDmaFx, "UD2 the transfer complete of a ReceiveToIdle_DMA t
 	CHECK(uartCounts.rxEventSize == 4u);
 }
 
-TEST_CASE_FIXTURE(UartDmaFx, "UD2 characterization: after a normal-mode ReceiveToIdle_DMA completes the reception type is still TOIDLE until the next start") {
+// NEEDS REVIEW 317
+TEST_CASE_FIXTURE(UartDmaFx, "characterization: UD2 after a normal-mode ReceiveToIdle_DMA completes the reception type is still TOIDLE until the next start") {
 	UartDmaRig r(uartDmaCfgs[1]);
 	REQUIRE(HAL_UARTEx_ReceiveToIdle_DMA(&r.h, r.rxPtr(), 2) == HAL_OK);
 	r.engineRx(2);
@@ -1215,7 +1224,8 @@ TEST_CASE_FIXTURE(UartDmaFx, "UD2 characterization: after a normal-mode ReceiveT
 	CHECK(r.h.ReceptionType == HAL_UART_RECEPTION_STANDARD);
 }
 
-TEST_CASE_FIXTURE(UartDmaFx, "UD1 characterization: Transmit_DMA and Receive_DMA store Size and the buffer in the handle") {
+// NEEDS REVIEW 317
+TEST_CASE_FIXTURE(UartDmaFx, "characterization: UD1 Transmit_DMA and Receive_DMA store Size and the buffer in the handle") {
 	UartDmaRig r(uartDmaCfgs[1]);
 	r.fillTx(6);
 	REQUIRE(HAL_UART_Transmit_DMA(&r.h, r.txPtr(), 6) == HAL_OK);

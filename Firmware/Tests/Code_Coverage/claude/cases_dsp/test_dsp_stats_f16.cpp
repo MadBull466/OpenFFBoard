@@ -1178,7 +1178,8 @@ TEST_CASE("[C4 arm_var_f16] constant data: the variance and the standard deviati
 	}
 }
 
-TEST_CASE("[C4 arm_var_f16] characterization: the variance and standard deviation of 0 or 1 sample are 0 (the unbiased estimator would divide by zero)") {
+// NEEDS REVIEW 392
+TEST_CASE("characterization: [C4 arm_var_f16] the variance and standard deviation of 0 or 1 sample are 0 (the unbiased estimator would divide by zero)") {
 	// Source arm_var_f16.c: "if (blockSize <= 1U) { *pResult = 0; return; }". DOC is silent. 0 is the only finite sensible
 	// value; recorded as characterization (NEEDS REVIEW). For blockSize 0 the pointer is never dereferenced.
 	F x = h16(3.5);
@@ -1245,12 +1246,16 @@ static void tieTest(IdxFn fn, bool isMax, bool absolute) {
 	}
 }
 
-TEST_CASE("[C4 arm_max_f16] characterization: of equal maxima the first index is returned (all positions up to 13 samples)") { tieTest(arm_max_f16, true, false); }
-TEST_CASE("[C4 arm_min_f16] characterization: of equal minima the first index is returned (all positions up to 13 samples)") { tieTest(arm_min_f16, false, false); }
-TEST_CASE("[C4 arm_absmax_f16] characterization: of equal maxima of |x| (also of opposite sign) the first index is returned (up to 13 samples)") {
+// NEEDS REVIEW 392
+TEST_CASE("characterization: [C4 arm_max_f16] of equal maxima the first index is returned (all positions up to 13 samples)") { tieTest(arm_max_f16, true, false); }
+// NEEDS REVIEW 392
+TEST_CASE("characterization: [C4 arm_min_f16] of equal minima the first index is returned (all positions up to 13 samples)") { tieTest(arm_min_f16, false, false); }
+// NEEDS REVIEW 392
+TEST_CASE("characterization: [C4 arm_absmax_f16] of equal maxima of |x| (also of opposite sign) the first index is returned (up to 13 samples)") {
 	tieTest(arm_absmax_f16, true, true);
 }
-TEST_CASE("[C4 arm_absmin_f16] characterization: of equal minima of |x| (also of opposite sign) the first index is returned (up to 13 samples)") {
+// NEEDS REVIEW 392
+TEST_CASE("characterization: [C4 arm_absmin_f16] of equal minima of |x| (also of opposite sign) the first index is returned (up to 13 samples)") {
 	tieTest(arm_absmin_f16, false, true);
 }
 
@@ -1345,25 +1350,29 @@ TEST_CASE("[C4 arm_logsumexp_dot_prod_f16] hand-derived: a = {0, 0}, b = {0, 0} 
 	CHECK(tmp.guardIntact());
 }
 
-TEST_CASE("[C4 arm_entropy_f16] characterization: a zero probability gives NaN because 0*logf(0) = 0*(-inf) (DOC is silent about 0 ln 0)") {
+// NEEDS REVIEW 392
+TEST_CASE("characterization: [C4 arm_entropy_f16] a zero probability gives NaN because 0*logf(0) = 0*(-inf) (DOC is silent about 0 ln 0)") {
 	// NEEDS REVIEW: the usual convention is 0 ln 0 = 0
 	std::vector<F> p = make({0.5, 0.0, 0.5});
 	CHECK(std::isnan(dbl(arm_entropy_f16(p.data(), 3))));
 }
 
-TEST_CASE("[C4 arm_kullback_leibler_f16] characterization: a zero in distribution A gives NaN on the portable path") {
+// NEEDS REVIEW 392
+TEST_CASE("characterization: [C4 arm_kullback_leibler_f16] a zero in distribution A gives NaN on the portable path") {
 	// pA * logf(pB / pA) = 0 * logf(inf) = 0 * inf = NaN. NEEDS REVIEW
 	std::vector<F> a = make({0.5, 0.0, 0.5}), b = make({0.3, 0.4, 0.3});
 	CHECK(std::isnan(dbl(arm_kullback_leibler_f16(a.data(), b.data(), 3))));
 }
 
-TEST_CASE("[C4 arm_accumulate_f16] characterization: the sum 40000 + 40000 exceeds the binary16 range and is +infinity (IEEE overflow)") {
+// NEEDS REVIEW 392
+TEST_CASE("characterization: [C4 arm_accumulate_f16] the sum 40000 + 40000 exceeds the binary16 range and is +infinity (IEEE overflow)") {
 	// DOC is silent about overflow. binary16 round-to-nearest overflows to +inf (IEEE 754): 80000 > 65504 + half ulp
 	CHECK(dbl(call1(arm_accumulate_f16, make({40000, 40000}))) == kInf);
 	CHECK(dbl(call1(arm_accumulate_f16, make({-40000, -40000}))) == -kInf);
 }
 
-TEST_CASE("[C4 arm_power_f16] characterization: the power of {300} exceeds the binary16 range and is +infinity (IEEE overflow)") {
+// NEEDS REVIEW 392
+TEST_CASE("characterization: [C4 arm_power_f16] the power of {300} exceeds the binary16 range and is +infinity (IEEE overflow)") {
 	// 300^2 = 90000 > 65520
 	CHECK(dbl(call1(arm_power_f16, make({300}))) == kInf);
 }

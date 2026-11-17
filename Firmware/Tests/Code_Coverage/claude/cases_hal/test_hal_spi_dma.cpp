@@ -351,7 +351,8 @@ TEST_CASE_FIXTURE(SpiDmaFx, "SD1 Transmit_DMA of a 1 line master sets BIDIOE and
 	}
 }
 
-TEST_CASE_FIXTURE(SpiDmaFx, "SD1 characterization: Transmit_DMA while a transfer runs returns HAL_BUSY and does not touch the stream") {
+// NEEDS REVIEW 302
+TEST_CASE_FIXTURE(SpiDmaFx, "characterization: SD1 Transmit_DMA while a transfer runs returns HAL_BUSY and does not touch the stream") {
 	// NEEDS REVIEW N1: UM1725 only says "HAL status".
 	SpiDmaRig r(0, false);
 	r.fillTx(4);
@@ -362,7 +363,8 @@ TEST_CASE_FIXTURE(SpiDmaFx, "SD1 characterization: Transmit_DMA while a transfer
 	CHECK(HAL_SPI_GetState(&r.hspi) == HAL_SPI_STATE_BUSY_TX);
 }
 
-TEST_CASE_FIXTURE(SpiDmaFx, "SD1 characterization: Transmit_DMA with a NULL buffer or Size 0 returns HAL_ERROR and writes nothing") {
+// NEEDS REVIEW 418
+TEST_CASE_FIXTURE(SpiDmaFx, "characterization: SD1 Transmit_DMA with a NULL buffer or Size 0 returns HAL_ERROR and writes nothing") {
 	// NEEDS REVIEW N1.
 	SpiDmaRig r(1, false);
 	CHECK(HAL_SPI_Transmit_DMA(&r.hspi, nullptr, 4) == HAL_ERROR);
@@ -373,7 +375,8 @@ TEST_CASE_FIXTURE(SpiDmaFx, "SD1 characterization: Transmit_DMA with a NULL buff
 	CHECK(r.hspi.Lock == HAL_UNLOCKED);
 }
 
-TEST_CASE_FIXTURE(SpiDmaFx, "SD1 characterization: TransmitReceive_DMA with a NULL buffer or Size 0 returns HAL_ERROR and writes nothing") {
+// NEEDS REVIEW 418
+TEST_CASE_FIXTURE(SpiDmaFx, "characterization: SD1 TransmitReceive_DMA with a NULL buffer or Size 0 returns HAL_ERROR and writes nothing") {
 	// NEEDS REVIEW N1.
 	SpiDmaRig r(1, false);
 	CHECK(HAL_SPI_TransmitReceive_DMA(&r.hspi, r.txPtr(), nullptr, 4) == HAL_ERROR);
@@ -386,7 +389,8 @@ TEST_CASE_FIXTURE(SpiDmaFx, "SD1 characterization: TransmitReceive_DMA with a NU
 	CHECK(r.hspi.Lock == HAL_UNLOCKED);
 }
 
-TEST_CASE_FIXTURE(SpiDmaFx, "SD1 characterization: Receive_DMA with a NULL buffer returns HAL_ERROR and writes nothing") {
+// NEEDS REVIEW 418
+TEST_CASE_FIXTURE(SpiDmaFx, "characterization: SD1 Receive_DMA with a NULL buffer returns HAL_ERROR and writes nothing") {
 	// NEEDS REVIEW N1.
 	SpiDmaRig r(1, false);
 	CHECK(HAL_SPI_Receive_DMA(&r.hspi, nullptr, 4) == HAL_ERROR);
@@ -411,7 +415,8 @@ TEST_CASE_FIXTURE(SpiDmaFx, "SD1 Transmit_DMA with a Tx stream that cannot start
 	CHECK(HAL_SPI_GetState(&r.hspi) == HAL_SPI_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(SpiDmaFx, "SD1 characterization: Transmit_DMA with a Tx stream that cannot start sets the DMA error code, unlocks and keeps the running stream") {
+// NEEDS REVIEW 311
+TEST_CASE_FIXTURE(SpiDmaFx, "characterization: SD1 Transmit_DMA with a Tx stream that cannot start sets the DMA error code, unlocks and keeps the running stream") {
 	// NEEDS REVIEW N2 (the state is the KNOWN_ISSUE V101 case above).
 	SpiDmaRig r(2, false);
 	r.fillTx(4);
@@ -500,7 +505,8 @@ TEST_CASE_FIXTURE(SpiDmaFx, "SD2 Tx complete waits for the last frame to end (BS
 	CHECK(spiCounts.error == 0u);
 }
 
-TEST_CASE_FIXTURE(SpiDmaFx, "SD2 characterization: Tx complete on a bus that never ends the frame times out after about 100 ticks with the FLAG error") {
+// NEEDS REVIEW 418
+TEST_CASE_FIXTURE(SpiDmaFx, "characterization: SD2 Tx complete on a bus that never ends the frame times out after about 100 ticks with the FLAG error") {
 	// NEEDS REVIEW N3.
 	hostSpiSetFrameTicks(4);
 	SpiDmaRig r(1, false);
@@ -581,7 +587,8 @@ TEST_CASE_FIXTURE(SpiDmaFx, "SD2 Rx complete of a 1 line master runs the RxCplt 
 	}
 }
 
-TEST_CASE_FIXTURE(SpiDmaFx, "SD2 characterization: completion of a Tx, Rx or TxRx DMA transfer clears ERRIE") {
+// NEEDS REVIEW 418
+TEST_CASE_FIXTURE(SpiDmaFx, "characterization: SD2 completion of a Tx, Rx or TxRx DMA transfer clears ERRIE") {
 	// NEEDS REVIEW N8: UM1725 does not say which CR2 bits the complete callback clears.
 	for (const auto &k : spiDmaConfigs()) {
 		SUBCASE(k.name.c_str()) {
@@ -676,7 +683,8 @@ TEST_CASE_FIXTURE(SpiDmaFx, "SD2 the DMA interrupt handler without a pending fla
 	CHECK(HAL_SPI_GetState(&r.hspi) == HAL_SPI_STATE_BUSY_TX);
 }
 
-TEST_CASE_FIXTURE(SpiDmaFx, "SD2 characterization: a circular Tx stream calls TxCplt on every TCIF and keeps the transfer busy") {
+// NEEDS REVIEW 311
+TEST_CASE_FIXTURE(SpiDmaFx, "characterization: SD2 a circular Tx stream calls TxCplt on every TCIF and keeps the transfer busy") {
 	// NEEDS REVIEW N4: UM1725 gives a circular mode restriction list but no complete-callback rule.
 	SpiDmaRig r(1, false, false, false, true);
 	r.fillTx(4);
@@ -973,7 +981,8 @@ TEST_CASE_FIXTURE(SpiDmaFx, "SD4 Abort of a DMA transfer clears an OVR that was 
 	CHECK((r.inst->SR & spiDmaSR_OVR) == 0u);
 }
 
-TEST_CASE_FIXTURE(SpiDmaFx, "SD4 characterization: Abort of a Tx only DMA transfer leaves SPE set") {
+// NEEDS REVIEW 308
+TEST_CASE_FIXTURE(SpiDmaFx, "characterization: SD4 Abort of a Tx only DMA transfer leaves SPE set") {
 	// NEEDS REVIEW N5: UM1725 lists the steps of Abort without SPE; RM0090 28.3.8 makes disabling optional.
 	SpiDmaRig r(0, false);
 	r.fillTx(6);
@@ -982,7 +991,8 @@ TEST_CASE_FIXTURE(SpiDmaFx, "SD4 characterization: Abort of a Tx only DMA transf
 	CHECK((r.inst->CR1 & spiDmaCR1_SPE) != 0u);
 }
 
-TEST_CASE_FIXTURE(SpiDmaFx, "SD4 characterization: Abort of a TransmitReceive DMA transfer disables SPE while a frame is running") {
+// NEEDS REVIEW 310
+TEST_CASE_FIXTURE(SpiDmaFx, "characterization: SD4 Abort of a TransmitReceive DMA transfer disables SPE while a frame is running") {
 	// NEEDS REVIEW N5: the HAL clears SPE after the stream abort without waiting for TXE / BSY (RM0090 28.3.8 describes the wait).
 	hostSpiSetFrameTicks(5);
 	SpiDmaRig r(1, false);
@@ -1092,7 +1102,8 @@ TEST_CASE_FIXTURE(SpiDmaFx, "SD5 DMAStop aborts both streams, clears both DMA en
 	}
 }
 
-TEST_CASE_FIXTURE(SpiDmaFx, "SD5 characterization: DMAStop after a Tx only transfer returns HAL_ERROR with the DMA error code but stops the Tx stream and sets READY") {
+// NEEDS REVIEW 311
+TEST_CASE_FIXTURE(SpiDmaFx, "characterization: SD5 DMAStop after a Tx only transfer returns HAL_ERROR with the DMA error code but stops the Tx stream and sets READY") {
 	// NEEDS REVIEW N6: the idle Rx stream cannot be aborted (HAL_DMA_Abort of a stream that is not busy fails).
 	SpiDmaRig r(0, false);
 	r.fillTx(4);
@@ -1104,7 +1115,8 @@ TEST_CASE_FIXTURE(SpiDmaFx, "SD5 characterization: DMAStop after a Tx only trans
 	CHECK(HAL_SPI_GetState(&r.hspi) == HAL_SPI_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(SpiDmaFx, "SD5 characterization: DMAResume of a Tx only transfer also sets RXDMAEN") {
+// NEEDS REVIEW 418
+TEST_CASE_FIXTURE(SpiDmaFx, "characterization: SD5 DMAResume of a Tx only transfer also sets RXDMAEN") {
 	// NEEDS REVIEW N6.
 	SpiDmaRig r(2, false);
 	r.fillTx(4);
@@ -1118,7 +1130,8 @@ TEST_CASE_FIXTURE(SpiDmaFx, "SD5 characterization: DMAResume of a Tx only transf
 
 /* ------------------------------------------------------------------------------------------------------------------ SD6 */
 
-TEST_CASE_FIXTURE(SpiDmaFx, "SD6 characterization: Transmit_DMA of 16 bit frames on a byte aligned stream programs NDTR = Size without conversion") {
+// NEEDS REVIEW 311
+TEST_CASE_FIXTURE(SpiDmaFx, "characterization: SD6 Transmit_DMA of 16 bit frames on a byte aligned stream programs NDTR = Size without conversion") {
 	// NEEDS REVIEW N7: UM1725 gives no formula; RM0090 10.5.6 counts data items of the stream's size (here 8 bit items).
 	for (unsigned n = 0; n < 3; ++n) {
 		SUBCASE((std::string("SPI") + std::to_string(n + 1)).c_str()) {
@@ -1132,7 +1145,8 @@ TEST_CASE_FIXTURE(SpiDmaFx, "SD6 characterization: Transmit_DMA of 16 bit frames
 	}
 }
 
-TEST_CASE_FIXTURE(SpiDmaFx, "SD6 characterization: TransmitReceive_DMA of 16 bit frames on byte aligned streams programs NDTR = Size without conversion on both streams") {
+// NEEDS REVIEW 311
+TEST_CASE_FIXTURE(SpiDmaFx, "characterization: SD6 TransmitReceive_DMA of 16 bit frames on byte aligned streams programs NDTR = Size without conversion on both streams") {
 	// NEEDS REVIEW N7.
 	SpiDmaRig r(1, true, false, true);
 	r.fillTx(5);

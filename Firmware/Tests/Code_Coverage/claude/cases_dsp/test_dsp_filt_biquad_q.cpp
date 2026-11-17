@@ -1037,6 +1037,7 @@ ALL5("C2", "state buffers of exactly 4 * numStages words keep their guard words 
 ALL5("C4", "re-init clears the state so that the same input gives the same output again", reinitResets)
 ALL5("C4", "two instances with the same coefficients do not influence each other", independent)
 ALL5("C4", "consecutive blocks of 1, 2, 3, 4, 5, 7 and mixed sizes (1, 2, 3, 5 and 9 stages) give the same output and state as one block", continuity)
+// NEEDS REVIEW 220
 ALL5_CH("C4", "a block of size 0 changes neither the state nor the following output and writes no output (DOC silent)", emptyBlock)
 ALL5_FASTCH("C4", "the state array holds {x[n-1], x[n-2], y[n-1], y[n-2]} of each stage", stateLayout)
 ALL5_FASTCH("C2", "block sizes 1 to 9 write exactly blockSize samples (guard words behind the output intact) and match the integer model", outputGuard)

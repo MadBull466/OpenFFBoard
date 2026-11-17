@@ -465,7 +465,7 @@ TEST_CASE_FIXTURE(UartFixture, "UQ2 9 bit words with parity are stored as bytes 
 	}
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UQ2 characterization: 8 bit words with parity are stored without the parity bit (NEEDS REVIEW 316)") {
+TEST_CASE_FIXTURE(UartFixture, "characterization: UQ2 8 bit words with parity are stored without the parity bit (NEEDS REVIEW 316)") {
 	const struct { uint32_t parity; uint16_t line[2]; } t[2] = {
 		{UART_PARITY_EVEN, {0x41, 0x87}},
 		{UART_PARITY_ODD, {0xC1, 0x07}},
@@ -520,7 +520,7 @@ TEST_CASE_FIXTURE(UartFixture, "UQ3 an overrun is a blocking error: transfer end
 	}
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UQ3 characterization: after the overrun the code stays ORE and the first frame is in the buffer (NEEDS REVIEW 316)") {
+TEST_CASE_FIXTURE(UartFixture, "characterization: UQ3 after the overrun the code stays ORE and the first frame is in the buffer (NEEDS REVIEW 316)") {
 	UartIrqRig r;
 	uint8_t buf[4] = {};
 	UART_IRQ_START_RX(r, 0, buf, false, UART_PARITY_NONE);
@@ -607,7 +607,7 @@ TEST_CASE_FIXTURE(UartFixture, "UQ3 a parity error is non blocking: code PE in t
 	CHECK(buf[2] == 0x07);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UQ3 characterization: the frame with the parity error is stored and counts as one frame (NEEDS REVIEW 316)") {
+TEST_CASE_FIXTURE(UartFixture, "characterization: UQ3 the frame with the parity error is stored and counts as one frame (NEEDS REVIEW 316)") {
 	UartIrqRig r;
 	uint8_t buf[2] = {};
 	uartIrqInit(r, 1, false, UART_PARITY_EVEN);
@@ -677,7 +677,7 @@ TEST_CASE_FIXTURE(UartFixture, "UQ3 an overrun together with a framing error is 
 	CHECK(r.h.RxState == HAL_UART_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UQ3 characterization: for an erroneous last frame RxCpltCallback runs before ErrorCallback (NEEDS REVIEW 316)") {
+TEST_CASE_FIXTURE(UartFixture, "characterization: UQ3 for an erroneous last frame RxCpltCallback runs before ErrorCallback (NEEDS REVIEW 316)") {
 	UartIrqRig r;
 	uint8_t buf[1] = {};
 	uartIrqInit(r, 0);
@@ -702,7 +702,7 @@ TEST_CASE_FIXTURE(UartFixture, "UQ3 a framing error is reported with EIE alone a
 	CHECK(buf[0] == 0);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UQ3 characterization: FE with RXNEIE but without EIE reports nothing and does not read the frame (NEEDS REVIEW 316)") {
+TEST_CASE_FIXTURE(UartFixture, "characterization: UQ3 FE with RXNEIE but without EIE reports nothing and does not read the frame (NEEDS REVIEW 316)") {
 	UartIrqRig r;
 	uint8_t buf[2] = {};
 	uartIrqInit(r, 1);
@@ -715,7 +715,7 @@ TEST_CASE_FIXTURE(UartFixture, "UQ3 characterization: FE with RXNEIE but without
 	CHECK((r.sr() & USART_SR_RXNE) != 0);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UQ3 characterization: NE with RXNEIE but without EIE reports nothing (NEEDS REVIEW 316)") {
+TEST_CASE_FIXTURE(UartFixture, "characterization: UQ3 NE with RXNEIE but without EIE reports nothing (NEEDS REVIEW 316)") {
 	UartIrqRig r;
 	uint8_t buf[2] = {};
 	uartIrqInit(r, 2);
@@ -727,7 +727,7 @@ TEST_CASE_FIXTURE(UartFixture, "UQ3 characterization: NE with RXNEIE but without
 	CHECK((r.sr() & USART_SR_RXNE) != 0);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UQ3 characterization: PE with RXNEIE but without PEIE reports nothing and does not read the frame (NEEDS REVIEW 316)") {
+TEST_CASE_FIXTURE(UartFixture, "characterization: UQ3 PE with RXNEIE but without PEIE reports nothing and does not read the frame (NEEDS REVIEW 316)") {
 	UartIrqRig r;
 	uint8_t buf[2] = {};
 	uartIrqInit(r, 0, false, UART_PARITY_EVEN);
@@ -756,7 +756,7 @@ TEST_CASE_FIXTURE(UartFixture, "UQ3 a parity error with PEIE alone is reported a
 	CHECK(r.h.RxState == HAL_UART_STATE_BUSY_RX);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UQ3 characterization: with DMAR set and no DMA handle an overrun ends the reception and calls ErrorCallback (NEEDS REVIEW 316)") {
+TEST_CASE_FIXTURE(UartFixture, "characterization: UQ3 with DMAR set and no DMA handle an overrun ends the reception and calls ErrorCallback (NEEDS REVIEW 316)") {
 	UartIrqRig r;
 	uint8_t buf[4] = {};
 	UART_IRQ_START_RX(r, 1, buf, false, UART_PARITY_NONE);
@@ -771,7 +771,7 @@ TEST_CASE_FIXTURE(UartFixture, "UQ3 characterization: with DMAR set and no DMA h
 	CHECK((r.cr3() & USART_CR3_DMAR) == 0);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UQ3 characterization: with DMAR set and no DMA handle a framing error is blocking too (NEEDS REVIEW 316)") {
+TEST_CASE_FIXTURE(UartFixture, "characterization: UQ3 with DMAR set and no DMA handle a framing error is blocking too (NEEDS REVIEW 316)") {
 	UartIrqRig r;
 	uint8_t buf[4] = {};
 	UART_IRQ_START_RX(r, 2, buf, false, UART_PARITY_NONE);
@@ -883,7 +883,7 @@ TEST_CASE_FIXTURE(UartFixture, "UQ4 a plain Receive_IT ignores an IDLE flag with
 	CHECK(r.h.RxState == HAL_UART_STATE_BUSY_RX);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UQ4 characterization: on a READY handle TXEIE with TXE does nothing and TC is not looked at (NEEDS REVIEW 316)") {
+TEST_CASE_FIXTURE(UartFixture, "characterization: UQ4 on a READY handle TXEIE with TXE does nothing and TC is not looked at (NEEDS REVIEW 316)") {
 	UartIrqRig r;
 	uartIrqInit(r, 0);
 	r.setCr1(USART_CR1_TXEIE | USART_CR1_TCIE);
@@ -896,7 +896,7 @@ TEST_CASE_FIXTURE(UartFixture, "UQ4 characterization: on a READY handle TXEIE wi
 	CHECK(uartCounts.txCplt == 1u);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UQ4 characterization: on a READY handle RXNEIE with RXNE does not read DR (NEEDS REVIEW 316)") {
+TEST_CASE_FIXTURE(UartFixture, "characterization: UQ4 on a READY handle RXNEIE with RXNE does not read DR (NEEDS REVIEW 316)") {
 	UartIrqRig r;
 	uartIrqInit(r, 3);
 	r.setCr1(USART_CR1_RXNEIE);
@@ -906,7 +906,8 @@ TEST_CASE_FIXTURE(UartFixture, "UQ4 characterization: on a READY handle RXNEIE w
 	CHECK((r.sr() & USART_SR_RXNE) != 0);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UQ4 characterization: with TXE and TC both set and both enables the handler serves TXE first") {
+// NEEDS REVIEW 425
+TEST_CASE_FIXTURE(UartFixture, "characterization: UQ4 with TXE and TC both set and both enables the handler serves TXE first") {
 	UartIrqRig r;
 	uint8_t d[2] = {0x10, 0x20};
 	uartIrqInit(r, 2);
@@ -919,7 +920,7 @@ TEST_CASE_FIXTURE(UartFixture, "UQ4 characterization: with TXE and TC both set a
 	CHECK(uartCounts.txCplt == 0u);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UQ4 characterization: RXNE is served before IDLE (NEEDS REVIEW 316)") {
+TEST_CASE_FIXTURE(UartFixture, "characterization: UQ4 RXNE is served before IDLE (NEEDS REVIEW 316)") {
 	UartIrqRig r;
 	uint8_t buf[4] = {};
 	uartIrqInit(r, 0);
@@ -932,7 +933,7 @@ TEST_CASE_FIXTURE(UartFixture, "UQ4 characterization: RXNE is served before IDLE
 	CHECK(uartCounts.rxEvent == 0u); /* the first call only read the byte (and cleared IDLE by SR + DR) */
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UQ4 characterization: an error flag has priority over IDLE (NEEDS REVIEW 316)") {
+TEST_CASE_FIXTURE(UartFixture, "characterization: UQ4 an error flag has priority over IDLE (NEEDS REVIEW 316)") {
 	UartIrqRig r;
 	uint8_t buf[4] = {};
 	uartIrqInit(r, 0);
@@ -946,7 +947,7 @@ TEST_CASE_FIXTURE(UartFixture, "UQ4 characterization: an error flag has priority
 	CHECK(r.h.RxState == HAL_UART_STATE_BUSY_RX);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UQ4 characterization: a handler call with IDLE and no data consumes the call, TXE waits for the next one (NEEDS REVIEW 316)") {
+TEST_CASE_FIXTURE(UartFixture, "characterization: UQ4 a handler call with IDLE and no data consumes the call, TXE waits for the next one (NEEDS REVIEW 316)") {
 	UartIrqRig r;
 	uint8_t rx[4] = {}, tx[2] = {0x01, 0x02};
 	uartIrqInit(r, 1);
@@ -1277,7 +1278,8 @@ TEST_CASE_FIXTURE(UartFixture, "UQ5 an idle line pushed with the last frame leav
 	}
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UQ5 characterization: IDLE with nothing remaining to receive gives no event and leaves the reception state alone (NR_UART_i)") {
+// NEEDS REVIEW 316
+TEST_CASE_FIXTURE(UartFixture, "characterization: UQ5 IDLE with nothing remaining to receive gives no event and leaves the reception state alone (NR_UART_i)") {
 	UartIrqRig r;
 	uint8_t buf[4] = {};
 	uartIrqInit(r, 0);
@@ -1305,7 +1307,8 @@ TEST_CASE_FIXTURE(UartFixture, "UQ5 one frame before IDLE already gives an event
 	CHECK(buf[0] == 0x7E);
 }
 
-TEST_CASE_FIXTURE(UartFixture, "UQ5 characterization: after an idle event ReceptionType is STANDARD and the event type stays IDLE until the next reception ends (NR_UART_j)") {
+// NEEDS REVIEW 317
+TEST_CASE_FIXTURE(UartFixture, "characterization: UQ5 after an idle event ReceptionType is STANDARD and the event type stays IDLE until the next reception ends (NR_UART_j)") {
 	UartIrqRig r;
 	uint8_t a[4] = {}, b[1] = {};
 	uartIrqInit(r, 1);

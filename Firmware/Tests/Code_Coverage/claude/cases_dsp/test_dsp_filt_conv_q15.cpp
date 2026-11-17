@@ -991,7 +991,9 @@ OPT64FN(T_CANCEL)
 #define T_NOSATP(ID, NAME) \
 	TEST_CASE("[C4 " NAME "] -1.0 * -1.0 (2^30) saturates to 32767 as the DOC says" * KNOWN_ISSUE("B-DCVQ15-1: DOC says the 2.30 accumulator is right shifted by 15 and saturated to 1.15, the code casts (q15_t)(sum >> 15): 2^30 >> 15 = 32768 wraps to -32768")) { satPositive(ID); }
 NOSATUBFN(T_NOSATP)
+// NEEDS REVIEW 386
 TEST_CASE("characterization: [C4 arm_conv_partial_fast_q15] -1.0 * -1.0 (2^30) wraps to -32768 (the DOC of this function has no saturation sentence; NEEDS REVIEW)") { wrapChar(5, false); }
+// NEEDS REVIEW 386
 TEST_CASE("characterization: [C4 arm_conv_partial_fast_q15] a sum of -65534 LSB wraps to 2 (the DOC of this function has no saturation sentence; NEEDS REVIEW)") { wrapChar(5, true); }
 #define T_NOSATNU(ID, NAME) \
 	TEST_CASE("[C4 " NAME "] a sum of -65534 LSB saturates to -32768 as the DOC says" * KNOWN_ISSUE_UB("B-DCVQ15-1: DOC says saturated to 1.15, the code casts (q15_t)(sum >> 15): -65534 wraps to 2; the run also hits " UBTEXT)) { satNegative(ID); }
@@ -1023,14 +1025,19 @@ ALLPART(T_PERR)
 ALLPART(T_PVALID)
 #define T_PERRW(ID, NAME) \
 	TEST_CASE("characterization: [C4 " NAME "] an out of range window writes nothing to the output (DOC silent)") { partialErrorWritesNothing(ID); }
+// NEEDS REVIEW 228
 ALLPART(T_PERRW)
 
 // pad of the correlate output
 #define T_PAD(ID, NAME) \
 	TEST_CASE("characterization: [C4 " NAME "] the pad samples (A=7, B=3 leading, A=3, B=7 trailing) of a poisoned output buffer are not written (DOC gives only the length; NEEDS REVIEW)") { padTest(ID); }
+// NEEDS REVIEW 228
 T_PAD(8, "arm_correlate_q15")
+// NEEDS REVIEW 228
 T_PAD(9, "arm_correlate_fast_q15")
+// NEEDS REVIEW 228
 T_PAD(10, "arm_correlate_opt_q15")
+// NEEDS REVIEW 228
 T_PAD(11, "arm_correlate_fast_opt_q15")
 
 }  // TEST_SUITE

@@ -139,6 +139,7 @@ TEST_CASE_FIXTURE(SmFixture, "[R8.2 stop] stopMotor sends a fast update with the
 	CHECK(dev.setpoints().back() == 0);
 }
 
+// NEEDS REVIEW 363
 TEST_CASE_FIXTURE(SmFixture, "characterization: [R8.2 stop] stopMotor writes SMP_CONTROL_BITS1 (2533) = 0 after the zero-torque fast update, with the SM frame bytes" ) {
 	// FW: the order (fast update first, then the write) is the firmware's design; the content of the write is SM (enable bit cleared)
 	auto sm = makeSm(1);
@@ -216,6 +217,7 @@ TEST_CASE_FIXTURE(SmFixture, "[R8.3 restart] restart clears the faultstop state 
 	CHECK(sm->motorReady());
 }
 
+// NEEDS REVIEW 254
 TEST_CASE_FIXTURE(SmFixture, "characterization: [R8.3 restart] restart clears the fault flag even when the device still reports the fault stop, the next fast reply sets it again") {
 	// FW: the firmware clears hardfault without looking at the device; the fake does not clear the fault on a restart request
 	auto sm = makeSm(1);

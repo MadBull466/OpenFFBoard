@@ -1,6 +1,8 @@
 # P12 T6b requirements charter: ADC / ADC_Ex (real ST HAL, F407VG and F407VG_DISCO)
 
 Status: 2026-11-13 (lead). T6b follows T6a (timers, gated, awaiting approval). Each stage has its own charter, model, review, gate and approval.
+
+**Final status (2026-11-17): done, approved, committed and pushed, commit `55907156` (T6a and T6b). Statements about pending approval or gates in the line above were true when it was written.**
 Platform (`fakes/stm32_hal/HalAdc.{h,c}`, lead probe `test_hal_adc_probe.cpp`, shared callbacks `AdcTestSupport.h` / `test_hal_adc_support.cpp`) done; tests, review, gate pending.
 Plan: `Tests/Code_Coverage/claude/plans/P12_ST_HAL_PLAN.md`. Rules as in the T1-T6a charters. Both targets compile identical files; the same test files run in both executables.
 

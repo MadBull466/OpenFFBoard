@@ -45,7 +45,7 @@ ODrive 0.5.6 "CAN Protocol" page (`Tests/Code_Coverage/shared/specs/CAN Protocol
 - On the real F407 the second ODrive's CAN FIFO has its interrupt disabled, so its frames are only processed when some other CAN interrupt fires.
 - The flash layout comment in `eeprom_addresses.h` does not match the code.
 
-## Open questions for me (open questions 13-14 in `PROGRESS.md`)
+## Open questions for me (open questions 13-14 in `OPEN_QUESTIONS.md`)
 
 1. **D2-Q1** Supply the ODrive 0.5.6 enum definitions (`enums.py` or the API reference page) so the enum-number tests can be checked against the spec instead of being characterization.
 2. **D2-Q2** Any differences between 0.5.4 and 0.5.6 for the messages the driver uses (0x01, 0x07, 0x09, 0x0B, 0x0E, 0x10, 0x17)?

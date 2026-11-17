@@ -305,7 +305,7 @@ TEST_CASE_FIXTURE(It, "IT1 every IT start function returns HAL_BUSY when the sta
 	}
 }
 
-TEST_CASE_FIXTURE(It, "IT1 characterization: NEEDS REVIEW 323 every IT start function returns HAL_BUSY when the handle is locked in state READY") {
+TEST_CASE_FIXTURE(It, "characterization: IT1 NEEDS REVIEW 323 every IT start function returns HAL_BUSY when the handle is locked in state READY") {
 	up();
 	peer();
 	uint8_t buf[4] = {};
@@ -321,7 +321,7 @@ TEST_CASE_FIXTURE(It, "IT1 characterization: NEEDS REVIEW 323 every IT start fun
 	}
 }
 
-TEST_CASE_FIXTURE(It, "IT1 characterization: NEEDS REVIEW 323 a busy bus makes a master IT start function return HAL_BUSY with ERROR TIMEOUT and state READY") {
+TEST_CASE_FIXTURE(It, "characterization: IT1 NEEDS REVIEW 323 a busy bus makes a master IT start function return HAL_BUSY with ERROR TIMEOUT and state READY") {
 	up();
 	peer();
 	uint8_t buf[4] = {};
@@ -451,7 +451,7 @@ TEST_CASE_FIXTURE(It, "IT1 Master_Receive_IT: ACK is clear after a completed 1 b
 	CHECK((cr1() & I2C_CR1_ACK) == 0u);
 }
 
-TEST_CASE_FIXTURE(It, "IT1 characterization: NEEDS REVIEW 323 a 2 byte receive that reaches BTF without an RXNE interrupt leaves ITBUFEN set") {
+TEST_CASE_FIXTURE(It, "characterization: IT1 NEEDS REVIEW 323 a 2 byte receive that reaches BTF without an RXNE interrupt leaves ITBUFEN set") {
 	up();
 	const int d = peer();
 	queue(d, kData, 2);
@@ -478,7 +478,7 @@ TEST_CASE_FIXTURE(It, "IT1 Master_Receive_IT of 2 bytes with an RXNE interrupt b
 	CHECK((cr2() & kIts) == 0u);
 }
 
-TEST_CASE_FIXTURE(It, "IT1 characterization: NEEDS REVIEW 323 after a 2 byte master receive POS stays set, the next start function clears it") {
+TEST_CASE_FIXTURE(It, "characterization: IT1 NEEDS REVIEW 323 after a 2 byte master receive POS stays set, the next start function clears it") {
 	up();
 	const int d = peer();
 	queue(d, kData, 2);
@@ -567,7 +567,7 @@ TEST_CASE_FIXTURE(It3, "IT1 Mem_Write_IT of 2 bytes with a 16 bit address comple
 	CHECK(i2cCounts.memTx == 1u);
 }
 
-TEST_CASE_FIXTURE(It, "IT1 characterization: NEEDS REVIEW 323 Mem_Write_IT of 0 bytes ends after the address byte, without a memory address") {
+TEST_CASE_FIXTURE(It, "characterization: IT1 NEEDS REVIEW 323 Mem_Write_IT of 0 bytes ends after the address byte, without a memory address") {
 	up();
 	peer();
 	uint8_t tx[1] = {};
@@ -650,7 +650,7 @@ TEST_CASE_FIXTURE(It2, "IT1 Mem_Read_IT of 4 bytes completes on I2C2") {
 	CHECK(std::memcmp(rx, kData, 4) == 0);
 }
 
-TEST_CASE_FIXTURE(It, "IT1 characterization: NEEDS REVIEW 323 Mem_Read_IT of 0 bytes enables no interrupt and nothing is sent after the START") {
+TEST_CASE_FIXTURE(It, "characterization: IT1 NEEDS REVIEW 323 Mem_Read_IT of 0 bytes enables no interrupt and nothing is sent after the START") {
 	up();
 	peer();
 	uint8_t rx[1] = {};
@@ -661,7 +661,7 @@ TEST_CASE_FIXTURE(It, "IT1 characterization: NEEDS REVIEW 323 Mem_Read_IT of 0 b
 	CHECK(h.State == HAL_I2C_STATE_BUSY_RX);
 }
 
-TEST_CASE_FIXTURE(It, "IT1 characterization: NEEDS REVIEW 323 Master_Receive_IT of 0 bytes still reads a byte into the buffer and completes") {
+TEST_CASE_FIXTURE(It, "characterization: IT1 NEEDS REVIEW 323 Master_Receive_IT of 0 bytes still reads a byte into the buffer and completes") {
 	up();
 	peer();
 	uint8_t rx[2] = {0xEE, 0xEE};
@@ -1130,7 +1130,7 @@ TEST_CASE_FIXTURE(It, "IT3 AF in a memory read: ErrorCode AF, STOP, one ErrorCal
 	CHECK(h.State == HAL_I2C_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(It, "IT3 characterization: NEEDS REVIEW 323 BERR, ARLO, AF and OVR at once: all four ErrorCode bits, one ErrorCallback") {
+TEST_CASE_FIXTURE(It, "characterization: IT3 NEEDS REVIEW 323 BERR, ARLO, AF and OVR at once: all four ErrorCode bits, one ErrorCallback") {
 	uint8_t tx[3] = {1, 2, 3};
 	itMasterTxToAddr(*this, tx);
 	hostI2cRaiseSr1(0, I2C_SR1_BERR | I2C_SR1_ARLO | I2C_SR1_AF | I2C_SR1_OVR);
@@ -1149,7 +1149,7 @@ TEST_CASE_FIXTURE(It, "IT3 BERR and OVR at once: both ErrorCode bits") {
 	CHECK(i2cCounts.error == 1u);
 }
 
-TEST_CASE_FIXTURE(It, "IT3 characterization: NEEDS REVIEW 323 after an error all three interrupt enables are cleared") {
+TEST_CASE_FIXTURE(It, "characterization: IT3 NEEDS REVIEW 323 after an error all three interrupt enables are cleared") {
 	uint8_t tx[3] = {1, 2, 3};
 	itMasterTxToAddr(*this, tx);
 	hostI2cRaiseSr1(0, I2C_SR1_BERR);
@@ -1228,7 +1228,7 @@ TEST_CASE_FIXTURE(It, "IT3 AF in slave transmit with bytes left over is an error
 	CHECK(h.State == HAL_I2C_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(It, "IT3 characterization: NEEDS REVIEW 323 AF in slave receive: AF cleared, no STOP request, ErrorCallback with AF") {
+TEST_CASE_FIXTURE(It, "characterization: IT3 NEEDS REVIEW 323 AF in slave receive: AF cleared, no STOP request, ErrorCallback with AF") {
 	up();
 	uint8_t rx[3];
 	REQUIRE(HAL_I2C_Slave_Receive_IT(&h, rx, 3) == HAL_OK);
@@ -1318,7 +1318,7 @@ TEST_CASE_FIXTURE(It, "IT3 an error with a received byte in DR stores the byte i
 }
 
 /* Listen state */
-TEST_CASE_FIXTURE(It, "IT3 characterization: NEEDS REVIEW 323 BERR in the listen state keeps LISTEN and reports the error") {
+TEST_CASE_FIXTURE(It, "characterization: IT3 NEEDS REVIEW 323 BERR in the listen state keeps LISTEN and reports the error") {
 	up();
 	REQUIRE(HAL_I2C_EnableListen_IT(&h) == HAL_OK);
 	hostI2cRaiseSr1(0, I2C_SR1_BERR);
@@ -1329,7 +1329,7 @@ TEST_CASE_FIXTURE(It, "IT3 characterization: NEEDS REVIEW 323 BERR in the listen
 	CHECK(h.ErrorCode == HAL_I2C_ERROR_BERR);
 }
 
-TEST_CASE_FIXTURE(It, "IT3 characterization: NEEDS REVIEW 323 AF in the listen state ends the listen: ErrorCallback, then ListenCplt, state READY") {
+TEST_CASE_FIXTURE(It, "characterization: IT3 NEEDS REVIEW 323 AF in the listen state ends the listen: ErrorCallback, then ListenCplt, state READY") {
 	up();
 	REQUIRE(HAL_I2C_EnableListen_IT(&h) == HAL_OK);
 	hostI2cRaiseSr1(0, I2C_SR1_AF);
@@ -1342,7 +1342,8 @@ TEST_CASE_FIXTURE(It, "IT3 characterization: NEEDS REVIEW 323 AF in the listen s
 	CHECK(i2cCounts.order[1] == (unsigned)I2C_CB_LISTEN);
 }
 
-TEST_CASE_FIXTURE(It, "IT3 characterization: AF in LISTEN after a slave transmit (previous state slave tx) only clears the flag") {
+// NEEDS REVIEW 412
+TEST_CASE_FIXTURE(It, "characterization: IT3 AF in LISTEN after a slave transmit (previous state slave tx) only clears the flag") {
 	up();
 	REQUIRE(HAL_I2C_EnableListen_IT(&h) == HAL_OK);
 	h.PreviousState = 0x21u | 0x20u; /* I2C_STATE_SLAVE_BUSY_TX: BUSY_TX bits (0x01) | MODE_SLAVE (0x20) */
@@ -1412,7 +1413,7 @@ TEST_CASE_FIXTURE(It, "IT4 Master_Abort_IT generates a STOP condition") {
 	CHECK(log().back() == 'P');
 }
 
-TEST_CASE_FIXTURE(It, "IT4 characterization: NEEDS REVIEW 323 after an abort Mode stays MASTER although the state is READY") {
+TEST_CASE_FIXTURE(It, "characterization: IT4 NEEDS REVIEW 323 after an abort Mode stays MASTER although the state is READY") {
 	up();
 	peer();
 	uint8_t tx[4] = {1, 2, 3, 4};
@@ -1423,7 +1424,7 @@ TEST_CASE_FIXTURE(It, "IT4 characterization: NEEDS REVIEW 323 after an abort Mod
 	CHECK(HAL_I2C_GetMode(&h) == HAL_I2C_MODE_MASTER);
 }
 
-TEST_CASE_FIXTURE(It, "IT4 characterization: NEEDS REVIEW 323 after an abort PE is clear and ErrorCode is NONE") {
+TEST_CASE_FIXTURE(It, "characterization: IT4 NEEDS REVIEW 323 after an abort PE is clear and ErrorCode is NONE") {
 	up();
 	peer();
 	uint8_t tx[4] = {1, 2, 3, 4};
@@ -1515,7 +1516,7 @@ TEST_CASE_FIXTURE(It, "IT4 Master_Abort_IT during a memory read: AbortCplt once,
 	CHECK(h.State == HAL_I2C_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(It, "IT4 characterization: NEEDS REVIEW 323 Master_Abort_IT ignores its DevAddress argument") {
+TEST_CASE_FIXTURE(It, "characterization: IT4 NEEDS REVIEW 323 Master_Abort_IT ignores its DevAddress argument") {
 	up();
 	peer();
 	uint8_t tx[4] = {1, 2, 3, 4};
@@ -1672,7 +1673,7 @@ TEST_CASE_FIXTURE(It, "IT5 Slave_Transmit_IT: the controller's stop after the na
 	CHECK(h.State == HAL_I2C_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(It, "IT5 characterization: NEEDS REVIEW 323 Slave_Receive_IT with a stop before the size is reached ends with ErrorCallback and AF") {
+TEST_CASE_FIXTURE(It, "characterization: IT5 NEEDS REVIEW 323 Slave_Receive_IT with a stop before the size is reached ends with ErrorCallback and AF") {
 	up();
 	uint8_t rx[3] = {};
 	REQUIRE(HAL_I2C_Slave_Receive_IT(&h, rx, 3) == HAL_OK);
@@ -1692,7 +1693,7 @@ TEST_CASE_FIXTURE(It, "IT5 characterization: NEEDS REVIEW 323 Slave_Receive_IT w
 	CHECK(h.State == HAL_I2C_STATE_READY);
 }
 
-TEST_CASE_FIXTURE(It, "IT5 characterization: NEEDS REVIEW 323 Slave_Receive_IT with a stop and no data at all: ErrorCallback with AF, nothing stored") {
+TEST_CASE_FIXTURE(It, "characterization: IT5 NEEDS REVIEW 323 Slave_Receive_IT with a stop and no data at all: ErrorCallback with AF, nothing stored") {
 	up();
 	uint8_t rx[2] = {};
 	REQUIRE(HAL_I2C_Slave_Receive_IT(&h, rx, 2) == HAL_OK);
@@ -1881,7 +1882,7 @@ TEST_CASE_FIXTURE(It, "IT2 BTF in slave transmit: the handler writes the next by
 	CHECK(h.XferCount == 1u);
 }
 
-TEST_CASE_FIXTURE(It, "IT5 characterization: NEEDS REVIEW 323 STOPF with a received byte still in DR stores it, then reports AF for the missing bytes") {
+TEST_CASE_FIXTURE(It, "characterization: IT5 NEEDS REVIEW 323 STOPF with a received byte still in DR stores it, then reports AF for the missing bytes") {
 	up();
 	uint8_t rx[3] = {};
 	REQUIRE(HAL_I2C_Slave_Receive_IT(&h, rx, 3) == HAL_OK);
@@ -1895,7 +1896,7 @@ TEST_CASE_FIXTURE(It, "IT5 characterization: NEEDS REVIEW 323 STOPF with a recei
 	CHECK(h.ErrorCode == HAL_I2C_ERROR_AF);
 }
 
-TEST_CASE_FIXTURE(It, "IT5 characterization: NEEDS REVIEW 323 STOPF with two bytes waiting (BTF and RXNE) stores both, then reports AF for the third") {
+TEST_CASE_FIXTURE(It, "characterization: IT5 NEEDS REVIEW 323 STOPF with two bytes waiting (BTF and RXNE) stores both, then reports AF for the third") {
 	up();
 	uint8_t rx[3] = {};
 	REQUIRE(HAL_I2C_Slave_Receive_IT(&h, rx, 3) == HAL_OK);
@@ -1934,7 +1935,7 @@ TEST_CASE_FIXTURE(It, "IT5 listen with a second own address: the first own addre
 	CHECK(i2cCounts.addrDirection == (uint8_t)I2C_DIRECTION_RECEIVE);
 }
 
-TEST_CASE_FIXTURE(It, "IT2 characterization: NEEDS REVIEW 323 a 1 byte master receive whose STOP never completes ends with ErrorCallback and TIMEOUT") {
+TEST_CASE_FIXTURE(It, "characterization: IT2 NEEDS REVIEW 323 a 1 byte master receive whose STOP never completes ends with ErrorCallback and TIMEOUT") {
 	up();
 	const int d = peer();
 	queue(d, kData, 1);

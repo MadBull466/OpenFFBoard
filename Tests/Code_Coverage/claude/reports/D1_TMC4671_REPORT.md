@@ -32,7 +32,7 @@ Details and the resume point: `Tests/Code_Coverage/claude/plans/PROGRESS.md` ("D
 - **142 (B-T4)** A chip that never answers is never reported.
 - **154-156 (B-T16..18)** Three divisions by zero (e.g. ADC calibration when the chip reads 0, its reset value).
 
-## Open questions for me (open questions 9-12 in `PROGRESS.md`)
+## Open questions for me (open questions 9-12 in `OPEN_QUESTIONS.md`)
 
 1. **Q1** Registers 0x1E, 0x47, 0x5C are not in datasheet Rev 2.07, and the driver writes 0x41, which Rev 2.07 lists as read-only. Was the driver written against an older register map I can supply?
 2. **Q2** The engineering-sample version value is not in the datasheet; its handling is only recorded as current behaviour.

@@ -277,7 +277,8 @@ TEST_CASE("[C2 arm_biquad_cascade_df2T_f64] 1 to 9 stages and block sizes 1 to 3
 	CHECK(stOk);
 }
 
-TEST_CASE("[C2 arm_biquad_cascade_df2T_f64] characterization: block size 0 leaves the output and the state unchanged (DOC is silent)") {
+// NEEDS REVIEW 218
+TEST_CASE("characterization: [C2 arm_biquad_cascade_df2T_f64] block size 0 leaves the output and the state unchanged (DOC is silent)") {
 	Rng g(12);
 	Dut d(randomStages(g, 3));
 	const std::vector<double> in = randomSignal(g, 5);

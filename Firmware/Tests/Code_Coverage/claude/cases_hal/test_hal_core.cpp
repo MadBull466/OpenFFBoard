@@ -248,6 +248,7 @@ TEST_CASE_FIXTURE(HalFixture, "H9 HAL_DeInit forces exactly the defined reset bi
 	CHECK(writesTo(&RCC->AHB3RSTR).v[0] == kAhb3Defined);
 }
 
+// NEEDS REVIEW 283
 TEST_CASE_FIXTURE(HalFixture, "characterization: HAL_DeInit forces reserved bits of APB1RSTR and APB2RSTR to 1 (NEEDS REVIEW)") {
 	// RM0090 7.3.8 / 7.3.9 mark the bits outside kApb1Defined / kApb2Defined reserved ("must be kept at reset value");
 	// the HAL's force-reset word has some of them set (it is shared with the other F4 devices). Documents that the
