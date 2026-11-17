@@ -78,7 +78,7 @@ Rules inherited from `CLAUDE.md` and the P13-P16 charters: fixture per test, sim
 |---|---|---|
 | R4.1 | `noteOn` adds the note with its velocity to the channel; a second `noteOn` for the same note restarts it (one entry, counter 0); `noteOff` removes it, another note stays; `noteOff` of an unknown note does nothing | FW, plain |
 | R4.2 | The notes of the 16 channels are independent | FW, plain |
-| R4.3 | Control change 120, 121, 123 clear all notes of that channel and no other channel; other controller numbers change nothing | MS (120 all sound off, 121 reset all controllers, 123 all notes off) |
+| R4.3 | Control change 120 and 123 clear all notes of that channel and no other channel; 121 (reset all controllers) resets controllers and pitch bend and keeps held notes (B-MIDI-8, arguable: the firmware clears them, `KNOWN_ISSUE`); other controller numbers change nothing | MS (120 all sound off, 121 reset all controllers p. 25, 123 all notes off) |
 | R4.4 | Control change 124-127 (omni off / on, mono, poly) do not clear the notes | MS ("123-127 also function as All Notes Off", "may be ignored"), `characterization:` (question 56) |
 | R4.5 | `pitchBend` scales the notes that exist at that moment by `2^(val / 8192)` (val -8192: 0.5, 0: 1, +8191: 1.9999); a later `noteOn` starts at 1 | FW, `characterization:` for the octave range (question 55); the second half is **`KNOWN_ISSUE` B-MIDI-2** (a pitch bend is channel state: a note started after the bend keeps the pitch bend of its channel, MS) |
 | R4.6 | `programChange`, `midiTick` and `otherPacket` of `MidiMain` do nothing observable | FW, plain |

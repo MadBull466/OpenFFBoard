@@ -104,6 +104,7 @@ typedef struct {
 	uint32_t seq[3], seqCounter, sendDoneAt;
 	int sending;
 	uint16_t timer;
+	uint16_t sofTimer; /* timer value latched when the frame in transmission started (RM0090 bxCAN: TIME is captured at the SOF) */
 	uint8_t outcome[OUTCOME_MAX];
 	unsigned outcomeHead, outcomeCount;
 	HostCanFrame txLog[TXLOG_MAX];
@@ -264,7 +265,7 @@ static void txComplete(unsigned i, unsigned x) {
 		frameFromMailbox(i, x, &f);
 		if (s->txCount < TXLOG_MAX) s->txLog[s->txCount++] = f;
 		setBits(i, R_TSR, SR(x, T_RQCP) | SR(x, T_TXOK));
-		if (mcr & MCR_TTCM) put(i, R_TDT(x), (get(i, R_TDT(x)) & 0xFFFFu) | ((uint32_t)s->timer << 16));
+		if (mcr & MCR_TTCM) put(i, R_TDT(x), (get(i, R_TDT(x)) & 0xFFFFu) | ((uint32_t)s->sofTimer << 16));
 		emptyMailbox(i, x);
 		if (loop) rxStoreFrame(i, &f);
 		return;
@@ -293,6 +294,7 @@ static void txEval(unsigned i) {
 				if (s->mb[x] == MB_PENDING && (best < 0 || higher(i, x, (unsigned)best))) best = (int)x;
 			s->mb[best] = MB_SENDING;
 			s->sending = best;
+			s->sofTimer = s->timer; /* SOF: the TIME stamp is the timer value at the start of the frame, not at its end */
 			s->sendDoneAt = now() + frameTicks;
 			progressed = 1;
 		}

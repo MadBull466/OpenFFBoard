@@ -662,34 +662,34 @@ void expectRefused(MidiFixture &f, const uint8_t *conf) {
 }
 } // namespace
 
-TEST_CASE_FIXTURE(MidiFixture, "[R8.6 class] characterization: a first interface that is not AudioControl (subclass STREAMING) is refused and nothing is opened") {
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R8.6 class] a first interface that is not AudioControl (subclass STREAMING) is refused and nothing is opened") {
 	// NEEDS REVIEW: FW (midid_open TU_VERIFY of class / subclass / protocol); test data = copy of the configuration with byte 6
 	// of the first AUDIO interface descriptor changed to 2 (AUDIOSTREAMING)
 	expectRefused(*this, variantConf(false, 6, 2));
 }
 
-TEST_CASE_FIXTURE(MidiFixture, "[R8.6 class] characterization: a first interface with a protocol other than 0 is refused and nothing is opened") {
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R8.6 class] a first interface with a protocol other than 0 is refused and nothing is opened") {
 	expectRefused(*this, variantConf(false, 7, 0x20));
 }
 
-TEST_CASE_FIXTURE(MidiFixture, "[R8.6 class] characterization: a first interface of a vendor class is refused and nothing is opened") {
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R8.6 class] a first interface of a vendor class is refused and nothing is opened") {
 	// no class driver claims class 0xFF in this build (the refusal is made by usbd.c, not by midid_open)
 	expectRefused(*this, variantConf(false, 5, 0xFF));
 }
 
-TEST_CASE_FIXTURE(MidiFixture, "[R8.6 class] characterization: a second interface that is not MIDIStreaming (subclass CONTROL) is refused and no endpoint is opened") {
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R8.6 class] a second interface that is not MIDIStreaming (subclass CONTROL) is refused and no endpoint is opened") {
 	expectRefused(*this, variantConf(true, 6, 1));
 }
 
-TEST_CASE_FIXTURE(MidiFixture, "[R8.6 class] characterization: a second interface with a protocol other than 0 is refused and no endpoint is opened") {
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R8.6 class] a second interface with a protocol other than 0 is refused and no endpoint is opened") {
 	expectRefused(*this, variantConf(true, 7, 0x20));
 }
 
-TEST_CASE_FIXTURE(MidiFixture, "[R8.6 class] characterization: a second interface of a vendor class is refused and no endpoint is opened") {
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R8.6 class] a second interface of a vendor class is refused and no endpoint is opened") {
 	expectRefused(*this, variantConf(true, 5, 0xFF));
 }
 
-TEST_CASE_FIXTURE(MidiFixture, "[R8.7 class] characterization: with a full RX FIFO nobody reads the endpoint NAKs the next OUT transfer") {
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R8.7 class] with a full RX FIFO nobody reads the endpoint NAKs the next OUT transfer") {
 	startAndEnumerate();
 	// No handler: tud_midi_rx_cb returns without reading. HD: _prep_out_transaction arms the OUT endpoint only if the RX FIFO
 	// has at least 64 free bytes (the endpoint buffer size); the FIFO holds 64 bytes, so it must be completely empty. After the
@@ -699,7 +699,7 @@ TEST_CASE_FIXTURE(MidiFixture, "[R8.7 class] characterization: with a full RX FI
 	CHECK_FALSE(HostDcd::endpoint(0x02).armed);
 }
 
-TEST_CASE_FIXTURE(MidiFixture, "[R8.7 class] characterization: reading the whole RX FIFO arms the OUT endpoint again") {
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R8.7 class] reading the whole RX FIFO arms the OUT endpoint again") {
 	startAndEnumerate();
 	REQUIRE(sendPackets({noteOnPkt(0, 60, 100)}) == Handshake::Ack);
 	REQUIRE(sendPackets({noteOnPkt(0, 61, 100)}) == Handshake::Nak);
@@ -711,7 +711,7 @@ TEST_CASE_FIXTURE(MidiFixture, "[R8.7 class] characterization: reading the whole
 	CHECK(sendPackets({noteOnPkt(0, 62, 100)}) == Handshake::Ack);
 }
 
-TEST_CASE_FIXTURE(MidiFixture, "[R8.7 class] characterization: reading only part of the RX FIFO does not arm the OUT endpoint") {
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R8.7 class] reading only part of the RX FIFO does not arm the OUT endpoint") {
 	startAndEnumerate();
 	REQUIRE(sendPackets({noteOnPkt(0, 60, 100), noteOnPkt(0, 61, 100)}) == Handshake::Ack);
 	uint8_t p[4];
@@ -785,7 +785,7 @@ TEST_CASE_FIXTURE(MidiFixture, "[R11.1 packets] several packets written before t
 	CHECK(drainIn(*this) == bytesOf(sent));
 }
 
-TEST_CASE_FIXTURE(MidiFixture, "[R11.1 packets] characterization: three packets written one by one reach the host as a transfer of 4 bytes and a transfer of 8 bytes") {
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R11.1 packets] three packets written one by one reach the host as a transfer of 4 bytes and a transfer of 8 bytes") {
 	// NEEDS REVIEW (the charter expects one transfer): HD from midid_device.c: every write flushes at once, so the first
 	// packet is handed to the controller alone; the other two wait in the TX FIFO until that transfer is complete and then go
 	// out together. USB 2.0 does not ask for coalescing; no data is lost or reordered.
@@ -849,7 +849,7 @@ TEST_CASE_FIXTURE(MidiFixture, "[R11.2 packets] after the host has read the pack
 	CHECK(got[0] == note(50));
 }
 
-TEST_CASE_FIXTURE(MidiFixture, "[R11.3 packets] characterization: a transfer of exactly 64 bytes is followed by a zero length packet and then the endpoint NAKs") {
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R11.3 packets] a transfer of exactly 64 bytes is followed by a zero length packet and then the endpoint NAKs") {
 	// NEEDS REVIEW: the USB 2.0 bulk rule (a transfer that is a multiple of wMaxPacketSize ends with a short packet) is not in
 	// the supplied documents. HD: 17 writes with the host not reading give transfers of 4 bytes (endpoint buffer) and
 	// 16 x 4 = 64 bytes (FIFO), then midid_xfer_cb sends the ZLP because 64 % 64 == 0 and the FIFO is empty.
@@ -865,7 +865,7 @@ TEST_CASE_FIXTURE(MidiFixture, "[R11.3 packets] characterization: a transfer of 
 	CHECK(HostDcd::in(host.address, 3, data) == Handshake::Nak);
 }
 
-TEST_CASE_FIXTURE(MidiFixture, "[R11.3 packets] characterization: a transfer shorter than 64 bytes is not followed by a zero length packet") {
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R11.3 packets] a transfer shorter than 64 bytes is not followed by a zero length packet") {
 	startAndEnumerate();
 	REQUIRE(tud_midi_packet_write(note(1).data()));
 	process();

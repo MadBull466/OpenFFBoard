@@ -469,7 +469,7 @@ TEST_CASE_FIXTURE(PwmFixture, "[R5.3 restore] reserved bits 8-14 of the stored w
 
 // ------------------------------------------------------------------ R5.4 invalid stored values
 
-TEST_CASE_FIXTURE(PwmFixture, "[R5.4 restore] characterization: a stored speed of 4..7 is ignored, the speed stays LOW while the mode is restored") {
+TEST_CASE_FIXTURE(PwmFixture, "characterization: [R5.4 restore] a stored speed of 4..7 is ignored, the speed stays LOW while the mode is restored") {
 	for (uint16_t s = 4; s <= 7; ++s) {
 		INFO("stored speed " << s);
 		HostPlatform::flash()[ADR_PWM_MODE] = static_cast<uint16_t>((s << 4) | 2); // mode 2 (PWM/DIR), speed s
@@ -503,7 +503,7 @@ TEST_CASE_FIXTURE(PwmFixture, "[R5.4 restore] a stored mode above 3 leaves the o
 
 // ------------------------------------------------------------------ R5.5 bit 3
 
-TEST_CASE_FIXTURE(PwmFixture, "[R5.5 restore] characterization: bit 3 of the stored word changes the restored mode (0x0009 differs from 0x0001)") {
+TEST_CASE_FIXTURE(PwmFixture, "characterization: [R5.5 restore] bit 3 of the stored word changes the restored mode (0x0009 differs from 0x0001)") {
 	// restoreFlash masks the mode with 0xf, saveFlash with 0x7: the value of the resulting mode is not asserted
 	HostPlatform::flash()[ADR_PWM_MODE] = 0x0001;
 	ModePWM_DRV withoutBit3;
@@ -523,7 +523,7 @@ TEST_CASE_FIXTURE(PwmFixture, "[R5.5 restore] the stored word 0x0009 never produ
 	CHECK(static_cast<uint8_t>(p->getMode()) <= 3);
 }
 
-TEST_CASE_FIXTURE(PwmFixture, "[R5.5 save] characterization: saveFlash masks the mode with 3 bits, modes 12, 13 and 14 are written as 4, 5 and 6") {
+TEST_CASE_FIXTURE(PwmFixture, "characterization: [R5.5 save] saveFlash masks the mode with 3 bits, modes 12, 13 and 14 are written as 4, 5 and 6") {
 	// 12 & 7 = 4, 13 & 7 = 5, 14 & 7 = 6 (a 2-bit mask would give 0, 1, 2); speed LOW, no inversion
 	const std::pair<int, uint16_t> modes[] = {{12, 0x0004}, {13, 0x0005}, {14, 0x0006}};
 	for (const auto &m : modes) {

@@ -463,7 +463,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.5 read] cmd 148 of a register with the hig
 	CHECK(reply()[7] == 0x01);
 }
 
-TEST_CASE_FIXTURE(FramesFixture, "[R2.5 read] characterization: command number 148 (0x94) is the register read and its reply carries 0x94") {
+TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.5 read] command number 148 (0x94) is the register read and its reply carries 0x94") {
 	// not in the supplied TMCL documents (FW): NEEDS REVIEW
 	begin();
 	chip1.setReg(kReg, 7);
@@ -507,7 +507,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.6 write] cmd 146 writes exactly one regist
 	CHECK(chip2.log().empty());
 }
 
-TEST_CASE_FIXTURE(FramesFixture, "[R2.6 write] characterization: the reply to command 146 (0x92) echoes request bytes 3 to 6 in the value field") {
+TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.6 write] the reply to command 146 (0x92) echoes request bytes 3 to 6 in the value field") {
 	// FW: the value is in request bytes 4..7, the code echoes dat[3..6] (R5 item 6). NEEDS REVIEW.
 	begin();
 	Bytes f = frame(146, kReg, 0x11223344); // request bytes 3..6 = {0, 0x11, 0x22, 0x33}
@@ -516,7 +516,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.6 write] characterization: the reply to co
 	CHECK(hex(reply()) == hex({2, 1, 0x64, 0x92, 0x00, 0x11, 0x22, 0x33, 0x5F}));
 }
 
-TEST_CASE_FIXTURE(FramesFixture, "[R2.6 write] characterization: the reply to command 146 echoes request byte 3 (motor/bank 0x5A) as the first value byte") {
+TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.6 write] the reply to command 146 echoes request byte 3 (motor/bank 0x5A) as the first value byte") {
 	// FW. NEEDS REVIEW. Request {1, 146, 0x26, 0x5A, 0x11, 0x22, 0x33, 0x44, cs}: 1+146+38+90+17+34+51+68 = 445 = 256 + 189 -> 0xBD.
 	// Reply head {2, 1, 0x64, 0x92, 0x5A, 0x11, 0x22, 0x33}: 2+1+100+146 = 249; 90+17+34+51 = 192; 441 = 256 + 185 -> 0xB9.
 	begin();
@@ -525,7 +525,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.6 write] characterization: the reply to co
 	CHECK(chip1.reg(kReg) == 0x11223344);
 }
 
-TEST_CASE_FIXTURE(FramesFixture, "[R2.6 write] characterization: command number 146 (0x92) is the register write and its reply carries 0x92") {
+TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.6 write] command number 146 (0x92) is the register write and its reply carries 0x92") {
 	// not in the supplied TMCL documents (FW): NEEDS REVIEW
 	begin();
 	put(frame(146, kReg, 1));
@@ -537,7 +537,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.6 write] characterization: command number 
 // R2.7 command 143
 // ---------------------------------------------------------------------------------------------------------------------
 
-TEST_CASE_FIXTURE(FramesFixture, "[R2.7 cmd143] characterization: command 143 type 3 answers {2, 1, 40, 0x8F, 0, 0, 0, 2, checksum}") {
+TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.7 cmd143] command 143 type 3 answers {2, 1, 40, 0x8F, 0, 0, 0, 2, checksum}") {
 	// FW (R5 item 4: opcode and meaning not in the supplied documents). NEEDS REVIEW. Status 40 is not 100 (TMCL 2.2.1).
 	begin();
 	put(frame(143, 3, 0));
@@ -545,7 +545,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.7 cmd143] characterization: command 143 ty
 	CHECK(hex(reply()) == hex({2, 1, 40, 0x8F, 0, 0, 0, 2, 0xBC}));
 }
 
-TEST_CASE_FIXTURE(FramesFixture, "[R2.7 cmd143] characterization: command 143 type 4 answers {2, 1, 40, 0x8F, 2, 6, 2, 2, checksum}") {
+TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.7 cmd143] command 143 type 4 answers {2, 1, 40, 0x8F, 2, 6, 2, 2, checksum}") {
 	// FW. NEEDS REVIEW.
 	begin();
 	put(frame(143, 4, 0));
@@ -603,7 +603,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.8 ggp] command 10 causes no register traff
 	CHECK(noChipTraffic());
 }
 
-TEST_CASE_FIXTURE(FramesFixture, "[R2.8 ggp] characterization: GGP type 5 returns the value 2") {
+TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.8 ggp] GGP type 5 returns the value 2") {
 	// FW (comment in the code: hwid). NEEDS REVIEW.
 	begin();
 	put(frame(10, 5, 0));
@@ -611,7 +611,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.8 ggp] characterization: GGP type 5 return
 	CHECK(valueOf(reply()) == Bytes({0, 0, 0, 2}));
 }
 
-TEST_CASE_FIXTURE(FramesFixture, "[R2.8 ggp] characterization: GGP type 2 returns the value 1") {
+TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.8 ggp] GGP type 2 returns the value 1") {
 	// FW (comment in the code: active). NEEDS REVIEW.
 	begin();
 	put(frame(10, 2, 0));
@@ -619,7 +619,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.8 ggp] characterization: GGP type 2 return
 	CHECK(valueOf(reply()) == Bytes({0, 0, 0, 1}));
 }
 
-TEST_CASE_FIXTURE(FramesFixture, "[R2.8 ggp] characterization: GGP types other than 2 and 5 return the value 0") {
+TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.8 ggp] GGP types other than 2 and 5 return the value 0") {
 	// FW. NEEDS REVIEW.
 	begin();
 	for (uint8_t type : {uint8_t(0), uint8_t(1), uint8_t(3), uint8_t(4), uint8_t(6), uint8_t(66), uint8_t(255)}) {
@@ -640,7 +640,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.8 gio] command 15 is answered with command
 	CHECK(reply()[8] == TmcDebugFixture::sum8(reply(), 8));
 }
 
-TEST_CASE_FIXTURE(FramesFixture, "[R2.8 gio] characterization: GIO type 5 returns the internal supply in units of 0.1 V, big endian") {
+TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.8 gio] GIO type 5 returns the internal supply in units of 0.1 V, big endian") {
 	// FW (not in the supplied documents). NEEDS REVIEW.
 	// Derivation: TmcFixture reference 4095 mV -> 1 ADC count = 1 mV at the pin, getIntV() = counts * vSenseMult in mV
 	// (TmcFixture header). setSupply(24000, 24550) makes getIntV() = 24550 mV (+- the quantisation of one count, a few mV,
@@ -654,7 +654,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.8 gio] characterization: GIO type 5 return
 	CHECK(valueOf(reply()) == Bytes({0, 0, 0x00, 0xF5}));
 }
 
-TEST_CASE_FIXTURE(FramesFixture, "[R2.8 gio] characterization: GIO type 5 puts the high byte of the voltage into value byte 2") {
+TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.8 gio] GIO type 5 puts the high byte of the voltage into value byte 2") {
 	// FW. Derivation: setSupply(24000, 25650) -> getIntV() = 25650 mV (+- a few mV, inside 25600..25699);
 	// 25650 / 100 = 256 = 0x0100 -> value bytes {0, 0, 0x01, 0x00}. NEEDS REVIEW.
 	begin();
@@ -666,7 +666,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.8 gio] characterization: GIO type 5 puts t
 	CHECK(valueOf(reply()) == Bytes({0, 0, 0x01, 0x00}));
 }
 
-TEST_CASE_FIXTURE(FramesFixture, "[R2.8 gio] characterization: GIO type 5 truncates the supply to 0.1 V steps (24550 mV or more stays 245)") {
+TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.8 gio] GIO type 5 truncates the supply to 0.1 V steps (24550 mV or more stays 245)") {
 	// FW. NEEDS REVIEW. Derivation: a supply request of 24599 mV gives getIntV() in 24550..24599 mV (REQUIRE below); integer
 	// division by 100 truncates to 245 = 0x00F5, a rounding implementation would give 246 for values from 24550 up.
 	begin();
@@ -678,7 +678,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.8 gio] characterization: GIO type 5 trunca
 	CHECK(valueOf(reply()) == Bytes({0, 0, 0x00, 0xF5}));
 }
 
-TEST_CASE_FIXTURE(FramesFixture, "[R2.8 gio] characterization: GIO types other than 5 return the value 0 whatever the supply is") {
+TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.8 gio] GIO types other than 5 return the value 0 whatever the supply is") {
 	// FW. NEEDS REVIEW.
 	begin();
 	setSupply(24000, 24550);
@@ -726,7 +726,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.9 version] command 136 type 0 is one write
 	CHECK(reply().size() == 9);
 }
 
-TEST_CASE_FIXTURE(FramesFixture, "[R2.9 version] characterization: the version string is 0015V307") {
+TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.9 version] the version string is 0015V307") {
 	// FW (TDB:198). NEEDS REVIEW.
 	begin();
 	put(frame(0x88, 0, 0));
@@ -734,7 +734,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.9 version] characterization: the version s
 	CHECK(hex(reply()) == hex({2, '0', '0', '1', '5', 'V', '3', '0', '7'}));
 }
 
-TEST_CASE_FIXTURE(FramesFixture, "[R2.9 version] characterization: the binary version of command 136 type 1 is the value bytes 0, 15, 3, 7") {
+TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.9 version] the binary version of command 136 type 1 is the value bytes 0, 15, 3, 7") {
 	// FW. Hand derivation from "0015V307": module high = (0 * 10) + 0 = 0, module low = (1 * 10) + 5 = 15,
 	// firmware high = 3, firmware low = (0 * 10) + 7 = 7. The spec layout of the value field (TMCL 3.35) differs, see the
 	// report ("Lead decisions needed"). NEEDS REVIEW.
@@ -792,16 +792,23 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.10 unknown] an unknown command number is a
 
 // Neighbours of the implemented opcodes. 9 (SGP), 11 (STGP), 135, 137 are TMCL commands the bridge does not implement: 2
 // (invalid command) or 6 (command not available) are both defensible; 147 / 149 are undocumented.
-TEST_CASE_FIXTURE(FramesFixture, "[R2.10 unknown] the neighbours of the implemented opcodes are answered with status 2 or 6" *
-				  KNOWN_ISSUE("B-DTDF-3: an unknown command number is dropped silently (TDB:228, no else branch), TMCL 2.2 / 2.2.1 want a reply with status 2 (invalid command) or 6")) {
-	begin();
-	for (uint8_t cmd : {uint8_t(9), uint8_t(11), uint8_t(135), uint8_t(137), uint8_t(147), uint8_t(149)}) {
-		clearSent();
-		put(frame(cmd, kReg, 0));
-		REQUIRE_MESSAGE(reply().size() == 9, "command " << int(cmd));
-		CHECK_MESSAGE((reply()[2] == 2 || reply()[2] == 6), "command " << int(cmd));
+// One case per opcode (NP13-002): a fatal REQUIRE in a shared loop ended the case at the first opcode, so the others never reached their
+// reply / status assertions while B-DTDF-3 persists.
+#define FFB_TDF_NEIGHBOUR_CASE(OPCODE) \
+	TEST_CASE_FIXTURE(FramesFixture, "[R2.10 unknown] command " #OPCODE " (a neighbour of the implemented opcodes) is answered with status 2 or 6" * \
+					  KNOWN_ISSUE("B-DTDF-3: an unknown command number is dropped silently (TDB:228, no else branch), TMCL 2.2 / 2.2.1 want a reply with status 2 (invalid command) or 6")) { \
+		begin(); \
+		put(frame(OPCODE, kReg, 0)); \
+		REQUIRE(reply().size() == 9); \
+		CHECK((reply()[2] == 2 || reply()[2] == 6)); \
 	}
-}
+FFB_TDF_NEIGHBOUR_CASE(9)
+FFB_TDF_NEIGHBOUR_CASE(11)
+FFB_TDF_NEIGHBOUR_CASE(135)
+FFB_TDF_NEIGHBOUR_CASE(137)
+FFB_TDF_NEIGHBOUR_CASE(147)
+FFB_TDF_NEIGHBOUR_CASE(149)
+#undef FFB_TDF_NEIGHBOUR_CASE
 
 TEST_CASE_FIXTURE(FramesFixture, "[R2.10 unknown] the neighbours of the implemented opcodes and command 136 type 255 cause no register traffic and are not passed to the text parser") {
 	begin();
@@ -869,7 +876,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.11 write] two requests produce two separat
 // R2.12 short CDC buffer
 // ---------------------------------------------------------------------------------------------------------------------
 
-TEST_CASE_FIXTURE(FramesFixture, "[R2.12 cdc] characterization: with 5 bytes of CDC buffer free the reply is truncated to its first 5 bytes") {
+TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.12 cdc] with 5 bytes of CDC buffer free the reply is truncated to its first 5 bytes") {
 	// FW: tud_cdc_n_write accepts what fits, the bridge ignores the return value. NEEDS REVIEW.
 	begin();
 	HostUsb::state().cdcWriteAvailable = 5;
@@ -879,7 +886,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.12 cdc] characterization: with 5 bytes of 
 	CHECK(cdcFlushes() == 1);
 }
 
-TEST_CASE_FIXTURE(FramesFixture, "[R2.12 cdc] characterization: with no CDC buffer free nothing is sent and the bridge does not fail") {
+TEST_CASE_FIXTURE(FramesFixture, "characterization: [R2.12 cdc] with no CDC buffer free nothing is sent and the bridge does not fail") {
 	// FW. NEEDS REVIEW.
 	begin();
 	HostUsb::state().cdcWriteAvailable = 0;
@@ -892,7 +899,7 @@ TEST_CASE_FIXTURE(FramesFixture, "[R2.12 cdc] characterization: with no CDC buff
 // R4.1 / R4.2 / R4.3 robustness
 // ---------------------------------------------------------------------------------------------------------------------
 
-TEST_CASE_FIXTURE(FramesFixture, "[R4.1 split] characterization: a frame split into 5 and 4 bytes is not reassembled, both parts go to the text parser") {
+TEST_CASE_FIXTURE(FramesFixture, "characterization: [R4.1 split] a frame split into 5 and 4 bytes is not reassembled, both parts go to the text parser") {
 	// FW. NEEDS REVIEW.
 	begin();
 	Bytes f = frame(148, kReg, 0);

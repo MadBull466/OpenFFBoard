@@ -1365,10 +1365,11 @@ TEST_CASE_FIXTURE(DmaXferFx, "DX1 Start after MultiBufferStart and Abort runs in
 	CHECK(noProtectedWrites(st));
 }
 
-TEST_CASE_FIXTURE(DmaXferFx, "DX1 MultiBufferStart_IT clears the FE, DME and TC flags of its stream and not of the neighbours") {
-	// RM0090 10.3.? stream configuration: the stream's status flags are cleared before it is enabled.
+TEST_CASE_FIXTURE(DmaXferFx, "DX1 MultiBufferStart_IT clears the FE, DME, TE, HT and TC flags of its stream and not of the neighbours") {
+	// RM0090 10.3.? stream configuration: the stream's status flags are cleared before it is enabled. All five flags are seeded (the earlier
+	// version left out HT and TE, so removing their clears went unnoticed: Codex review P12C-T3-001).
 	const dmaXferStream st = dmaXferMake(1, 3);
-	const uint32_t f = HOST_DMA_FEIF | HOST_DMA_DMEIF | HOST_DMA_TCIF;
+	const uint32_t f = dmaXferAllFlags;
 	DMA_HandleTypeDef h;
 	make(h, st);
 	callbacks(h);

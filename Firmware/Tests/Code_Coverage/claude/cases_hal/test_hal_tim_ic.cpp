@@ -723,8 +723,9 @@ TEST_CASE_FIXTURE(TimFixture, "TI1 ReadCapturedValue returns CCRx of the four ch
 		for (unsigned k = 1; k <= 4; ++k) REQUIRE(HAL_TIM_IC_ConfigChannel(&r.h, &cfg, tiCh[k - 1]) == HAL_OK);
 		REQUIRE(HAL_TIM_IC_Start(&r.h, tiCh[c - 1]) == HAL_OK);
 		REQUIRE(hostTimCapture(3, c, 0x1000u + c) == 1);
+		CHECK((r.t->SR & (1u << c)) == (1u << c)); // CCxIF set by the capture (looked at before the read: the read clears it, RM0090 TIMx_SR)
 		CHECK(HAL_TIM_ReadCapturedValue(&r.h, tiCh[c - 1]) == 0x1000u + c);
-		CHECK((r.t->SR & (1u << c)) == (1u << c)); // CCxIF
+		CHECK((r.t->SR & (1u << c)) == 0u); // CCxIF cleared by reading CCRx (Codex review P12C-T6A-001)
 	}
 }
 

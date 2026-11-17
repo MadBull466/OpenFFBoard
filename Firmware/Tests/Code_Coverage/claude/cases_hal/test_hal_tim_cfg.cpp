@@ -698,13 +698,16 @@ TEST_CASE_FIXTURE(TimFixture, "TC3 GenerateEvent CC1 on an input channel capture
 	r.set(&r.t->CCMR1, 0x1u); // CC1S = 01: input
 	hostTimSetCounter(2, 0x1234u);
 	CHECK(HAL_TIM_GenerateEvent(&r.h, TIM_EVENTSOURCE_CC1) == HAL_OK);
-	CHECK(r.t->CCR1 == 0x1234u);
+	// RM0090 TIMx_SR: CC1IF is "cleared by software or by reading the captured data stored in the TIMx_CCR1 register", so the flags are
+	// looked at before CCR1 is read, and the second capture comes before any read (otherwise there is no overcapture). Codex review P12C-T6A-001.
 	CHECK((r.t->SR & 0x2u) == 0x2u);
 	CHECK((r.t->SR & 0x200u) == 0u);
 	hostTimSetCounter(2, 0x4321u);
 	CHECK(HAL_TIM_GenerateEvent(&r.h, TIM_EVENTSOURCE_CC1) == HAL_OK);
-	CHECK(r.t->CCR1 == 0x4321u);
-	CHECK((r.t->SR & 0x200u) == 0x200u); // CC1OF
+	CHECK((r.t->SR & 0x200u) == 0x200u); // CC1OF: the first capture was not read before the second one
+	CHECK(r.t->CCR1 == 0x4321u);          // the second capture overwrote the first
+	CHECK((r.t->SR & 0x2u) == 0u);        // reading CCR1 cleared CC1IF
+	CHECK((r.t->SR & 0x200u) == 0x200u);  // CC1OF is not cleared by the read (it clears by writing 0)
 }
 
 TEST_CASE_FIXTURE(TimFixture, "TC3 GenerateEvent COM sets COMIF, TRIGGER sets TIF and BREAK sets BIF and clears MOE") {

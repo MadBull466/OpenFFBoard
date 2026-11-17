@@ -79,7 +79,7 @@ TEST_CASE_FIXTURE(RmdFixture, "[R2.1] constructing RmdMotorCAN2 registers the re
 	CHECK(HostTarget::canPort().filters[0].filter_id == 0x242); // ID 2
 }
 
-TEST_CASE_FIXTURE(RmdFixture, "[R2.5] characterization: the thread sends nothing before 100 ms and the 0xB5 model request at 100 ms to id 0x141 with DLC 8") {
+TEST_CASE_FIXTURE(RmdFixture, "characterization: [R2.5] the thread sends nothing before 100 ms and the 0xB5 model request at 100 ms to id 0x141 with DLC 8") {
 	auto rmd = makeRmd1();
 	runFor(99);
 	CHECK(HostTarget::canTxFrames().empty());
@@ -95,7 +95,7 @@ TEST_CASE_FIXTURE(RmdFixture, "[R2.5] characterization: the thread sends nothing
 	CHECK(peer1.violations().empty());
 }
 
-TEST_CASE_FIXTURE(RmdFixture, "[R4.1] characterization: the thread runs at 100 ms, 120 ms (0xB6 enable of 0x92) and the 0xB5 again at 1270 ms against a silent motor (fixture scheduling of every Delay)") {
+TEST_CASE_FIXTURE(RmdFixture, "characterization: [R4.1] the thread runs at 100 ms, 120 ms (0xB6 enable of 0x92) and the 0xB5 again at 1270 ms against a silent motor (fixture scheduling of every Delay)") {
 	auto rmd = makeRmd1();
 	peer1.setSilent(true);
 	runFor(1271);
@@ -306,7 +306,7 @@ TEST_CASE_FIXTURE(RmdFixture, "[R2.1] changing the id with the canid command rep
 	CHECK_FALSE(HostTarget::canAccepts(0x241));
 }
 
-TEST_CASE_FIXTURE(RmdFixture, "[R2.2] characterization: a CAN port below the 250 kbit/s preset is raised to preset 3") {
+TEST_CASE_FIXTURE(RmdFixture, "characterization: [R2.2] a CAN port below the 250 kbit/s preset is raised to preset 3") {
 	// FW only: the code comment says "Minimum 250k"; the SP names 1 Mbit/s (owner question 50 area)
 	HostTarget::canPort2B().setSpeedPreset(1);
 	auto rmd = makeRmd1();
@@ -314,19 +314,19 @@ TEST_CASE_FIXTURE(RmdFixture, "[R2.2] characterization: a CAN port below the 250
 	CHECK(HostTarget::canPort2B().getSpeed() == 250000);
 }
 
-TEST_CASE_FIXTURE(RmdFixture, "[R2.2] characterization: a CAN port at preset 3 stays at preset 3") {
+TEST_CASE_FIXTURE(RmdFixture, "characterization: [R2.2] a CAN port at preset 3 stays at preset 3") {
 	HostTarget::canPort2B().setSpeedPreset(3);
 	auto rmd = makeRmd1();
 	CHECK(HostTarget::canPort2B().getSpeedPreset() == 3);
 }
 
-TEST_CASE_FIXTURE(RmdFixture, "[R2.2] characterization: a CAN port at preset 4 (500 kbit/s) stays at preset 4") {
+TEST_CASE_FIXTURE(RmdFixture, "characterization: [R2.2] a CAN port at preset 4 (500 kbit/s) stays at preset 4") {
 	HostTarget::canPort2B().setSpeedPreset(4);
 	auto rmd = makeRmd1();
 	CHECK(HostTarget::canPort2B().getSpeedPreset() == 4);
 }
 
-TEST_CASE_FIXTURE(RmdFixture, "[R2.2] characterization: a CAN port above the 250 kbit/s preset (preset 5) is not lowered") {
+TEST_CASE_FIXTURE(RmdFixture, "characterization: [R2.2] a CAN port above the 250 kbit/s preset (preset 5) is not lowered") {
 	HostTarget::canPort2B().setSpeedPreset(5);
 	auto rmd = makeRmd1();
 	CHECK(HostTarget::canPort2B().getSpeedPreset() == 5);

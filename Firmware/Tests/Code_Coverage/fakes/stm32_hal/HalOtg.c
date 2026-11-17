@@ -125,7 +125,8 @@ static struct {
 	uint32_t tx[EP_COUNT][TX_WORDS];
 	unsigned txCount[EP_COUNT];
 	unsigned pollReads, pollCount;
-	uint32_t reserved, overflows, underflows, rejects;
+	uint32_t reserved, overflows, underflows, rejects, duplicates;
+	uint8_t outPid[EP_COUNT]; /* last accepted DATA PID of an OUT endpoint within the armed transfer: 0 none, 1 DATA0, 2 DATA1 (RM0090 35.17: a repeated PID is ACKed and the data discarded) */
 	uint32_t reservedOff[16], hsOnly, hsOff[32];
 	uint8_t hsWrite[32];
 	uint8_t reservedWrite[16];
@@ -311,6 +312,7 @@ static void noteReserved(uint32_t off, int write) {
 uint32_t hostOtgFifoOverflows(void) { return os.overflows; }
 uint32_t hostOtgFifoUnderflows(void) { return os.underflows; }
 uint32_t hostOtgRxRejects(void) { return os.rejects; }
+uint32_t hostOtgDuplicatePackets(void) { return os.duplicates; }
 void hostOtgStrictFifo(int strict) { os.strict = strict != 0; }
 unsigned hostOtgRxWordsUsed(void) { return os.rxCount; }
 unsigned hostOtgRxEntries(void) { return os.rxStatusCount; }
@@ -457,6 +459,9 @@ static void outCtlWrite(unsigned e, uint32_t old, uint32_t w) {
 	v &= ~(C_EPENA | C_EPDIS | C_SODDFRM_SD1PID | C_SD0PID | C_SNAK | C_CNAK);
 	v |= old & (C_EPENA | C_EPDIS);
 	if (w & C_EPENA) v |= C_EPENA;
+	if ((w & C_EPENA) && !(old & C_EPENA)) os.outPid[e] = 0; /* a newly armed transfer: no PID seen yet */
+	if (w & C_SD0PID) os.outPid[e] = 2; /* the next packet is expected to be DATA0 */
+	if (w & C_SODDFRM_SD1PID) os.outPid[e] = 1; /* the next packet is expected to be DATA1 */
 	if (w & C_CNAK) v &= ~C_NAKSTS;
 	if (w & C_SNAK) v |= C_NAKSTS;
 	if ((w & C_EPDIS) && (v & C_EPENA)) {
@@ -632,6 +637,10 @@ HostOtgHandshake hostOtgHostOut(unsigned ep, const uint8_t *data, unsigned len, 
 		refresh();
 		return HOSTOTG_NAK;
 	}
+	if (ep != 0u && os.outPid[ep] == (pid1 ? 2u : 1u)) { /* the same DATA PID again: the device ACKs and discards the packet, no FIFO entry, no packet count change */
+		os.duplicates++;
+		return HOSTOTG_ACK;
+	}
 	const uint32_t ts = reg(o + 0x10u);
 	const uint32_t pktMask = ep == 0u ? (1u << 19) : (0x3FFu << 19);
 	unsigned pktcnt = (ts & pktMask) >> 19;
@@ -641,6 +650,7 @@ HostOtgHandshake hostOtgHostOut(unsigned ep, const uint8_t *data, unsigned len, 
 		os.rejects++;
 		return HOSTOTG_NAK;
 	}
+	os.outPid[ep] = pid1 ? 2u : 1u;
 	rxPush(rxStatus(2u, pid1, len, ep), K_STATUS);
 	for (unsigned i = 0; i < words(len); ++i) {
 		uint32_t w = 0;
@@ -710,6 +720,12 @@ HostOtgHandshake hostOtgHostIn(unsigned ep, uint8_t *buf, unsigned cap, unsigned
 }
 
 void hostOtgUsbReset(void) {
+	/* RM0090 DIEPCTLx / DOEPCTLx USBAEP: the core clears it for all endpoints other than EP0 after detecting a USB reset */
+	for (unsigned e = 1; e < EP_COUNT; ++e) {
+		put(inCtlOff(e), reg(inCtlOff(e)) & ~C_USBAEP);
+		put(outCtlOff(e), reg(outCtlOff(e)) & ~C_USBAEP);
+		os.outPid[e] = 0;
+	}
 	setGint(GI_USBRST);
 	refresh();
 }

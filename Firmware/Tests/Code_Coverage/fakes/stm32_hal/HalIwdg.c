@@ -37,7 +37,7 @@ uint32_t hostIwdgIgnoredWrites(void) { return is.ignored; }
 uint32_t hostIwdgReloads(void) { return is.reloads; }
 
 uint32_t hostIwdgAdvance(uint32_t n) {
-	if (!is.running) return is.counter;
+	if (!is.running || n == 0u) return is.counter; /* advancing by zero events changes nothing, also for a reload value of 0 */
 	if (n >= is.counter) {
 		is.counter = 0;
 		is.resetRequested = 1;

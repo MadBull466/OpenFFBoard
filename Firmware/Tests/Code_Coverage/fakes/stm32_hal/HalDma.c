@@ -127,6 +127,7 @@ static void startStream(unsigned c, unsigned s) {
 		cr &= ~((3u << 23) | (3u << 21) | (1u << 15));
 		cr = (cr & ~(3u << 13)) | (((cr >> 11) & 3u) << 13);
 	}
+	if (((cr >> 21) & 3u) != 0u) cr &= ~(1u << 15); /* PINCOS forced low when PBURST != 00 (RM0090 10.5.5 DMA_SxCR), also in FIFO mode */
 	poke(afcr, fcr);
 	poke(acr, cr);
 	st[c][s].halfSeen = 0;

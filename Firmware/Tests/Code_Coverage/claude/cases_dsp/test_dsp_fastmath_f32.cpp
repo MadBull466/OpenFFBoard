@@ -296,7 +296,7 @@ TEST_CASE("[C3 arm_sin_f32] sin and cos for 7..1000 rad are within the table err
 		const double bound = 2.2e-5 + 1.2e-7 * x;
 		const double es = std::fabs(static_cast<double>(arm_sin_f32(x)) - std::sin(static_cast<double>(x)));
 		const double ec = std::fabs(static_cast<double>(arm_cos_f32(x)) - std::cos(static_cast<double>(x)));
-		if (es > bound || ec > bound) {
+		if (!(es <= bound && ec <= bound)) {  // negated form: NaN fails too
 			ok = false;
 			worst = std::fmax(worst, std::fmax(es, ec));
 		}
@@ -311,7 +311,7 @@ TEST_CASE("[C3 arm_sin_f32] sin and cos satisfy sin^2 + cos^2 = 1 within the int
 	for (int k = -300; k <= 300; k++) {
 		float x = static_cast<float>(k) * 0.0137f;
 		double s = arm_sin_f32(x), c = arm_cos_f32(x);
-		if (std::fabs(s * s + c * c - 1.0) > 1.0e-4) ok = false;
+		if (!(std::fabs(s * s + c * c - 1.0) <= 1.0e-4)) ok = false;  // NaN fails too
 	}
 	CHECK(ok);
 }

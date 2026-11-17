@@ -91,6 +91,12 @@ static int rxOnly(unsigned i) {
 	return (cr1 & CR1_BIDIMODE) ? ((cr1 & CR1_BIDIOE) == 0u) : ((cr1 & CR1_RXONLY) != 0u);
 }
 
+/* Bidirectional one-line mode, transmit only (BIDIMODE = 1, BIDIOE = 1): RM0090 28.3.4 the receiver is not active, nothing is received */
+static int bidiTx(unsigned i) {
+	const uint32_t cr1 = peek(reg(i, R_CR1));
+	return (cr1 & CR1_BIDIMODE) != 0u && (cr1 & CR1_BIDIOE) != 0u;
+}
+
 static void txLogAdd(unsigned i, uint16_t w) {
 	if (sp[i].txCount < TXLOG_MAX) sp[i].txLog[sp[i].txCount++] = w;
 }
@@ -138,7 +144,7 @@ static void spiEval(unsigned i) {
 	SpiState *x = &sp[i];
 	for (unsigned guard = 0; guard < 1000u && x->busy && !x->silent && (int32_t)(hostTickPeek() - x->doneAt) >= 0; ++guard) {
 		x->busy = 0;
-		deliver(i, x->loopback ? x->curTx : peerNext(i));
+		if (!bidiTx(i)) deliver(i, x->loopback ? x->curTx : peerNext(i));
 		uint32_t sr = peek(reg(i, R_SR)) & ~SR_BSY;
 		poke(reg(i, R_SR), sr);
 		if (!enabled(i) || !master(i)) break;
@@ -245,7 +251,7 @@ uint16_t hostSpiSlaveFrame(unsigned i, uint16_t word) {
 		sp[i].txFull = 0;
 		poke(reg(i, R_SR), peek(reg(i, R_SR)) | SR_TXE);
 	}
-	deliver(i, word);
+	if (!bidiTx(i)) deliver(i, word);
 	return out;
 }
 void hostSpiRaiseModf(unsigned i) {

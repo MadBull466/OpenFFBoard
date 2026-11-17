@@ -748,10 +748,19 @@ TEST_CASE_FIXTURE(AdcFixture, "AB3 Start with ADC1 as the multi mode master stil
 	CHECK(hostAdcRegularRunning(1) == 1);
 }
 
+TEST_CASE_FIXTURE(AdcFixture, "AB3 Start with ADC3 as dual multi mode independent ADC starts the conversion by software" *
+				  KNOWN_ISSUE("V117 (extended, Codex review P12C-T6B-001): RM0090 13.13.16 makes ADC3 independent in the dual modes; HAL_ADC_Start admits ADC3 only inside the MULTI == 0 branch (stm32f4xx_hal_adc.c), so with MULTI = 00110 the conversion is never software started")) {
+	ADC->CCR |= 0x6u;  // MULTI = 00110 dual regular simultaneous: ADC1 and ADC2 only
+	ADC_HandleTypeDef h;
+	abSingle(h, 3, ADC_CHANNEL_1, 10);
+	REQUIRE(HAL_ADC_Start(&h) == HAL_OK);
+	CHECK(hostAdcRegularRunning(3) == 1);  // the defect assertion
+}
+
 TEST_CASE_FIXTURE(AdcFixture, "AB3 Start with ADC2 or ADC3 as multi mode slave does not start the conversion by software") {
 	for (unsigned n = 2; n <= 3; ++n) {
 		abReset();
-		ADC->CCR |= 0x6u;  // MULTI != 0
+		ADC->CCR |= 0x16u;  // MULTI = 10110 triple regular simultaneous: ADC2 and ADC3 are slaves (ADC3 is independent in the dual modes)
 		ADC_HandleTypeDef h;
 		abSingle(h, n, ADC_CHANNEL_1, 10);
 		REQUIRE(HAL_ADC_Start(&h) == HAL_OK);

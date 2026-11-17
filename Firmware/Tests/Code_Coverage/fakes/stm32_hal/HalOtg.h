@@ -101,7 +101,9 @@ uint32_t hostOtgHsOnlyOffset(unsigned i);
 int hostOtgHsOnlyWasWrite(unsigned i);
 uint32_t hostOtgFifoOverflows(void);
 uint32_t hostOtgFifoUnderflows(void);
-uint32_t hostOtgRxRejects(void);   /* OUT packets refused because the receive FIFO had no room */
+uint32_t hostOtgRxRejects(void);
+/* OUT packets of a non-control endpoint that repeated the previous DATA PID of the armed transfer: ACKed and discarded (no FIFO entry, no packet count change). */
+uint32_t hostOtgDuplicatePackets(void);   /* OUT packets refused because the receive FIFO had no room */
 void hostOtgStrictFifo(int strict); /* 1: an overflow / underflow is also a bus fault (default) */
 
 #ifdef __cplusplus

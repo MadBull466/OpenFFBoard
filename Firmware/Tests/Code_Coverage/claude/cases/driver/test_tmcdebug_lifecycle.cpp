@@ -273,7 +273,7 @@ TEST_CASE_FIXTURE(TmcDebugFixture, "[R3.2 destructor] destroying the bridge send
 // R3.3 identity
 // ---------------------------------------------------------------------------------------------------------------------
 
-TEST_CASE_FIXTURE(TmcDebugFixture, "[R3.3 identity] characterization: the class id of the bridge is 11") {
+TEST_CASE_FIXTURE(TmcDebugFixture, "characterization: [R3.3 identity] the class id of the bridge is 11") {
 	// NEEDS REVIEW: the value 11 (0xB, ClassIDs.h:42) is a firmware choice, saved in the board's flash as the main class
 	// selection; no specification. T1 checks the id against the macro, this checks the number.
 	auto bridge = makeBridge();
@@ -281,7 +281,7 @@ TEST_CASE_FIXTURE(TmcDebugFixture, "[R3.3 identity] characterization: the class 
 	CHECK(CLSID_MAIN_TMCDBG == 11);
 }
 
-TEST_CASE_FIXTURE(TmcDebugFixture, "[R3.3 identity] characterization: getHelpstring returns the fixed TMCL-IDE hint") {
+TEST_CASE_FIXTURE(TmcDebugFixture, "characterization: [R3.3 identity] getHelpstring returns the fixed TMCL-IDE hint") {
 	// NEEDS REVIEW: the text is the firmware's own (TMCDebugBridge.h, getHelpstring); no specification.
 	auto bridge = makeBridge();
 	CHECK(bridge->getHelpstring() ==
@@ -355,7 +355,7 @@ TEST_CASE_FIXTURE(TmcDebugFixture, "[R3.4 chooser] the class list hides the brid
 // R3.5 PID dead code
 // ---------------------------------------------------------------------------------------------------------------------
 
-TEST_CASE_FIXTURE(TmcDebugFixture, "[R3.5 pids] characterization: the constructor does not write the PID registers, tmcpids is dead code") {
+TEST_CASE_FIXTURE(TmcDebugFixture, "characterization: [R3.5 pids] the constructor does not write the PID registers, tmcpids is dead code") {
 	// NEEDS REVIEW: setPids(tmcpids) is commented out (TDB:244). The four PID registers (DS 0x54 FLUX_P_FLUX_I,
 	// 0x56 TORQUE_P_TORQUE_I, 0x58 VELOCITY, 0x5A POSITION) get no write frame at all.
 	auto bridge = makeBridge();
@@ -365,7 +365,7 @@ TEST_CASE_FIXTURE(TmcDebugFixture, "[R3.5 pids] characterization: the constructo
 	}
 }
 
-TEST_CASE_FIXTURE(TmcDebugFixture, "[R3.5 pids] characterization: after construction the PID registers hold the chip defaults, not the tmcpids values") {
+TEST_CASE_FIXTURE(TmcDebugFixture, "characterization: [R3.5 pids] after construction the PID registers hold the chip defaults, not the tmcpids values") {
 	// NEEDS REVIEW. HD: tmcpids (TMCDebugBridge.h) would give 0x54 = fluxI | fluxP << 16 = 400 | 400 << 16 = 0x01900190,
 	// 0x56 = 400 | 300 << 16 = 0x012C0190, 0x58 = 10 | 500 << 16 = 0x01F4000A, 0x5A = 0 | 40 << 16 = 0x00280000.
 	auto bridge = makeBridge();
@@ -385,7 +385,7 @@ TEST_CASE_FIXTURE(TmcDebugFixture, "[R3.5 pids] characterization: after construc
 	CHECK(chip1.reg(0x63) == FakeTmc4671::defaultValue(0x63)); // sequential PI bit untouched as well
 }
 
-TEST_CASE_FIXTURE(TmcDebugFixture, "[R3.5 pids] characterization: with PID words in the flash the constructor still writes no PID register") {
+TEST_CASE_FIXTURE(TmcDebugFixture, "characterization: [R3.5 pids] with PID words in the flash the constructor still writes no PID register") {
 	// NEEDS REVIEW. TMC_1 flash words (test_tmc4671_flash.cpp): 0x327 torque P, 0x328 torque I, 0x329 flux P, 0x32A flux I.
 	// The registers are written by setPids / initialize, which the bridge never calls (TDB:244, :248 commented out).
 	// Only the "not written" half is observed here (the driver's curPids is private).

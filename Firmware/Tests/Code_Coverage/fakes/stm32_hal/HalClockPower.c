@@ -185,6 +185,12 @@ void hostRccHseFailure(void) {
 		oscSwitchOff(&osc[HOST_OSC_PLL]);
 		cr &= ~(1u << 24);
 		osc[HOST_OSC_PLL].prevReady = 0;
+		/* RM0090 6.2.7: "if the PLLI2S was enabled, it is also disabled when the HSE fails" */
+		if ((uses & (1u << HOST_OSC_PLL)) != 0u) { /* only when the PLL was the system clock; with HSE as SYSCLK directly the PLLI2S only loses its input */
+			oscSwitchOff(&osc[HOST_OSC_PLLI2S]);
+			cr &= ~(1u << 26);
+			osc[HOST_OSC_PLLI2S].prevReady = 0;
+		}
 	}
 	poke(RCC_BASE + R_CR, cr);
 	poke(RCC_BASE + R_CFGR, cfgr);
@@ -262,8 +268,11 @@ void hostRccAfterWrite(uintptr_t a, uint32_t oldValue, uint32_t written) {
 	case R_CR: rccCrWrite(oldValue, written); break;
 	case R_PLLCFGR: {
 		const uint32_t cr = peek(RCC_BASE + R_CR);
-		if ((cr & ((1u << 24) | (1u << 26))) != 0u) poke(a, oldValue); /* writable only with PLL and PLLI2S off */
-		else poke(a, keepBits(oldValue, 0x0F437FFFu, written));
+		/* RM0090 7.3.2: PLLN, PLLP, PLLQ "only if PLL is disabled" (the audio PLL does not use them); PLLM and PLLSRC are shared with PLLI2S
+		 * and "only when PLL and PLLI2S are disabled" (Codex review P12C-T2-002: the old model blocked every field while either was on). */
+		const uint32_t mainFields = 0x7FC0u | 0x30000u | 0x0F000000u, sharedFields = 0x3Fu | 0x400000u;
+		const uint32_t allowed = (((cr & (1u << 24)) == 0u) ? mainFields : 0u) | (((cr & ((1u << 24) | (1u << 26))) == 0u) ? sharedFields : 0u);
+		poke(a, (oldValue & ~allowed) | (written & allowed));
 		break;
 	}
 	case R_CFGR: {

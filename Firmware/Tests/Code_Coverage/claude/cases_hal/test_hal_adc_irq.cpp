@@ -288,16 +288,27 @@ TEST_CASE_FIXTURE(AdcFixture, "AQ1 Start_IT on an ADC that is already enabled st
 }
 
 TEST_CASE_FIXTURE(AdcFixture, "AQ1 Start_IT in multi ADC mode software starts only the master ADC1") {
-	/* RM0090 13.3.x: in multi ADC mode the slaves are started by the master. MULTI = 00110 regular simultaneous. */
+	/* RM0090 13.3.x: in multi ADC mode the slaves are started by the master. MULTI = 10110 triple regular simultaneous: ADC2 and ADC3 are
+	 * slaves (in the dual modes ADC3 is independent, RM0090 13.13.16; Codex review P12C-T6B-001: the earlier MULTI = 00110 wrongly made
+	 * ADC3 a slave; the dual-mode ADC3 case is the KNOWN_ISSUE below). */
 	for (unsigned n = 1; n <= 3; ++n) {
 		INFO("ADC" << n);
 		AqRig r(n);
-		ADC->CCR = 0x6u;
+		ADC->CCR = 0x16u;
 		REQUIRE(HAL_ADC_Start_IT(&r.h) == HAL_OK);
 		CHECK(hostAdcRegularRunning(n) == (n == 1 ? 1 : 0));
 		CHECK((r.I()->CR2 & aqCR2_ADON) == aqCR2_ADON);
 		ADC->CCR = 0;
 	}
+}
+
+TEST_CASE_FIXTURE(AdcFixture, "AQ1 Start_IT of ADC3 in a dual multi ADC mode software starts the independent ADC3" *
+				  KNOWN_ISSUE("V117 (extended, Codex review P12C-T6B-001): RM0090 13.13.16 makes ADC3 independent in the dual modes; HAL_ADC_Start_IT admits ADC3 only inside the MULTI == 0 branch (stm32f4xx_hal_adc.c), so with MULTI = 00110 the conversion is never software started")) {
+	AqRig r(3);
+	ADC->CCR = 0x6u;
+	REQUIRE(HAL_ADC_Start_IT(&r.h) == HAL_OK);
+	CHECK(hostAdcRegularRunning(3) == 1);  // the defect assertion
+	ADC->CCR = 0;
 }
 
 TEST_CASE_FIXTURE(AdcFixture, "AQ1 Start_IT outside multi ADC mode software starts every ADC") {
@@ -949,11 +960,20 @@ TEST_CASE_FIXTURE(AdcFixture, "AQ3 Start_DMA in multi ADC mode software starts o
 	for (unsigned n = 1; n <= 3; ++n) {
 		INFO("ADC" << n);
 		AqRig r(n, AqCfg(), true);
-		ADC->CCR = 0x6u;
+		ADC->CCR = 0x16u;  // triple regular simultaneous: ADC2 and ADC3 are slaves (ADC3 is independent in the dual modes, RM0090 13.13.16)
 		REQUIRE(HAL_ADC_Start_DMA(&r.h, r.buf, 4) == HAL_OK);
 		CHECK(hostAdcRegularRunning(n) == (n == 1 ? 1 : 0));
 		ADC->CCR = 0;
 	}
+}
+
+TEST_CASE_FIXTURE(AdcFixture, "AQ3 Start_DMA of ADC3 in a dual multi ADC mode software starts the independent ADC3" *
+				  KNOWN_ISSUE("V117 (extended, Codex review P12C-T6B-001): RM0090 13.13.16 makes ADC3 independent in the dual modes; HAL_ADC_Start_DMA admits ADC3 only inside the MULTI == 0 branch (stm32f4xx_hal_adc.c), so with MULTI = 00110 the conversion is never software started")) {
+	AqRig r(3, AqCfg(), true);
+	ADC->CCR = 0x6u;
+	REQUIRE(HAL_ADC_Start_DMA(&r.h, r.buf, 4) == HAL_OK);
+	CHECK(hostAdcRegularRunning(3) == 1);  // the defect assertion
+	ADC->CCR = 0;
 }
 
 TEST_CASE_FIXTURE(AdcFixture, "AQ3 Start_DMA outside multi ADC mode software starts every ADC") {
@@ -1381,7 +1401,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AQ1 Start_IT in multi ADC mode with an external t
 	for (unsigned n = 1; n <= 3; ++n) {
 		INFO("ADC" << n);
 		AqRig r(n, aqSel());
-		ADC->CCR = 0x6u;
+		ADC->CCR = 0x16u;  // triple: ADC2 and ADC3 are slaves (P12C-T6B-001)
 		REQUIRE(HAL_ADC_Start_IT(&r.h) == HAL_OK);
 		CHECK(hostAdcRegularRunning(n) == (n == 1 ? 1 : 0));
 		ADC->CCR = 0;
@@ -1392,7 +1412,7 @@ TEST_CASE_FIXTURE(AdcFixture, "AQ3 Start_DMA in multi ADC mode with an external 
 	for (unsigned n = 1; n <= 3; ++n) {
 		INFO("ADC" << n);
 		AqRig r(n, aqSel(), true);
-		ADC->CCR = 0x6u;
+		ADC->CCR = 0x16u;  // triple: ADC2 and ADC3 are slaves (P12C-T6B-001)
 		REQUIRE(HAL_ADC_Start_DMA(&r.h, r.buf, 4) == HAL_OK);
 		CHECK(hostAdcRegularRunning(n) == (n == 1 ? 1 : 0));
 		ADC->CCR = 0;

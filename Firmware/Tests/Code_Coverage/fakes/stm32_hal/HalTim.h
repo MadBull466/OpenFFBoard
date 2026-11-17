@@ -19,7 +19,7 @@
  *
  * Behaviour: EGR bits self-clear; UG (and a counter overflow / underflow = update event) reloads the counter (CNT = 0, or ARR counting down), sets UIF unless UDIS = 1 (UG with URS = 1 does not set UIF), and with AOE
  * sets MOE; CCxG sets CCxIF and, for a channel configured as input (CCxS != 0), captures CNT into CCRx (CCxOF when CCxIF was already set); COMG sets COMIF; TG sets TIF; BG sets BIF and clears MOE. SR bits clear by
- * writing 0. CCRx of an input channel is read-only (a write is ignored and counted), CCxS bits change only while CCxE = 0 (RM0090 "writable only if the channel is OFF"; otherwise ignored and counted).
+ * writing 0. A read of the CCRx of an input channel clears its CCxIF (RM0090 TIMx_SR); CCRx of an input channel is read-only (a write is ignored and counted), CCxS bits change only while CCxE = 0 (RM0090 "writable only if the channel is OFF"; otherwise ignored and counted).
  * BDTR.LOCK is write-once until reset; LOCK >= 1 protects DTG, BKE, BKP, AOE and the OISx bits of CR2, >= 2 also CCxP / CCxNP and OSSR / OSSI, 3 also OCxM / OCxPE (RM0090 17.4.18). DMAR redirects an access to the register at
  * (DBA + burst index) * 4, the burst index counting 0 .. DBL (17.4.20; a test plays the DMA with plain DMAR accesses). hostTimAdvance counts events of the counter clock while CEN = 1: up (DIR = 0), down (DIR = 1) or
  * centre-aligned (CMS != 0: up to ARR, down to 0, update event at the underflow); RCR counts update events; OPM stops at the update event; compare matches (CNT == CCRx of an output channel) set CCxIF.

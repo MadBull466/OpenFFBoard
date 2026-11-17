@@ -378,7 +378,7 @@ TEST_CASE_FIXTURE(PwmFixture, "[R3.2 turn] RC power +32767 / 0 / -32767 give pul
 	CHECK(within(std::max(pPlus, pMinus), 2000.0, tickUs()));
 }
 
-TEST_CASE_FIXTURE(PwmFixture, "[R3.2 turn] characterization: RC positive power gives the short pulse, negative power the long pulse") {
+TEST_CASE_FIXTURE(PwmFixture, "characterization: [R3.2 turn] RC positive power gives the short pulse, negative power the long pulse") {
 	auto pwm = build(*this, ModePWM_DRV::RC_PWM, SpeedPWM_DRV::LOW);
 	// NEEDS REVIEW: no document states the sign. Code: pulse = 1500 us - p * 1000 / 32767 (MotorPWM.cpp:73-74)
 	pwm->turn(32767);
@@ -422,7 +422,7 @@ TEST_CASE_FIXTURE(PwmFixture, "[R3.2 turn] RC pulse stays within 1000 to 2000 us
 	CHECK(ccrs.front() != ccrs.back()); // a stuck output must fail
 }
 
-TEST_CASE_FIXTURE(PwmFixture, "[R3.2 turn] characterization: RC pulse saturates at half scale, +-16384 already gives 1000 / 2000 us") {
+TEST_CASE_FIXTURE(PwmFixture, "characterization: [R3.2 turn] RC pulse saturates at half scale, +-16384 already gives 1000 / 2000 us") {
 	auto pwm = build(*this, ModePWM_DRV::RC_PWM, SpeedPWM_DRV::LOW);
 	// NEEDS REVIEW: the code offset is p * 1000 / 32767 us, so a full scale power asks +-1000 us and the clip to 1000..2000
 	// us cuts it at +-500 us. HD: p = 16384: (16384 * 1000) / 32767 = 500 -> 1500 - 500 = 1000 us; p = 8192:
@@ -773,7 +773,7 @@ TEST_CASE_FIXTURE(PwmFixture, "[R3.7 turn] DUAL inversion gives the output of th
 	checkInversionSwapsSign(*this, ModePWM_DRV::PWM_DUAL);
 }
 
-TEST_CASE_FIXTURE(PwmFixture, "[R3.8 turn] characterization: with inversion on, power -32768 gives the output of -32768 again, not of 32767") {
+TEST_CASE_FIXTURE(PwmFixture, "characterization: [R3.8 turn] with inversion on, power -32768 gives the output of -32768 again, not of 32767") {
 	// NEEDS REVIEW: -power on int16_t is computed as int 32768 and narrowed back to int16_t -32768 (implementation defined,
 	// modular on GCC / clang and ARM GCC). An intended inversion would give the output of +32768 (about +32767).
 	for (const ModeRow &m : kModes) {
@@ -834,7 +834,7 @@ TEST_CASE_FIXTURE(PwmFixture, "[R3.10 turn] stopMotor outputs the neutral value 
 	}
 }
 
-TEST_CASE_FIXTURE(PwmFixture, "[R3.10 turn] characterization: the signal keeps running after stopMotor, channels, main output and counter stay on") {
+TEST_CASE_FIXTURE(PwmFixture, "characterization: [R3.10 turn] the signal keeps running after stopMotor, channels, main output and counter stay on") {
 	// NEEDS REVIEW (owner question): for an RC ESC a neutral signal is an arm state; whether an actuator driver should
 	// switch the outputs off instead is undecided
 	for (const ModeRow &m : kModes) {

@@ -78,6 +78,7 @@ struct FlowRig : public OtgFixture {
 			REQUIRE(hostOtgHostOut(ep, data + off, n, pid1) == HOSTOTG_ACK);
 			drain();
 			off += n;
+			pid1 ^= 1;  // a real host toggles DATA0 / DATA1 per packet; a repeated PID is a retransmission (Codex review P12C-T8-002)
 		} while (off < len);
 	}
 
@@ -596,7 +597,7 @@ TEST_CASE_FIXTURE(FlowRig, "PF5 a USB reset in the middle of a bulk IN transfer 
 	CHECK(otgCounts.setupWords[0] == 0x01000680u);
 }
 
-TEST_CASE_FIXTURE(FlowRig, "PF5 characterization: the IN endpoint interrupted by a USB reset stays armed and the HAL refills its TxFIFO") {
+TEST_CASE_FIXTURE(FlowRig, "PF5 characterization: the IN endpoint interrupted by a USB reset stays armed and the HAL refills its TxFIFO, but the reset deactivates the endpoint") {
 	// NR348_a: RM0090 does not say what the application must do with an armed IN endpoint at a USB reset; the HAL's reset branch does not disable it
 	// (EPENA and DIEPEMPMSK stay), so the next TXFE interrupt writes the following packet of the old transfer into the flushed FIFO.
 	enumerate(0x10);
@@ -606,11 +607,13 @@ TEST_CASE_FIXTURE(FlowRig, "PF5 characterization: the IN endpoint interrupted by
 	hostOtgUsbReset();
 	drain();
 	CHECK(hostOtgTxWordsUsed(1) == 16);
+	// RM0090 DIEPCTLx USBAEP: the core clears it for every endpoint but EP0 at the USB reset, so the endpoint no longer answers (model since
+	// the Codex review P12C-T8-001): the stale packet sits in the FIFO but the host's IN token is ignored until the endpoint is opened again.
 	uint8_t buf[64];
 	unsigned n = 0;
-	REQUIRE(hostOtgHostIn(1, buf, 64, &n) == HOSTOTG_ACK);
-	CHECK(n == 64);
-	CHECK(std::memcmp(buf, txBuf + 64, 64) == 0);
+	CHECK(hostOtgHostIn(1, buf, 64, &n) == HOSTOTG_IGNORED);
+	CHECK(n == 0);
+	CHECK(hostOtgTxWordsUsed(1) == 16);
 }
 
 TEST_CASE_FIXTURE(FlowRig, "PF5 a USB reset sets the device address back to 0") {

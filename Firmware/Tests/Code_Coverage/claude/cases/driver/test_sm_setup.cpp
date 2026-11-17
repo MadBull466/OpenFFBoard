@@ -225,7 +225,7 @@ TEST_CASE_FIXTURE(SmFixture, "[R1.1 identity] the encoder type is absolute") {
 	CHECK(sm->getEncoderType() == EncoderType::absolute);
 }
 
-TEST_CASE_FIXTURE(SmFixture, "[R1.1 handler] characterization: both instances register as command handler sm2 with class id 0x89 and the instance index 0 and 1") {
+TEST_CASE_FIXTURE(SmFixture, "characterization: [R1.1 handler] both instances register as command handler sm2 with class id 0x89 and the instance index 0 and 1") {
 	// FW: CommandHandler("sm2", CLSID_MOT_SM1, instance) (MotorSimplemotion.cpp:30). The name sm2 and the class id of instance 1
 	// for instance 2 look like leftovers (charter R12 item 8, informational). Instance index 0 / 1 is the constructor argument.
 	auto one = makeSm(1);
@@ -254,7 +254,7 @@ TEST_CASE_FIXTURE(SmFixture, "[R1.2 chooser] MotorDriver::all_drivers lists the 
 	CHECK(&e2.front()->info == &MotorSimplemotion2::info);
 }
 
-TEST_CASE_FIXTURE(SmFixture, "[R1.2 axis lists] characterization: the first axis list holds Simplemotion 1 under id 9 once and the second axis list holds no SimpleMotion entry") {
+TEST_CASE_FIXTURE(SmFixture, "characterization: [R1.2 axis lists] the first axis list holds Simplemotion 1 under id 9 once and the second axis list holds no SimpleMotion entry") {
 	// FW: Axis.cpp:65-67 adds MotorSimplemotion1 (9) to axis 1; the entry of MotorSimplemotion2 (10) of axis 2 is commented out
 	// (Axis.cpp:95-97, "likely does not work reliably with a single uart port and multiple devices"). The charter R1.2
 	// expected both lists to hold 9 and 10: owner decision needed.
@@ -498,7 +498,7 @@ TEST_CASE_FIXTURE(SmFixture, "[R11.1 lifecycle] instances 1 and 2 can be created
 
 // ---------------------------------------------------------------- R11.2 two instances on one port
 
-TEST_CASE_FIXTURE(SmFixture, "[R11.2 two instances] characterization: a second instance created while the first exists does not get the port, the port stays reserved after it is destroyed") {
+TEST_CASE_FIXTURE(SmFixture, "characterization: [R11.2 two instances] a second instance created while the first exists does not get the port, the port stays reserved after it is destroyed") {
 	// FW: UARTDevice(port) ignores the result of reservePort(); reservePort refuses a second device; the destructor of the
 	// second one calls freePort(second), which refuses as well (UART.cpp:108, :137, :216-222).
 	auto first = makeSm(1);
@@ -511,7 +511,7 @@ TEST_CASE_FIXTURE(SmFixture, "[R11.2 two instances] characterization: a second i
 	CHECK(motor_uart.isReserved()); // the first one still owns the port
 }
 
-TEST_CASE_FIXTURE(SmFixture, "[R11.2 two instances] characterization: the second instance cannot complete a parameter transfer while the first owns the port") {
+TEST_CASE_FIXTURE(SmFixture, "characterization: [R11.2 two instances] the second instance cannot complete a parameter transfer while the first owns the port") {
 	// FW: the receive callback of the port goes to the owner (the first instance), so the second one's waiting flag is never
 	// cleared and its settings sequence times out.
 	auto first = makeSm(1);
@@ -520,7 +520,7 @@ TEST_CASE_FIXTURE(SmFixture, "[R11.2 two instances] characterization: the second
 	CHECK_FALSE(second->motorReady());
 }
 
-TEST_CASE_FIXTURE(SmFixture, "[R11.2 two instances] characterization: the first instance still initializes after a second instance was created and destroyed") {
+TEST_CASE_FIXTURE(SmFixture, "characterization: [R11.2 two instances] the first instance still initializes after a second instance was created and destroyed") {
 	auto first = makeSm(1);
 	{
 		auto second = makeSm(2);

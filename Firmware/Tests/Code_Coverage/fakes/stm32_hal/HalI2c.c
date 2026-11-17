@@ -246,8 +246,22 @@ static void addressDone(unsigned i) {
 	int ack = 0;
 	x->mode = M_IDLE;
 	if (x->addr10 == 1) { /* second byte of a 10-bit address */
-		const Device *v = devAt(i, x->dev);
-		if (v && !v->nackAddr && (uint8_t)(v->addr & 0xFFu) == b) {
+		/* Every ten-bit device whose two high address bits match the header acknowledged it; the full address is resolved on this byte
+		 * (RM0090 27.3.3 / I2C spec: two devices may share the same header). x->dev holds the device that matched the header first. */
+		const Device *h = devAt(i, x->dev);
+		int found = -1;
+		if (h) {
+			const unsigned hdr = (h->addr >> 8) & 3u;
+			for (unsigned d = 0; d < DEV_MAX; ++d) {
+				const Device *c = &st[i].devs[d];
+				if (c->used && c->ten && ((c->addr >> 8) & 3u) == hdr && (uint8_t)(c->addr & 0xFFu) == b && !c->nackAddr) {
+					found = (int)d;
+					break;
+				}
+			}
+		}
+		if (found >= 0) {
+			x->dev = found;
 			ack = 1;
 			x->addr10 = 2;
 			sr1Set(i, SR1_ADDR);

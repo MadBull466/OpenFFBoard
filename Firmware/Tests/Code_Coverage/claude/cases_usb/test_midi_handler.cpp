@@ -238,7 +238,7 @@ TEST_CASE_FIXTURE(MidiFixture, "[R2.4 midiRx] pitch bend is delivered with the c
 	}
 }
 
-TEST_CASE_FIXTURE(MidiFixture, "[R2.4 midiRx] characterization: bit 7 of the pitch bend data bytes is masked off") {
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R2.4 midiRx] bit 7 of the pitch bend data bytes is masked off") {
 	// MS: data bytes are 7 bit, so bit 7 is not part of the value; the firmware masks with 0x7f (MidiHandler.cpp:99).
 	// The documents do not say what a receiver does with a malformed byte: FW, NEEDS REVIEW.
 	// HD: lsb 0x80 -> 0, msb 0xC0 -> 0x40: 0 | (0x40 << 7) - 8192 = 0
@@ -309,7 +309,11 @@ TEST_CASE_FIXTURE(MidiFixture, "[R2.6 midiRx] SysEx data packet 04 02 03 04 call
 	CHECK(probe.sysex());
 }
 
-TEST_CASE_FIXTURE(MidiFixture, "[R2.6 midiRx] a note on arriving during a SysEx leaves sysexState unchanged") {
+// NP17-002 (Codex review): MS (spec "System Exclusive", p. 28-29) ends a SysEx at EOX or at any other non-real-time status byte, so a note on
+// inside a SysEx would clear a flag that means "SysEx in progress". MidiHandler.cpp never clears sysexState for it and nothing reads the flag
+// (protected member, no user in the firmware). What it is meant to say is open (NEEDS REVIEW 350, owner question 70), so this case documents
+// the present bookkeeping only; the hook call is the part that is specified.
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R2.6 midiRx] a note on arriving during a SysEx leaves sysexState set") {
 	MidiProbe probe;
 	rx(probe, pkt(0, 0x4, 0xF0, 0x00, 0x01));
 	REQUIRE(probe.sysex());
@@ -318,7 +322,11 @@ TEST_CASE_FIXTURE(MidiFixture, "[R2.6 midiRx] a note on arriving during a SysEx 
 	CHECK(probe.count("noteOn") == 1);
 }
 
-TEST_CASE_FIXTURE(MidiFixture, "[R2.6 midiRx] a control change arriving during a SysEx leaves sysexState unchanged") {
+// NP17-002 (Codex review): MS (spec "System Exclusive", p. 28-29) ends a SysEx at EOX or at any other non-real-time status byte, so a control change
+// inside a SysEx would clear a flag that means "SysEx in progress". MidiHandler.cpp never clears sysexState for it and nothing reads the flag
+// (protected member, no user in the firmware). What it is meant to say is open (NEEDS REVIEW 350, owner question 70), so this case documents
+// the present bookkeeping only; the hook call is the part that is specified.
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R2.6 midiRx] a control change arriving during a SysEx leaves sysexState set") {
 	MidiProbe probe;
 	rx(probe, pkt(0, 0x4, 0xF0, 0x00, 0x01));
 	REQUIRE(probe.sysex());
@@ -457,7 +465,7 @@ TEST_CASE_FIXTURE(MidiFixture, "[R2.8 midiRx] the base class noteOn and noteOff 
 	CHECK(h.noteOffs == 0);
 }
 
-TEST_CASE_FIXTURE(MidiFixture, "[R2.8 midiRx] characterization: poly key pressure 0A An kk vv calls otherPacket with the exact bytes on every channel") {
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R2.8 midiRx] poly key pressure 0A An kk vv calls otherPacket with the exact bytes on every channel") {
 	for (int chan = 0; chan < 16; chan++) {
 		MidiProbe probe;
 		const Packet p = pkt(0, 0xA, 0xA0 | chan, 60, 90);
@@ -467,7 +475,7 @@ TEST_CASE_FIXTURE(MidiFixture, "[R2.8 midiRx] characterization: poly key pressur
 	}
 }
 
-TEST_CASE_FIXTURE(MidiFixture, "[R2.8 midiRx] characterization: system common F1, F2, F3, F4, F5, F6 call otherPacket with the exact bytes") {
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R2.8 midiRx] system common F1, F2, F3, F4, F5, F6 call otherPacket with the exact bytes") {
 	for (int status : {0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6}) {
 		MidiProbe probe;
 		const Packet p = pkt(0, status == 0xF2 ? 0x3 : (status == 0xF6 ? 0x5 : 0x2), status, 0x11, 0x22);
@@ -477,7 +485,7 @@ TEST_CASE_FIXTURE(MidiFixture, "[R2.8 midiRx] characterization: system common F1
 	}
 }
 
-TEST_CASE_FIXTURE(MidiFixture, "[R2.8 midiRx] characterization: real-time messages F9, FA, FB, FC, FD, FE, FF call otherPacket with the exact bytes") {
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R2.8 midiRx] real-time messages F9, FA, FB, FC, FD, FE, FF call otherPacket with the exact bytes") {
 	for (int status : {0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF}) {
 		MidiProbe probe;
 		const Packet p = pkt(0, 0xF, status);
@@ -487,7 +495,7 @@ TEST_CASE_FIXTURE(MidiFixture, "[R2.8 midiRx] characterization: real-time messag
 	}
 }
 
-TEST_CASE_FIXTURE(MidiFixture, "[R2.8 midiRx] characterization: a data byte as byte 1 (a value below 0x80) calls otherPacket") {
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R2.8 midiRx] a data byte as byte 1 (a value below 0x80) calls otherPacket") {
 	MidiProbe probe;
 	const Packet p = pkt(0, 0x4, 0x3C, 0x40, 0x41);
 	rx(probe, p);
@@ -496,7 +504,7 @@ TEST_CASE_FIXTURE(MidiFixture, "[R2.8 midiRx] characterization: a data byte as b
 
 // ======================================================================= R2.9 channel pressure
 
-TEST_CASE_FIXTURE(MidiFixture, "[R2.9 midiRx] characterization: channel pressure 0D Dn vv 00 calls no hook on any channel") {
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R2.9 midiRx] channel pressure 0D Dn vv 00 calls no hook on any channel") {
 	// FW, NEEDS REVIEW (question 56): the case 0xD0 of MidiHandler.cpp:93 is empty
 	for (int chan = 0; chan < 16; chan++) {
 		MidiProbe probe;
@@ -508,7 +516,7 @@ TEST_CASE_FIXTURE(MidiFixture, "[R2.9 midiRx] characterization: channel pressure
 
 // ======================================================================= R2.10 cable number
 
-TEST_CASE_FIXTURE(MidiFixture, "[R2.10 midiRx] characterization: the cable number does not change the decoded call (cables 0..15)") {
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R2.10 midiRx] the cable number does not change the decoded call (cables 0..15)") {
 	// FW, NEEDS REVIEW (question 57): UM 5.1 would route by cable number, midiRx never reads the high nibble of byte 0
 	MidiProbe reference;
 	rx(reference, noteOnPkt(3, 60, 100, 0));
@@ -652,7 +660,7 @@ TEST_CASE_FIXTURE(MidiFixture, "[R3.2 tud_midi_rx_cb] without a handler the call
 	CHECK(probe.hooks[0] == hook("noteOn", 0, 60, 100));
 }
 
-TEST_CASE_FIXTURE(MidiFixture, "[R3.3 tud_midi_rx_cb] characterization: a second handler replaces the first in the global pointer and receives the packets") {
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R3.3 tud_midi_rx_cb] a second handler replaces the first in the global pointer and receives the packets") {
 	startAndEnumerate();
 	auto first = std::make_unique<MidiProbe>();
 	auto second = std::make_unique<MidiProbe>();
@@ -662,7 +670,7 @@ TEST_CASE_FIXTURE(MidiFixture, "[R3.3 tud_midi_rx_cb] characterization: a second
 	CHECK(second->hooks.size() == 1);
 }
 
-TEST_CASE_FIXTURE(MidiFixture, "[R3.3 tud_midi_rx_cb] characterization: destroying the first handler clears the pointer of the second, so no packet is delivered afterwards") {
+TEST_CASE_FIXTURE(MidiFixture, "characterization: [R3.3 tud_midi_rx_cb] destroying the first handler clears the pointer of the second, so no packet is delivered afterwards") {
 	startAndEnumerate();
 	auto first = std::make_unique<MidiProbe>();
 	auto second = std::make_unique<MidiProbe>();

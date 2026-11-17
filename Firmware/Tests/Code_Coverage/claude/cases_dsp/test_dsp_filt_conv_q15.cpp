@@ -320,6 +320,7 @@ void randomLengths(int id, const std::vector<size_t> &la, const std::vector<size
 	int runs = 0;
 	for (size_t A : la)
 		for (size_t B : lb) {
+			if (!err.empty()) break;  // an earlier failure must survive the outer loop (the next verify() would overwrite err)
 			const size_t mn = std::min(A, B);
 			const V a = genVec(rng, A, f.fast, mn);
 			const V b = genVec(rng, B, f.fast, mn);
@@ -356,6 +357,7 @@ void armConfigs(int id, bool armRef) {
 	int k = 0;
 	for (size_t na : kNba)
 		for (size_t nb : kNbb) {
+			if (!err.empty()) break;  // an earlier failure must survive the outer loop (the next verify() would overwrite err)
 			k++;
 			const V a(ia.begin(), ia.begin() + na), b(ib.begin(), ib.begin() + nb);
 			if (armRef) {
@@ -511,6 +513,7 @@ void nonNegativeExact(int id) {
 	std::string err;
 	for (size_t A : lens)
 		for (size_t B : lens) {
+			if (!err.empty()) break;  // an earlier failure must survive the outer loop (the next verify() would overwrite err)
 			const size_t mn = std::min(A, B);
 			const V a = nonNeg(genVec(rng, A, true, mn)), b = nonNeg(genVec(rng, B, true, mn));
 			if (f.kind == PART) {

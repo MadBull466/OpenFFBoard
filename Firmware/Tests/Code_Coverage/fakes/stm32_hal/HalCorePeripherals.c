@@ -53,6 +53,15 @@ static uint32_t resetRequests;
 static uint32_t icsrPend; /* NMIPENDSET 31, PENDSVSET 28, PENDSTSET 26 */
 static uint32_t mpuRbar[MPU_REGIONS], mpuRasr[MPU_REGIONS];
 
+/* MPU_RBAR value read back for region r. PM0214 (MPU_RBAR): ADDR is bits 31:N with N = Log2(region size) = SIZE + 1; bits N-1:5 are "reserved,
+ * forced by hardware to 0" and a 4 GB region (SIZE = 31) has no valid ADDR field (base 0). Applied on the read, so it follows the SIZE field
+ * whenever MPU_RASR is written (Codex review P12C-T1-002). */
+static uint32_t mpuRbarRead(unsigned r) {
+	const uint32_t size = (mpuRasr[r] >> 1) & 0x1Fu, n = size + 1u;
+	const uint32_t addrMask = n >= 32u ? 0u : (0xFFFFFFFFu << n);
+	return (mpuRbar[r] & addrMask & 0xFFFFFFE0u) | (r & 0xFu);
+}
+
 static uint32_t peek(uintptr_t a) { return hostRegsPeek(a); }
 static void poke(uintptr_t a, uint32_t v) { hostRegsPoke(a, v); }
 
@@ -96,7 +105,7 @@ static int coreBeforeRead(uintptr_t a) {
 	else if (a == A_MPU_TYPER) poke(a, 0x00000800u);
 	else if (a == A_MPU_RBAR || a == 0xE000EDA4u || a == 0xE000EDACu || a == 0xE000EDB4u) {
 		const uint32_t rnr = peek(A_MPU_RNR) & 0xFFu;
-		poke(a, (rnr < MPU_REGIONS ? mpuRbar[rnr] : 0u) | (rnr & 0xFu));
+		poke(a, rnr < MPU_REGIONS ? mpuRbarRead(rnr) : (rnr & 0xFu));
 	} else if (a == A_MPU_RASR || a == 0xE000EDA8u || a == 0xE000EDB0u || a == 0xE000EDB8u) {
 		const uint32_t rnr = peek(A_MPU_RNR) & 0xFFu;
 		poke(a, rnr < MPU_REGIONS ? mpuRasr[rnr] : 0u);
@@ -167,7 +176,7 @@ static void coreAfterWrite(uintptr_t a, uint32_t oldValue, uint32_t w) {
 		if (w & (1u << 4)) poke(A_MPU_RNR, w & 0xFu); /* VALID: REGION updates RNR */
 		const uint32_t rnr = peek(A_MPU_RNR) & 0xFFu;
 		if (rnr < MPU_REGIONS) mpuRbar[rnr] = w & 0xFFFFFFE0u;
-		poke(a, (rnr < MPU_REGIONS ? mpuRbar[rnr] : 0u) | (rnr & 0xFu));
+		poke(a, rnr < MPU_REGIONS ? mpuRbarRead(rnr) : (rnr & 0xFu));
 	} else if (a == A_MPU_RASR || a == 0xE000EDA8u || a == 0xE000EDB0u || a == 0xE000EDB8u) {
 		const uint32_t rnr = peek(A_MPU_RNR) & 0xFFu;
 		if (rnr < MPU_REGIONS) mpuRasr[rnr] = w & RASR_MASK;

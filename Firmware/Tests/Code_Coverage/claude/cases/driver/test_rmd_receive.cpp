@@ -187,7 +187,7 @@ TEST_CASE_FIXTURE(RmdRxFixture, "[R5.2 rx] the most negative torque current -327
 	CHECK(get(*rmd, "curr") == -32768);
 }
 
-TEST_CASE_FIXTURE(RmdRxFixture, "[R5.2 rx] characterization: in the request mode a 0xA1 reply with angle 90 degrees and speed 0 moves the position to the average 45 degrees") {
+TEST_CASE_FIXTURE(RmdRxFixture, "characterization: [R5.2 rx] in the request mode a 0xA1 reply with angle 90 degrees and speed 0 moves the position to the average 45 degrees") {
 	// FW: lastPos = (lastPos + (angle + interpolation)) / 2 with lastPos 0, angle 90, interpolation 0 (speed 0): 45.0 degrees,
 	// 4500 counts. The averaging is the firmware's filter (charter R6.5), the angle field is the output shaft angle in degrees (SP 2.19).
 	auto rmd = makeRmd1();
@@ -198,7 +198,7 @@ TEST_CASE_FIXTURE(RmdRxFixture, "[R5.2 rx] characterization: in the request mode
 	CHECK(rmd->getPos() == 4500);
 }
 
-TEST_CASE_FIXTURE(RmdRxFixture, "[R5.2 rx] characterization: in the request mode a 0xA1 reply with angle -90 degrees moves the position to -45 degrees") {
+TEST_CASE_FIXTURE(RmdRxFixture, "characterization: [R5.2 rx] in the request mode a 0xA1 reply with angle -90 degrees moves the position to -45 degrees") {
 	auto rmd = makeRmd1();
 	setRequestMode(*rmd, 1);
 	peer1.setShaftAngle(-90); // int16 little endian 0xFFA6 = -90
@@ -553,7 +553,7 @@ TEST_CASE_FIXTURE(RmdRxFixture, "[R6.2 rx] setPos(0) after a negative report mak
 // R6.3 position refresh in the request mode
 // =============================================================================================================
 
-TEST_CASE_FIXTURE(RmdRxFixture, "[R6.3 rx] characterization: in the request mode getPos with a stale position sends one 0x92 request to id 0x141") {
+TEST_CASE_FIXTURE(RmdRxFixture, "characterization: [R6.3 rx] in the request mode getPos with a stale position sends one 0x92 request to id 0x141") {
 	auto rmd = makeRmd1();
 	setRequestMode(*rmd, 1);
 	clearTxFrames();
@@ -564,7 +564,7 @@ TEST_CASE_FIXTURE(RmdRxFixture, "[R6.3 rx] characterization: in the request mode
 	CHECK(f[0].dlc == 8);
 }
 
-TEST_CASE_FIXTURE(RmdRxFixture, "[R6.3 rx] characterization: in the request mode getPos does not send a 0x92 request 10 ms after the last 0x92 reply") {
+TEST_CASE_FIXTURE(RmdRxFixture, "characterization: [R6.3 rx] in the request mode getPos does not send a 0x92 request 10 ms after the last 0x92 reply") {
 	auto rmd = makeRmd1();
 	setRequestMode(*rmd, 1);
 	peer1.setMultiTurn(100);
@@ -575,7 +575,7 @@ TEST_CASE_FIXTURE(RmdRxFixture, "[R6.3 rx] characterization: in the request mode
 	CHECK(txFramesCmd(ID1, 0x92).empty());
 }
 
-TEST_CASE_FIXTURE(RmdRxFixture, "[R6.3 rx] characterization: in the request mode getPos sends a 0x92 request 11 ms after the last 0x92 reply") {
+TEST_CASE_FIXTURE(RmdRxFixture, "characterization: [R6.3 rx] in the request mode getPos sends a 0x92 request 11 ms after the last 0x92 reply") {
 	auto rmd = makeRmd1();
 	setRequestMode(*rmd, 1);
 	peer1.setMultiTurn(100);
@@ -586,7 +586,7 @@ TEST_CASE_FIXTURE(RmdRxFixture, "[R6.3 rx] characterization: in the request mode
 	CHECK(txFramesCmd(ID1, 0x92).size() == 1);
 }
 
-TEST_CASE_FIXTURE(RmdRxFixture, "[R6.3 rx] characterization: a 0xA1 reply does not refresh the position age: the 0x92 request follows 11 ms after the last 0x92 reply anyway") {
+TEST_CASE_FIXTURE(RmdRxFixture, "characterization: [R6.3 rx] a 0xA1 reply does not refresh the position age: the 0x92 request follows 11 ms after the last 0x92 reply anyway") {
 	auto rmd = makeRmd1();
 	setRequestMode(*rmd, 1);
 	peer1.sendReply(0x92);
@@ -653,7 +653,7 @@ TEST_CASE_FIXTURE(RmdRxFixture, "[R6.5 rx] a 0xA1 reply with speed 500 dps 10 ms
 // R6.6 0x94
 // =============================================================================================================
 
-TEST_CASE_FIXTURE(RmdRxFixture, "[R6.6 rx] characterization: a 0x94 reply of 100.00 degrees after a position of 720 degrees gives 102 degrees (lastPos / 360 + angle)") {
+TEST_CASE_FIXTURE(RmdRxFixture, "characterization: [R6.6 rx] a 0x94 reply of 100.00 degrees after a position of 720 degrees gives 102 degrees (lastPos / 360 + angle)") {
 	// FW: lastPos = 720 / 360 + 10000 * 0.01 = 2 + 100 = 102.0 degrees -> 10200 counts. SP 2.13 would place the position at
 	// a multiple of 360 plus 100 degrees (820 degrees = 82000 counts): the firmware formula mixes revolutions and degrees.
 	auto rmd = makeRmd1();
@@ -665,7 +665,7 @@ TEST_CASE_FIXTURE(RmdRxFixture, "[R6.6 rx] characterization: a 0x94 reply of 100
 	CHECK(rmd->getPos() == 10200);
 }
 
-TEST_CASE_FIXTURE(RmdRxFixture, "[R6.6 rx] characterization: the driver never requests the single turn angle 0x94 in a session with request mode and thread cycles") {
+TEST_CASE_FIXTURE(RmdRxFixture, "characterization: [R6.6 rx] the driver never requests the single turn angle 0x94 in a session with request mode and thread cycles") {
 	auto rmd = makeRmd1();
 	reachAvailable(*rmd);
 	setRequestMode(*rmd, 1);
@@ -680,7 +680,7 @@ TEST_CASE_FIXTURE(RmdRxFixture, "[R6.6 rx] characterization: the driver never re
 // R6.7 float resolution
 // =============================================================================================================
 
-TEST_CASE_FIXTURE(RmdRxFixture, "[R6.7 rx] characterization: a position of 100 000 037 counts is read back as 100 000 040, 3 counts too high (float resolution above 2^24 counts)") {
+TEST_CASE_FIXTURE(RmdRxFixture, "characterization: [R6.7 rx] a position of 100 000 037 counts is read back as 100 000 040, 3 counts too high (float resolution above 2^24 counts)") {
 	// HD (single precision): 100000037 * 0.01 = 1000000.37 -> float 1000000.375 (spacing 0.0625 at 2^19..2^20);
 	// * 100 = 100000037.5 -> float spacing 8 at 2^26..2^27 -> 100000040. The expected value 100000040 is an
 	// informational characterization of the float based position, not a requirement.
@@ -801,7 +801,7 @@ TEST_CASE_FIXTURE(RmdSafetyFixture, "[R7.3 rx] a 0x9A reply with 0 flags keeps t
 	CHECK(is(f[0], {0xA1, 0, 0, 0, 0xE8, 0x03, 0, 0}));
 }
 
-TEST_CASE_FIXTURE(RmdSafetyFixture, "[R7.4 rx] characterization: in the passive mode the driver never requests the status 0x9A over several cycles") {
+TEST_CASE_FIXTURE(RmdSafetyFixture, "characterization: [R7.4 rx] in the passive mode the driver never requests the status 0x9A over several cycles") {
 	// Owner question 50: no status polling in the passive default
 	auto rmd = makeRmd1();
 	reachAvailable(*rmd);
@@ -809,7 +809,7 @@ TEST_CASE_FIXTURE(RmdSafetyFixture, "[R7.4 rx] characterization: in the passive 
 	CHECK(peer1.count(0x9A) == 0);
 }
 
-TEST_CASE_FIXTURE(RmdSafetyFixture, "[R7.4 rx] characterization: in the passive mode the error flags of the motor are never seen") {
+TEST_CASE_FIXTURE(RmdSafetyFixture, "characterization: [R7.4 rx] in the passive mode the error flags of the motor are never seen") {
 	auto rmd = makeRmd1();
 	peer1.setErrors(0x0010); // over current in the motor
 	reachAvailable(*rmd);
@@ -864,7 +864,7 @@ TEST_CASE_FIXTURE(RmdSafetyFixture, "[R7.5 rx] motorReady is true again after a 
 // Review additions
 // =============================================================================================================
 
-TEST_CASE_FIXTURE(RmdRxFixture, "[R5.2 rx] characterization: in the request mode a 0xA1 reply with angle 0 and speed 0 halves the position reported by 0x92 (36000 -> 18000)") {
+TEST_CASE_FIXTURE(RmdRxFixture, "characterization: [R5.2 rx] in the request mode a 0xA1 reply with angle 0 and speed 0 halves the position reported by 0x92 (36000 -> 18000)") {
 	// FW: 0x92 of 36000 -> lastPos 360.0 degrees. 0xA1: lastPos = (360 + (0 + 0)) / 2 = 180 degrees = 18000 counts
 	auto rmd = makeRmd1();
 	setRequestMode(*rmd, 1);
@@ -876,7 +876,7 @@ TEST_CASE_FIXTURE(RmdRxFixture, "[R5.2 rx] characterization: in the request mode
 	CHECK(rmd->getPos() == 18000);
 }
 
-TEST_CASE_FIXTURE(RmdRxFixture, "[R5.2 rx] characterization: speed 32767 dps in a 0xA1 reply 1 us after the previous one adds speed / (1e6 * 1) / 2 degrees: getPos 1") {
+TEST_CASE_FIXTURE(RmdRxFixture, "characterization: [R5.2 rx] speed 32767 dps in a 0xA1 reply 1 us after the previous one adds speed / (1e6 * 1) / 2 degrees: getPos 1") {
 	// HD: first reply: lastPos 0 (speed 0), time recorded. Second reply 1 us later: interpolation = 32767 / (1e6 * 1) = 0.032767,
 	// lastPos = (0 + (0 + 0.032767)) / 2 = 0.0163835 degrees, * 100 = 1.63835 -> truncated 1. Both speed bytes are used.
 	auto rmd = makeRmd1();
@@ -888,7 +888,7 @@ TEST_CASE_FIXTURE(RmdRxFixture, "[R5.2 rx] characterization: speed 32767 dps in 
 	CHECK(rmd->getPos() == 1);
 }
 
-TEST_CASE_FIXTURE(RmdRxFixture, "[R5.2 rx] characterization: speed -32768 dps 1 us after the previous reply gives getPos -1") {
+TEST_CASE_FIXTURE(RmdRxFixture, "characterization: [R5.2 rx] speed -32768 dps 1 us after the previous reply gives getPos -1") {
 	// HD: interpolation = -32768 / 1e6 = -0.032768; lastPos = -0.016384 degrees, * 100 = -1.6384 -> truncated -1
 	auto rmd = makeRmd1();
 	setRequestMode(*rmd, 1);
@@ -899,7 +899,7 @@ TEST_CASE_FIXTURE(RmdRxFixture, "[R5.2 rx] characterization: speed -32768 dps 1 
 	CHECK(rmd->getPos() == -1);
 }
 
-TEST_CASE_FIXTURE(RmdRxFixture, "[R5.2 rx] characterization: every 0xA1 reply updates the time base (dt of the third reply is 1 us, not 1001 us)") {
+TEST_CASE_FIXTURE(RmdRxFixture, "characterization: [R5.2 rx] every 0xA1 reply updates the time base (dt of the third reply is 1 us, not 1001 us)") {
 	// HD: reply A (speed 0). 1000 us later reply B (speed 32767): interpolation 32767 / (1e6 * 1000) = 3.2767e-5, lastPos about 1.6e-5.
 	// 1 us after B reply C: dt = 1 us -> interpolation 0.032767, lastPos = (1.6e-5 + 0.032767) / 2 = 0.016392 degrees -> 1.639 -> 1 count.
 	// If B did not update the time base, dt would be 1001 us: interpolation 3.3e-5 -> 0 counts.
@@ -932,7 +932,7 @@ TEST_CASE_FIXTURE(RmdRxFixture, "[R5.6 rx] a reply with the unknown command byte
 	CHECK(rmd->motorReady());
 }
 
-TEST_CASE_FIXTURE(RmdRxFixture, "[R6.6 rx] characterization: a 0x94 reply refreshes the position age: no 0x92 request 10 ms later in the request mode") {
+TEST_CASE_FIXTURE(RmdRxFixture, "characterization: [R6.6 rx] a 0x94 reply refreshes the position age: no 0x92 request 10 ms later in the request mode") {
 	auto rmd = makeRmd1();
 	setRequestMode(*rmd, 1);
 	peer1.sendReply(0x94); // lastAngleUpdate = tick

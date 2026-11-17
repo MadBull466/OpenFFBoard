@@ -206,6 +206,7 @@ void hostUartIdleLine(unsigned i) {
 			poke(reg(i, R_CR1), c & ~CR1_RWU); /* wakes up, IDLE is not set (RM0090 30.3.6) */
 			return;
 		}
+		if ((c & CR1_RWU) != 0u) return; /* address mark mute mode: "None of the reception status bits can be set" (RM0090 30.3.6) */
 	}
 	if (us[i].rxSinceIdle) {
 		srSet(i, SR_IDLE);

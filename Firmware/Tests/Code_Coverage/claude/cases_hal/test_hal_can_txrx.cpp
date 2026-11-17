@@ -754,15 +754,18 @@ TEST_CASE_FIXTURE(CtF, "CT3 GetTxTimestamp reads the TIME of the mailbox given a
 	addStd(0x20);  // mailbox 1
 	addStd(0x30);  // mailbox 2
 	hold(false);
+	// RM0090 (CAN_TDTxR TIME): the timer value is captured at the SOF transmission, i.e. when a frame starts, not when it ends. The timer is
+	// therefore set before each frame starts (Codex review P12C-T5-001).
+	hostCanSetTimer(0, 0x0A0A);
 	hostCanPoll(0);  // mailbox 0 starts (identifier order), 1000 ticks long
 	const uint32_t t0 = hostTickPeek();
-	hostCanSetTimer(0, 0x0A0A);
-	hostTickSet(t0 + 1000);
-	hostCanPoll(0);  // mailbox 0 done, mailbox 1 starts
 	hostCanSetTimer(0, 0x0B0B);
-	hostTickSet(t0 + 2000);
-	hostCanPoll(0);
+	hostTickSet(t0 + 1000);
+	hostCanPoll(0);  // mailbox 0 done, mailbox 1 starts (SOF = 0x0B0B)
 	hostCanSetTimer(0, 0x0C0C);
+	hostTickSet(t0 + 2000);
+	hostCanPoll(0);  // mailbox 1 done, mailbox 2 starts (SOF = 0x0C0C)
+	hostCanSetTimer(0, 0xDEAD);  // a timer value after the SOF must not reach the stamp of the frame in transmission
 	hostTickSet(t0 + 3000);
 	hostCanPoll(0);
 	REQUIRE(hostCanTxCount(0) == 3u);

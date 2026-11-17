@@ -232,9 +232,15 @@ static int beforeRead(unsigned i, uintptr_t a) {
 
 static void afterRead(unsigned i, uintptr_t a, uint32_t value) {
 	(void)value;
-	if ((uint32_t)(a - descs[i].base) == R_DMAR) {
+	const uint32_t off = (uint32_t)(a - descs[i].base);
+	if (off == R_DMAR) {
 		const unsigned dbl = (get(i, R_DCR) >> 8) & 0x1Fu;
 		ts[i].dmaIdx = (uint8_t)(ts[i].dmaIdx >= dbl ? 0u : ts[i].dmaIdx + 1u);
+	}
+	if (off >= R_CCR1 && off <= R_CCR4 && ((off - R_CCR1) & 3u) == 0u) {
+		/* RM0090 TIMx_SR CCxIF (input capture): "cleared by software or by reading the captured data stored in the TIMx_CCRx register" */
+		const unsigned ch = (off - R_CCR1) / 4u + 1u;
+		if (ch <= descs[i].nch && ccs(i, ch) != 0u) clrBits(i, R_SR, 1u << ch);
 	}
 }
 

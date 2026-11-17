@@ -195,7 +195,7 @@ TEST_CASE_FIXTURE(SmFixture, "[R3.2 fast] the write enable pin is high after tur
 	CHECK((GPIOE->ODR & DRV_GP1_Pin) == 0);
 }
 
-TEST_CASE_FIXTURE(SmFixture, "[R3.2 fast] characterization: without a transmit-complete interrupt the write enable pin stays high") {
+TEST_CASE_FIXTURE(SmFixture, "characterization: [R3.2 fast] without a transmit-complete interrupt the write enable pin stays high") {
 	auto sm = makeSm(1);
 	REQUIRE(initialize(*sm));
 	dev.autoTxComplete = false;
@@ -306,7 +306,7 @@ TEST_CASE_FIXTURE(SmFixture, "[R3.5 fast] after a silent device answered again 1
 	CHECK(sm->getPos() == 40);
 }
 
-TEST_CASE_FIXTURE(SmFixture, "[R3.5 fast] characterization: a turn 9 ms after an unanswered one sends nothing, 11 ms after it a new frame is sent (10 ms after the last received byte)") {
+TEST_CASE_FIXTURE(SmFixture, "characterization: [R3.5 fast] a turn 9 ms after an unanswered one sends nothing, 11 ms after it a new frame is sent (10 ms after the last received byte)") {
 	// The silent frame is sent in the same millisecond as the last byte received (the end of initialize()), so the 10 ms
 	// of the firmware (HAL_GetTick() - lastTimeByteReceived > 10 while the port is taken) run from that byte.
 	auto sm = makeSm(1);
@@ -323,7 +323,7 @@ TEST_CASE_FIXTURE(SmFixture, "[R3.5 fast] characterization: a turn 9 ms after an
 	CHECK(dev.frameCount() == 1);
 }
 
-TEST_CASE_FIXTURE(SmFixture, "[R3.5 fast] characterization: after 50 ms without any received byte the next turn after an unanswered one is sent at once, the unanswered frame starts no timeout of its own") {
+TEST_CASE_FIXTURE(SmFixture, "characterization: [R3.5 fast] after 50 ms without any received byte the next turn after an unanswered one is sent at once, the unanswered frame starts no timeout of its own") {
 	// NEEDS REVIEW, possible defect: the recovery time is measured from the last received byte, not from the unanswered
 	// frame; with an idle gap of 50 ms before the silent turn the 10 ms are already over and the next turn follows
 	// immediately (0 ms and 9 ms after the unanswered frame).
@@ -434,7 +434,7 @@ TEST_CASE_FIXTURE(SmFixture, "[R3.7 fast] getPos returns the position known befo
 	CHECK(sm->getPos() == 60);
 }
 
-TEST_CASE_FIXTURE(SmFixture, "[R3.7 fast] characterization: the refresh threshold is 100 ms, exactly 100 ms sends nothing and 101 ms sends a fast update") {
+TEST_CASE_FIXTURE(SmFixture, "characterization: [R3.7 fast] the refresh threshold is 100 ms, exactly 100 ms sends nothing and 101 ms sends a fast update") {
 	auto sm = makeSm(1);
 	REQUIRE(initialize(*sm));
 	report(*this, *sm, 10);
@@ -554,11 +554,11 @@ TEST_CASE_FIXTURE(SmFixture, "[R6.3 fast] motion after setPos is relative to the
 	CHECK(sm->getPos() == -170);
 }
 
-TEST_CASE_FIXTURE(SmFixture, "[R6.4 fast] characterization: a step of exactly 0x7fff reports is followed as a forward motion of 0x7fff") {
+TEST_CASE_FIXTURE(SmFixture, "characterization: [R6.4 fast] a step of exactly 0x7fff reports is followed as a forward motion of 0x7fff") {
 	CHECK(deltaOf(*this, 0, 0x7fff) == 0x7fff);
 }
 
-TEST_CASE_FIXTURE(SmFixture, "[R6.4 fast] characterization: a step of exactly 0x8000 reports is counted as an overflow, the position moves by -0x7fff") {
+TEST_CASE_FIXTURE(SmFixture, "characterization: [R6.4 fast] a step of exactly 0x8000 reports is counted as an overflow, the position moves by -0x7fff") {
 	// 0x8000 apart is half a revolution: forward and backward are equally near, the SM documents give no rule.
 	// NEEDS REVIEW: the -0x7fff is also one count short of -0x8000 (the B-SM-2 loss at the overflow step)
 	CHECK(deltaOf(*this, 0, 0x8000) == -0x7fff);
@@ -637,15 +637,22 @@ TEST_CASE_FIXTURE(SmFixture, "[R7.2 fast] after the settings sequence ran again 
 	CHECK(sm->motorReady());
 }
 
-TEST_CASE_FIXTURE(SmFixture, "[R7.2 fast] characterization: a reply with bit 12 set after bit 12 was clear does not make the driver ready without the settings sequence") {
-	// NEEDS REVIEW: updateStatus() only clears `initialized`, it never sets it; only getSettings() does. The charter (R7.2) says
-	// the next turn re-runs the settings, so this agrees with it, but a "restart-free recovery by status bit" does not exist.
+TEST_CASE_FIXTURE(SmFixture, "characterization: [R7.2 fast] with bit 12 clear no new fast update is sent within 150 ms, so a later INITIALIZED status is never read and the driver stays not ready") {
+	// NEEDS REVIEW (NR 254; reworked after the Codex review NP15-001): updateStatus() only clears `initialized`, it never sets it; only
+	// getSettings() does, and sendFastUpdate() runs it instead of a fast update while `initialized` is false (150 ms gate, see the cases
+	// above). So in the public flow the driver never reads a reply with bit 12 set while it is not initialized: the device status below
+	// is never delivered, because no request carries it. The earlier version of this case claimed to deliver such a reply, but it
+	// observed the state left by the first reply (no frame was sent in between). That a stale INITIALIZED reply cannot set `initialized`
+	// is therefore NOT tested here: it is unreachable through turn().
 	auto sm = makeSm(1);
 	REQUIRE(initialize(*sm));
 	report(*this, *sm, 0, 0x0000);
 	REQUIRE_FALSE(sm->motorReady());
-	report(*this, *sm, 0, INIT);
+	const size_t framesAfterFirstReply = dev.frameCount();
+	report(*this, *sm, 0, INIT);  // the device would report INITIALIZED now, but turn() sends nothing inside the gate
+	CHECK(dev.frameCount() == framesAfterFirstReply);
 	CHECK_FALSE(sm->motorReady());
+	CHECK(CommandHelpers::get(*sm, "state") == 0x0000);  // still the status of the first reply: the INITIALIZED status was never read
 }
 
 TEST_CASE_FIXTURE(SmFixture, "[R7.3 fast] the state command returns the status read by the settings sequence after initialization") {
