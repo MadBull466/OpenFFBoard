@@ -1,0 +1,4 @@
+# Shared paths the hooks let the lead and the integration-test-writer edit (.claude/hooks/guard_lib.py).
+# One line per path: <repository-relative path> | <owner's approval date> | <work order>
+# The lead adds a line only after the owner approved that change (AGENT_PLAN.md section 4). Remove a line when its WO is committed.
+Firmware/Tests/CMakeLists.txt | 2026-11-18 | I0-4 (the single include() line of integration.cmake, approved with the plan)
