@@ -6,6 +6,10 @@ Written 2026-11-18 by the lead (Opus 5.5). You have no memory of this project: r
 
 A host-side integration test suite: the real firmware modules of a force-feedback flow wired together (USB HID PID -> `HidFFB` -> `EffectsCalculator` with CMSIS-DSP -> `Axis` -> motor driver), with only the hardware faked (fake SPI / USB controller / timers / ADC / GPIO / flash, `FakeTmc4671`, later the CAN / UART peers). It sits next to the finished code-coverage unit-test suite (`Tests/Code_Coverage/`, `Firmware/Tests/Code_Coverage/`) and reuses its fakes and support code. Branch `add-test-suite`.
 
+## State at the end of phase I0 (2026-11-18)
+
+Phase I0 is complete and waits for the owner's approval ([../reports/I0_REPORT.md](../reports/I0_REPORT.md)). The next phase is I1 (open-loop chain); its work orders do not exist yet.
+
 ## Where to continue
 
 `PROGRESS.md` "Current state" and "Next action". Do not start a phase without the owner's go-ahead; stop at the end of every phase.

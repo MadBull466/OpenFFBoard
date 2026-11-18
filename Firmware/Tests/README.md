@@ -995,6 +995,17 @@ with the target's `stm32f4xx_hal_conf.h`, plus the host platform in `Code_Covera
 
 * **USB device (T8):** `HalOtg` models the OTG_FS core in device mode (registers with RM0090 masks and reset values, a receive FIFO with status entries and four TxFIFOs inside the 320 word RAM) and plays the USB host for the test (`hostOtgHostSetup`, `hostOtgHostOut`, `hostOtgHostIn`, `hostOtgUsbReset`, `hostOtgEnumDone`, ...); `OtgFixture` (`OtgTestSupport.h`) owns the PCD handle set up as the firmware does and runs `HAL_PCD_IRQHandler` until `hostOtgIrqPending()` is 0. Files `test_hal_pcd_{init,ep,irq,flow}.cpp`. OTG_HS, DMA mode and the host half of `stm32f4xx_ll_usb.c` are not tested. `HAL_USB_TIMEOUT` is 2000U in these builds (the HAL's 0xF000000 needs minutes per timeout case on the trapping bus). `USB_WritePacket` over-reads up to 3 bytes of the caller's buffer (vendor bug V118): source buffers in the tests are padded.
 
+## `ffb_integration_tests`: the real F1 chain (integration track)
+
+Integration tests of the force-feedback chain USB HID PID -> `HidFFB` -> `EffectsCalculator` (CMSIS-DSP) -> `Axis` -> `TMC4671`, with only the hardware faked. Plan, charter, registers and progress: `Tests/Integration_Tests/` (start with `Tests/Integration_Tests/claude/README.md`).
+
+* **Build:** `Integration_Tests/integration.cmake`, included from `CMakeLists.txt`; option `FFB_TESTS_INTEGRATION` (default ON). Real TinyUSB on the fake dwc2 controller (`HOSTTEST_REAL_TINYUSB`), the extended RTOS fake (`HOSTTEST_RTOS_EXT`), the drivers feature header with MIDI off and `TMCDEBUG` undefined through a generated wrapper header. The other executables' compile commands are unchanged (checked by the gate).
+* **ctest:** `ffb_integration_tests` (exclusion lists `FFB_INTEGRATION_TESTS_EXCLUDE`, `_EXCLUDE_SANITIZE`, `_EXCLUDE_32BIT`) and `integration_tool_tests` (the gate's and hooks' tests, the bug-report generator's tests and its `--check`; `test_hooks.py` is not run on Windows).
+* **Layout:** `Integration_Tests/claude/cases/test_f1_*.cpp` (cases), `support/` (`IntegrationFixture`, `ChainScheduler`, `HidReportDescriptor`, `PidReportBuilder`, `OscillationDetector`, `FrequencyResponse`), `fakes/WheelPlant` (closed-loop plant on `FakeTmc4671`), `tools/` (`it_gate.py`, `make_integration_bug_report.py`). Shared fakes, platform and support code come from `Code_Coverage/`.
+* **Fixture:** `IntegrationFixture` resets everything in one order, brings the firmware up like the board (`cppmain`, enumeration by the simulated host, driver selection with `axis.0.drvtype`), makes every delaying thread resumable and fails a case on any unmodelled HAL call, kernel fault, host error, fake violation or leaked kernel object, also after the main class is deleted. `ChainScheduler::advanceMs` runs a fixed per-millisecond order (USB, tick and timers from the firmware-written PSC / ARR, FFB main thread, TMC thread, command threads, plant).
+* **Markers:** as in the coverage suite; integration bugs and NEEDS REVIEW items have their own numbers (`KNOWN_ISSUE("(IB n) ...")`, `characterization:` with `// INR n`), listed in `Tests/Integration_Tests/claude/reports/BUG_REPORT.md` (generated).
+* **Gate:** `python3 -B Firmware/Tests/Integration_Tests/tools/it_gate.py --wo <ID> --variants default,m32` (`--full` for all variants); builds in `../ffb-test-build/it-<variant>`.
+
 ## Python helper tests
 
 `Code_Coverage/claude/python/test_*.py`: stdlib `unittest` smoke tests of the Python helper scripts (P9, tier A: tested, never fixed):
