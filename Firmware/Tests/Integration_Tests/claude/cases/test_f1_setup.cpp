@@ -956,4 +956,92 @@ TEST_CASE_FIXTURE(DescriptorFixture, "F1-A2: the descriptor declares the PID Sta
 	MESSAGE("F1-A2: PID State flags declared: " << flags << "Effect Block Index declared: " << std::string(dec.get(pid::use::EffectBlockIndex, v) ? "yes" : "no"));
 }
 
+
+// ---------------------------------------------------------------------------------------------------------------------
+// F1-A3 (setup): the plant hook of ChainScheduler step (f). The plant (WheelPlant, nominal mid set) is attached to the running
+// chain (bringUp, no effect, no force): the firmware commands no torque, so the wheel stays at rest and the plant keeps 0x6B
+// where it is (a step with zero angle change adds 0 counts). The plant is stepped once per scheduler step: with 0 us per SPI frame
+// every step is exactly 1 simulated ms, so the plant's step count equals the simulated milliseconds and its integrated time
+// equals them in seconds. Oracle: the charter (F1-A3), the plant model of plan 6.2 (J theta'' = tau - ..., tau = 0 -> at rest).
+// ---------------------------------------------------------------------------------------------------------------------
+TEST_CASE_FIXTURE(IntegrationFixture, "F1-A3: a plant attached to the running chain is stepped once per simulated millisecond and a wheel with no torque commanded stays at rest with 0x6B unchanged" * IT_DELETES_FFBHIDMAIN) {
+	bringUp();
+	setSpiFrameUs(0);
+	sched.advanceMs(50); // settle: after Running the firmware may still write its start-up registers
+	wheel.setParams(WheelPlant::Params::nominalMid());
+	// Finding of WO I0-7: with the fresh-flash configuration of bringUp (motor type NONE, encoder NONE) the firmware leaves
+	// POSITION_SELECTION 0x51 at a value that is not a mechanical angle, so the 65536-counts-per-revolution model of 0x6B does not apply
+	// to this configuration. This case only needs the wheel at rest, so the plant's 0x51 check is switched off here; closed-loop cases
+	// must first configure an encoder (PhiM source) through the real commands.
+	MESSAGE("POSITION_SELECTION 0x51 after bringUp (encoder NONE): " << chip1.reg(0x51));
+	wheel.setRequireMechanicalPositionSource(false);
+	attachPlant();
+	REQUIRE(wheel.attached());
+	// precondition: no torque is commanded (the last torque target the firmware wrote to 0x64 is 0 and the chip would apply nothing)
+	const auto torques = fluxTorqueWrites(chip1);
+	const int16_t lastTorque = torques.empty() ? 0 : torques.back().torque;
+	INFO("last torque target written by the firmware: " << lastTorque);
+	REQUIRE(lastTorque == 0);
+	const uint32_t pos0 = chip1.reg(0x6B);
+	const uint64_t t0 = HostPlatform::nowUs();
+	const uint64_t steps0 = sched.stats().steps;
+	sched.advanceMs(1000);
+	const uint64_t ms = (HostPlatform::nowUs() - t0) / 1000;
+	CHECK(ms == 1000);
+	CHECK(sched.stats().steps - steps0 == 1000);
+	CHECK(wheel.steps() == ms);
+	CHECK(wheel.elapsedS() == doctest::Approx(1.0).epsilon(1e-9));
+	CHECK(wheel.omega() == 0.0);
+	CHECK(wheel.theta() == 0.0);
+	CHECK(wheel.tauApplied() == 0.0);
+	CHECK(chip1.reg(0x6B) == pos0);
+	CHECK(wheel.violations().empty());
+	// The plant reads chip 1 (TMC_1), not chip 2: a torque on chip 2 only does not move the wheel, the same torque on chip 1 does.
+	// (Direct plant steps, no scheduler: the firmware would overwrite 0x64 of chip 1 at its next cycle.)
+	auto setTorque = [](FakeTmc4671 &c, int counts) {
+		c.setReg(0x64, static_cast<uint32_t>(static_cast<uint16_t>(static_cast<int16_t>(counts))) << 16);
+		c.setReg(0x63, 1);
+		c.setReg(0x1A, 7);
+		c.setEnableIn(true);
+		c.setReg(0x5E, 0x7FFF);
+	};
+	setTorque(chip2, 16384);
+	wheel.step(1e-3);
+	CHECK(wheel.omega() == 0.0);
+	CHECK(wheel.tauApplied() == 0.0);
+	setTorque(chip1, 16384);
+	wheel.step(1e-3);
+	CHECK(wheel.omega() > 0.0);
+	CHECK(wheel.tauApplied() > 0.0);
+	detachPlant();
+	CHECK_FALSE(wheel.attached());
+}
+
+// A plant violation is a chain fault: firstFault() of the fixture (which the destructor checks and fails the case on) reports it, so a plant
+// with unusable parameters or a position source that is not a mechanical angle fails the case at teardown. Shown here directly, then the
+// plant is detached so this case itself passes. A plant that is destroyed before the fixture (a local of a test body, also after a failed
+// REQUIRE) is forgotten by the fixture: no dangling pointer in firstFault() or in the scheduler hook.
+TEST_CASE_FIXTURE(IntegrationFixture, "F1-A3: a plant violation is reported by the fixture's fault check and a destroyed plant is forgotten by the fixture") {
+	CHECK(firstFault().empty());
+	{
+		WheelPlant bad; // no parameters: setParams was never called
+		attachPlant(bad);
+		sched.advanceMs(2); // the plant steps and records the violation
+		CHECK_FALSE(bad.violations().empty());
+		const std::string fault = firstFault();
+		INFO("first fault: " << fault);
+		CHECK(fault.find("WheelPlant") == 0);
+	} // ~WheelPlant clears the fixture's pointer and the scheduler hook
+	CHECK(plant() == nullptr);
+	CHECK(firstFault().empty());
+	sched.advanceMs(2); // the scheduler's plant hook is gone: no call into the destroyed plant
+	// a plant that selects a non-mechanical position source also fails the check
+	wheel.setParams(WheelPlant::Params::nominalMid());
+	attachPlant();
+	chip1.setReg(0x51, 3);
+	sched.advanceMs(1);
+	CHECK(firstFault().find("0x51") != std::string::npos);
+	detachPlant();
+}
+
 } // TEST_SUITE

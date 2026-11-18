@@ -23,7 +23,8 @@
  *       Then a pending hspi1 interrupt transfer is completed. (The TMC thread runs before the others of this step: the order
  *       among ready tasks of one step is not observable by the cases.)
  *   (e) the command threads "CDCCMD" and "CMD_MAIN" until blocked (CDC command interface and command thread).
- *   (f) plant hook (empty until WO I0-7).
+ *   (f) plant hook: plantHook(nowUs), set by IntegrationFixture::attachPlant to WheelPlant::stepToUs (one plant step per
+ *       scheduler step, with the simulated time elapsed since the previous one).
  *
  * Host-vs-target: on the target these preempt by priority (USB 40 > TMCENC 33 > CMD 32 > FFBMAIN 30 > TMC 25) and a long
  * activation (e.g. the 500 ms ADC calibration of the TMC thread, which busy-waits on HAL_GetTick) is interrupted by the
@@ -79,7 +80,7 @@ public:
 	/** The timer clock of TIM6 / TIM13 in Hz (APB1 timers: 84 MHz) */
 	static constexpr uint32_t kTimerClockHz = 84000000;
 
-	/** Plant hook of step (f): called at the end of every step with the simulated time in microseconds. Empty until WO I0-7 */
+	/** Plant hook of step (f): called at the end of every step with the simulated time in microseconds. Empty when no plant is attached */
 	std::function<void(uint64_t nowUs)> plantHook;
 
 	ChainScheduler() { reset(); }

@@ -1,0 +1,14 @@
+# Files of WO I0-7 (read by it_gate.py)
+Firmware/Tests/Integration_Tests/fakes/WheelPlant.h
+Firmware/Tests/Integration_Tests/fakes/WheelPlant.cpp
+Firmware/Tests/Integration_Tests/support/OscillationDetector.h
+Firmware/Tests/Integration_Tests/support/OscillationDetector.cpp
+Firmware/Tests/Integration_Tests/support/FrequencyResponse.h
+Firmware/Tests/Integration_Tests/support/FrequencyResponse.cpp
+Firmware/Tests/Integration_Tests/support/ChainScheduler.h
+Firmware/Tests/Integration_Tests/support/ChainScheduler.cpp
+Firmware/Tests/Integration_Tests/support/IntegrationFixture.h
+Firmware/Tests/Integration_Tests/support/IntegrationFixture.cpp
+Firmware/Tests/Integration_Tests/claude/cases/test_f1_support.cpp
+Firmware/Tests/Integration_Tests/claude/cases/test_f1_setup.cpp
+Firmware/Tests/Integration_Tests/integration.cmake

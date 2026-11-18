@@ -76,9 +76,12 @@ IntegrationFixture::IntegrationFixture() {
 }
 
 IntegrationFixture::~IntegrationFixture() {
-	const std::string fault = firstFault();
-	INFO("first fault: " << fault);
-	CHECK_MESSAGE(fault.empty(), "the chain recorded a fault (fake USB controller, simulated host, unmodelled HAL call, kernel fault or FakeTmc4671 violation)");
+	{
+		const std::string plantFault = firstFault();
+		INFO("first fault: " << plantFault);
+		CHECK_MESSAGE(plantFault.empty(), "the chain recorded a fault (fake USB controller, simulated host, unmodelled HAL call, kernel fault, FakeTmc4671 or WheelPlant violation)");
+	}
+	detachPlant();
 	if (tud_ready()) {
 		// CDCcomm keeps a retry flag while a reply is only partly sent (see UsbFixture): do not leave data unsent
 		CDCcomm::clearRemainingBuffer(0);
@@ -119,6 +122,9 @@ std::string IntegrationFixture::firstFault() const {
 	if (!HostRtos::kernelFaults().empty()) {
 		return "HostRtos: " + HostRtos::kernelFaults().front();
 	}
+	if (plant_ != nullptr && !plant_->violations().empty()) {
+		return "WheelPlant: " + plant_->violations().front();
+	}
 	for (const FakeTmc4671 *c : {&chip1, &chip2}) {
 		const auto v = c->unexpectedViolations();
 		if (!v.empty()) {
@@ -133,6 +139,26 @@ void IntegrationFixture::setSupply(int32_t extMv, int32_t intMv) {
 	supplyInt_ = intMv;
 	auto counts = [](int32_t mv) { return static_cast<uint32_t>(std::lround(static_cast<double>(mv) / vSenseMult)); };
 	REQUIRE(HostTarget::adcConvert(&hadc2, {counts(supplyExt_), counts(supplyInt_)}));
+}
+
+void IntegrationFixture::attachPlant(WheelPlant &plant, FakeTmc4671 &chip) {
+	detachPlant();
+	plant_ = &plant;
+	plant.setDestroyHook([this] {
+		sched.plantHook = nullptr;
+		plant_ = nullptr; // the plant is being destroyed: forget it
+	});
+	plant.attach(chip, HostPlatform::nowUs());
+	sched.plantHook = [&plant](uint64_t nowUs) { plant.stepToUs(nowUs); };
+}
+
+void IntegrationFixture::detachPlant() {
+	sched.plantHook = nullptr;
+	if (plant_ != nullptr) {
+		plant_->detach();
+		plant_->setDestroyHook(nullptr);
+		plant_ = nullptr;
+	}
 }
 
 void IntegrationFixture::setSpiFrameUs(uint32_t us) {

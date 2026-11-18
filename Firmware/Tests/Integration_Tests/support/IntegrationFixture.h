@@ -41,6 +41,7 @@
 #define HOSTTEST_INTEGRATION_INTEGRATIONFIXTURE_H_
 
 #include "ChainScheduler.h"
+#include "../fakes/WheelPlant.h"
 
 #include "../../Code_Coverage/fakes/FakeTmc4671.h" // fakes/ is not an include directory (fakes/Axis.h would shadow the real Axis.h)
 #include "HostDcd.h"
@@ -99,6 +100,7 @@ struct IntegrationFixture {
 	FakeTmc4671 chip1{0}; //!< TMC_1, CS PA4
 	FakeTmc4671 chip2{1}; //!< TMC_2, CS PB0
 	ChainScheduler sched;
+	WheelPlant wheel; //!< the default plant: set its parameters (WheelPlant::setParams), then attachPlant()
 	UsbHost host{[this] { sched.pumpUsb(); }};
 
 	size_t startMark = 0;	//!< Size of chip1.log() just before the USB re-mount of mountAndRun: frames after it belong to the motor start
@@ -155,6 +157,20 @@ struct IntegrationFixture {
 	/** Simulated time per SPI frame of both chips (microseconds) */
 	void setSpiFrameUs(uint32_t us);
 
+	// --- plant (WO I0-7) ---
+	/**
+	 * Attaches a WheelPlant to a chip (default chip1 = TMC_1) and makes ChainScheduler step (f) call WheelPlant::stepToUs once per
+	 * scheduler step. The plant is not owned. A plant that is a local of the test body may be destroyed before the fixture (also
+	 * after a failed REQUIRE): ~WheelPlant runs a hook registered here that clears the fixture's pointer and the scheduler hook, so
+	 * firstFault() never touches a destroyed plant. The member `wheel` has the lifetime of the fixture (use it by default).
+	 * Its violations are part of firstFault().
+	 */
+	void attachPlant() { attachPlant(wheel, chip1); }
+	void attachPlant(WheelPlant &plant) { attachPlant(plant, chip1); }
+	void attachPlant(WheelPlant &plant, FakeTmc4671 &chip);
+	void detachPlant();
+	WheelPlant *plant() const { return plant_; }
+
 	// --- observation (public interfaces only) ---
 	/** The TMC4671 driver object of axis 0 (CommandHandler "tmc" instance 0), nullptr if the axis has no TMC_1 */
 	TMC4671 *tmc();
@@ -177,6 +193,7 @@ struct IntegrationFixture {
 	std::string firstFault() const;
 
 private:
+	WheelPlant *plant_ = nullptr;
 	HostRtos::ObjectCounts atStart_;
 	uint64_t startUs_ = 0;
 	int32_t supplyExt_ = 0;
