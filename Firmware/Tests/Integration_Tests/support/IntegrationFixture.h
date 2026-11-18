@@ -133,6 +133,17 @@ struct IntegrationFixture {
 	/** Sends one command line (a newline is appended) over CDC and steps the chain until the reply ends with a newline (maxMs). @return the reply text */
 	std::string cdcCommand(const std::string &line, uint32_t maxMs = 100);
 
+	/**
+	 * Reads the HID report descriptor of the enumerated device over USB (HID 1.11 7.1.1 Get_Descriptor): control IN transfer
+	 * bmRequestType 0x81 (device to host, standard, interface), bRequest GET_DESCRIPTOR (6), wValue = report descriptor type
+	 * 0x22 << 8 | index 0, wIndex = the HID interface number, wLength = wDescriptorLength of the HID descriptor in the
+	 * configuration descriptor (UsbHost::hidGetReportDescriptor). REQUIREs success and that exactly wLength bytes came back.
+	 * Needs enumerateUsb() (bringUp() does it) first.
+	 */
+	std::vector<uint8_t> readHidReportDescriptor();
+	/** wDescriptorLength of the HID descriptor of the configuration descriptor (0 if none) */
+	uint16_t hidReportDescriptorLength() const;
+
 	/** The simulated host takes the reports waiting on the HID interrupt IN endpoint (as its polling does) */
 	void drainHidIn();
 

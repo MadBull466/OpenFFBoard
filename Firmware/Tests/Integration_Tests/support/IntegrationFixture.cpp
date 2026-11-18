@@ -159,6 +159,21 @@ void IntegrationFixture::enumerateUsb() {
 	REQUIRE(firstFault().empty());
 }
 
+uint16_t IntegrationFixture::hidReportDescriptorLength() const {
+	const UsbHost::Interface *h = host.findInterface(TUSB_CLASS_HID);
+	return h ? h->hidReportLength : 0;
+}
+
+std::vector<uint8_t> IntegrationFixture::readHidReportDescriptor() {
+	const uint16_t wLength = hidReportDescriptorLength();
+	REQUIRE(wLength > 0);
+	const UsbHost::ControlResult r = host.hidGetReportDescriptor();
+	INFO("GET_DESCRIPTOR(report) status stage '" << r.stage << "'");
+	REQUIRE(r.ok());
+	REQUIRE(r.data.size() == wLength);
+	return r.data;
+}
+
 void IntegrationFixture::drainHidIn() {
 	// Host behaviour: a host's HID driver keeps polling the interrupt IN endpoint (every bInterval) and takes every report, so
 	// the default is to drain it in cdcCommand (drainHid = true). If nobody reads it, the HID command interface thread waits in

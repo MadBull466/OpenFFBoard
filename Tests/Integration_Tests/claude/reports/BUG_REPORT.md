@@ -1,6 +1,6 @@
 # Integration track: bug report
 
-*State of 2026-11-18, commit `9fccde8f`.* All faults found by the integration track (`Tests/Integration_Tests/`): suspected firmware bugs (IB n), items that need the owner's review (INR n), defects found in the test fakes and in the test tools. The questions to the owner are in [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md).
+*State of 2026-11-18 (WO I0-6 committed).* All faults found by the integration track (`Tests/Integration_Tests/`): suspected firmware bugs (IB n), items that need the owner's review (INR n), defects found in the test fakes and in the test tools. The questions to the owner are in [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md).
 
 **Maintained by hand until WO I0-8**, which adds `Firmware/Tests/Integration_Tests/tools/make_integration_bug_report.py`; from then on sections 1 and 2 are generated from the registers in [../plans/PROGRESS.md](../plans/PROGRESS.md) and must not be edited by hand. Where this file and `PROGRESS.md` disagree, `PROGRESS.md` wins.
 
@@ -12,17 +12,21 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 | Kind | Count | Open |
 |---|---|---|
-| Suspected firmware bugs (IB) | 3 | 3 |
-| NEEDS REVIEW items (INR) | 1 | 1 |
+| Suspected firmware bugs (IB) | 4 | 4 |
+| NEEDS REVIEW items (INR) | 4 | 4 |
 | Defects in shared test fakes | 3 | 0 (fixed in WO I0-3, owner-approved) |
-| Defects in test tools | 1 | 1 (owner's decision) |
+| Defects in test tools | 1 | 1 (fix planned in WO I0-8) |
 
 | # | Module | Short description | Severity (lead's estimate) | Test |
 |---|---|---|---|---|
 | IB 1 | FFBHIDMain | FFB timer period 1001 us (999 Hz) instead of 1000 us | low: 0.1 % rate error, the effects code is told 1000 Hz | `KNOWN_ISSUE` |
 | IB 2 | TMC4671 | External-encoder timer 257 us (3891 Hz) instead of 250 us (4 kHz) | low: 2.8 % rate error of the encoder update | `KNOWN_ISSUE` |
 | IB 3 | HID command interface | Use after free: replies queued while the HID IN endpoint is busy are read from freed memory and get lost | high: undefined behaviour on the target, lost command replies | `KNOWN_ISSUE_UB` |
+| IB 4 | HID descriptor | RAM Pool Available in the Block Load report declared Array instead of Variable (PID 1.01 §5.11.2) | low: a host reads the value as a usage index | `KNOWN_ISSUE` |
 | INR 1 | Axis / TMC4671 | Motor not started after a runtime driver selection; Running reachable with motor type NONE after a USB re-mount | open question | `characterization:` |
+| INR 2 | HID descriptor | PID State input report without Effect Block Index | open question | `characterization:` |
+| INR 3 | HID descriptor | Direction as two ordinal-usage values, not Generic Desktop axes (PID 1.01 §5.1.1) | open question (low) | `characterization:` |
+| INR 4 | HID descriptor | Block Load Effect Block Index range 1..40 excludes the 0 that PID 1.01 §9 returns on failure | open question | `characterization:` |
 
 ## 1. Suspected firmware bugs
 
@@ -54,6 +58,15 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 - **Same as:** none. The coverage report lists other HID command interface items (NR 7, NR 8), not this one.
 - **Test:** `test_f1_setup.cpp`, "F1-A1: replies queued for the HID command interface while its IN endpoint is not read all arrive intact and in order" (`KNOWN_ISSUE_UB("(IB 3) ...")`, skipped in sanitizer builds by the marker); found in WO I0-5.
 
+### IB 4: RAM Pool Available declared as an array
+
+- **Where:** the PID Block Load feature report in `Firmware/FFBoard/UserExtensions/Inc/usb_hid_ffb_desc.h` (read over USB by the integration test, report ID 0x12).
+- **What:** RAM Pool Available is declared `FEATURE (Data, Array, Abs)` (item bytes `B1 00`).
+- **Expected:** PID 1.01 §5.11.2 classes RAM Pool Available as a dynamic value (DV); the descriptor example in §9 declares it `FEATURE (Data,Var,Abs)` (`B1 02`).
+- **Effect:** as an array field the host interprets the value as an index into the field's usages, not as the number of free bytes.
+- **Same as:** none.
+- **Test:** `test_f1_setup.cpp`, F1-A2 case marked `KNOWN_ISSUE("(IB 4) ...")`; WO I0-6.
+
 ## 2. NEEDS REVIEW items
 
 ### INR 1: motor start after a runtime driver selection
@@ -62,6 +75,30 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 - **What the firmware does today:** with USB connected and a fresh flash, `axis.0.drvtype=1` (TMC_1) sets up the driver and calls `startMotor()` at once, before the driver is initialised. `startMotor()` only sets `motorEnabledRequested`; when the state machine then reaches Shutdown (motor type and encoder type are NONE), the request is not acted on and the driver stays in Shutdown (checked for 10 s of simulated time). A USB re-mount (`tud_mount_cb` -> `Axis::usbResume` -> `startMotor`) then switches it to Running, although motor type and encoder type are still NONE.
 - **Question:** see [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) IQ6.
 - **Test:** `test_f1_setup.cpp`, `characterization: [F1-A1] with USB connected the TMC stays in Shutdown after axis.0.drvtype=1 on a fresh flash and runs after a USB re-mount with motor and encoder type NONE`; WO I0-5. The integration fixture brings the firmware up through the re-mount ("board configured, PC connects afterwards").
+
+### INR 2: PID State without Effect Block Index
+
+- **Where:** PID State input report in `usb_hid_ffb_desc.h` (the Effect Block Index field is commented out, around lines 162-169).
+- **What the firmware does today:** the report carries the five status flags (Effect Playing, Device Paused, Actuators Enabled, Safety Switch, Actuator Power) and padding, no Effect Block Index.
+- **Reference:** PID 1.01 §5.12 describes the state of the effect identified by the index; the §6 example and Figure 15 include Effect Block Index and ROM Flag. Without the index a host cannot tell which effect "Effect Playing" refers to.
+- **Question:** [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) IQ9.
+- **Test:** `characterization: [F1-A2] the PID State input report declares the status flags without an Effect Block Index`; WO I0-6.
+
+### INR 3: Direction as ordinal-usage values
+
+- **Where:** Direction collection of the Set Effect output report in `Firmware/FFBoard/UserExtensions/Src/usb_hid_2ffb_desc.c:200-216` (the descriptor the device sends; `usb_hid_1ffb_desc.c` likewise).
+- **What the firmware does today:** two 16-bit values (Report Count 2), logical 0..36000, with Ordinal usages (page 0x0A, instances 1 and 2).
+- **Reference:** PID 1.01 §5.1.1 says the Direction collection holds Generic Desktop axes or vectors (the Axes Enable collection of the same report does use Generic Desktop X / Y). Many FFB devices declare ordinals here.
+- **Question:** [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) IQ10 (low priority).
+- **Test:** `characterization: [F1-A2]` Direction case (renamed in the I0-6 review); WO I0-6.
+
+### INR 4: Block Load index 0 on failure
+
+- **Where:** PID Block Load feature report in `usb_hid_ffb_desc.h` (Effect Block Index, `15 01`, logical 1..40).
+- **What the firmware declares:** Effect Block Index 1..40.
+- **Reference:** PID 1.01 §9, an example sequence (not a rule), says that when a Block Load fails the device returns Effect Block Index 0, which is outside the declared range.
+- **Question:** [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) IQ11. What the firmware actually sends on failure is checked in F1-H1 / F1-H3.
+- **Test:** `characterization: [F1-A2] the Block Load Effect Block Index has logical range 1..40, which does not include the 0 PID 1.01 section 9 returns on failure`; WO I0-6 review.
 
 ## 3. Defects found in the shared test fakes (fixed)
 
@@ -79,6 +116,6 @@ Gaps of the fakes that are not defects (timers and the ADC not driven by simulat
 
 | # | Tool | Defect | Status |
 |---|---|---|---|
-| T-1 | `Firmware/Tests/Code_Coverage/tools/run_all_tests.py` (coverage suite) | Reports 3 skip-marked VESC cases of `ffb_driver_tests` as failed ("known bug no longer fails - fixed? remove the marker") and attributes them to unrelated vendor bugs: `[V63] getEncoderType with useencoder off and no external encoder does not crash` -> V11, and two `[V24] ...` FILL_RX_BUFFER cases -> V5. Same before and after WO I0-3 | open: [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) IQ7 |
+| T-1 | `Firmware/Tests/Code_Coverage/tools/run_all_tests.py` (coverage suite) | Reports 3 skip-marked VESC cases of `ffb_driver_tests` as failed ("known bug no longer fails - fixed? remove the marker") and attributes them to unrelated vendor bugs: `[V63] getEncoderType with useencoder off and no external encoder does not crash` -> V11, and two `[V24] ...` FILL_RX_BUFFER cases -> V5. Same before and after WO I0-3. Cause: a passing skip-decorated crash / memory-corruption case is not treated like a passing UB case (`run_all_tests.py:352-362`), and the vendor-bug pattern matches the driver labels `B-V11` / `B-V5` (firmware bugs 189, 183) (`:390`) | open, fix in WO I0-8 (owner, IQ7) |
 
 The integration track's own hooks had three false blocks during I0 (a `2>&1` redirect read as a push argument, `chmod +x` read as a path, shell variables in build paths); the first two are fixed with tests, the third is a documented limit (`../plans/AGENT_PLAN.md` section 2.4).

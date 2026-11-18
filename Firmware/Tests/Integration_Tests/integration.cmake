@@ -45,6 +45,8 @@ if(FFB_TESTS_INTEGRATION)
 		${INTEGRATION_TEST_SOURCES}
 		Integration_Tests/support/IntegrationFixture.cpp
 		Integration_Tests/support/ChainScheduler.cpp
+		Integration_Tests/support/HidReportDescriptor.cpp
+		Integration_Tests/support/PidReportBuilder.cpp
 		Code_Coverage/support/test_main.cpp
 	)
 

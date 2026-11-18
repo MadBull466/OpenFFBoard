@@ -12,7 +12,11 @@ Questions of the integration track (`Tests/Integration_Tests/`), numbered IQ1, I
 | IQ4 | Hardware boundary for the integration executable | 2026-11-18 | answered 2026-11-18: functional fakes |
 | IQ5 | ENABLE_IN of the TMC4671 on the OpenFFBoard | 2026-11-18 | answered 2026-11-18: keep the assumption (ENI high) |
 | IQ6 | Motor start after a runtime driver selection (INR 1) | 2026-11-18 | **open** |
-| IQ7 | `run_all_tests.py` misreports 3 VESC cases (tool defect T-1) | 2026-11-18 | **open** |
+| IQ7 | `run_all_tests.py` misreports 3 VESC cases (tool defect T-1) | 2026-11-18 | answered 2026-11-18: fix in WO I0-8 |
+| IQ8 | USB HID 1.11 class definition for the descriptor parser (WO I0-6) | 2026-11-18 | answered 2026-11-18: supplied (`hid1_11.pdf`) |
+| IQ9 | PID State input report without Effect Block Index (INR 2) | 2026-11-18 | **open** |
+| IQ10 | Direction as ordinal-usage values (INR 3) | 2026-11-18 | **open** (low priority) |
+| IQ11 | Block Load index 0 on failure outside the declared range 1..40 (INR 4) | 2026-11-18 | **open** |
 
 Faults found by the track are in [BUG_REPORT.md](BUG_REPORT.md).
 
@@ -77,6 +81,34 @@ Seen in every run of the coverage report tool during WO I0-3 (before and after t
 
 - **A:** investigate and fix the tool (and, if a marker is wrong, the cases) in a separate work order under the coverage track's rules.
 - **B:** leave it as documented; the integration track compares reports before / after and ignores these three entries.
+
+**Cause (lead's investigation, 2026-11-18):** (1) `run_all_tests.py:352-362` treats a passing skip-decorated case as "not evidence of a fix" only when its description contains "undefined behaviour"; these say "KNOWN ISSUE (crash)" / "(memory corruption)" (null call through `MotorDriver::getEncoder()`, `VescCAN.cpp:156`; FILL_RX_BUFFER without a bound check, `VescCAN.cpp:630`), which have no visible effect in an isolated run, so the tool reports "no longer fails" as Failed. (2) The vendor-bug pattern `(?<![A-Za-z0-9_])V(\d+)` (`run_all_tests.py:390`) matches the `V11` / `V5` inside the driver-track labels `B-V11` / `B-V5`, which are firmware bugs 189 and 183 (coverage `PROGRESS.md:1919`, `:1925`).
+
+**Answer (2026-11-18): fix it in WO I0-8** (which edits `run_all_tests.py` anyway, with the owner's approval of that file): classify passing skip-decorated crash / memory-corruption cases like passing UB cases, and resolve `B-V<n>` labels to their firmware bug instead of a vendor bug; Python tests for both.
+
+## Batch 3 (phase I0, WO I0-6, 2026-11-18)
+
+### IQ8. USB HID 1.11 class definition
+
+WO I0-6 parses the firmware's HID report descriptor (item encoding: short items, main / global / local items, Report ID / Size / Count, logical ranges) to build PID reports independently of the firmware's C structs. That encoding is defined in the HID 1.11 class definition (§6.2.2), which was not in `Tests/Code_Coverage/shared/specs/`; PID 1.01 defines the PID usages but not the item encoding, and TinyUSB's `hid.h` macros are code under test, not an oracle.
+
+**Answer (2026-11-18): supplied.** `Tests/Code_Coverage/shared/specs/hid1_11.pdf` (Device Class Definition for HID, Version 1.11, 5/27/01). The HID Usage Tables are not supplied: usages outside the PID page (the joystick input report) are parsed but their meaning is not asserted.
+
+### IQ9. PID State input report without Effect Block Index (INR 2)
+
+The firmware's PID State input report (read from the device over USB in WO I0-6) declares the status flags Effect Playing, Device Paused, Actuators Enabled, Safety Switch and Actuator Power, but no Effect Block Index; the field is commented out in `usb_hid_ffb_desc.h` (around lines 162-169). PID 1.01 §5.12 describes the state of the effect identified by its index, and the §6 example and Figure 15 include Effect Block Index (and ROM Flag). Without the index, "Effect Playing" cannot be attributed to an effect. Is leaving it out intended (e.g. for host compatibility), or a defect? If a defect, it becomes an IB entry with a `KNOWN_ISSUE` test.
+
+**Answer:** open.
+
+### IQ10. Direction as ordinal-usage values (INR 3, low priority)
+
+The Direction collection of the Set Effect report holds two 16-bit values (logical 0..36000, Report Count 2) with Ordinal usages (page 0x0A, instances 1 and 2), while PID 1.01 §5.1.1 says the Direction collection holds Generic Desktop axes or vectors (the report's Axes Enable collection does use Generic Desktop X / Y). Many force-feedback devices use ordinals here, so this may be intended for host compatibility. Intended?
+
+**Answer:** open.
+
+### IQ11. Block Load index 0 on failure (INR 4)
+
+The PID Block Load feature report declares the Effect Block Index with logical range 1..40. PID 1.01 §9 (an example sequence) says that when a Block Load fails the device returns Effect Block Index 0, which a host following the descriptor would treat as out of range. Should 0 be inside the declared range (logical minimum 0), or does the firmware report failure only through Block Load Status? The behaviour on failure is tested in F1-H1 / F1-H3; this question is about the declared range.
 
 **Answer:** open.
 

@@ -1,0 +1,10 @@
+# Files of WO I0-6 (read by it_gate.py)
+Firmware/Tests/Integration_Tests/support/HidReportDescriptor.h
+Firmware/Tests/Integration_Tests/support/HidReportDescriptor.cpp
+Firmware/Tests/Integration_Tests/support/PidReportBuilder.h
+Firmware/Tests/Integration_Tests/support/PidReportBuilder.cpp
+Firmware/Tests/Integration_Tests/support/IntegrationFixture.h
+Firmware/Tests/Integration_Tests/support/IntegrationFixture.cpp
+Firmware/Tests/Integration_Tests/claude/cases/test_f1_setup.cpp
+Firmware/Tests/Integration_Tests/claude/cases/test_f1_support.cpp
+Firmware/Tests/Integration_Tests/integration.cmake
