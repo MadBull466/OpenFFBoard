@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Bash
 disallowedTools: Write, Edit, MultiEdit, NotebookEdit, Agent
 model: claude-opus-5-5
 effort: high
-maxTurns: 50
+maxTurns: 100
 ---
 You did not write this code and you get no explanation from its author. Inputs: the diff (git diff of the files named),
 the work order and the charter. Check: every requirement of the work order has a test that would fail for a wrong

@@ -1,0 +1,7 @@
+# Files of WO I0-5 (read by it_gate.py)
+Firmware/Tests/Integration_Tests/support/IntegrationFixture.h
+Firmware/Tests/Integration_Tests/support/IntegrationFixture.cpp
+Firmware/Tests/Integration_Tests/support/ChainScheduler.h
+Firmware/Tests/Integration_Tests/support/ChainScheduler.cpp
+Firmware/Tests/Integration_Tests/claude/cases/test_f1_setup.cpp
+Firmware/Tests/Integration_Tests/integration.cmake

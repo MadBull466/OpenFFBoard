@@ -40,7 +40,9 @@ Lead writes a self-contained work order -> `integration-test-writer` implements 
 
 ## Integration-specific pitfalls (expected)
 
-* Three fixtures (`UsbFixture`, `TargetFixture`, `TmcFixture`) reset the same globals differently: use only `IntegrationFixture`.
+* Three fixtures (`UsbFixture`, `TargetFixture`, `TmcFixture`) reset the same globals differently: use only `IntegrationFixture` (since I0-5; `bringUp()` = `reachShutdown()` + `mountAndRun()`).
+* Every firmware thread that delays must be resumable (`ChainScheduler::adoptThreads`); a new delaying thread that is not adopted shows up as a kernel fault at teardown.
+* Cases that bring up the firmware carry `IT_DELETES_FFBHIDMAIN` (main-class delete is coverage bug 24) and are skipped in sanitizer builds unless run with `--no-skip` and `ASAN_OPTIONS=new_delete_type_mismatch=0`.
 * `HostUsb::reset` belongs to the recording TinyUSB fake, which is not linked here.
 * The TMC driver thread relies on the delay budget of `HostRtos`; it was never combined with `HOSTTEST_RTOS_EXT` before I0.
 * `FakeTmc4671` does not move the position by itself: open-loop tests script 0x6B, closed-loop tests attach `WheelPlant`.

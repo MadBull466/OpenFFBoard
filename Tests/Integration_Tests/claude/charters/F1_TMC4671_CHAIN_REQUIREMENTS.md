@@ -37,7 +37,7 @@ Priority: P1 must be proven before the phase closes, P2 should, P3 is recorded b
 | F1-A1 | P1 | The fixture brings up the real chain: `FFBWheel` main class, real `USBdevice` + TinyUSB enumerated by the simulated host, axis 0 with driver TMC_1 on `FakeTmc4671` (CS PA4), supply present, TMC state `Running`, `motorReady()` true, within a bounded simulated time | FW sequence (R70, R72) | smoke |
 | F1-A2 | P1 | The test's report-descriptor parser finds every PID report the firmware declares (ids 1-6, 0x0A-0x0D output; 0x11-0x13 feature; input 2 state) with field offsets, sizes and logical ranges, and the builder produces reports whose length equals the descriptor's | DESC + PID §7 | protects against host builder errors |
 | F1-A3 | P1 | The wheel plant integrates its documented model exactly (energy check for the frictionless case, analytic decay for the viscous case) and writes 0x6B as the integer PhiM count | MATH | plant self-test |
-| F1-A4 | P1 | The scheduler runs one FFB cycle per TIM13 update and the TMC thread at its own delays; one simulated ms = one FFB cycle at the default rate | FW (FFBHIDMain timer, `Delay(10)`) | documents the host-vs-target order |
+| F1-A4 | P1 | The scheduler runs one FFB cycle per TIM13 update and the TMC thread at its own delays; one simulated ms = one FFB cycle at the default rate | FW (FFBHIDMain timer; TMC `Running` loop `Delay(200)` (`TMC4671.cpp:577`) + `Delay(10)` (`:656`), corrected 2026-11-18 in WO I0-5) | documents the host-vs-target order; the default FFB period is 1001 us (IB 1) |
 | F1-A5 | P2 | The oscillation detector classifies decaying, sustained and growing synthetic signals correctly (amplitude ratio per cycle, frequency) | MATH | detector self-test |
 
 ### G-H HID entry through the real USB stack

@@ -13,7 +13,7 @@ Starting point: the four agents of the coverage track in `.claude/agents/` (`dri
 | Fake auditor | `fake-auditor` | Opus 5.5, high | Read, Grep, Glob, Bash | 100 (60 until 2026-11-18) | audits a fake against its header and source; reports defects and affected coverage cases; never edits the repository |
 | Writer | `integration-test-writer` | Sonnet 5.5, medium | Read, Grep, Glob, Write, Edit, Bash | 80 | one work order at a time; builds and runs both builds; returns the gate evidence |
 | Stability analyst | `stability-analyst` | Opus 5.5, high | Read, Grep, Glob, Write, Edit, Bash | 60 | stability derivation, oracle scripts (Python stdlib), generated prediction tables |
-| Reviewer | `integration-reviewer` | Opus 5.5, high | Read, Grep, Glob, Bash | 50 | adversarial review in a fresh context; never edits the repository |
+| Reviewer | `integration-reviewer` | Opus 5.5, high | Read, Grep, Glob, Bash | 100 (50 until 2026-11-18) | adversarial review in a fresh context; never edits the repository |
 | Summaries | `test-output-summariser` (existing) | Haiku 5.5 | Read, Grep, Bash | 10 | only when `summarise_results.py` cannot do it |
 
 Where the proposed design was changed, with the reason:
@@ -113,7 +113,7 @@ tools: Read, Grep, Glob, Bash
 disallowedTools: Write, Edit, MultiEdit, NotebookEdit, Agent
 model: claude-opus-5-5
 effort: high
-maxTurns: 50
+maxTurns: 100
 ---
 You did not write this code and you get no explanation from its author. Inputs: the diff (git diff of the files named),
 the work order and the charter. Check: every requirement of the work order has a test that would fail for a wrong
@@ -208,6 +208,7 @@ Windows note: the hooks use `python3`; on a Windows checkout the owner would cha
 * Gate as built in WO I0-4 (`Firmware/Tests/Integration_Tests/tools/it_gate.py`): the WO's file list is `Tests/Integration_Tests/claude/charters/wo/<ID>.files` (written by the lead); evidence also records `variants_requested`, `file_list`, `file_patterns`, `git_head`; `result` is `PASS` only with default and m32 (or `--full`) all passing, otherwise `PARTIAL` (refused by the hooks) or `FAIL`; WO sources are re-checked with `-fsyntax-only` so an incremental build cannot hide warnings; each variant's `CMakeCache.txt` must match its options; ctest must register `ffb_integration_tests` and `integration_tool_tests`; the other executables' compile commands must equal a recorded reference (`../ffb-test-build/it-gate/compile_reference-<variant>.json`, `--record-compile-reference`); timeouts on ctest and the integration run.
 * Known limits found in use (2026-11-18): the guard sees the command text only, so shell variables are not expanded (`cmake --build $C/build` is read as a repository path and blocked: write build paths literally); a combined command is checked before any part runs (stage and commit in separate commands); `chmod` / `chown` treat their first word as the mode (fixed after a false block).
 * `fake-auditor` `maxTurns` raised from 60 to 100 (owner, 2026-11-18): all four I0-2 audits ran out at 60.
+* `integration-reviewer` `maxTurns` raised from 50 to 100 (owner, 2026-11-18): the I0-3, I0-4 and I0-5 reviews ran out at 50.
 
 ## 3. Per-work-order flow
 

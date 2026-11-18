@@ -16,7 +16,7 @@ Chain files of F1: `HidFFB.cpp`, `EffectsCalculator.cpp`, `Filters.cpp`, `Axis.c
 
 | Flow | Chain | Phase | Status |
 |---|---|---|---|
-| F1 | HID PID (USB) -> HidFFB -> EffectsCalculator (CMSIS-DSP) -> Axis -> TMC4671 (`FakeTmc4671`), with feedback, supply, init, faults, E-stop, commands, persistence, timing, stability | I0-I5 | I0 in progress: executable and smoke case exist, 0 of 62 requirements covered |
+| F1 | HID PID (USB) -> HidFFB -> EffectsCalculator (CMSIS-DSP) -> Axis -> TMC4671 (`FakeTmc4671`), with feedback, supply, init, faults, E-stop, commands, persistence, timing, stability | I0-I5 | I0 in progress: fixture and scheduler exist, F1-A1 and F1-A4 covered (count in `PROGRESS.md`) |
 | F2 | same chain with ODrive (`FakeOdrivePeer`, CAN) | I6 | planned after F1 |
 | F3 | VESC (`FakeVescPeer`, CAN) | I7 | planned after F2 |
 | F4 | PWM (`MotorPWM`, fake TIM1) | I8 | planned after F3 |

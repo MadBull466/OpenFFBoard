@@ -43,6 +43,8 @@ if(FFB_TESTS_INTEGRATION)
 		${INTEGRATION_FIRMWARE_SOURCES}
 		${INTEGRATION_PLATFORM_SOURCES}
 		${INTEGRATION_TEST_SOURCES}
+		Integration_Tests/support/IntegrationFixture.cpp
+		Integration_Tests/support/ChainScheduler.cpp
 		Code_Coverage/support/test_main.cpp
 	)
 

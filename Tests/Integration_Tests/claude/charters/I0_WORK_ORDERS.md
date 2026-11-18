@@ -1,6 +1,6 @@
 # Phase I0 (infrastructure): work orders, DRAFT
 
-Status: **active since 2026-11-18 (plan approved). I0-1 done 2026-11-18; I0-2 done 2026-11-18 (reports in `audit/`); I0-3 done 2026-11-18 (`I0-3_FIX_ORDERS.md`, owner-approved); I0-4 done 2026-11-18 (`I0-4_ORDER.md`); I0-3 and I0-4 committed together. Next I0-5.** The lead completes each work order (exact file lists, commands, reserved IB / INR numbers) before handing it out. Every WO ends with `it_gate.py --wo <ID> --variants default,m32` evidence (file list `wo/<ID>.files`, written by the lead) and an `integration-reviewer` pass before its commit.
+Status: **active since 2026-11-18 (plan approved). I0-1 done 2026-11-18; I0-2 done 2026-11-18 (reports in `audit/`); I0-3 done 2026-11-18 (`I0-3_FIX_ORDERS.md`, owner-approved); I0-4 done 2026-11-18 (`I0-4_ORDER.md`); I0-3 and I0-4 committed together; I0-5 done 2026-11-18 (`I0-5_ORDER.md`). Next I0-6.** The lead completes each work order (exact file lists, commands, reserved IB / INR numbers) before handing it out. Every WO ends with `it_gate.py --wo <ID> --variants default,m32` evidence (file list `wo/<ID>.files`, written by the lead) and an `integration-reviewer` pass before its commit.
 
 | WO | Owner of the work | Content | Files | Depends on |
 |---|---|---|---|---|
