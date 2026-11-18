@@ -87,6 +87,7 @@ class PathRules(TempRepo):
 
     def test_generated_files_are_blocked(self):
         for rel in ("Tests/Code_Coverage/claude/reports/BUG_REPORT.md",
+                    "Tests/Integration_Tests/claude/reports/BUG_REPORT.md",
                     "Firmware/Tests/Integration_Tests/claude/oracles/biquad_frf.csv",
                     "Firmware/Tests/Code_Coverage/baseline/test_cases.txt"):
             self.assertIsNotNone(self.block(rel), rel)

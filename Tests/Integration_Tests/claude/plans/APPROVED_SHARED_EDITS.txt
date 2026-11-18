@@ -2,3 +2,9 @@
 # One line per path: <repository-relative path> | <owner's approval date> | <work order>
 # The lead adds a line only after the owner approved that change (AGENT_PLAN.md section 4). Remove a line in the commit after its WO's commit (the commit check still needs it).
 # (no open approvals: the I0-3 / I0-4 lines were removed after commit 096f43d3, 2026-11-18)
+# WO I0-8 tools, approved by the owner 2026-11-18 ("Approve, start I0-8")
+Firmware/Tests/Code_Coverage/tools/run_all_tests.py | 2026-11-18 | I0-8 (ffb_integration_tests, IB / INR numbers, T-1 fix)
+Firmware/Tests/Code_Coverage/tools/coverage_report.py | 2026-11-18 | I0-8 (Integration (F1 chain) section)
+Firmware/Tests/Code_Coverage/claude/python/test_run_all_tests.py | 2026-11-18 | I0-8 (tests of the run_all_tests changes)
+Firmware/Tests/Code_Coverage/claude/python/test_coverage_report.py | 2026-11-18 | I0-8 (new: tests of the coverage_report section)
+Firmware/Tests/CMakeLists.txt | 2026-11-18 | I0-8 (test_report DEPENDS ffb_integration_tests when it exists)

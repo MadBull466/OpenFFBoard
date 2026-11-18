@@ -145,11 +145,12 @@ if(FFB_TESTS_INTEGRATION)
 		add_test(NAME ffb_integration_tests COMMAND ffb_integration_tests)
 	endif()
 
-	# Self-tests of the integration tooling (the gate script and the hook rules): stdlib unittest, only with Python 3.
+	# Self-tests of the integration tooling (the gate script, the hook rules, the bug report generator and its --check of the committed report): stdlib unittest, only with Python 3.
 	# test_hooks.py tests the Claude Code hooks, which are meant to run on Linux / macOS only (python3 command): not on Windows.
 	if(Python3_Interpreter_FOUND)
 		if(WIN32)
-			set(FFB_INTEGRATION_TOOL_TEST_GLOB "test_it_gate.py")
+			# every tools/test_*.py except test_hooks.py: unittest takes one fnmatch pattern, [!h] leaves out test_h*.py (only test_hooks.py today)
+			set(FFB_INTEGRATION_TOOL_TEST_GLOB "test_[!h]*.py")
 		else()
 			set(FFB_INTEGRATION_TOOL_TEST_GLOB "test_*.py")
 		endif()
@@ -158,6 +159,8 @@ if(FFB_TESTS_INTEGRATION)
 				-s ${CMAKE_CURRENT_SOURCE_DIR}/Integration_Tests/tools -t ${CMAKE_CURRENT_SOURCE_DIR}/Integration_Tests/tools -p "${FFB_INTEGRATION_TOOL_TEST_GLOB}"
 			WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 		set_tests_properties(integration_tool_tests PROPERTIES ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
+		# test_make_integration_bug_report.py also runs make_integration_bug_report.py --check against the committed report
+		# (Tests/Integration_Tests/claude/reports/BUG_REPORT.md, generated from the registers of PROGRESS.md): a stale report fails this test.
 	else()
 		message(STATUS "OpenFFBoard tests: Python 3 not found, integration_tool_tests not added to ctest")
 	endif()

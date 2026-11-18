@@ -18,6 +18,9 @@ The report (Markdown, stdout) separates:
              numbers of tier C (the other executables) stay comparable. NOT part of the in-scope coverage ladder.
   driver     the driver track (Tests/Code_Coverage/claude/plans/DRIVER_TEST_PLAN.md): TMC4671.cpp, TMC4671_configs.cpp, ODriveCAN.cpp, VescCAN.cpp, TMCDebugBridge.cpp (P13), MotorPWM.cpp (P14), MotorSimplemotion.cpp (P15), RmdMotorCAN.cpp (P16).
              Own section; NOT part of the in-scope coverage ladder (its total is unchanged by the driver track)
+  integration  the F1 chain of the integration track (Tests/Integration_Tests/claude/plans/COVERAGE_AND_SCOPE.md section 1, "Integration (F1 chain)"). Own section,
+             built from the .gcda files of the CMake target ffb_integration_tests ONLY (CMakeFiles/ffb_integration_tests.dir), which are left out of every
+             other section, so the other numbers do not depend on the integration executable. Raw gcov lines (no hardware-only exclusions).
 Firmware/Tests/, the remaining out-of-scope drivers, MIDI, the rest of Libraries/ and Targets/ are not reported.
 
 "In-scope sources" is the denominator of the coverage ladder in Tests/Code_Coverage/claude/plans/TEST_PLAN.md: every .c/.cpp in
@@ -140,6 +143,95 @@ HAL_OUT_OF_SCOPE = {"stm32f4xx_ll_usb.c": [(1239, 1248, "USB_ReadChInterrupts, h
 	(1437, 2267, "USB host half, USB_HostInit to USB_StopHost (HCD is not enabled)")]}
 
 
+# Integration track: ffb_integration_tests is one CMake target with its own object directory
+INTEGRATION_TARGET_DIR = "/ffb_integration_tests.dir/"
+# Chain files of flow F1 (paths relative to Firmware/): the list of Tests/Integration_Tests/claude/plans/COVERAGE_AND_SCOPE.md section 1
+# "Chain files of F1" (keep both in step)
+INTEGRATION_CHAIN_FILES = [
+	"FFBoard/Src/HidFFB.cpp", "FFBoard/Src/EffectsCalculator.cpp", "FFBoard/Src/Filters.cpp", "FFBoard/Src/Axis.cpp",
+	"FFBoard/Src/AxesManager.cpp", "FFBoard/UserExtensions/Src/FFBHIDMain.cpp", "FFBoard/UserExtensions/Src/FFBWheel.cpp",
+	"FFBoard/UserExtensions/Src/TMC4671.cpp", "FFBoard/Src/MotorDriver.cpp", "FFBoard/Src/Encoder.cpp",
+	"FFBoard/Src/global_callbacks.cpp", "FFBoard/Src/UsbHidHandler.cpp", "FFBoard/USB/class/hid/hid_device.c",
+]
+# CMSIS-DSP functions on the F1 path (same section): counted by function name, from the function's first to its last gcov line
+# (gcov JSON start_line / end_line), not per file, because the DSP files hold more functions than the chain uses.
+# arm_sqrt_f32 and arm_pid_f32 are __STATIC_FORCEINLINE functions of CMSIS-DSP headers: gcov reports line data for the header but no
+# function record for them, so they cannot be measured by name. They are listed as explicit "not measured" rows (their lines are not in the
+# total); a function record, if a gcov version gives one, is measured like the others.
+INTEGRATION_DSP_INLINE = ("arm_sqrt_f32", "arm_pid_f32")
+INTEGRATION_DSP_FUNCTIONS = re.compile(r"^arm_(?:biquad_cascade_df1_\w+|spline_\w+|sin_f32|cos_f32|sqrt_f32|pid_\w+|std_f32)$")
+
+
+def is_integration_gcda(path):
+	"""True for a .gcda / .gcno file of the ffb_integration_tests target (own section, left out of the others)."""
+	return INTEGRATION_TARGET_DIR in path.replace("\\", "/")
+
+
+def integration_chain_rows(data, fw):
+	"""Rows of the integration section from merged gcov data of ffb_integration_tests: (files, functions, total).
+	files: [(rel, covered, executable)] in INTEGRATION_CHAIN_FILES order, covered/executable None for a file without data;
+	functions: [(name, rel, covered, executable, whole_file)] sorted by file and name (whole_file True when gcov gave no
+	end line: all lines of the file are counted then); total: (covered, executable) over both."""
+	files = []
+	lines_of = {}
+	for path, entry in data.items():
+		lines_of[os.path.relpath(path, fw).replace("\\", "/")] = entry
+	for rel in INTEGRATION_CHAIN_FILES:
+		entry = lines_of.get(rel)
+		if entry is None:
+			files.append((rel, None, None))
+			continue
+		lines = entry["lines"]
+		files.append((rel, sum(1 for c in lines.values() if c > 0), len(lines)))
+	functions = []
+	for rel, entry in sorted(lines_of.items()):
+		if not rel.startswith("Libraries/CMSIS-DSP/"):
+			continue
+		for name in sorted(entry["functions"]):
+			if not INTEGRATION_DSP_FUNCTIONS.match(name):
+				continue
+			first = entry.get("fn_start", {}).get(name, 0)
+			last = entry.get("fn_end", {}).get(name, 0)
+			whole = not (first and last >= first)
+			chosen = entry["lines"] if whole else {n: c for n, c in entry["lines"].items() if first <= n <= last}
+			functions.append((name, rel, sum(1 for c in chosen.values() if c > 0), len(chosen), whole))
+	measured_names = {f[0] for f in functions}
+	for name in INTEGRATION_DSP_INLINE:
+		if name not in measured_names:
+			functions.append((name, None, None, None, False))
+	cov = sum(f[1] for f in files if f[1] is not None) + sum(f[2] for f in functions if f[2] is not None)
+	exe = sum(f[2] for f in files if f[2] is not None) + sum(f[3] for f in functions if f[3] is not None)
+	return files, functions, (cov, exe)
+
+
+def print_integration_section(data, fw, out=print):
+	out("\n### Integration (F1 chain) (ffb_integration_tests alone; not part of the coverage ladder, not part of the other tiers)\n")
+	if not data:
+		out("No ffb_integration_tests coverage data (ffb_integration_tests not built or not run).")
+		return
+	files, functions, total = integration_chain_rows(data, fw)
+	out("Chain files of `Tests/Integration_Tests/claude/plans/COVERAGE_AND_SCOPE.md` section 1. Raw gcov lines of the objects of "
+		"ffb_integration_tests only (no hardware-only exclusions); every unexecuted line is classified by hand in the phase report.\n")
+	out("| File | Lines | Executed | Covered |")
+	out("|---|---|---|---|")
+	for rel, cov, exe in files:
+		if cov is None:
+			out("| `%s` | no data | n/a | n/a |" % rel)
+		else:
+			out("| `%s` | %d | %d | %s |" % (rel, exe, cov, pct(cov, exe)))
+	out("\nCMSIS-DSP functions on the path (by function name, the function's own lines):\n")
+	out("| Function | File | Lines | Executed | Covered |")
+	out("|---|---|---|---|---|")
+	if not functions:
+		out("| none | no data | n/a | n/a | n/a |")  # unreachable while the inline rows exist; kept for a changed list
+	for name, rel, cov, exe, whole in functions:
+		if rel is None:
+			out("| `%s` | not measured: inline function, gcov gives no function record | n/a | n/a | n/a |" % name)
+			continue
+		out("| `%s` | `%s`%s | %d | %d | %s |" % (name, rel, " (whole file: gcov gave no end line)" if whole else "", exe, cov, pct(cov, exe)))
+	out("\n**Total chain: %d of %d lines executed (%s)**" % (total[0], total[1], pct(total[0], total[1])))
+
+
 def is_hal_gcda(path):
 	"""True for a .gcda file of the HAL object libraries (tier D, own section)."""
 	path = path.replace("\\", "/")
@@ -197,6 +289,7 @@ def run_gcov(gcov_cmd, gcda_files, notes_sources=None):
 						name = fn["name"]
 						entry["functions"][name] = entry["functions"].get(name, 0) + fn["execution_count"]
 						entry.setdefault("fn_start", {})[name] = fn.get("start_line", 0)
+						entry.setdefault("fn_end", {})[name] = fn.get("end_line", 0)
 			if not valid_documents:
 				raise ValueError("invalid gcov output for %s: no JSON documents" % gcda)
 			# Successful gcov on notes establishes zero source lines even when files=[] (data-only objects).
@@ -304,7 +397,7 @@ def pct(covered, total):
 	return "n/a" if total == 0 else "%.1f %%" % (100.0 * covered / total)
 
 
-def main():
+def main(argv=None):
 	parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
 	parser.add_argument("--build-dir", required=True, help="build directory of a --coverage build after a test run")
 	parser.add_argument("--firmware-dir", default=DEFAULT_FIRMWARE_DIR, help="the Firmware/ directory")
@@ -312,7 +405,7 @@ def main():
 	parser.add_argument("--headers", action="store_true", help="also list header files in the per-file table")
 	parser.add_argument("--exclusions", default=DEFAULT_EXCLUSIONS, help="hardware-only exclusion list")
 	parser.add_argument("--no-exclusions", action="store_true", help="count hardware-only code too (raw numbers)")
-	args = parser.parse_args()
+	args = parser.parse_args(argv)
 
 	fw = os.path.abspath(args.firmware_dir)
 	exclusions = {} if args.no_exclusions else read_exclusions(args.exclusions, fw)
@@ -326,16 +419,22 @@ def main():
 	# ffb_dsp_tests data is kept apart: tier C keeps its meaning (the CMSIS-DSP functions the firmware tests reach)
 	dsp_gcda = [g for g in gcda_files if is_dsp_gcda(g)]
 	hal_gcda = [g for g in gcda_files if is_hal_gcda(g)]
-	gcda_files = [g for g in gcda_files if not is_dsp_gcda(g) and not is_hal_gcda(g)]
+	it_gcda = [g for g in gcda_files if is_integration_gcda(g)]  # own section: ffb_integration_tests alone
+	gcda_files = [g for g in gcda_files if not is_dsp_gcda(g) and not is_hal_gcda(g) and not is_integration_gcda(g)]
 	# Notes-only objects may contain executable code that has never run. Ask gcov for their
 	# executable lines instead of inferring data-only status from the existence of .gcno.
 	# Standalone DSP static-library objects retain their documented linked-data-only scope.
 	notes_sources = {}
+	it_notes = []
 	for root, _, files in os.walk(args.build_dir):
 		for name in files:
 			if not name.endswith(".gcno"):
 				continue
 			note = os.path.abspath(os.path.join(root, name))
+			if is_integration_gcda(note):
+				if not os.path.isfile(note[:-5] + ".gcda"):
+					it_notes.append(note)  # compiled into ffb_integration_tests, never run: its lines count as not executed
+				continue
 			if is_dsp_gcda(note) or os.path.isfile(note[:-5] + ".gcda"):
 				continue
 			for directory in SOURCE_DIRS:
@@ -348,6 +447,7 @@ def main():
 	try:
 		data = run_gcov(shlex.split(args.gcov), sorted(gcda_files) + sorted(notes_sources), notes_sources)
 		dsp_data = run_gcov(shlex.split(args.gcov), sorted(dsp_gcda)) if dsp_gcda else {}
+		it_data = run_gcov(shlex.split(args.gcov), sorted(it_gcda) + sorted(it_notes)) if it_gcda else {}
 		hal_data = {}
 		for target, marker in HAL_TARGETS:
 			files = sorted(g for g in hal_gcda if marker in g.replace("\\", "/"))
@@ -496,6 +596,9 @@ def main():
 		print("\nFiles with data are the sources linked into ffb_dsp_tests (a static library object that no test references is not "
 			"linked and has no data, so its lines are NOT in the executable line count above: the percentage is over linked files only). "
 			"In-scope files without data: %d of %d." % (len(missing), len(dsp_sources)))
+
+	# integration track: the F1 chain, ffb_integration_tests alone
+	print_integration_section(it_data, fw)
 
 	# tier D: the ST HAL, one table per target (own data, not part of the ladder)
 	print("\n### ST HAL in scope (tier D, ffb_hal_tests and ffb_hal_tests_disco; not part of the coverage ladder)\n")

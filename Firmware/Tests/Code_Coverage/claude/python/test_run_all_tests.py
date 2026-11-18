@@ -372,5 +372,317 @@ class MessageTest(unittest.TestCase):
         self.assertEqual(rat.strip_paths(text), os.path.join("Firmware", "x.cpp") + ": 'a\\n'")
 
 
+class SkippedCrashAndMemoryCorruptionTest(unittest.TestCase):
+    """Tool defect T-1 (a): a skip-decorated crash / memory corruption case that passes with --no-skip is classified
+    like a passing skip-decorated UB case, not as 'known bug no longer fails'."""
+
+    def skipped_pass(self, description):
+        r = make_result("passed", description)
+        r.skip_decorated = True
+        return r
+
+    def test_a_skipped_crash_case_that_passes_alone_is_bugged_and_not_evidence_of_a_fix(self):
+        r = self.skipped_pass("KNOWN ISSUE (crash): B-V11: getEncoderType dereferences a null pointer. Skipped because it terminates the test run")
+        self.assertEqual(rat.classify(r), rat.BUGGED)
+        self.assertIn("crash, passes in this run", r.note)
+        self.assertIn("not evidence of a fix", r.note)
+
+    def test_a_skipped_memory_corruption_case_that_passes_alone_is_bugged(self):
+        r = self.skipped_pass("KNOWN ISSUE (memory corruption): B-V5: no bound check. Skipped; run manually with --no-skip")
+        self.assertEqual(rat.classify(r), rat.BUGGED)
+        self.assertIn("memory corruption, passes in this run", r.note)
+
+    def test_the_undefined_behaviour_rule_is_unchanged(self):
+        r = self.skipped_pass("KNOWN ISSUE (undefined behaviour): x")
+        self.assertEqual(rat.classify(r), rat.BUGGED)
+        self.assertIn("undefined behaviour, passes in this run", r.note)
+
+    def test_a_skipped_crash_case_that_crashes_is_still_bugged(self):
+        r = make_result("crash", "KNOWN ISSUE (crash): x")
+        r.skip_decorated = True
+        self.assertEqual(rat.classify(r), rat.BUGGED)
+        self.assertIn("crashes as expected", r.note)
+
+    def test_a_crash_case_that_is_not_skip_decorated_and_passes_is_still_failed_as_no_longer_failing(self):
+        r = make_result("passed", "KNOWN ISSUE (crash): x", should_fail=True)
+        self.assertEqual(rat.classify(r), rat.FAILED)
+        self.assertIn("no longer fails", r.note)
+
+    def test_a_skipped_case_with_a_plain_known_issue_marker_that_passes_is_still_failed(self):
+        r = self.skipped_pass("KNOWN ISSUE: x")
+        self.assertEqual(rat.classify(r), rat.FAILED)
+
+
+COVERAGE_PROGRESS = """# Progress
+
+## Suspected firmware bugs
+
+| # | Module | Location | Description | Evidence |
+|---|---|---|---|---|
+| 183 | VESC driver: Buffer protocol | `VescCAN.cpp:630, 638` | No bound check on FILL_RX_BUFFER | skipped (memory corruption) [V24] (B-V5) |
+| 189 | VESC driver: Encoder | `VescCAN.cpp:152-157` | getEncoderType() dereferences a null encoder | skipped crash [V63] (B-V11) |
+| V5 | EEPROM | `eeprom.c:100` | Page 1 is never erased | KNOWN_ISSUE |
+| V11 | cworkqueue | `cworkqueue.cpp:20` | Item queue leaks | KNOWN_ISSUE |
+| V87 | TinyUSB MIDI class | `midi_device.c:300` | Reserved packet returns 0 | KNOWN_ISSUE (B-MIDI-V2) |
+
+## NEEDS REVIEW items
+
+| # | Module | Test / location | Question | Resolved? |
+|---|---|---|---|---|
+| 3 | Existing suite | 17 cases | Carried over | n/a |
+
+## Untestable code
+"""
+
+
+class DriverTrackLabelTest(unittest.TestCase):
+    """Tool defect T-1 (b): B-V11 is a driver-track label, not vendor bug V11."""
+
+    def setUp(self):
+        self.progress = rat.Progress(COVERAGE_PROGRESS)
+
+    def test_a_driver_track_label_is_not_a_vendor_bug_number(self):
+        self.assertEqual(rat.extract_numbers("KNOWN ISSUE (crash): B-V11: getEncoderType"), ["B-V11"])
+        self.assertEqual(rat.extract_numbers("memory corruption: B-V5: no bound check"), ["B-V5"])
+        self.assertEqual(rat.extract_numbers("B-MIDI-V2 (TinyUSB, vendor): same as"), ["B-MIDI-V2"])
+
+    def test_a_real_vendor_number_next_to_a_label_is_still_found(self):
+        self.assertEqual(rat.extract_numbers("[V63] getEncoderType (B-V11) and V5"), ["V63", "B-V11", "V5"])
+        self.assertEqual(rat.extract_numbers("is rejected (V29)"), ["V29"])
+
+    def test_a_label_resolves_to_the_row_whose_evidence_names_it(self):
+        self.assertEqual(self.progress.resolve_label("B-V11"), "bug 189")
+        self.assertEqual(self.progress.resolve_label("B-V5"), "bug 183")
+        self.assertEqual(self.progress.resolve_label("B-MIDI-V2"), "V87")
+
+    def test_a_label_without_a_row_and_other_numbers_stay_as_they_are(self):
+        self.assertEqual(self.progress.resolve_label("B-V99"), "B-V99")
+        self.assertEqual(self.progress.resolve_label("V11"), "V11")
+        self.assertEqual(self.progress.resolve_label("bug 5"), "bug 5")
+
+    def test_the_number_of_a_skipped_vesc_case_is_its_firmware_bug_and_not_vendor_bug_v11(self):
+        r = make_result("passed", "KNOWN ISSUE (crash): B-V11: getEncoderType dereferences",
+            name="[V63] getEncoderType with useencoder off and no external encoder does not crash")
+        rat.annotate_numbers(r, self.progress)
+        self.assertEqual(r.numbers, ["bug 189"])
+        self.assertEqual(self.progress.description("bug 189"), "getEncoderType() dereferences a null encoder")
+
+
+INTEGRATION_PROGRESS = """# Integration progress
+
+## Integration bugs
+
+| # | Module | Location | Description | Same as (coverage) | Evidence (test) | Resolved? |
+|---|---|---|---|---|---|---|
+| IB 1 | FFBHIDMain | `FFBoard/UserExtensions/Src/FFBHIDMain.cpp:256` | The FFB timer period is ARR+1 | | `F1-A4` case | no |
+| IB 3 | HID command interface | `FFBoard/Src/HidCommandInterface.cpp:39-46` | Use after free of \\| outBuffer | | `KNOWN_ISSUE_UB` case | no |
+
+## Integration NEEDS REVIEW items
+
+| # | Module | Test / location | Question | Same as (coverage) | Resolved? |
+|---|---|---|---|---|---|
+| INR 1 | Axis / TMC4671 | `Axis.cpp:534-543` | Motor start after a runtime driver selection | | no |
+| INR 2 | HID descriptor | `usb_hid_ffb_desc.h`; the PID State case | PID State without Effect Block Index | | no |
+
+## Test tool defects
+"""
+
+
+class IntegrationNumbersTest(unittest.TestCase):
+    def setUp(self):
+        self.progress = rat.Progress(COVERAGE_PROGRESS, INTEGRATION_PROGRESS)
+
+    def test_integration_bug_and_review_numbers_are_found_in_a_marker_text(self):
+        self.assertEqual(rat.extract_numbers("KNOWN ISSUE: (IB 3) HID_CommandInterface::Run iterates"), ["IB 3"])
+        self.assertEqual(rat.extract_numbers("KNOWN ISSUE (undefined behaviour): (IB 3) x"), ["IB 3"])
+        self.assertEqual(rat.extract_numbers("// INR 2 the PID State report"), ["INR 2"])
+
+    def test_inr_is_not_read_as_nr_and_ib_is_not_read_inside_a_word(self):
+        self.assertEqual(rat.extract_numbers("INR 2"), ["INR 2"])
+        self.assertEqual(rat.extract_numbers("NR 2 and INR 2"), ["NR 2", "INR 2"])
+        self.assertEqual(rat.extract_numbers("a kibibyte of 3 and DIB 4"), [])
+
+    def test_integration_numbers_do_not_collide_with_coverage_numbers(self):
+        self.assertEqual(rat.extract_numbers("bug 3, IB 3, NR 3, INR 3"), ["bug 3", "IB 3", "NR 3", "INR 3"])
+        self.assertEqual(len({rat.table_key(n) for n in ("bug 3", "NR 3", "IB 3", "INR 3")}), 4)
+
+    def test_the_integration_tables_are_read_with_the_descriptions(self):
+        self.assertEqual(self.progress.description("IB 1"), "The FFB timer period is ARR+1")
+        self.assertEqual(self.progress.description("IB 3"), "Use after free of | outBuffer")
+        self.assertEqual(self.progress.description("INR 1"), "Motor start after a runtime driver selection")
+        self.assertEqual(self.progress.description("IB 9"), "")
+
+    def test_the_coverage_rows_are_unchanged_next_to_the_integration_rows(self):
+        self.assertEqual(self.progress.description("bug 189"), "getEncoderType() dereferences a null encoder")
+        self.assertEqual(self.progress.description("NR 3"), "Carried over")
+
+    def test_the_integration_tables_are_not_read_without_the_integration_text(self):
+        self.assertEqual(rat.Progress(COVERAGE_PROGRESS).description("IB 1"), "")
+
+    def test_the_location_of_an_integration_bug_gives_its_file_under_test(self):
+        self.assertIn("HidCommandInterface.cpp", self.progress.location("IB 3"))
+
+    def test_numbers_sort_bugs_before_reviews_before_integration_items(self):
+        nums = ["INR 1", "IB 2", "NR 1", "bug 5", "V1", "IB 1"]
+        self.assertEqual(sorted(nums, key=rat.number_sort_key), ["bug 5", "V1", "NR 1", "IB 1", "IB 2", "INR 1"])
+
+    def test_an_integration_known_issue_case_shows_its_ib_number(self):
+        r = make_result("failed", "KNOWN ISSUE: (IB 3) HID_CommandInterface::Run iterates outBuffer", True, exe="ffb_integration_tests")
+        rat.annotate_numbers(r, self.progress)
+        self.assertEqual(r.numbers, ["IB 3"])
+        self.assertEqual(rat.classify(r), rat.BUGGED)
+
+    def test_an_integration_ub_known_issue_case_shows_its_ib_number(self):
+        r = make_result("failed", "KNOWN ISSUE (undefined behaviour): (IB 3) use after free", exe="ffb_integration_tests")
+        rat.annotate_numbers(r, self.progress)
+        self.assertEqual(r.numbers, ["IB 3"])
+
+    def test_a_characterization_case_shows_the_inr_number_of_the_comment_beside_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = pathlib.Path(tmp) / "test_f1_x.cpp"
+            src.write_text('TEST_CASE_FIXTURE(F, "characterization: [F1-A2] the PID State report has no index" * IT_DELETES_FFBHIDMAIN) {\n'
+                '\t// INR 2\n\tCHECK(true);\n}\n', encoding="utf-8")
+            r = rat.Result("ffb_integration_tests", "F1Setup", "characterization: [F1-A2] the PID State report has no index",
+                rat.rel(str(src)) + ":1")
+            rat.annotate_numbers(r, self.progress)
+        self.assertEqual(r.numbers, ["INR 2"])
+        self.assertTrue(r.deletes_main)
+
+    def test_a_characterization_case_ignores_an_ib_number_in_its_comments(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = pathlib.Path(tmp) / "test_f1_y.cpp"
+            src.write_text('TEST_CASE("characterization: [F1-A1] x") {\n\t// IB 3 is something else\n}\n', encoding="utf-8")
+            r = rat.Result("ffb_integration_tests", "S", "characterization: [F1-A1] x", rat.rel(str(src)) + ":1")
+            rat.annotate_numbers(r, self.progress)
+        self.assertEqual(r.numbers, [])
+
+    def test_the_log_entry_gives_the_integration_register_description(self):
+        r = make_result("failed", "KNOWN ISSUE: (IB 1) timer", True, exe="ffb_integration_tests")
+        rat.annotate_numbers(r, self.progress)
+        rat.classify(r)
+        text = "\n".join(rat.entry_lines(r, self.progress))
+        self.assertIn("item:            IB 1 - The FFB timer period is ARR+1", text)
+
+
+class IntegrationExecutableTest(unittest.TestCase):
+    def test_the_integration_executable_is_run_with_its_exclusion_lists(self):
+        self.assertIn("ffb_integration_tests", rat.EXECUTABLES)
+        self.assertEqual(rat.EXCLUDE_VARS["ffb_integration_tests"],
+            ("FFB_INTEGRATION_TESTS_EXCLUDE", "FFB_INTEGRATION_TESTS_EXCLUDE_SANITIZE"))
+        self.assertEqual(rat.EXCLUDE_VARS_32BIT["ffb_integration_tests"], "FFB_INTEGRATION_TESTS_EXCLUDE_32BIT")
+        self.assertEqual(rat.EXCLUDE_VARS_32BIT["ffb_target_tests"], "FFB_TARGET_TESTS_EXCLUDE_32BIT")
+
+    def test_the_it_deletes_marker_is_the_deletes_ffbhidmain_marker(self):
+        self.assertIn(rat.DELETES_MAIN_MARKER, "IT_DELETES_FFBHIDMAIN")
+
+    def test_a_case_with_the_it_marker_that_fails_in_a_sanitizer_build_is_bug_24(self):
+        r = make_result("crash", exe="ffb_integration_tests")
+        r.deletes_main = True
+        self.assertEqual(rat.classify(r, sanitize=True), rat.BUGGED)
+        self.assertEqual(r.numbers[0], "bug 24")
+
+    def test_the_marker_in_a_case_header_sets_the_deletes_flag(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = pathlib.Path(tmp) / "test_f1_z.cpp"
+            src.write_text('TEST_CASE_FIXTURE(F, "a case" * IT_DELETES_FFBHIDMAIN) {\n\tCHECK(true);\n}\n', encoding="utf-8")
+            r = rat.Result("ffb_integration_tests", "S", "a case", rat.rel(str(src)) + ":1")
+            rat.annotate_numbers(r, rat.Progress(""))
+        self.assertTrue(r.deletes_main)
+
+    def test_the_exclusions_of_a_build_are_read_from_the_cmake_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pathlib.Path(tmp, "CMakeCache.txt").write_text(
+                "FFB_TESTS_32BIT:BOOL=ON\nFFB_TESTS_SANITIZE:BOOL=OFF\n"
+                "FFB_INTEGRATION_TESTS_EXCLUDE:STRING=case a\nFFB_INTEGRATION_TESTS_EXCLUDE_SANITIZE:STRING=san case\n"
+                "FFB_INTEGRATION_TESTS_EXCLUDE_32BIT:STRING=wide a;wide b\nFFB_TARGET_TESTS_EXCLUDE_32BIT:STRING=target wide\n",
+                encoding="utf-8")
+            config = rat.build_config(tmp)
+            self.assertEqual(config["excludes"]["ffb_integration_tests"], ["case a", "wide a", "wide b"])
+            self.assertEqual(config["excludes"]["ffb_target_tests"], ["target wide"])
+            pathlib.Path(tmp, "CMakeCache.txt").write_text(
+                "FFB_TESTS_32BIT:BOOL=OFF\nFFB_TESTS_SANITIZE:BOOL=ON\nFFB_INTEGRATION_TESTS_EXCLUDE:STRING=case a\n"
+                "FFB_INTEGRATION_TESTS_EXCLUDE_SANITIZE:STRING=san case\nFFB_INTEGRATION_TESTS_EXCLUDE_32BIT:STRING=wide a\n",
+                encoding="utf-8")
+            config = rat.build_config(tmp)
+            self.assertEqual(config["excludes"]["ffb_integration_tests"], ["case a", "san case"])
+
+
+class SkippedCrashAttentionTest(unittest.TestCase):
+    """A skipped crash / memory-corruption case is skipped in every build: when it passes alone it stays Bugged but is flagged."""
+
+    def skipped_pass(self, description):
+        r = make_result("passed", description)
+        r.skip_decorated = True
+        return r
+
+    def test_a_passing_skipped_crash_case_is_bugged_with_attention_and_listed(self):
+        crash = self.skipped_pass("KNOWN ISSUE (crash): x")
+        corruption = self.skipped_pass("KNOWN ISSUE (memory corruption): y")
+        for r in (crash, corruption):
+            self.assertEqual(rat.classify(r), rat.BUGGED)
+            self.assertTrue(r.attention)
+            self.assertIn("check whether the bug is fixed", r.note)
+        listed = rat.skipped_crash_passed([crash, corruption, make_result("passed")])
+        self.assertEqual(listed, [crash, corruption])
+
+    def test_a_passing_skipped_ub_case_has_no_attention_and_is_not_listed(self):
+        r = self.skipped_pass("KNOWN ISSUE (undefined behaviour): x")
+        self.assertEqual(rat.classify(r), rat.BUGGED)
+        self.assertFalse(r.attention)
+        self.assertEqual(rat.skipped_crash_passed([r]), [])
+
+    def test_the_kind_is_the_leading_marker(self):
+        later = self.skipped_pass("KNOWN ISSUE: x no longer crash (crash) and memory corruption")
+        self.assertEqual(later.skipped_defect_kind(), "")
+        self.assertEqual(rat.classify(later), rat.FAILED)
+        self.assertFalse(later.attention)
+        mixed = self.skipped_pass("KNOWN ISSUE (crash): a null pointer, undefined behaviour")
+        self.assertEqual(mixed.skipped_defect_kind(), "crash")
+
+    def test_a_crash_case_that_crashes_has_no_attention(self):
+        r = make_result("crash", "KNOWN ISSUE (crash): x")
+        r.skip_decorated = True
+        rat.classify(r)
+        self.assertFalse(r.attention)
+
+    def test_the_report_has_a_block_and_a_summary_count_for_them(self):
+        r = self.skipped_pass("KNOWN ISSUE (crash): x")
+        rat.classify(r)
+        text, _ = rat.render_report([r], [], {"dsp": True, "sanitize": False, "compiler": "c", "build_type": "t"}, ".", ["ffb_unit_tests"],
+            rat.Progress(""), __import__("datetime").datetime.now(), 0.0)
+        self.assertIn("Skipped crash / memory-corruption cases that passed alone (included in Bugged; check for a fix): 1", text)
+        self.assertIn("Skip-decorated crash / memory-corruption cases that passed when run alone: check whether the bug is fixed (1)", text)
+
+
+class LabelResolutionTest(unittest.TestCase):
+    TEXT = """## Suspected firmware bugs
+
+| # | Module | Location | Description | Evidence |
+|---|---|---|---|---|
+| 10 | VESC | `a.cpp:1` | one | skipped [V1] (B-V1) |
+| 11 | VESC | `a.cpp:2` | eleven | skipped [V2] (B-V11) |
+| V88 | MIDI | `m.c:3` | midi | KNOWN_ISSUE (B-MIDI-V3, two cases) |
+
+## NEEDS REVIEW items
+
+| # | Module | Test / location | Question | Resolved? |
+|---|---|---|---|---|
+| 7 | X | y | asks about (B-V99) | no |
+"""
+
+    def setUp(self):
+        self.progress = rat.Progress(self.TEXT)
+
+    def test_a_short_label_does_not_match_the_row_of_a_longer_one(self):
+        self.assertEqual(self.progress.resolve_label("B-V1"), "bug 10")
+        self.assertEqual(self.progress.resolve_label("B-V11"), "bug 11")
+
+    def test_a_label_followed_by_a_comma_resolves(self):
+        self.assertEqual(self.progress.resolve_label("B-MIDI-V3"), "V88")
+
+    def test_needs_review_rows_are_not_used(self):
+        self.assertEqual(self.progress.resolve_label("B-V99"), "B-V99")
+
+
 if __name__ == "__main__":
     unittest.main()

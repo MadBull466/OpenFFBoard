@@ -2,9 +2,11 @@
 """Runs every test case of the host test suite and writes a report (passed / failed / bugged).
 
   run_all_tests.py --build-dir <dir> [--out <file>] [--timeout S] [--progress Tests/Code_Coverage/claude/plans/PROGRESS.md]
+                   [--integration-progress Tests/Integration_Tests/claude/plans/PROGRESS.md]
 
 Nothing is skipped: every doctest executable found in the build directory (ffb_unit_tests, ffb_target_tests,
-ffb_flash_tests, ffb_rtos_tests, ffb_usb_tests, ffb_driver_tests, ffb_dsp_tests) and the Python helper tests (Firmware/Tests/Code_Coverage/claude/python) are run.
+ffb_flash_tests, ffb_rtos_tests, ffb_usb_tests, ffb_driver_tests, ffb_dsp_tests, ffb_integration_tests) and the Python helper tests (Firmware/Tests/Code_Coverage/claude/python) are run. ffb_integration_tests (integration track) is run
+like the others; its cases carry IB n / INR n numbers of the integration register (--integration-progress).
 
 * The executables run with the doctest XML reporter and WITHOUT the ctest exclusions. If a run stops in a test case
   (signal, abort, sanitizer exit, or no progress for --timeout seconds), that case is recorded as crashed / timed out
@@ -50,7 +52,7 @@ sys.path.insert(0, TOOLS_DIR)
 import check_baseline  # noqa: E402  (read_cmake_cache, wildcard_to_regex, cmake_bool)
 import make_bug_report  # noqa: E402  (table, sort_key: parsing of the PROGRESS.md tables)
 
-EXECUTABLES = ("ffb_unit_tests", "ffb_target_tests", "ffb_flash_tests", "ffb_rtos_tests", "ffb_usb_tests", "ffb_driver_tests", "ffb_dsp_tests", "ffb_hal_tests", "ffb_hal_tests_disco")
+EXECUTABLES = ("ffb_unit_tests", "ffb_target_tests", "ffb_flash_tests", "ffb_rtos_tests", "ffb_usb_tests", "ffb_driver_tests", "ffb_dsp_tests", "ffb_integration_tests", "ffb_hal_tests", "ffb_hal_tests_disco")
 PYTHON_EXE = "python"
 # CMake cache variables with the ctest exclusions of each executable: (always, additionally in sanitizer builds)
 EXCLUDE_VARS = {
@@ -60,11 +62,18 @@ EXCLUDE_VARS = {
 	"ffb_usb_tests": ("FFB_USB_TESTS_EXCLUDE", "FFB_USB_TESTS_EXCLUDE_SANITIZE"),
 	"ffb_driver_tests": ("FFB_DRIVER_TESTS_EXCLUDE", "FFB_DRIVER_TESTS_EXCLUDE_SANITIZE"),
 	"ffb_dsp_tests": ("FFB_DSP_TESTS_EXCLUDE", "FFB_DSP_TESTS_EXCLUDE_SANITIZE"),
+	"ffb_integration_tests": ("FFB_INTEGRATION_TESTS_EXCLUDE", "FFB_INTEGRATION_TESTS_EXCLUDE_SANITIZE"),
+}
+# Additional exclusions of 32-bit builds (FFB_TESTS_32BIT)
+EXCLUDE_VARS_32BIT = {
+	"ffb_target_tests": "FFB_TARGET_TESTS_EXCLUDE_32BIT",
+	"ffb_integration_tests": "FFB_INTEGRATION_TESTS_EXCLUDE_32BIT",
 }
 KNOWN_PREFIX = "KNOWN ISSUE"
 UB_HIDDEN_PREFIX = "KNOWN ISSUE (undefined behaviour, intended result on the host)"
+SKIPPED_DEFECT_MARKER = re.compile(r"KNOWN ISSUE \((crash|memory corruption)\b")
 ILP32_PREFIX = "KNOWN ISSUE (32-bit size_t only"  # support/KnownIssue32.h
-DELETES_MAIN_MARKER = "DELETES_FFBHIDMAIN"
+DELETES_MAIN_MARKER = "DELETES_FFBHIDMAIN"  # also matches the integration track's IT_DELETES_FFBHIDMAIN
 DELETES_MAIN_BUG = "24"  # HID_GamepadReport_base without a virtual destructor (README, AxisFixture.h)
 BASELINE_KNOWN_ISSUES_NR = "NR 3"  # NEEDS REVIEW 3: the known issues of the original suite (no number of their own)
 NOT_FIXED_NOTE = "known bug no longer fails - fixed? remove the marker"
@@ -297,6 +306,16 @@ class Result:
 	def ilp32_only(self):
 		return self.description.startswith(ILP32_PREFIX)
 
+	def skipped_defect_kind(self):
+		"""'undefined behaviour' / 'crash' / 'memory corruption' for a description 'KNOWN ISSUE (<kind>...' (the defects whose
+		effect may not show in a run), else ''."""
+		m = SKIPPED_DEFECT_MARKER.match(self.description)  # the kind is the LEADING marker: "KNOWN ISSUE (crash): ... undefined behaviour" is a crash case
+		if m:
+			return m.group(1)
+		if "undefined behaviour" in self.description:  # also the KNOWN_ISSUE_32BIT_UB text
+			return "undefined behaviour"
+		return ""
+
 	@property
 	def characterization(self):
 		return self.name.lower().startswith("characterization:")
@@ -349,11 +368,16 @@ def classify(r, sanitize=False, ilp32=False):
 			r.note = "UB, passes on the host (the sanitizer did not report it in this run)"
 		else:
 			r.note = "UB, passes on the host"
-	elif r.known_bug and not failed and r.skip_decorated and "undefined behaviour" in r.description:
-		# only run because of --no-skip: a pass shows the UB had no visible effect in this run, not a fix (the normal
-		# builds, where KNOWN_ISSUE_UB is should_fail and not skipped, still report a fix as "no longer fails")
+	elif r.known_bug and not failed and r.skip_decorated and r.skipped_defect_kind():
+		# only run because of --no-skip: a pass shows the UB / crash / memory corruption had no visible effect in this run,
+		# not a fix. KNOWN_ISSUE_UB is should_fail and not skipped in the normal builds, which still report a fix as "no
+		# longer fails". A crash / memory corruption case is skipped in EVERY build, so a real fix would show up nowhere else:
+		# it stays Bugged (T-1: no false Failed) but is marked attention and listed in its own block of the log
 		r.category = BUGGED
-		r.note = "undefined behaviour, passes in this run (skipped in this build; not evidence of a fix)"
+		r.note = "%s, passes in this run (skipped in this build; not evidence of a fix)" % r.skipped_defect_kind()
+		if r.skipped_defect_kind() != "undefined behaviour":
+			r.attention = True
+			r.note += "; check whether the bug is fixed"
 	elif r.known_bug:
 		if failed:
 			r.category = BUGGED
@@ -387,9 +411,14 @@ def classify(r, sanitize=False, ilp32=False):
 
 NUMBER_PATTERNS = (
 	(re.compile(r"\bbug\s*#?\s*(\d+)\b", re.IGNORECASE), "bug {}"),
-	(re.compile(r"(?<![A-Za-z0-9_])V(\d+)\b"), "V{}"),
+	# not after '-': "B-V11" / "B-MIDI-V2" are driver-track labels (below), not vendor bugs V11 / V2 (T-1)
+	(re.compile(r"(?<![A-Za-z0-9_-])V(\d+)\b"), "V{}"),
+	(re.compile(r"(?<![A-Za-z0-9_])B-((?:MIDI-)?V\d+)\b"), "B-{}"),
 	(re.compile(r"\bNEEDS[ _]REVIEW\s*#?\s*(\d+)\b", re.IGNORECASE), "NR {}"),
 	(re.compile(r"\bNR\s*#?\s*(\d+)\b"), "NR {}"),
+	# integration track (Tests/Integration_Tests/claude/plans/PROGRESS.md); their numbers never clash with the coverage numbers
+	(re.compile(r"\bIB\s*#?\s*(\d+)\b"), "IB {}"),
+	(re.compile(r"\bINR\s*#?\s*(\d+)\b"), "INR {}"),
 )
 
 
@@ -409,8 +438,15 @@ def extract_numbers(text):
 	return out
 
 
+KIND_ORDER = {"bug": 0, "nr": 1, "ib": 2, "inr": 3}
+
+
 def table_key(num):
-	"""'bug 16' -> ('bug', '16'), 'V29' -> ('bug', 'V29'), 'NR 3' -> ('nr', '3')."""
+	"""'bug 16' -> ('bug', '16'), 'V29' -> ('bug', 'V29'), 'NR 3' -> ('nr', '3'), 'IB 3' -> ('ib', '3'), 'INR 2' -> ('inr', '2')."""
+	if num.startswith("INR "):
+		return ("inr", num[4:])
+	if num.startswith("IB "):
+		return ("ib", num[3:])
 	if num.startswith("NR "):
 		return ("nr", num[3:])
 	if num.startswith("bug "):
@@ -420,28 +456,52 @@ def table_key(num):
 
 def number_sort_key(num):
 	kind, n = table_key(num)
-	return (1 if kind == "nr" else 0,) + tuple(make_bug_report.sort_key(n))
+	return (KIND_ORDER.get(kind, 0),) + tuple(make_bug_report.sort_key(n))
 
 
 class Progress:
 	"""The "Suspected firmware bugs" and "NEEDS REVIEW items" tables of Tests/Code_Coverage/claude/plans/PROGRESS.md."""
 
-	def __init__(self, text=""):
-		self.rows = {}  # ('bug', '16') / ('nr', '39') -> [num, module, location, description, evidence]
+	def __init__(self, text="", integration_text=""):
+		self.rows = {}  # ('bug', '16') / ('nr', '39') / ('ib', '3') / ('inr', '2') -> [num, module, location, description, evidence]
 		for heading, kind in (("## Suspected firmware bugs", "bug"), ("## NEEDS REVIEW items", "nr")):
 			if heading not in text:
 				continue
 			for row in make_bug_report.table(text, heading):
 				row = (row + [""] * 5)[:5]
 				self.rows[(kind, row[0])] = row
+		# integration PROGRESS.md: the number cell is "IB 3" / "INR 2" (prefix included); columns of "Integration bugs":
+		# # | Module | Location | Description | Same as | Evidence | Resolved?; of "Integration NEEDS REVIEW items":
+		# # | Module | Test / location | Question | Same as | Resolved?
+		for heading, kind, prefix, evidence_col in (("## Integration bugs", "ib", "IB ", 5),
+				("## Integration NEEDS REVIEW items", "inr", "INR ", None)):
+			if heading not in integration_text:
+				continue
+			for row in make_bug_report.table(integration_text, heading):
+				row = row + [""] * 6
+				num = row[0][len(prefix):] if row[0].startswith(prefix) else row[0]
+				self.rows[(kind, num)] = [num, row[1], row[2], row[3], row[evidence_col] if evidence_col else ""]
 
 	@classmethod
-	def load(cls, path):
-		try:
-			with open(path, encoding="utf-8") as f:
-				return cls(f.read())
-		except OSError:
-			return cls("")
+	def load(cls, path, integration_path=None):
+		def read(p):
+			try:
+				with open(p, encoding="utf-8") as f:
+					return f.read()
+			except (OSError, TypeError):
+				return ""
+		return cls(read(path), read(integration_path) if integration_path else "")
+
+	def resolve_label(self, num):
+		"""A driver-track label 'B-V11' / 'B-MIDI-V2' -> the firmware bug of the coverage register row whose evidence column contains
+		'(B-V11)' ('bug 189'); any other number, or a label without such a row, is returned unchanged."""
+		if not num.startswith("B-"):
+			return num
+		mark = re.compile(r"\(%s(?:\)|,)" % re.escape(num))  # "(B-V1)" or "(B-V1, two cases)", not "(B-V11)"
+		for (kind, n), row in self.rows.items():
+			if kind == "bug" and mark.search(row[4]):
+				return n if n.startswith("V") else "bug " + n
+		return num
 
 	def row(self, num):
 		return self.rows.get(table_key(num))
@@ -463,14 +523,14 @@ class Progress:
 				return cell
 		return row[2]
 
-	def find_by_test_name(self, name, kinds=("bug", "nr")):
+	def find_by_test_name(self, name, kinds=("bug", "nr", "ib", "inr")):
 		"""Rows whose evidence / description / location names the test (exact substring, at least 12 characters)."""
 		if len(name) < 12:
 			return []
 		hits = []
 		for (kind, n), row in self.rows.items():
 			if kind in kinds and any(name in cell for cell in row[2:]):
-				hits.append("NR " + n if kind == "nr" else (n if n.startswith("V") else "bug " + n))
+				hits.append({"nr": "NR ", "ib": "IB ", "inr": "INR "}[kind] + n if kind != "bug" else (n if n.startswith("V") else "bug " + n))
 		return sorted(hits, key=number_sort_key)
 
 
@@ -655,13 +715,13 @@ def annotate_numbers(r, progress, baseline_known=frozenset()):
 			nums = extract_numbers(text)
 			if r.characterization and source != "marker":
 				# a requirement tag in the title ("[V3]", "[R12]") or a version in its text ("V1.3") is not a bug number
-				nums = [n for n in nums if n.startswith("NR ")]
+				nums = [n for n in nums if n.startswith(("NR ", "INR "))]
 			if nums:
-				r.numbers, r.number_source = nums[:1], source
+				r.numbers, r.number_source = [progress.resolve_label(nums[0])], source
 				break
 	if not r.numbers:
 		key = r.name if r.exe != PYTHON_EXE else "%s.%s" % (r.suite.split(".")[-1], r.name)
-		kinds = ("nr",) if r.characterization else ("bug", "nr")
+		kinds = ("nr", "inr") if r.characterization else ("bug", "nr", "ib", "inr")
 		hits = progress.find_by_test_name(key, kinds)
 		if not hits and r.characterization:
 			hits = progress.find_by_test_name(re.sub(r"^characterization:\s*", "", r.name), kinds)
@@ -1050,7 +1110,8 @@ def build_config(build_dir):
 	for exe, (always, san) in EXCLUDE_VARS.items():
 		excludes[exe] = cmake_list(cache.get(always, "")) + (cmake_list(cache.get(san, "")) if sanitize else [])
 	if check_baseline.cmake_bool(cache.get("FFB_TESTS_32BIT", "OFF")):
-		excludes["ffb_target_tests"] += cmake_list(cache.get("FFB_TARGET_TESTS_EXCLUDE_32BIT", ""))
+		for exe, var in EXCLUDE_VARS_32BIT.items():
+			excludes[exe] += cmake_list(cache.get(var, ""))
 	return {
 		"sanitize": sanitize, "dsp": dsp, "compiler": compiler,
 		"ilp32": check_baseline.cmake_bool(cache.get("FFB_TESTS_32BIT", "OFF")),
@@ -1114,6 +1175,11 @@ def attention_banner(attention):
 	return lines
 
 
+def skipped_crash_passed(results):
+	"""Skip-decorated crash / memory-corruption cases that passed when run alone (Bugged, attention): is the bug fixed?"""
+	return sorted([r for r in results if r.category == BUGGED and r.attention], key=Result.sort_key)
+
+
 def render_report(results, problems, config, build_dir, exes_run, progress, started, duration):
 	c = counts(results)
 	out = []
@@ -1135,6 +1201,9 @@ def render_report(results, problems, config, build_dir, exes_run, progress, star
 	w("Bugged: %d" % c[BUGGED])
 	w("Total:  %d" % c["total"])
 	w("Open questions (included in Passed): %d" % c["open"])
+	crash_passed = skipped_crash_passed(results)
+	if crash_passed:
+		w("Skipped crash / memory-corruption cases that passed alone (included in Bugged; check for a fix): %d" % len(crash_passed))
 	if problems:
 		w("Run problems: %d (see the end of the report)" % len(problems))
 	w("")
@@ -1148,7 +1217,7 @@ def render_report(results, problems, config, build_dir, exes_run, progress, star
 	out.extend(attention_banner(attention))
 	w("Categories: Bugged = a known bug (KNOWN_ISSUE, KNOWN_ISSUE_UB(_HIDDEN), skipped crash case, ctest exclusion,")
 	w("DELETES_FFBHIDMAIN in sanitizer builds, Python @expectedFailure) that fails as expected. Failed = any other")
-	w("failure, or a known bug that passes now. Items: bug N / VN (vendor) / NR N (NEEDS REVIEW) of Tests/Code_Coverage/claude/plans/PROGRESS.md.")
+	w("failure, or a known bug that passes now. Items: bug N / VN (vendor) / NR N (NEEDS REVIEW) of Tests/Code_Coverage/claude/plans/PROGRESS.md; IB N / INR N of Tests/Integration_Tests/claude/plans/PROGRESS.md.")
 	w("")
 	w("")
 	failed = sorted([r for r in results if r.category == FAILED], key=Result.sort_key)
@@ -1189,6 +1258,14 @@ def render_report(results, problems, config, build_dir, exes_run, progress, star
 		w("-" * 40)
 		for r in attention:
 			out.extend(">>> " + line if line else line for line in entry_lines(r, progress))
+	if crash_passed:
+		w("")
+		w("")
+		w("Skip-decorated crash / memory-corruption cases that passed when run alone: check whether the bug is fixed (%d)" % len(crash_passed))
+		w("-" * 40)
+		w("(Skipped in every build, so a fix shows nowhere else; counted as Bugged.)")
+		for r in crash_passed:
+			out.extend(entry_lines(r, progress))
 	if problems:
 		w("")
 		w("")
@@ -1208,6 +1285,9 @@ def main(argv=None):
 		help="seconds a single test case may run without progress before it is stopped (default 60)")
 	parser.add_argument("--progress", default=os.path.join(REPO_DIR, "Tests", "Code_Coverage", "claude", "plans", "PROGRESS.md"),
 		help="PROGRESS.md with the bug and NEEDS REVIEW tables (default: Tests/Code_Coverage/claude/plans/PROGRESS.md)")
+	parser.add_argument("--integration-progress", default=os.path.join(REPO_DIR, "Tests", "Integration_Tests", "claude", "plans", "PROGRESS.md"),
+		help="integration PROGRESS.md with the tables Integration bugs (IB n) and Integration NEEDS REVIEW items (INR n) "
+		"(default: Tests/Integration_Tests/claude/plans/PROGRESS.md)")
 	parser.add_argument("--python", default=sys.executable, help="Python interpreter for the Python helper tests")
 	parser.add_argument("--no-python", action="store_true", help="do not run the Python helper tests")
 	parser.add_argument("--exit-zero", action="store_true",
@@ -1221,7 +1301,7 @@ def main(argv=None):
 	started = datetime.datetime.now()
 	t0 = time.monotonic()
 	config = build_config(build_dir)
-	progress = Progress.load(args.progress)
+	progress = Progress.load(args.progress, args.integration_progress)
 	index = SourceIndex()
 	baseline_known = read_baseline_known()
 

@@ -1,0 +1,10 @@
+# Files of WO I0-8 (read by it_gate.py)
+Firmware/Tests/Code_Coverage/tools/run_all_tests.py
+Firmware/Tests/Code_Coverage/tools/coverage_report.py
+Firmware/Tests/Code_Coverage/claude/python/test_run_all_tests.py
+Firmware/Tests/Code_Coverage/claude/python/test_coverage_report.py
+Firmware/Tests/CMakeLists.txt
+Firmware/Tests/Integration_Tests/integration.cmake
+Firmware/Tests/Integration_Tests/tools/make_integration_bug_report.py
+Firmware/Tests/Integration_Tests/tools/test_make_integration_bug_report.py
+Firmware/Tests/Integration_Tests/tools/test_hooks.py
