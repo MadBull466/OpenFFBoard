@@ -353,7 +353,9 @@ def bash_block_reason(command, root, cwd=None, agent_type=None, run_hook_tests=T
 
 def write_targets(prog, args):
     files = [a for a in args if not a.startswith("-")]
-    if prog in ("rm", "rmdir", "touch", "truncate", "shred", "unlink", "chmod", "chown", "ln"):
+    if prog in ("chmod", "chown", "chgrp"):
+        return files[1:]  # the first word is the mode / owner
+    if prog in ("rm", "rmdir", "touch", "truncate", "shred", "unlink", "ln"):
         return files
     if prog == "tee":
         return files

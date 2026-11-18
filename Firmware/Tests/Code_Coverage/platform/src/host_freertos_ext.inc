@@ -846,6 +846,44 @@ void vPortFree(void *ptr) {
 }
 
 // ---- Tasks ----
+/**
+ * vTaskDelay (tasks.c:1341-1368, prvAddCurrentTaskToDelayedList): the calling task goes to the delayed list and the tick
+ * count advances only while other code runs, so the simulated clock is NOT moved by a task's delay. A resumable task
+ * parks until xTaskGetTickCount() >= wake time (an earlier activation parks again). A task with the restart model
+ * can not wait (its function would run the work again after the delay): recorded as a kernel fault and blocked. Called
+ * by the test thread (no task): advances the clock like before. The delay budget (HostRtos::setDelayBudgetMs) has no effect here. ticks == 0 only yields.
+ */
+void vTaskDelay(TickType_t ticks) {
+	if (currentTask == nullptr) {
+		HostPlatform::advanceMs(ticks);
+		return;
+	}
+	HostTask *self = currentTask;
+	if (HostTask *resumable = resumableCurrent()) {
+		if (ticks == 0) {
+			return;
+		}
+		const TickType_t wake = xTaskGetTickCount() + ticks;
+		auto reached = [wake] { return (int32_t)(xTaskGetTickCount() - wake) >= 0; };
+		WaitMark mark(resumable, nullptr, reached);
+		while (!reached()) {
+			if (!parkCurrentTask(reached)) {
+				return; // Killed while an exception propagates (see parkCurrentTask)
+			}
+		}
+		return;
+	}
+	if (ticks == 0) {
+		return;
+	}
+	// Restart model: the function can not continue after the call, it would run its work again after the delay
+	unmodelled("vTaskDelay / vTaskDelayUntil / osDelay in a task that is not resumable: the restart model can not wait for a delay "
+			   "(the work would run again); the task must run resumable (HostRtos::makeResumable)");
+	self->extWake = nullptr;
+	self->extWaitObject = nullptr;
+	throw HostRtos::TaskBlocked();
+}
+
 BaseType_t xTaskCreate(TaskFunction_t fn, const char *name, uint32_t, void *param, UBaseType_t prio, TaskHandle_t *handle) {
 	if (createFails(RtosObject::Task)) {
 		return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY; // tasks.c:815; *handle is not written

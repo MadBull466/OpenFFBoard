@@ -17,7 +17,9 @@
  * A thread "blocks" when it waits for a notification that is not pending, takes an
  * unavailable semaphore forever or used up its delay budget. The thread function is
  * then left by an exception and is restarted from the beginning of Run() the next time.
- * Threads following the usual `while(true){ wait; work; }` pattern behave identical to the target.
+ * Threads following the usual `while(true){ wait; work; }` pattern behave identical to the target, if the wait is a
+ * notification / semaphore (restart model) . Under HOSTTEST_RTOS_EXT (ffb_rtos_tests, ffb_usb_tests) a task that
+ * delays (vTaskDelay, vTaskDelayUntil, osDelay) must be resumable: a restart-model task that delays is a kernel fault.
  * Threads that wait in several places per loop need a resumable task (makeResumable, opt-in per task).
  *
  * ffb_rtos_tests (HOSTTEST_RTOS_EXT) extends this kernel with the fake FreeRTOS API F11 and changes some rules (new
@@ -91,6 +93,9 @@ bool isSuspended(TaskHandle_t task);
  *    does not park.
  *  - vTaskSuspend(self): park until resumed. vTaskDelay beyond the delay budget: park (continues after the delay at
  *    the next runUntilBlocked; runUntilIdle does not activate it).
+ *    (Executables built with HOSTTEST_RTOS_EXT, see HostRtosExt.h: no budget; vTaskDelay in a task waits for the tick
+ *    count and does not move the clock; runUntilIdle runs the highest priority ready task first, ties in creation order.
+ *    Executables without it keep the model described here: every delay advances the shared clock, creation order.)
  * runUntilIdle activates a parked resumable task when the condition it waits for is met (not only on notifications).
  * A resumable task that was never activated is started by runUntilIdle only if a notification is pending (like the
  * restart model); a first wait on a semaphore needs an explicit runUntilBlocked. A wait for a semaphore that is
@@ -112,7 +117,8 @@ bool isResumable(TaskHandle_t task);
 
 /**
  * Maximum time in ms a task may spend in vTaskDelay during one activation before
- * it is treated as blocked. Prevents endless polling loops. Default 1000.
+ * it is treated as blocked. Prevents endless polling loops. Default 1000. Without effect with HOSTTEST_RTOS_EXT
+ * (there vTaskDelay in a task always waits for the tick count, see HostRtosExt.h).
  */
 void setDelayBudgetMs(uint32_t ms);
 

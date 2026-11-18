@@ -388,3 +388,94 @@ TEST_CASE_FIXTURE(RtosFixture, "a task is resumable only after makeResumable") {
 	CHECK(HostRtos::isResumable(thread.GetHandle()));
 }
 
+
+TEST_CASE_FIXTURE(RtosFixture, "I0-3c: a task's vTaskDelay does not move the simulated clock and the task continues only after the time passed its wake time") {
+	// tasks.c:1341-1368 (prvAddCurrentTaskToDelayedList): the task waits in the delayed list; the tick advances only
+	// while other code runs. The old fake advanced the clock by the whole delay inside the call.
+	bool continued = false;
+	FunctionThread thread([&](FunctionThread &) {
+		vTaskDelay(10);
+		continued = true;
+		vTaskSuspend(nullptr);
+	});
+	const TaskHandle_t handle = thread.startResumable();
+	const TickType_t start = xTaskGetTickCount();
+	HostRtos::runUntilBlocked(handle);
+	CHECK(xTaskGetTickCount() == start); // the delay did not advance the clock
+	CHECK_FALSE(continued);
+	advance(9);
+	CHECK_FALSE(continued); // wake time (start + 10) not reached
+	advance(1);
+	CHECK(continued);
+	CHECK(xTaskGetTickCount() == start + 10);
+}
+
+TEST_CASE_FIXTURE(RtosFixture, "I0-3c: a delay in a task that is not resumable is recorded as a kernel fault and the task blocks") {
+	// The restart model leaves the function in the delay and would run its work again after it: it can not express the
+	// wait (tasks.c:1341-1368), so the fake records a fault instead of approximating it (HostRtosExt.h)
+	uint32_t starts = 0;
+	bool continued = false;
+	FunctionThread thread([&](FunctionThread &) {
+		starts++;
+		vTaskDelay(5);
+		continued = true;
+	});
+	REQUIRE(thread.Start());
+	const TickType_t start = xTaskGetTickCount();
+	HostRtos::runUntilIdle();
+	CHECK(xTaskGetTickCount() == start);
+	CHECK(starts == 1);
+	CHECK(expectKernelFault("must run resumable"));
+	advance(10);
+	CHECK(starts == 1); // blocked: not started again
+	CHECK_FALSE(continued);
+}
+
+TEST_CASE_FIXTURE(RtosFixture, "I0-3c: runUntilIdle evaluates readiness again after every activation") {
+	// A high priority task parked in a notification wait becomes ready only because the first low priority task ran
+	// (it gives the notification): it must run before the second low priority task. A schedule decided once at the
+	// start of runUntilIdle would run it last
+	std::vector<int> order;
+	TaskHandle_t highHandle = nullptr;
+	FunctionThread high([&](FunctionThread &) {
+		ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+		order.push_back(3);
+		vTaskSuspend(nullptr);
+	}, "HIGH", 3);
+	FunctionThread low1([&](FunctionThread &) {
+		order.push_back(1);
+		xTaskNotifyGive(highHandle);
+		vTaskSuspend(nullptr);
+	}, "LOW1", 1);
+	FunctionThread low2([&](FunctionThread &) { order.push_back(2); vTaskSuspend(nullptr); }, "LOW2", 1);
+	highHandle = high.startResumable();
+	HostRtos::runUntilBlocked(highHandle); // parks in the wait
+	low1.startResumable();
+	low2.startResumable();
+	HostRtos::runUntilIdle();
+	CHECK(order == std::vector<int>{1, 3, 2});
+}
+
+TEST_CASE_FIXTURE(RtosFixture, "I0-3c: runUntilIdle runs the ready task with the higher priority first, whatever the creation order") {
+	// tasks.c:133-177 (taskSELECT_HIGHEST_PRIORITY_TASK). Created low, middle, high; ties are not part of this case
+	std::vector<int> order;
+	FunctionThread low([&](FunctionThread &) { order.push_back(1); vTaskSuspend(nullptr); }, "LOW", 1);
+	FunctionThread middle([&](FunctionThread &) { order.push_back(2); vTaskSuspend(nullptr); }, "MID", 2);
+	FunctionThread high([&](FunctionThread &) { order.push_back(3); vTaskSuspend(nullptr); }, "HIGH", 3);
+	low.startResumable();
+	middle.startResumable();
+	high.startResumable();
+	HostRtos::runUntilIdle();
+	REQUIRE(order.size() == 3);
+	CHECK(order == std::vector<int>{3, 2, 1});
+}
+
+TEST_CASE_FIXTURE(RtosFixture, "I0-3c: runUntilIdle runs ready tasks of equal priority in creation order") {
+	std::vector<int> order;
+	FunctionThread first([&](FunctionThread &) { order.push_back(1); vTaskSuspend(nullptr); }, "A", 2);
+	FunctionThread second([&](FunctionThread &) { order.push_back(2); vTaskSuspend(nullptr); }, "B", 2);
+	first.startResumable();
+	second.startResumable();
+	HostRtos::runUntilIdle();
+	CHECK(order == std::vector<int>{1, 2});
+}

@@ -327,6 +327,27 @@ static bool isReady(HostTask *task) {
 
 uint32_t runUntilIdle(uint32_t maxActivations) {
 	uint32_t activations = 0;
+#ifdef HOSTTEST_RTOS_EXT
+	// tasks.c:133-177 (taskSELECT_HIGHEST_PRIORITY_TASK): the ready task with the highest priority runs first. Tasks of
+	// equal priority run in creation order: an APPROXIMATION, FreeRTOS round-robins them (listGET_OWNER_OF_NEXT_ENTRY,
+	// prvAddTaskToReadyList uses vListInsertEnd, tasks.c:218-221); an always-ready task starves the later ones of its
+	// priority here. Readiness is evaluated again after every activation (a task that ran may have
+	// woken a higher priority one). No preemption: an activation runs until the task blocks
+	while (activations < maxActivations) {
+		HostTask *best = nullptr;
+		for (HostTask *task : tasks()) {
+			if (!task->suspended && isReady(task) && (best == nullptr || task->priority > best->priority)) {
+				best = task;
+			}
+		}
+		if (best == nullptr) {
+			break;
+		}
+		runUntilBlocked(best);
+		activations++;
+	}
+	return activations;
+#else
 	bool ranAny = true;
 	while (ranAny && activations < maxActivations) {
 		ranAny = false;
@@ -341,6 +362,7 @@ uint32_t runUntilIdle(uint32_t maxActivations) {
 		}
 	}
 	return activations;
+#endif
 }
 
 uint32_t pendingNotifications(TaskHandle_t task) {
@@ -454,6 +476,7 @@ void vTaskDelete(TaskHandle_t task) {
 	}
 }
 
+#ifndef HOSTTEST_RTOS_EXT // ffb_rtos_tests / ffb_usb_tests: host_freertos_ext.inc (the delay waits for the tick count, the clock is not advanced)
 void vTaskDelay(TickType_t ticks) {
 	HostPlatform::advanceMs(ticks);
 	if (currentTask != nullptr) {
@@ -467,6 +490,7 @@ void vTaskDelay(TickType_t ticks) {
 		delayBudgetRemaining -= ticks;
 	}
 }
+#endif
 
 void vTaskDelayUntil(TickType_t *previousWakeTime, TickType_t increment) {
 	TickType_t now = xTaskGetTickCount();

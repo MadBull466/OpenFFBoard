@@ -655,20 +655,20 @@ TEST_CASE_FIXTURE(CdcFixture, "CDCcomm sends a long reply completely also while 
 TEST_CASE_FIXTURE(CdcFixture, "a command reply waits while a long reply is still pending and is sent after it") {
 	start();
 	// The command thread polls CDC_CommandInterface::readyToSend (no remaining CDCcomm data) with Delay(1), at most
-	// 100 times (FFBoardMainCommandThread.cpp:130-133). The fake advances the time in vTaskDelay; with a delay budget of
-	// 1 ms the thread parks after each poll and continues at the next runUntilBlocked, so the host can read in between
-	// like on the target (where the higher priority USB thread runs while the command thread waits).
-	HostRtos::setDelayBudgetMs(1);
+	// 100 times (FFBoardMainCommandThread.cpp:130-133). I0-3c: vTaskDelay in a task no longer advances the simulated
+	// clock (tasks.c:1341-1368): the thread waits in the delayed list until the tick count reaches its wake time, so the
+	// host can read in between like on the target (where the higher priority USB thread runs while the command thread
+	// waits). The test advances the simulated time itself.
 	std::string longReply = pattern(2000);
 	REQUIRE(CDCcomm::cdcSend(&longReply, 0) == TX_FIFO);
 	REQUIRE(host.cdcWrite("sys.main?\n") == Handshake::Ack);
 	process();
 	TaskHandle_t commandThread = HostRtos::findTask("CMD_MAIN");
 	REQUIRE(commandThread != nullptr);
-	HostRtos::runUntilBlocked(commandThread); // One more poll: still not ready
-	CHECK(host.cdcRead() == longReply);		  // The reply is held back while the long reply is sent
+	HostRtos::runUntilBlocked(commandThread); // Not ready: waits in Delay(1), time did not move
 	CHECK(HAL_GetTick() < 100);
-	HostRtos::runUntilBlocked(commandThread); // Next poll: ready, the replies go to the CDC thread
+	CHECK(host.cdcRead() == longReply); // The reply is held back while the long reply is sent
+	HostPlatform::advanceMs(1);			// The delay expires: the next poll finds the long reply sent
 	process();
 	CHECK(host.cdcRead() == "[sys.main?|0]\n");
 }

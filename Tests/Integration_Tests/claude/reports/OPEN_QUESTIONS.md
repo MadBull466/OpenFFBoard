@@ -35,3 +35,10 @@ The integration executable needs fakes under the firmware. Options:
 - **B: the real ST HAL on the P12 register models** (`fakes/stm32_hal/`). Closer to the target, but 32-bit Linux only (mmap at fixed addresses, x86 trap flag), slow (per-access trapping) and the firmware's HAL use would have to be re-plumbed. Could be an optional later phase for selected flows.
 
 **Answer (2026-11-18): A, the existing functional fakes**, audited before use. The real ST HAL is not used by the integration track.
+
+### IQ5. ENABLE_IN of the TMC4671 on the OpenFFBoard (asked 2026-11-18, WO I0-2)
+
+`FakeTmc4671` reports `INPUTS_RAW` 0x76 bit 15 (ENABLE_IN) as **high** by default; the datasheet's reset value is 0 and the fake marks "high" as an assumption. The driver's 2 s status check reads this bit and enters its E-stop path when it is low, so 9 coverage cases (every "Running" case of `ffb_driver_tests`) and every integration case with a running motor rely on it. The datasheet (§4.7.1 p52) says all controllers are off while ENI is low, so a working board must hold ENI high, but the OpenFFBoard schematic is not in `shared/specs/`. Options: keep the assumption as documented (integration tests also cover ENI low as the E-stop / fault case), or supply the schematic so the fake's default can be checked.
+
+**Answer (2026-11-18): keep the assumption**, documented in the fake. A working board must hold ENI high for the controllers to run (DS §4.7.1); integration tests also cover ENI low as the fault / E-stop case.
+

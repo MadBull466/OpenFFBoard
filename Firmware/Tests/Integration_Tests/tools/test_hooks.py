@@ -147,7 +147,7 @@ class BashRules(TempRepo):
                     "python3 -B Firmware/Tests/Code_Coverage/tools/check_baseline.py --build-dir ../ffb-test-build/x",
                     "grep -rn foo Firmware/FFBoard > ../ffb-test-build/out.txt",
                     "cat <<'EOF' > ../ffb-test-build/a.txt\ngit push origin master\nEOF",
-                    "echo hi 2>&1 | tee ../ffb-test-build/log.txt"):
+                    "echo hi 2>&1 | tee ../ffb-test-build/log.txt", "chmod +x ../ffb-test-build/gate.sh"):
             self.assertIsNone(self.bash(cmd), cmd)
 
     def test_only_the_fork_push_passes(self):
@@ -183,7 +183,7 @@ class BashRules(TempRepo):
                     "sed -i s/a/b/ Firmware/Makefile", "cp a.h Firmware/FFBoard/Inc/", "rm Firmware/Makefile",
                     "touch Tests/Code_Coverage/codex/x", "tee .github/x < y",
                     "mv x Tests/Code_Coverage/claude/reports/BUG_REPORT.md",
-                    "cd Firmware && echo x > Makefile"):
+                    "cd Firmware && echo x > Makefile", "chmod +x Firmware/Makefile"):
             self.assertIsNotNone(self.bash(cmd), cmd)
         self.assertIsNotNone(self.bash("echo x > CLAUDE.md", g.WRITER))
         self.assertIsNone(self.bash("echo x > CLAUDE.md"))

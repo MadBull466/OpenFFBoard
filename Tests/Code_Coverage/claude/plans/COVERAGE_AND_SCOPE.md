@@ -1,6 +1,7 @@
 # Coverage and scope: what is covered, what is out of scope, what is not covered
 
-Date: 2026-11-17.
+Date: 2026-11-17; amended 2026-11-18.
+- 2026-11-18 (integration track WO I0-3): three shared fakes were fixed (SPI error injection, `Flash_Dump`, the extended RTOS delay and priorities); 4 coverage cases edited, 9 fake self-tests and cases added, no existing result changed. Coverage not re-measured (fake code, not firmware, changed; `eeprom_addresses.c` is now linked into the map executables too). The new executable `ffb_integration_tests` belongs to the integration track and is not counted here (`Tests/Integration_Tests/claude/plans/COVERAGE_AND_SCOPE.md`).
 - 2026-11-17 re-measurement (after the Codex review fixes, `a18c2d95`): one gcov build with everything on (`np-cov`, 32-bit, real HAL), `coverage_report.py` standard and with `--no-exclusions`. Numbers in section 1.6. The per-tier numbers in sections 1.1 to 1.5 below are the older ones; where they differ, 1.6 is newer.
 - P18 (32-bit build): re-measured on the P18 gate coverage build `p18t2f-cov`. The firmware ladder, TinyUSB tier B, the driver tier and DSP are unchanged by P18, which adds behaviour checks on ILP32 and no new lines.
 - After the `Code_Coverage` move (2026-11-11): everything re-measured on `cc-cov` (two runs, same result): ladder 8,172 of 8,260 (one line more than the 8,171 of P17 / P18, cause not investigated), tier B, tier C, driver tier and DSP unchanged.

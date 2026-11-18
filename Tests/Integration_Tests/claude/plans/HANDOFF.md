@@ -27,7 +27,7 @@ Lead writes a self-contained work order -> `integration-test-writer` implements 
 
 ## Hooks (since WO I0-1)
 
-`.claude/settings.json` runs `.claude/hooks/guard_paths.py` (Edit / Write / MultiEdit / NotebookEdit), `guard_bash.py` (Bash) and, when `integration-test-writer` stops, `require_gate_evidence.py`. A blocked call prints `BLOCKED by ...` with the reason: change the approach, do not work around the hook. A commit with test code needs `WO: <id>` in the message and that WO's `GATE PASS` evidence; stage files by name (Codex's changes and `AGENTS.md` stay unstaged). Rules and evidence format: `AGENT_PLAN.md` 2.4.
+`.claude/settings.json` runs `.claude/hooks/guard_paths.py` (Edit / Write / MultiEdit / NotebookEdit), `guard_bash.py` (Bash) and, when `integration-test-writer` stops, `require_gate_evidence.py`. A blocked call prints `BLOCKED by ...` with the reason: change the approach, do not work around the hook. A commit with test code needs `WO: <id>` in the message and that WO's `GATE PASS` evidence (`it_gate.py --wo <id> --variants default,m32`, file list `../charters/wo/<id>.files`); stage files by name (Codex's changes and `AGENTS.md` stay unstaged). Rules and evidence format: `AGENT_PLAN.md` 2.4.
 
 ## Pitfalls known from the coverage track (apply here too)
 
@@ -45,3 +45,5 @@ Lead writes a self-contained work order -> `integration-test-writer` implements 
 * The TMC driver thread relies on the delay budget of `HostRtos`; it was never combined with `HOSTTEST_RTOS_EXT` before I0.
 * `FakeTmc4671` does not move the position by itself: open-loop tests script 0x6B, closed-loop tests attach `WheelPlant`.
 * The scheduler order is a host choice; tests that depend on it say so.
+* Audit results (I0-2, `../charters/audit/`): timers and the ADC are not driven by simulated time (the scheduler fires them from PSC / ARR); IT SPI transfers complete only on `spiComplete`; `FakeTmc4671` stores registers only (the plant applies torque mode, ENI and 0x5E itself and advances 0x6B by differences); `vTaskDelay` in a task jumps the clock until fix A-3 is decided; `runUntilIdle` ignores priorities.
+* Fake auditors needed more than 60 turns for a group of fakes (now 100); keep audit orders small.

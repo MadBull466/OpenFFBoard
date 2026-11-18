@@ -10,7 +10,7 @@ Starting point: the four agents of the coverage track in `.claude/agents/` (`dri
 |---|---|---|---|---|---|
 | Lead | main session | Opus 5.5, high | all | n/a | plan, charters, work orders, decisions, final QC, commits, all communication with the owner; writes no bulk tests |
 | Explorer | `integration-explorer` | Sonnet 5.5, medium | Read, Grep, Glob | 25 | call chains, units, existing coverage; short answers with file:line |
-| Fake auditor | `fake-auditor` | Opus 5.5, high | Read, Grep, Glob, Bash | 60 | audits a fake against its header and source; reports defects and affected coverage cases; never edits the repository |
+| Fake auditor | `fake-auditor` | Opus 5.5, high | Read, Grep, Glob, Bash | 100 (60 until 2026-11-18) | audits a fake against its header and source; reports defects and affected coverage cases; never edits the repository |
 | Writer | `integration-test-writer` | Sonnet 5.5, medium | Read, Grep, Glob, Write, Edit, Bash | 80 | one work order at a time; builds and runs both builds; returns the gate evidence |
 | Stability analyst | `stability-analyst` | Opus 5.5, high | Read, Grep, Glob, Write, Edit, Bash | 60 | stability derivation, oracle scripts (Python stdlib), generated prediction tables |
 | Reviewer | `integration-reviewer` | Opus 5.5, high | Read, Grep, Glob, Bash | 50 | adversarial review in a fresh context; never edits the repository |
@@ -52,7 +52,7 @@ tools: Read, Grep, Glob, Bash
 disallowedTools: Write, Edit, MultiEdit, NotebookEdit, Agent
 model: claude-opus-5-5
 effort: high
-maxTurns: 60
+maxTurns: 100
 ---
 You audit ONE fake named in the task, for the integration track (Tests/Integration_Tests/claude/plans/INTEGRATION_TEST_PLAN.md section 4).
 Read CLAUDE.md, Firmware/Tests/README.md and the fake's header. For every behaviour the task says the integration relies on:
@@ -205,6 +205,9 @@ Windows note: the hooks use `python3`; on a Windows checkout the owner would cha
 * `APPROVED_SHARED_EDITS.txt` lines count only with all three fields (`path | date | WO`).
 * Heredoc bodies are treated as data; `$(...)` and backticks are checked as commands; redirects are resolved per command after any `cd`.
 * `git stash list` / `show` are allowed for subagents.
+* Gate as built in WO I0-4 (`Firmware/Tests/Integration_Tests/tools/it_gate.py`): the WO's file list is `Tests/Integration_Tests/claude/charters/wo/<ID>.files` (written by the lead); evidence also records `variants_requested`, `file_list`, `file_patterns`, `git_head`; `result` is `PASS` only with default and m32 (or `--full`) all passing, otherwise `PARTIAL` (refused by the hooks) or `FAIL`; WO sources are re-checked with `-fsyntax-only` so an incremental build cannot hide warnings; each variant's `CMakeCache.txt` must match its options; ctest must register `ffb_integration_tests` and `integration_tool_tests`; the other executables' compile commands must equal a recorded reference (`../ffb-test-build/it-gate/compile_reference-<variant>.json`, `--record-compile-reference`); timeouts on ctest and the integration run.
+* Known limits found in use (2026-11-18): the guard sees the command text only, so shell variables are not expanded (`cmake --build $C/build` is read as a repository path and blocked: write build paths literally); a combined command is checked before any part runs (stage and commit in separate commands); `chmod` / `chown` treat their first word as the mode (fixed after a false block).
+* `fake-auditor` `maxTurns` raised from 60 to 100 (owner, 2026-11-18): all four I0-2 audits ran out at 60.
 
 ## 3. Per-work-order flow
 

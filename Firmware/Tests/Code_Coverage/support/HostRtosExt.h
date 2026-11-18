@@ -1,8 +1,8 @@
 /*
  * HostRtosExt.h
  *
- * Test control of the fake FreeRTOS API F11 (platform/src/host_freertos_ext.inc), ffb_rtos_tests only
- * (compiled with HOSTTEST_RTOS_EXT). Extends HostRtos.h; everything there still applies, with these differences:
+ * Test control of the fake FreeRTOS API F11 (platform/src/host_freertos_ext.inc), ffb_rtos_tests and ffb_usb_tests
+ * (the executables compiled with HOSTTEST_RTOS_EXT). Extends HostRtos.h; everything there still applies, with these differences:
  *
  * Model (FreeRTOS V10.3.1 of the F407 target, Targets/F407VG/Middlewares/Third_Party/FreeRTOS/Source):
  *  - Queues, software timers with the timer service task ("Tmr Svc", priority 2, command queue of 10), event groups,
@@ -28,10 +28,26 @@
  *  - Scheduler suspended: a call with a block time != 0 to xQueueGenericSend, xQueueReceive, xQueuePeek, a semaphore
  *    take, xEventGroupWaitBits or xEventGroupSync is a configASSERT on entry (queue.c:751, :1293, :1438, :1653,
  *    event_groups.c:202, :325), whether or not it would block.
- *  - The simulated time advances through HostPlatform::advanceMs / advanceUs / HAL_Delay / vTaskDelay: every 1 ms
+ *  - The simulated time advances through HostPlatform::advanceMs / advanceUs / HAL_Delay / vTaskDelay called by the test thread (a task's vTaskDelay does not, see below): every 1 ms
  *    boundary is one SysTick: vApplicationTickHook() (ctickhook.cpp) runs in interrupt context (IPSR 15) with BASEPRI
  *    raised to configMAX_SYSCALL_INTERRUPT_PRIORITY like in xPortSysTickHandler (port.c:494-503). setTimeUs
  *    and HostPlatform::reset() jump without ticks.
+ *  - vTaskDelay / vTaskDelayUntil / osDelay (I0-3c, tasks.c:1341-1368 prvAddCurrentTaskToDelayedList): called in a task the
+ *    delay does NOT move the simulated clock (on the target the tick advances while other tasks run). Resumable task:
+ *    parks until xTaskGetTickCount() >= wake time (an activation before that parks again). Restart-model task (not
+ *    resumable): can not express the wait (it would run its work again after the delay); a delay with ticks > 0 is
+ *    recorded as a kernel fault ("must run resumable") and the task is blocked like after any fault. Test thread (no
+ *    task): advances the clock as before. The delay budget (setDelayBudgetMs) has no effect. A test that needs a delay
+ *    to expire advances the simulated time itself (RtosFixture::advance, HostPlatform::advanceMs). Executables without
+ *    HOSTTEST_RTOS_EXT (every one except ffb_rtos_tests and ffb_usb_tests) keep the old model: the delay advances the
+ *    clock, the budget parks a resumable task. Fidelity: models the delayed list and wake by tick count for resumable
+ *    tasks; does not model the scheduler-suspended assert of vTaskDelay or preemption. Confidence: high (resumable tasks,
+ *    self-tests in claude/cases_rtos/test_rtos_setup.cpp), n/a for restart-model tasks (fault).
+ *  - runUntilIdle (I0-3c, tasks.c:133-177 taskSELECT_HIGHEST_PRIORITY_TASK): runs the ready task with the highest priority
+ *    and evaluates readiness again after every activation (no preemption inside an activation). APPROXIMATION: tasks of
+ *    equal priority run in creation order; FreeRTOS round-robins them (listGET_OWNER_OF_NEXT_ENTRY in
+ *    taskSELECT_HIGHEST_PRIORITY_TASK, prvAddTaskToReadyList uses vListInsertEnd, tasks.c:218-221). Consequence: an
+ *    always-ready task starves the later tasks of its priority. Other executables run ready tasks in creation order.
  *  - Software timers follow timers.c: xTimerStart & co. only queue a command; the timer service task executes it when
  *    it runs (runUntilIdle, RtosFixture::advance). Expired timers are processed before the queued commands; an
  *    auto-reload timer whose service task ran late catches up (one callback per missed period, then armed in phase;
@@ -44,7 +60,7 @@
  *  - Deleted queues, semaphores, event groups and timers are detected by handle (registry with creation generation):
  *    a later use is recorded instead of touching freed memory. A timer deleted by the timer service stays allocated
  *    (zombie) until HostRtos::reset().
- * Not modelled: priorities between tasks (no preemption; pxHigherPriorityTaskWoken is computed from the priorities),
+ * Not modelled: preemption (a task runs until it blocks; priorities only order runUntilIdle and pxHigherPriorityTaskWoken),
  * priority inheritance, the tick count overflow (recorded), queue sets, static creation other than event groups,
  * stream / message buffers, task notifications other than give/take.
  */

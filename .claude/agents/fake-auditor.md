@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Bash
 disallowedTools: Write, Edit, MultiEdit, NotebookEdit, Agent
 model: claude-opus-5-5
 effort: high
-maxTurns: 60
+maxTurns: 100
 ---
 You audit ONE fake named in the task, for the integration track (Tests/Integration_Tests/claude/plans/INTEGRATION_TEST_PLAN.md section 4).
 Read CLAUDE.md, Firmware/Tests/README.md and the fake's header. For every behaviour the task says the integration relies on:

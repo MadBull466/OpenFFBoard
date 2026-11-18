@@ -801,17 +801,46 @@ TEST_CASE_FIXTURE(SysFixture, "flashraw without an address neither reads nor wri
 	CHECK(HostPlatform::flash().empty());
 }
 
-TEST_CASE_FIXTURE(SysFixture, "flashdump returns every stored flash variable as value and address") {
-	HostPlatform::flash()[0x10] = 7;
-	HostPlatform::flash()[0x20] = 0xFFFF;
+TEST_CASE_FIXTURE(SysFixture, "flashdump returns every stored exportable flash variable as value and address") {
+	// I0-3b: the fake Flash_Dump walks exportableFlashAddresses like flash_helpers.cpp:268-287 (it used to return the
+	// whole map, so the old addresses 0x10 / 0x20, which are in no list, passed). ADR_CURRENT_CONFIG and ADR_AXIS1_CONFIG
+	// are entries of exportableFlashAddresses (eeprom_addresses.c). The reply order (the list order) is not tested:
+	// the list is in ascending address order, so list order and address order (the map order) are the same and a
+	// case could not tell them apart.
+	HostPlatform::flash()[ADR_AXIS1_CONFIG] = 0xFFFF;
+	HostPlatform::flash()[ADR_CURRENT_CONFIG] = 7;
 	CHECK(run(FFBoardMain_commands::flashdump, CMDtype::get) == CommandStatus::OK);
 	REQUIRE(replies.size() == 2);
 	CHECK(replies[0].type == CommandReplyType::DOUBLEINTS);
-	CHECK(replies[0].adr == 0x10);
+	CHECK(replies[0].adr == ADR_CURRENT_CONFIG);
 	CHECK(replies[0].val == 7);
 	CHECK(replies[1].type == CommandReplyType::DOUBLEINTS);
-	CHECK(replies[1].adr == 0x20);
+	CHECK(replies[1].adr == ADR_AXIS1_CONFIG);
 	CHECK(replies[1].val == 0xFFFF);
+}
+
+TEST_CASE_FIXTURE(SysFixture, "flashdump leaves out a stored calibration address that is not in the export list") {
+	// ADR_TMC1_ADC_I0_OFS is commented out of exportableFlashAddresses (eeprom_addresses.c, "could break something if
+	// imported on a different board", flash_helpers.cpp:263); it is only in VirtAddVarTab. Also covers an address in no list.
+	HostPlatform::flash()[ADR_TMC1_ADC_I0_OFS] = 123;
+	HostPlatform::flash()[0x10] = 7;
+	HostPlatform::flash()[ADR_CURRENT_CONFIG] = 5;
+	CHECK(run(FFBoardMain_commands::flashdump, CMDtype::get) == CommandStatus::OK);
+	REQUIRE(replies.size() == 1);
+	CHECK(replies[0].adr == ADR_CURRENT_CONFIG);
+	CHECK(replies[0].val == 5);
+}
+
+TEST_CASE_FIXTURE(SysFixture, "the fake Flash_Dump with includeAll adds the calibration addresses of the variable table") {
+	HostPlatform::flash()[ADR_TMC1_ADC_I0_OFS] = 123;
+	HostPlatform::flash()[0x10] = 7;
+	std::vector<std::tuple<uint16_t, uint16_t>> exported, all;
+	Flash_Dump(&exported);
+	Flash_Dump(&all, true);
+	CHECK(exported.empty());
+	REQUIRE(all.size() == 1);
+	CHECK(std::get<0>(all[0]) == ADR_TMC1_ADC_I0_OFS);
+	CHECK(std::get<1>(all[0]) == 123);
 }
 
 TEST_CASE_FIXTURE(TargetFixture, "replyFlashDump of an empty flash adds no replies") {

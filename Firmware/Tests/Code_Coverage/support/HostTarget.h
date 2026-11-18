@@ -454,9 +454,17 @@ bool spiTransferPending(const SPI_HandleTypeDef *hspi);
  */
 bool spiComplete(SPI_HandleTypeDef *hspi);
 /**
- * Ends the pending IT/DMA transfer with an error like HAL_SPI_IRQHandler's error branch (OVR, MODF, FRE) or
- * SPI_DMAError (HAL_SPI_ERROR_DMA): nothing is written into the rx buffer, ErrorCode |= errorCode, State READY,
- * HAL_SPI_ErrorCallback in interrupt context. @return false if no transfer was pending
+ * Ends the pending IT/DMA transfer with an error like HAL_SPI_IRQHandler's error branch or SPI_DMAError
+ * (HAL_SPI_ERROR_DMA): nothing is written into the rx buffer, ErrorCode |= errorCode, State READY,
+ * HAL_SPI_ErrorCallback in interrupt context. @return false if no transfer was pending.
+ * Only errors the HAL can deliver are accepted (I0-3a, stm32f4xx_hal_spi.c:2405-2422, RM0090 Rev 22 28.3.10):
+ *  - OVR on a transmit only transfer (State BUSY_TX): the HAL clears it and calls no callback. Recorded in
+ *    state().unmodelledHalCalls, the transfer stays pending, returns false. OVR is valid on receive / transmit-receive.
+ *  - MODF / FRE: cannot occur with the firmware's master configuration (MSTR|SSI, software NSS) and without TI mode,
+ *    the fake does not check NSS or TI mode (only Mode, Direction, DataSize), so it cannot tell and records them
+ *    always as unmodelled (the firmware configures SPI_NSS_SOFT and SPI_TIMODE_DISABLE: main.c,
+ *    host_target_config.cpp:46-49); transfer stays pending, returns false.
+ *  - HAL_SPI_ERROR_FLAG (end of transfer flag timeout, SPI_CloseTx_ISR) is valid on a transmit; HAL_SPI_ERROR_DMA anywhere.
  */
 bool spiFail(SPI_HandleTypeDef *hspi, uint32_t errorCode = HAL_SPI_ERROR_OVR);
 /**

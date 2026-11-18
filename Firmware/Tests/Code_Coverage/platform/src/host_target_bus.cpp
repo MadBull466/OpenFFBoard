@@ -944,6 +944,20 @@ bool spiFail(SPI_HandleTypeDef *hspi, uint32_t errorCode) {
 	if (!fake.pending) {
 		return false;
 	}
+	// I0-3a: errors the HAL cannot deliver are recorded and the transfer stays pending. HAL_SPI_IRQHandler
+	// (stm32f4xx_hal_spi.c:2405-2422) clears OVR and returns without a callback in HAL_SPI_STATE_BUSY_TX; MODF cannot
+	// occur with SPI_MODE_MASTER (MSTR|SSI, software NSS) and FRE only in TI mode (RM0090 Rev 22 28.3.10). The fake
+	// does not check NSS or TI mode (only Mode, Direction and DataSize, see above) so it cannot tell how the port is
+	// configured: MODF / FRE are recorded as unmodelled always. The firmware configures SPI_NSS_SOFT and
+	// SPI_TIMODE_DISABLE (main.c, host_target_config.cpp:46-49).
+	if ((errorCode & (HAL_SPI_ERROR_MODF | HAL_SPI_ERROR_FRE)) != 0) {
+		unmodelled("spiFail: HAL_SPI_ERROR_MODF / HAL_SPI_ERROR_FRE cannot occur in master mode with software NSS / without TI mode");
+		return false;
+	}
+	if (fake.pending->callback == SpiCallback::Tx && (errorCode & HAL_SPI_ERROR_OVR) != 0) {
+		unmodelled("spiFail: HAL_SPI_ERROR_OVR on a transmit only transfer is cleared by HAL_SPI_IRQHandler without a callback");
+		return false;
+	}
 	SpiPending pending = *fake.pending;
 	fake.pending.reset();
 	SpiTransfer &t = fake.transfers[pending.record];

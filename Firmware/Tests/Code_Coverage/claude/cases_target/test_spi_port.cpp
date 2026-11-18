@@ -706,7 +706,10 @@ TEST_CASE_FIXTURE(SpiFixture, "a completion or error is reported to the current 
 				MockSPIDevice dev(external_spi, external_spi.getFreeCsPins()[0]);
 				uint8_t tx[1] = {0x42}, rx[1] = {0};
 				startTransfer(external_spi, &dev, op, tx, rx, 1);
-				REQUIRE((fail ? HostTarget::spiFail(&hspi2) : HostTarget::spiComplete(&hspi2)));
+				// I0-3a: OVR on a transmit only transfer is cleared by HAL_SPI_IRQHandler without a callback
+				// (stm32f4xx_hal_spi.c:2405-2422); a transmit ends with an error through HAL_SPI_ERROR_FLAG (SPI_CloseTx_ISR)
+				const uint32_t error = op.call == SpiCall::Transmit ? HAL_SPI_ERROR_FLAG : HAL_SPI_ERROR_OVR;
+				REQUIRE((fail ? HostTarget::spiFail(&hspi2, error) : HostTarget::spiComplete(&hspi2)));
 				REQUIRE(dev.events.size() == 3);
 
 				{
@@ -1038,11 +1041,50 @@ TEST_CASE_FIXTURE(SpiFixture, "a device without overrides takes the port and dri
 	external_spi.receive_IT(rx, 1, &dev);
 	REQUIRE(HostTarget::spiComplete(&hspi2));
 	external_spi.transmit_IT(tx, 1, &dev);
-	REQUIRE(HostTarget::spiFail(&hspi2));
+	// I0-3a: a transmit ends with an error through HAL_SPI_ERROR_FLAG (SPI_CloseTx_ISR, stm32f4xx_hal_spi.c:3818-3835);
+	// OVR is cleared without a callback in BUSY_TX (hal_spi.c:2411-2422)
+	REQUIRE(HostTarget::spiFail(&hspi2, HAL_SPI_ERROR_FLAG));
 
 	CHECK_FALSE(external_spi.isTaken());
 	CHECK(level(dev.getSpiConfig()->cs));
 	CHECK(semaphoreAvailable(external_spi));
+}
+
+// I0-3a self-test of the fake: HAL_SPI_IRQHandler (stm32f4xx_hal_spi.c:2405-2422) clears OVR and returns without a
+// callback while State == HAL_SPI_STATE_BUSY_TX
+TEST_CASE_FIXTURE(SpiFixture, "an overrun on a pending transmit reaches no callback, leaves the transfer pending and is recorded as unmodelled") {
+	MockSPIDevice dev(external_spi, external_spi.getFreeCsPins()[0]);
+	uint8_t tx[1] = {0x42};
+	external_spi.transmit_IT(tx, 1, &dev);
+	REQUIRE(HostTarget::spiTransferPending(&hspi2));
+	const size_t before = HostTarget::state().unmodelledHalCalls.size();
+
+	CHECK_FALSE(HostTarget::spiFail(&hspi2, HAL_SPI_ERROR_OVR));
+
+	CHECK(HostTarget::spiTransferPending(&hspi2));
+	CHECK(hspi2.State == HAL_SPI_STATE_BUSY_TX);
+	CHECK(dev.calls() == std::vector<Call>{Call::BeginTransfer});
+	CHECK(HostTarget::state().unmodelledHalCalls.size() == before + 1);
+	HostTarget::state().unmodelledHalCalls.clear(); // expected here: removed so the fixture does not fail on it
+	CHECK(HostTarget::spiFail(&hspi2, HAL_SPI_ERROR_FLAG)); // an error a transmit can end with
+}
+
+// I0-3a self-test: MODF (master mode fault, needs NSS pulled low in hardware NSS mode) and FRE (TI frame format error) can
+// not occur with the firmware's configuration (SPI_NSS_SOFT, SPI_TIMODE_DISABLE; RM0090 Rev 22 28.3.10)
+TEST_CASE_FIXTURE(SpiFixture, "a mode fault or a frame format error on a pending transfer reaches no callback and is recorded as unmodelled") {
+	MockSPIDevice dev(external_spi, external_spi.getFreeCsPins()[0]);
+	uint8_t rx[2] = {0, 0};
+	external_spi.receive_IT(rx, 2, &dev);
+	REQUIRE(HostTarget::spiTransferPending(&hspi2));
+	for (uint32_t error : {(uint32_t)HAL_SPI_ERROR_MODF, (uint32_t)HAL_SPI_ERROR_FRE}) {
+		const size_t before = HostTarget::state().unmodelledHalCalls.size();
+		CHECK_FALSE(HostTarget::spiFail(&hspi2, error));
+		CHECK(HostTarget::spiTransferPending(&hspi2));
+		CHECK(dev.calls() == std::vector<Call>{Call::BeginTransfer});
+		CHECK(HostTarget::state().unmodelledHalCalls.size() == before + 1);
+	}
+	HostTarget::state().unmodelledHalCalls.clear(); // expected here: removed so the fixture does not fail on it
+	CHECK(HostTarget::spiFail(&hspi2, HAL_SPI_ERROR_OVR)); // an error a receive can end with
 }
 
 // bug 57: ~SPIDevice does not clear the port's current_device

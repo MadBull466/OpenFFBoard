@@ -18,6 +18,7 @@
 #include "cmsis_compiler.h"
 #include "cppmain.h"
 #include "flash_helpers.h"
+#include "eeprom_addresses.h"
 #include "ledEffects.h"
 #include "UART.h"
 
@@ -353,9 +354,23 @@ bool Flash_ReadWriteDefault(uint16_t adr, uint16_t *buf, uint16_t def) {
 	return true;
 }
 
-void Flash_Dump(std::vector<std::tuple<uint16_t, uint16_t>> *result, bool) {
-	for (const auto &entry : HostPlatform::flash()) {
-		result->emplace_back(entry.first, entry.second);
+// I0-3b: walks the same list as flash_helpers.cpp Flash_Dump (flash_helpers.cpp:268-287): exportableFlashAddresses, or
+// VirtAddVarTab when includeAll is set (both from the real eeprom_addresses.c), in list order, reading through
+// Flash_Read and keeping only the addresses it finds. Not modelled: the variable table is not checked against the map. The real EEPROM emulation keeps only the
+// VirtAddVarTab addresses across a page transfer (eeprom.c page transfer), while the fake Flash_Write keeps any address.
+void Flash_Dump(std::vector<std::tuple<uint16_t, uint16_t>> *result, bool includeAll) {
+	uint16_t amount = NB_EXPORTABLE_ADR;
+	const uint16_t *list = exportableFlashAddresses;
+	if (includeAll) {
+		amount = NB_OF_VAR;
+		list = VirtAddVarTab;
+	}
+	for (uint32_t i = 0; i < amount; i++) {
+		uint16_t v;
+		const uint16_t adr = list[i];
+		if (Flash_Read(adr, &v)) {
+			result->push_back(std::tuple<uint16_t, uint16_t>{adr, v});
+		}
 	}
 }
 

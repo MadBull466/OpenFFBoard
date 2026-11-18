@@ -61,6 +61,8 @@ set(FFBOARD_DIR ${FW_DIR}/FFBoard)
 # the hardware extend the fake platform in Code_Coverage/platform/ instead of changing the source.
 # ---------------------------------------------------------------------------
 set(FIRMWARE_SOURCES
+	# I0-3b: export lists walked by the fake Flash_Dump in host_platform.cpp (not in ffb_flash_tests, which has its own copy)
+	${FFBOARD_DIR}/UserExtensions/Src/eeprom_addresses.c
 	# Command system
 	${FFBOARD_DIR}/Src/CmdParser.cpp
 	${FFBOARD_DIR}/Src/CommandHandler.cpp
@@ -570,6 +572,8 @@ endif() # NOT APPLE (ffb_flash_tests)
 # Built on every host (no fixed addresses, unlike ffb_flash_tests).
 # ===========================================================================
 set(RTOS_FIRMWARE_SOURCES
+	# I0-3b: export lists walked by the fake Flash_Dump in host_platform.cpp
+	${FFBOARD_DIR}/UserExtensions/Src/eeprom_addresses.c
 	# Under test (P8): the cpp_freertos wrappers. cmem_pool.cpp: see RTOS_PLATFORM_SOURCES
 	${FFBOARD_DIR}/Src/cthread.cpp
 	${FFBOARD_DIR}/Src/cmutex.cpp
@@ -958,6 +962,9 @@ if(FFB_DRIVER_TESTS_EXCLUDED_ARG)
 else()
 	add_test(NAME ffb_driver_tests COMMAND ffb_driver_tests)
 endif()
+
+# Integration track: ffb_integration_tests, its ctest entries and options (Integration_Tests/integration.cmake)
+include(Integration_Tests/integration.cmake)
 
 # ===========================================================================
 # ffb_dsp_tests (phase P11, Tests/Code_Coverage/claude/plans/TEST_PLAN.md and Tests/Code_Coverage/claude/charters/dsp/CMSIS_DSP_REQUIREMENTS.md): the in-scope CMSIS-DSP modules

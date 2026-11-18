@@ -1,4 +1,17 @@
 # Shared paths the hooks let the lead and the integration-test-writer edit (.claude/hooks/guard_lib.py).
 # One line per path: <repository-relative path> | <owner's approval date> | <work order>
-# The lead adds a line only after the owner approved that change (AGENT_PLAN.md section 4). Remove a line when its WO is committed.
-Firmware/Tests/CMakeLists.txt | 2026-11-18 | I0-4 (the single include() line of integration.cmake, approved with the plan)
+# The lead adds a line only after the owner approved that change (AGENT_PLAN.md section 4). Remove a line in the commit after its WO's commit (the commit check still needs it).
+Firmware/Tests/CMakeLists.txt | 2026-11-18 | I0-4 (the single include() line of integration.cmake, approved with the plan) and I0-3b (A-2: eeprom_addresses.c in the map executables)
+# WO I0-3 fake fixes, approved by the owner 2026-11-18 (audit register A-1, A-2, A-3)
+Firmware/Tests/Code_Coverage/platform/src/host_target_bus.cpp | 2026-11-18 | I0-3a (A-1)
+Firmware/Tests/Code_Coverage/support/HostTarget.h | 2026-11-18 | I0-3a (A-1)
+Firmware/Tests/Code_Coverage/claude/cases_target/test_spi_port.cpp | 2026-11-18 | I0-3a (A-1)
+Firmware/Tests/Code_Coverage/platform/src/host_platform.cpp | 2026-11-18 | I0-3b (A-2)
+Firmware/Tests/Code_Coverage/support/HostPlatform.h | 2026-11-18 | I0-3b (A-2)
+Firmware/Tests/Code_Coverage/claude/cases_target/test_system_commands.cpp | 2026-11-18 | I0-3b (A-2)
+Firmware/Tests/Code_Coverage/platform/src/host_freertos.cpp | 2026-11-18 | I0-3c (A-3)
+Firmware/Tests/Code_Coverage/platform/src/host_freertos_ext.inc | 2026-11-18 | I0-3c (A-3)
+Firmware/Tests/Code_Coverage/support/HostRtos.h | 2026-11-18 | I0-3c (A-3)
+Firmware/Tests/Code_Coverage/support/HostRtosExt.h | 2026-11-18 | I0-3c (A-3)
+Firmware/Tests/Code_Coverage/claude/cases_usb/test_cdc_device.cpp | 2026-11-18 | I0-3c (A-3)
+Firmware/Tests/Code_Coverage/claude/cases_rtos/test_rtos_setup.cpp | 2026-11-18 | I0-3c (A-3)
