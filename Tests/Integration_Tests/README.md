@@ -13,5 +13,5 @@ Specification files are not copied here: they stay in `../Code_Coverage/shared/s
 
 - Each agent writes only into its own tree; nothing here writes into `../Code_Coverage/` (a fix of a shared fake updates the coverage documents in the same commit, see the plan section 9).
 - Every number (counts, coverage, register counters) lives in one place: `claude/plans/PROGRESS.md` "Current state". Other documents link to it.
-- Generated files are never edited by hand: `claude/reports/INTEGRATION_BUG_REPORT.md` (from the registers in `PROGRESS.md`) and the oracle tables under `Firmware/Tests/Integration_Tests/claude/oracles/`.
+- Generated files are never edited by hand: `claude/reports/BUG_REPORT.md` (from the registers in `PROGRESS.md`; maintained by hand until its generator exists, WO I0-8) and the oracle tables under `Firmware/Tests/Integration_Tests/claude/oracles/`.
 - Bugs and NEEDS REVIEW items of this track have their own numbers (IB n, INR n); a coverage-suite bug that an integration test hits again is cross-referenced, not renumbered.

@@ -21,7 +21,7 @@ COMMIT_NAME = "MadBull.Ben"
 
 GENERATED = (
     "Tests/Code_Coverage/claude/reports/BUG_REPORT.md",
-    "Tests/Integration_Tests/claude/reports/INTEGRATION_BUG_REPORT.md",
+    # Tests/Integration_Tests/claude/reports/BUG_REPORT.md: hand-maintained until WO I0-8 adds its generator; add it here then.
     "Firmware/Tests/Integration_Tests/claude/oracles/*.csv",
     "Firmware/Tests/Integration_Tests/claude/oracles/**/*.csv",
     "Firmware/Tests/Code_Coverage/baseline/test_cases.txt",

@@ -18,7 +18,7 @@ A host-side integration test suite: the real firmware modules of a force-feedbac
 4. `AGENT_PLAN.md` (agents, hooks, gate, per-work-order flow, what goes to the owner).
 5. The flow charter (`../charters/F1_TMC4671_CHAIN_REQUIREMENTS.md`) and the current phase's work orders (`../charters/I<n>_WORK_ORDERS.md`).
 6. `Firmware/Tests/README.md` (fake platform, simulated time, fixtures, naming conventions).
-7. Before reviewing or recording a bug: `../reports/OPEN_QUESTIONS.md` (IQ n), `../reports/INTEGRATION_BUG_REPORT.md` (once generated) and the coverage suite's `Tests/Code_Coverage/claude/reports/BUG_REPORT.md` and `OPEN_QUESTIONS.md` (answered questions there settle intended behaviour).
+7. Before reviewing or recording a bug: `../reports/OPEN_QUESTIONS.md` (IQ n), `../reports/BUG_REPORT.md` (once generated) and the coverage suite's `Tests/Code_Coverage/claude/reports/BUG_REPORT.md` and `OPEN_QUESTIONS.md` (answered questions there settle intended behaviour).
 8. The unit charters the flow builds on: `Tests/Code_Coverage/claude/charters/driver/TMC4671_REQUIREMENTS.md`, `.../dsp/CMSIS_DSP_REQUIREMENTS.md`.
 
 ## Method (per work order)

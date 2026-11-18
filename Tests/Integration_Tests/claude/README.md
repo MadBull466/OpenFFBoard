@@ -15,7 +15,7 @@ Project-management files of the integration track. Test code: `Firmware/Tests/In
 | the work orders of a phase | `charters/I<n>_WORK_ORDERS.md` (I0: [charters/I0_WORK_ORDERS.md](charters/I0_WORK_ORDERS.md)) |
 | the stability derivation and the plant model | `charters/stability/` (phase I4) |
 | the result of a fake audit | `charters/audit/` (phase I0) and the "Fake audit register" in `PROGRESS.md` |
-| integration bugs and NEEDS REVIEW items | `reports/INTEGRATION_BUG_REPORT.md` (generated from `PROGRESS.md`; do not edit) |
+| all faults found (integration bugs, NEEDS REVIEW items, fake and tool defects) | [reports/BUG_REPORT.md](reports/BUG_REPORT.md) (hand-maintained until WO I0-8, then generated from `PROGRESS.md`) |
 | questions to the owner and their answers | [reports/OPEN_QUESTIONS.md](reports/OPEN_QUESTIONS.md) |
 | a decision and its date | [plans/PROGRESS.md](plans/PROGRESS.md): "Decisions log" |
 | a phase result (self-contained, for an outside reviewer) | `reports/I<n>_REPORT.md` |
@@ -25,5 +25,5 @@ Project-management files of the integration track. Test code: `Firmware/Tests/In
 | Folder | Content |
 |---|---|
 | `plans/` | `PROGRESS.md` (source of truth), `INTEGRATION_TEST_PLAN.md`, `AGENT_PLAN.md`, `COVERAGE_AND_SCOPE.md`, `HANDOFF.md`, `APPROVED_SHARED_EDITS.txt` (from I0; read by the hook) |
-| `reports/` | `OPEN_QUESTIONS.md`, `INTEGRATION_BUG_REPORT.md` (generated), phase reports |
+| `reports/` | `OPEN_QUESTIONS.md`, `BUG_REPORT.md`, phase reports |
 | `charters/` | flow charters `F<n>_*_REQUIREMENTS.md`, work orders `I<n>_WORK_ORDERS.md`, `stability/`, `audit/` |

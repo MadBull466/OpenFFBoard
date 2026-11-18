@@ -11,14 +11,15 @@
 - **Tests:** `ffb_integration_tests`: 10 cases in `test_f1_setup.cpp`: 7 passed, 3 known issues (IB 1, IB 2, IB 3 as `KNOWN_ISSUE_UB`), 0 failed in default and m32; sanitizer build (not yet a gate variant): clean except IB 3, which aborts with ASan when run with `--no-skip`. Bring-up takes 1181 ms simulated (1 us per SPI frame during bring-up).
 - **Requirements (F1 charter):** 62 requirements (A 5, H 6, E 14, R 7, X 7, T 9, P 2, S 4, O 5, B 3; P1 and P2 split in the charter) plus 12 candidate seams S1-S12 (not requirements); 2 covered (F1-A1, F1-A4).
 - **Gate:** `python3 -B Firmware/Tests/Integration_Tests/tools/it_gate.py --wo <ID> --variants default,m32` (file list `../charters/wo/<ID>.files`); compile references recorded for default and m32 only; `--full` needs references for the other variants first (recorded from builds without the integration executable).
-- **Registers:** 3 integration bugs (IB 1-3), 1 INR item (INR 1). **Counters:** next IB 4, next INR 2, next IQ 6 (IQ1-IQ5 answered 2026-11-18).
+- **Registers:** 3 integration bugs (IB 1-3), 1 INR item (INR 1). **Counters:** next IB 4, next INR 2, next IQ 8 (IQ1-IQ5 answered; IQ6, IQ7 open).
 - **Roles:** lead Opus 5.5 (high); workers per `AGENT_PLAN.md`.
 
 ## Next action
 
+0. Owner: IQ6 (INR 1, motor start after a runtime driver selection) and IQ7 (coverage tool `run_all_tests.py` misreports three VESC cases) in `../reports/OPEN_QUESTIONS.md`. All faults so far: `../reports/BUG_REPORT.md` (hand-maintained until I0-8).
 1. WO I0-6: `HidReportDescriptor` parser and `PidReportBuilder` from the parsed descriptor and PID 1.01 (F1-A2).
-2. Then I0-7 (`WheelPlant` applying torque mode / ENI / 0x5E and advancing 0x6B by differences; detector; FRF), I0-8 (tools, incl. `make_integration_bug_report.py`: `INTEGRATION_BUG_REPORT.md` is not generated until then), I0-9 (phase gate `--full`, after recording the remaining compile references).
-3. Coverage-tool observation (not part of this track): `run_all_tests.py` reports 3 skip-marked VESC cases in `ffb_driver_tests` as failed ("known bug no longer fails") with unrelated bug items (V11, V5); unchanged by I0-3. For the owner to decide whether to look at it.
+2. Then I0-7 (`WheelPlant` applying torque mode / ENI / 0x5E and advancing 0x6B by differences; detector; FRF), I0-8 (tools, incl. `make_integration_bug_report.py`, which then generates `../reports/BUG_REPORT.md` sections 1-2 and the hooks protect it again), I0-9 (phase gate `--full`, after recording the remaining compile references).
+3. Coverage-tool observation: now tool defect T-1 in `../reports/BUG_REPORT.md`, question IQ7.
 
 ## Phase checklist
 
@@ -38,7 +39,7 @@
 | Date | Decision | Reason |
 |---|---|---|
 | 2026-11-18 | Integration track planned (owner's task): test code in `Firmware/Tests/Integration_Tests/`, documents in `Tests/Integration_Tests/`, new executable(s), shared code reused from `Code_Coverage/` | Owner's decisions in the task |
-| 2026-11-18 | IQ1: own register (IB n, INR n) and own generated report `INTEGRATION_BUG_REPORT.md`; coverage bugs hit again are cross-referenced, the coverage register is not changed | Owner's answer |
+| 2026-11-18 | IQ1: own register (IB n, INR n) and own generated report `BUG_REPORT.md`; coverage bugs hit again are cross-referenced, the coverage register is not changed | Owner's answer |
 | 2026-11-18 | IQ2: oracle for the HID entry = `USB_PID1_01.pdf` (supplied); `USB_PID1_02.pdf` only to flag differences | Owner's answer; coverage decisions log 2026-10-23 names PID 1.01 |
 | 2026-11-18 | IQ3: nominal wheel plant with documented ranges plus setting sweeps; no hardware data | Owner's answer |
 | 2026-11-18 | IQ4: existing functional fakes (audited); no real ST HAL in this track | Owner's answer |
@@ -46,6 +47,7 @@
 | 2026-11-18 | Lead: the integration host builds PID reports from the parsed report descriptor, not from the firmware's C structs | `PidHost` uses the firmware structs, so a struct / descriptor mismatch would be invisible |
 | 2026-11-18 | Lead: stability = analytic loop model as oracle (stability analyst) + conformance of the real chain to it + closed-loop runs with a plant attached to `FakeTmc4671`; instability inside the settable range = INR item for the owner | Plan section 6 |
 | 2026-11-18 | Lead (I0-1): gate evidence records each file of the WO with its git blob hash (`files`) and a fingerprint over them; the commit check compares the staged blobs with it, so unrelated dirty files (Codex's, `AGENTS.md`) neither block nor get committed. Staged `codex/` paths and `AGENTS.md` are always refused. Configuration commits (`.claude/`, `CLAUDE.md`, the hook tests) need no gate but run `test_hooks.py`. `git stash list/show` allowed for subagents (probe false positive) | Implementation of `AGENT_PLAN.md` 2.2 / 2.3; the planned whole-diff fingerprint would have been blocked by the pre-existing changes outside the track |
+| 2026-11-18 | Owner: record all faults in a bug report and all questions in the open-questions file; lead: `reports/BUG_REPORT.md` (name like the coverage track's, replacing the planned `INTEGRATION_BUG_REPORT.md`), hand-maintained until the I0-8 generator, hook protection of it dropped until then; IQ6 (INR 1) and IQ7 (tool defect T-1) asked | Owner's request |
 | 2026-11-18 | Lead (I0-5): bring-up by `axis.0.drvtype=1` plus a USB re-plug ("board configured, PC connects afterwards"; INR 1); 1 us per SPI frame during bring-up (`calibrateAdcOffset` busy-waits on `HAL_GetTick`), 0 afterwards; the fixture drains HID IN like a polling host (IB 3 has its own non-draining case); IB 1-3 registered | WO I0-5 findings and review |
 | 2026-11-18 | Owner: `integration-reviewer` `maxTurns` 50 -> 100 | Reviews of I0-3 to I0-5 ran out of turns |
 | 2026-11-18 | Lead (I0-4 review): gate evidence records `variants_requested` and the file list; a run without both default and m32 is `PARTIAL` (the hooks accept only `PASS`); warnings of WO sources are re-checked with `-fsyntax-only`; build dirs are checked against the variant's cache values | Reviewer showed four ways the first gate could print PASS wrongly |
@@ -66,7 +68,7 @@
 
 | # | Module | Test / location | Question | Same as (coverage) | Resolved? |
 |---|---|---|---|---|---|
-| INR 1 | Axis / TMC4671 | `Axis.cpp:534-543`, `TMC4671.cpp:1682-1687`; characterization case in `test_f1_setup.cpp` (WO I0-5) | Selecting TMC_1 with `axis.0.drvtype` while USB is connected calls `startMotor()` before the driver is initialised; it only sets `motorEnabledRequested`, and when the state machine reaches Shutdown (motor and encoder type NONE on a fresh flash) the request is not acted on: the driver stays in Shutdown. A USB re-mount (`tud_mount_cb` -> `Axis::usbResume` -> `startMotor`) then goes to Running although motor and encoder type are still NONE. Intended: should the runtime driver selection start the motor once set up, and should Running be reachable with motor type NONE? | | no |
+| INR 1 | Axis / TMC4671 | `Axis.cpp:534-543`, `TMC4671.cpp:1682-1687`; characterization case in `test_f1_setup.cpp` (WO I0-5) | Selecting TMC_1 with `axis.0.drvtype` while USB is connected calls `startMotor()` before the driver is initialised; it only sets `motorEnabledRequested`, and when the state machine reaches Shutdown (motor and encoder type NONE on a fresh flash) the request is not acted on: the driver stays in Shutdown. A USB re-mount (`tud_mount_cb` -> `Axis::usbResume` -> `startMotor`) then goes to Running although motor and encoder type are still NONE. Intended: should the runtime driver selection start the motor once set up, and should Running be reachable with motor type NONE? Asked as IQ6 | | no |
 
 ## Fake audit register
 

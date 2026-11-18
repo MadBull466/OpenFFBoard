@@ -65,7 +65,7 @@ No `MockMotorDriver` or `MockEncoder` on the F1 chain; `MockEncoder` only where 
 | `claude/oracles/` | stability analyst's Python stdlib scripts, their `unittest` self-tests and generated tables (`*.csv`, never hand-edited) |
 | `support/` | integration-only fixtures and helpers: `IntegrationFixture.h`, `ChainScheduler.h`, `HidReportDescriptor.h` (parser), `PidReportBuilder.h`, `OscillationDetector.h`, `FrequencyResponse.h` |
 | `fakes/` | integration-only fakes: `WheelPlant.{h,cpp}` (with the fidelity header) |
-| `tools/` | `make_integration_bug_report.py` (generates `INTEGRATION_BUG_REPORT.md`), `it_gate.py` (the gate, `AGENT_PLAN.md` section 2.3) |
+| `tools/` | `make_integration_bug_report.py` (generates `BUG_REPORT.md`), `it_gate.py` (the gate, `AGENT_PLAN.md` section 2.3) |
 | `codex/` | reserved for Codex (not created by Claude) |
 
 * Shared code stays in `Code_Coverage/` and is reused from there (`support/`, `fakes/`, `mocks/`, `platform/`, `third_party/doctest.h`, `support/test_main.cpp`).
@@ -181,7 +181,7 @@ When the audit or a test shows that a shared fake in `Code_Coverage/` is wrong: 
 
 ## 10. Bugs, NEEDS REVIEW items and questions
 
-* Own register (IQ1): tables "Integration bugs" (IB n) and "Integration NEEDS REVIEW items" (INR n) in `PROGRESS.md`; columns `# | Module | Location | Description | Same as (coverage) | Evidence (test name) | Resolved?`. Generated report `reports/INTEGRATION_BUG_REPORT.md` (`tools/make_integration_bug_report.py`; never edited by hand). A coverage bug hit again gets an IB row with "Same as: bug n" (so the integration report is complete on its own), and the coverage register is not changed.
+* Own register (IQ1): tables "Integration bugs" (IB n) and "Integration NEEDS REVIEW items" (INR n) in `PROGRESS.md`; columns `# | Module | Location | Description | Same as (coverage) | Evidence (test name) | Resolved?`. Generated report `reports/BUG_REPORT.md` (`tools/make_integration_bug_report.py`; never edited by hand). A coverage bug hit again gets an IB row with "Same as: bug n" (so the integration report is complete on its own), and the coverage register is not changed.
 * Markers: `KNOWN_ISSUE("(IB 3; same as bug 162) ...")`, `KNOWN_ISSUE_32BIT("(IB 7) ...")`; `characterization: [F1-E5] ...` with `// INR 4: ...` beside the case. The first failing assertion of a `KNOWN_ISSUE` case is the defect.
 * Questions: `reports/OPEN_QUESTIONS.md`, numbered IQ n; asked in batches, never guessed.
 
@@ -198,7 +198,7 @@ When the audit or a test shows that a shared fake in `Code_Coverage/` is wrong: 
 | `claude/plans/HANDOFF.md` | read order, method, pitfalls for a fresh session |
 | `claude/plans/APPROVED_SHARED_EDITS.txt` | created in I0: paths under `Code_Coverage/` the owner approved for a fake fix (read by the hook) |
 | `claude/reports/OPEN_QUESTIONS.md` | IQ questions |
-| `claude/reports/INTEGRATION_BUG_REPORT.md` | generated |
+| `claude/reports/BUG_REPORT.md` | generated |
 | `claude/reports/I<n>_REPORT.md` | phase reports (self-contained, for Codex) |
 | `claude/charters/F1_TMC4671_CHAIN_REQUIREMENTS.md` | F1 charter |
 | `claude/charters/I0_WORK_ORDERS.md` | I0 work orders (draft) |
