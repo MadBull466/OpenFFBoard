@@ -143,6 +143,8 @@ def split_segments(command):
     while i < len(tokens):
         t = tokens[i]
         if re.fullmatch(r"&?>{1,2}[|&]?", t):
+            if cur and isinstance(cur[-1], str) and cur[-1].isdigit():
+                cur.pop()  # file-descriptor number of "2>" / "2>&1" (shlex splits it off)
             if i + 1 < len(tokens) and not (t.endswith("&") and tokens[i + 1].isdigit()):
                 cur.append(("REDIRECT", tokens[i + 1]))
             i += 2

@@ -152,6 +152,7 @@ class BashRules(TempRepo):
 
     def test_only_the_fork_push_passes(self):
         self.assertIsNone(self.bash("git push %s add-test-suite" % FORK))
+        self.assertIsNone(self.bash("git push %s add-test-suite 2>&1 | tail -5" % FORK))
         for cmd in ("git push", "git push origin add-test-suite", "git push -f %s add-test-suite" % FORK,
                     "git push %s +add-test-suite" % FORK, "git push %s master" % FORK,
                     "git push --force-with-lease %s add-test-suite" % FORK, "git push --tags %s add-test-suite" % FORK,
