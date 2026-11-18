@@ -7,7 +7,7 @@
 
 *Last updated: 2026-11-18.* Branch `add-test-suite`. Coverage-suite state at the start: `Tests/Code_Coverage/claude/plans/PROGRESS.md` "Current state" (commit `b3731f63`).
 
-- **Phase:** I0 (infrastructure) **complete, waiting for the owner's approval** (phase report `../reports/I0_REPORT.md`). Work orders I0-1 to I0-9 done and committed (`084835fc` .. the I0-9 commit, local, not pushed): agents and hooks; fake audits and the approved fixes A-1 to A-3; `ffb_integration_tests` with `IntegrationFixture`, `ChainScheduler`, descriptor parser and PID report builder, `WheelPlant`, `OscillationDetector`, `FrequencyResponse`; tools (`it_gate.py`, `run_all_tests.py` integration support and T-1 fix, generated `../reports/BUG_REPORT.md`, coverage section "Integration (F1 chain)"). Every WO from I0-3 on reviewed by `integration-reviewer`; all majors fixed.
+- **Phase:** I0 (infrastructure) **complete and approved by the owner on 2026-11-18** (phase report `../reports/I0_REPORT.md`). Next: phase I1. Work orders I0-1 to I0-9 done and committed (`084835fc` .. the I0-9 commit, local, not pushed): agents and hooks; fake audits and the approved fixes A-1 to A-3; `ffb_integration_tests` with `IntegrationFixture`, `ChainScheduler`, descriptor parser and PID report builder, `WheelPlant`, `OscillationDetector`, `FrequencyResponse`; tools (`it_gate.py`, `run_all_tests.py` integration support and T-1 fix, generated `../reports/BUG_REPORT.md`, coverage section "Integration (F1 chain)"). Every WO from I0-3 on reviewed by `integration-reviewer`; all majors fixed.
 - **Tests:** `ffb_integration_tests`: 102 cases (`test_f1_setup.cpp`, `test_f1_support.cpp`): 98 passed, 4 known issues (IB 1, IB 2, IB 3 as `KNOWN_ISSUE_UB`, IB 4), 0 failed in default and m32; sanitizer build (not yet a gate variant): clean except IB 3, which aborts with ASan when run with `--no-skip`. Bring-up takes 1181 ms simulated (1 us per SPI frame during bring-up).
 - **Requirements (F1 charter):** 62 requirements (A 5, H 6, E 14, R 7, X 7, T 9, P 2, S 4, O 5, B 3; P1 and P2 split in the charter) plus 12 candidate seams S1-S12 (not requirements); 5 covered (F1-A1 to F1-A5): group G-A complete.
 - **Gate:** `python3 -B Firmware/Tests/Integration_Tests/tools/it_gate.py --wo <ID> --variants default,m32` (file list `../charters/wo/<ID>.files`); compile references recorded for all 8 variants (from builds with `FFB_TESTS_INTEGRATION=OFF`). Phase gate I0 (`--wo I0-9 --full`, 2026-11-18): PASS in default, m32, san, clang, clang-san, nodsp, nodsp-san, cov; ctest 13 / 13 (12 / 12 without DSP), `check_baseline` OK, compile commands equal everywhere; integration cases 98 passed + 4 known issues (sanitizer builds: 79 passed, 23 skipped: main-class deletion, coverage bug 24, and IB 3).
@@ -17,8 +17,8 @@
 
 ## Next action
 
-1. Owner: approve phase I0 (`../reports/I0_REPORT.md`) or ask for changes. Open questions (not blocking I1): IQ6 (INR 1), IQ9 (INR 2), IQ10 (INR 3), IQ11 (INR 4) in `../reports/OPEN_QUESTIONS.md`.
-2. After approval, in a new session: phase I1 (open-loop chain: G-H, G-E, G-X of the F1 charter, position scripted through 0x6B); the lead writes `../charters/I1_WORK_ORDERS.md` first.
+1. Open owner questions (not blocking I1): IQ6 (INR 1), IQ9 (INR 2), IQ10 (INR 3), IQ11 (INR 4) in `../reports/OPEN_QUESTIONS.md`.
+2. In a new session: phase I1 (open-loop chain: G-H, G-E, G-X of the F1 charter, position scripted through 0x6B); the lead writes `../charters/I1_WORK_ORDERS.md` first.
 3. For the closed-loop phases (I3 / I4): configure an encoder with a mechanical (PhiM) position source through the real commands before attaching the plant (0x51 is phi_e after the fresh-flash bring-up).
 
 ## Phase checklist
@@ -26,7 +26,7 @@
 | Phase | Content | Status | Approved by the owner? | Commit |
 |---|---|---|---|---|
 | Planning | plan, F1 charter, agent plan, documents | done | yes, 2026-11-18 | |
-| I0 | infrastructure, fake audit, agents / hooks / gate | done, waiting for approval (`../reports/I0_REPORT.md`) | | I0-9 commit |
+| I0 | infrastructure, fake audit, agents / hooks / gate | done (`../reports/I0_REPORT.md`) | yes, 2026-11-18 | `480990ea` |
 | I1 | open-loop chain (G-H, G-E, G-X) | not started | | |
 | I2 | driver in the chain, persistence (G-T, G-P) | not started | | |
 | I3 | DSP, reconstruction, timing (G-R, G-S) | not started | | |
@@ -54,6 +54,7 @@
 | 2026-11-18 | Owner (IQ7): fix tool defect T-1 in WO I0-8 | `run_all_tests.py` already changes there |
 | 2026-11-18 | Owner: record all faults in a bug report and all questions in the open-questions file; lead: `reports/BUG_REPORT.md` (name like the coverage track's, replacing the planned `INTEGRATION_BUG_REPORT.md`), hand-maintained until the I0-8 generator, hook protection of it dropped until then; IQ6 (INR 1) and IQ7 (tool defect T-1) asked | Owner's request |
 | 2026-11-18 | Lead (I0-5): bring-up by `axis.0.drvtype=1` plus a USB re-plug ("board configured, PC connects afterwards"; INR 1); 1 us per SPI frame during bring-up (`calibrateAdcOffset` busy-waits on `HAL_GetTick`), 0 afterwards; the fixture drains HID IN like a polling host (IB 3 has its own non-draining case); IB 1-3 registered | WO I0-5 findings and review |
+| 2026-11-18 | Owner approved phase I0 | Owner's answer "Approve I0" on `../reports/I0_REPORT.md` |
 | 2026-11-18 | Owner: `integration-reviewer` `maxTurns` 50 -> 100 | Reviews of I0-3 to I0-5 ran out of turns |
 | 2026-11-18 | Lead (I0-4 review): gate evidence records `variants_requested` and the file list; a run without both default and m32 is `PARTIAL` (the hooks accept only `PASS`); warnings of WO sources are re-checked with `-fsyntax-only`; build dirs are checked against the variant's cache values | Reviewer showed four ways the first gate could print PASS wrongly |
 | 2026-11-18 | Owner approved the I0-3 coverage changes (A-1, A-2, A-3 fixes, 4 edited and 9 new coverage cases); they are committed with I0-4's gate evidence; I0-4 started | Owner's answer "Approve, start I0-4" |

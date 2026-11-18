@@ -8,7 +8,7 @@ A host-side integration test suite: the real firmware modules of a force-feedbac
 
 ## State at the end of phase I0 (2026-11-18)
 
-Phase I0 is complete and waits for the owner's approval ([../reports/I0_REPORT.md](../reports/I0_REPORT.md)). The next phase is I1 (open-loop chain); its work orders do not exist yet.
+Phase I0 is complete and was approved by the owner on 2026-11-18 ([../reports/I0_REPORT.md](../reports/I0_REPORT.md)). The next phase is I1 (open-loop chain); its work orders do not exist yet.
 
 ## Where to continue
 
