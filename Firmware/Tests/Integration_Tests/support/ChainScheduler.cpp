@@ -178,5 +178,9 @@ void ChainScheduler::advanceMs(uint32_t n) {
 		if (plantHook) {
 			plantHook(HostPlatform::nowUs());
 		}
+		// (g) observers
+		if (stepEndHook) {
+			stepEndHook();
+		}
 	}
 }

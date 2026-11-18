@@ -8,7 +8,7 @@ A host-side integration test suite: the real firmware modules of a force-feedbac
 
 ## State at the end of phase I0 (2026-11-18)
 
-Phase I0 is complete and was approved by the owner on 2026-11-18 ([../reports/I0_REPORT.md](../reports/I0_REPORT.md)). The next phase is I1 (open-loop chain); its work orders do not exist yet.
+Phase I0 is complete and was approved by the owner on 2026-11-18 ([../reports/I0_REPORT.md](../reports/I0_REPORT.md)). Phase I1 (open-loop chain) is in progress: work orders approved (`../charters/I1_WORK_ORDERS.md`); WO I1-1 (host helpers `FfbHost`, `PositionScript`, `TorqueTrace`; F1-H1, F1-H3) done 2026-11-18. I1 test cases use `FfbHost` on top of `IntegrationFixture`, set `axis.0.power` and `axis.0.fxratio` first (IB 7 / bug 23: zero torque on a fresh flash otherwise), and never put a REQUIRE inside an INFO expression (doctest deadlocks; I1-1 review).
 
 ## Where to continue
 

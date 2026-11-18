@@ -82,6 +82,7 @@ IntegrationFixture::~IntegrationFixture() {
 		CHECK_MESSAGE(plantFault.empty(), "the chain recorded a fault (fake USB controller, simulated host, unmodelled HAL call, kernel fault, FakeTmc4671 or WheelPlant violation)");
 	}
 	detachPlant();
+	detachPositionScript();
 	if (tud_ready()) {
 		// CDCcomm keeps a retry flag while a reply is only partly sent (see UsbFixture): do not leave data unsent
 		CDCcomm::clearRemainingBuffer(0);
@@ -122,8 +123,14 @@ std::string IntegrationFixture::firstFault() const {
 	if (!HostRtos::kernelFaults().empty()) {
 		return "HostRtos: " + HostRtos::kernelFaults().front();
 	}
+	if (!fixtureFault_.empty()) {
+		return "IntegrationFixture: " + fixtureFault_;
+	}
 	if (plant_ != nullptr && !plant_->violations().empty()) {
 		return "WheelPlant: " + plant_->violations().front();
+	}
+	if (script_ != nullptr && !script_->violations().empty()) {
+		return "PositionScript: " + script_->violations().front();
 	}
 	for (const FakeTmc4671 *c : {&chip1, &chip2}) {
 		const auto v = c->unexpectedViolations();
@@ -143,6 +150,12 @@ void IntegrationFixture::setSupply(int32_t extMv, int32_t intMv) {
 
 void IntegrationFixture::attachPlant(WheelPlant &plant, FakeTmc4671 &chip) {
 	detachPlant();
+	if (script_ != nullptr) {
+		if (fixtureFault_.empty()) {
+			fixtureFault_ = "attachPlant while a PositionScript is attached: ChainScheduler step (f) has one slot";
+		}
+		return;
+	}
 	plant_ = &plant;
 	plant.setDestroyHook([this] {
 		sched.plantHook = nullptr;
@@ -153,11 +166,37 @@ void IntegrationFixture::attachPlant(WheelPlant &plant, FakeTmc4671 &chip) {
 }
 
 void IntegrationFixture::detachPlant() {
-	sched.plantHook = nullptr;
 	if (plant_ != nullptr) {
+		sched.plantHook = nullptr;
 		plant_->detach();
 		plant_->setDestroyHook(nullptr);
 		plant_ = nullptr;
+	}
+}
+
+void IntegrationFixture::attachPositionScript(PositionScript &script, FakeTmc4671 &chip) {
+	detachPositionScript();
+	if (plant_ != nullptr) {
+		if (fixtureFault_.empty()) {
+			fixtureFault_ = "attachPositionScript while a WheelPlant is attached: ChainScheduler step (f) has one slot";
+		}
+		return;
+	}
+	script_ = &script;
+	script.setDestroyHook([this] {
+		sched.plantHook = nullptr;
+		script_ = nullptr; // the script is being destroyed: forget it
+	});
+	script.attach(chip, HostPlatform::nowUs());
+	sched.plantHook = [&script](uint64_t nowUs) { script.stepToUs(nowUs); };
+}
+
+void IntegrationFixture::detachPositionScript() {
+	if (script_ != nullptr) {
+		sched.plantHook = nullptr;
+		script_->detach();
+		script_->setDestroyHook(nullptr);
+		script_ = nullptr;
 	}
 }
 
@@ -208,10 +247,11 @@ void IntegrationFixture::drainHidIn() {
 	// drainHid = false to show it; every other case drains.
 	for (uint32_t i = 0; i < 8; i++) {
 		HostDcd::Handshake h = HostDcd::Handshake::Nak;
-		host.hidRead(&h);
+		const std::vector<uint8_t> data = host.hidRead(&h);
 		if (h != HostDcd::Handshake::Ack) {
 			break;
 		}
+		hidInReports.push_back({HostPlatform::nowUs(), data});
 	}
 }
 

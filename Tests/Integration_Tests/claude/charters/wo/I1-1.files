@@ -1,0 +1,12 @@
+# Files of WO I1-1 (read by it_gate.py)
+Firmware/Tests/Integration_Tests/support/FfbHost.h
+Firmware/Tests/Integration_Tests/support/FfbHost.cpp
+Firmware/Tests/Integration_Tests/support/PositionScript.h
+Firmware/Tests/Integration_Tests/support/PositionScript.cpp
+Firmware/Tests/Integration_Tests/support/IntegrationFixture.h
+Firmware/Tests/Integration_Tests/support/IntegrationFixture.cpp
+Firmware/Tests/Integration_Tests/support/ChainScheduler.h
+Firmware/Tests/Integration_Tests/support/ChainScheduler.cpp
+Firmware/Tests/Integration_Tests/integration.cmake
+Firmware/Tests/Integration_Tests/claude/cases/test_f1_hid.cpp
+Firmware/Tests/Integration_Tests/claude/cases/test_f1_support.cpp

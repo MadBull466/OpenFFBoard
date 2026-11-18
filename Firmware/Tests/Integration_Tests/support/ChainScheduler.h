@@ -24,7 +24,10 @@
  *       among ready tasks of one step is not observable by the cases.)
  *   (e) the command threads "CDCCMD" and "CMD_MAIN" until blocked (CDC command interface and command thread).
  *   (f) plant hook: plantHook(nowUs), set by IntegrationFixture::attachPlant to WheelPlant::stepToUs (one plant step per
- *       scheduler step, with the simulated time elapsed since the previous one).
+ *       scheduler step, with the simulated time elapsed since the previous one). The slot is shared by WheelPlant and
+ *       PositionScript (IntegrationFixture::attachPlant / attachPositionScript): one client at a time.
+ *   (g) observer hook: stepEndHook(), after (f) (WO I1-1: TorqueTrace samples here; it sees the chip registers of the end of the
+ *       step, i.e. including what the plant or the position script wrote in (f)).
  *
  * Host-vs-target: on the target these preempt by priority (USB 40 > TMCENC 33 > CMD 32 > FFBMAIN 30 > TMC 25) and a long
  * activation (e.g. the 500 ms ADC calibration of the TMC thread, which busy-waits on HAL_GetTick) is interrupted by the
@@ -82,6 +85,9 @@ public:
 
 	/** Plant hook of step (f): called at the end of every step with the simulated time in microseconds. Empty when no plant is attached */
 	std::function<void(uint64_t nowUs)> plantHook;
+
+	/** Observer hook of step (g): called at the very end of every step, after the plant hook. Empty when nobody observes. Not cleared by reset() */
+	std::function<void()> stepEndHook;
 
 	ChainScheduler() { reset(); }
 

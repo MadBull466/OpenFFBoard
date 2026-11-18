@@ -10,7 +10,7 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 | Kind | Count | Open | Resolved |
 |---|---|---|---|
-| Suspected firmware bugs (IB) | 4 | 4 | 0 |
+| Suspected firmware bugs (IB) | 7 | 7 | 0 |
 | NEEDS REVIEW items (INR) | 4 | 4 | 0 |
 | Defects in shared test fakes (A) | 3 | 0 | 3 |
 | Defects in test tools (T) | 1 | 0 | 1 |
@@ -21,6 +21,9 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | IB 2 | firmware bug | TMC4671 | open |
 | IB 3 | firmware bug | HID command interface | open |
 | IB 4 | firmware bug | HID descriptor (`usb_hid_ffb_desc`) | open |
+| IB 5 | firmware bug | HidFFB | open |
+| IB 6 | firmware bug | HidFFB | open |
+| IB 7 | firmware bug | Axis | open |
 | INR 1 | NEEDS REVIEW | Axis / TMC4671 | open |
 | INR 2 | NEEDS REVIEW | HID descriptor | open |
 | INR 3 | NEEDS REVIEW | HID descriptor | open |
@@ -64,6 +67,30 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 - **Test / evidence:** `KNOWN_ISSUE` case in `test_f1_setup.cpp` (WO I0-6)
 - **Resolved?:** no
 
+### IB 5: HidFFB
+
+- **Where:** `FFBoard/Src/HidFFB.cpp:483`, `:282-283`; `FFBoard/Inc/HidFFB.h:193`
+- **What:** `reset_ffb` (run on every USB reset / suspend, `FFBHIDMain.cpp:312`) sets `used_effects = 1` while the constructor starts at 0, so RAM Pool Available in Block Load (`(effects.size()-used_effects)*sizeof(FFB_Effect)`) is one block too low after every create and, after the 40th create, wraps the uint16 below 0 (65184 on the 64-bit host, 65244 in m32); PID 1.01 §5.11.2: RAM Pool Available = free bytes of the pool
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-H3: RAM Pool Available after k successful creates is RAM Pool Size minus k blocks, and 0 when the pool is full` in `test_f1_hid.cpp` (WO I1-1)
+- **Resolved?:** no
+
+### IB 6: HidFFB
+
+- **Where:** `FFBoard/Src/HidFFB.cpp` (`HID_ID_BLKFRREP` handler, `hidOut`)
+- **What:** Block Free calls only `free_effect`; `used_effects` is never decremented, so RAM Pool Available never grows back after a freed block (PID 1.01 §5.11.2: freeing a block returns its memory to the pool)
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-H3: Block Free gives its bytes back: Create, Free, Create reports the same RAM Pool Available twice` in `test_f1_hid.cpp` (WO I1-1)
+- **Resolved?:** no
+
+### IB 7: Axis
+
+- **Where:** `FFBoard/Src/Axis.cpp:255-264, 498-501, 733-735`, `Axis.h:504-507`
+- **What:** On a fresh flash `axis.0.power?` / `axis.0.fxratio?` report 5000 / 204 but `torqueScaler` and `effectRatioScaler` stay 0 (`restoreFlash` calls `setPower` / `setEffectRatio` only when flash has a value): a constant force sent over HID gives 0 torque at the chip until both are set by command. Every I1 torque case sets both first
+- **Same as (coverage):** bug 23
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-H1: on a fresh flash a constant force over HID reaches the chip without the user setting power and effect ratio` in `test_f1_hid.cpp` (WO I1-1)
+- **Resolved?:** no
+
 ## 2. NEEDS REVIEW items (INR)
 
 ### INR 1: Axis / TMC4671
@@ -90,7 +117,7 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 ### INR 4: HID descriptor
 
 - **Test / location:** `usb_hid_ffb_desc.h` (PID Block Load, Effect Block Index `15 01`, logical 1..40); characterization case in `test_f1_setup.cpp` (WO I0-6 review)
-- **Question:** PID 1.01 §9 (an example sequence, not a rule) says that when Block Load fails the device returns Effect Block Index 0, which is outside the declared logical range 1..40. Which value does the firmware send on failure, and should 0 be in the range? (Checked behaviourally in F1-H1 / F1-H3.) Asked as [IQ11](OPEN_QUESTIONS.md)
+- **Question:** PID 1.01 §9 (an example sequence, not a rule) says that when Block Load fails the device returns Effect Block Index 0, which is outside the declared logical range 1..40. Which value does the firmware send on failure, and should 0 be in the range? Observed in WO I1-1: on Full the firmware returns status Full and leaves the Effect Block Index of the last successful create (40) untouched (`HidFFB.cpp:262`; characterization case `characterization: [F1-H3] a failed Create New Effect returns the Effect Block Index of the last successful create, not 0 (INR 4)` in `test_f1_hid.cpp`). Asked as [IQ11](OPEN_QUESTIONS.md)
 - **Same as (coverage):** (none)
 - **Resolved?:** no
 

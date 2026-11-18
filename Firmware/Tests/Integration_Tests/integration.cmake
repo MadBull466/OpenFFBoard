@@ -49,6 +49,8 @@ if(FFB_TESTS_INTEGRATION)
 		Integration_Tests/support/PidReportBuilder.cpp
 		Integration_Tests/support/OscillationDetector.cpp
 		Integration_Tests/support/FrequencyResponse.cpp
+		Integration_Tests/support/FfbHost.cpp
+		Integration_Tests/support/PositionScript.cpp
 		Integration_Tests/fakes/WheelPlant.cpp
 		Code_Coverage/support/test_main.cpp
 	)

@@ -42,6 +42,7 @@
 
 #include "ChainScheduler.h"
 #include "../fakes/WheelPlant.h"
+#include "PositionScript.h"
 
 #include "../../Code_Coverage/fakes/FakeTmc4671.h" // fakes/ is not an include directory (fakes/Axis.h would shadow the real Axis.h)
 #include "HostDcd.h"
@@ -146,8 +147,18 @@ struct IntegrationFixture {
 	/** wDescriptorLength of the HID descriptor of the configuration descriptor (0 if none) */
 	uint16_t hidReportDescriptorLength() const;
 
-	/** The simulated host takes the reports waiting on the HID interrupt IN endpoint (as its polling does) */
+	/**
+	 * The simulated host takes the reports waiting on the HID interrupt IN endpoint (as its polling does) and KEEPS every one in
+	 * hidInReports (WO I1-1: FfbHost decodes the PID State reports from there). Draining behaviour is unchanged (IB 3).
+	 */
 	void drainHidIn();
+
+	/** One input report taken from the HID interrupt IN endpoint: bytes as received (the ID byte first), and the simulated time when it was taken */
+	struct HidInReport {
+		uint64_t timeUs = 0;
+		std::vector<uint8_t> bytes;
+	};
+	std::vector<HidInReport> hidInReports; //!< every report drainHidIn took since the fixture was constructed, in order
 
 	// --- board ---
 	/** External and internal supply in mV through the fake ADC2 (counts computed with the current vSenseMult, as TmcFixture) */
@@ -170,6 +181,21 @@ struct IntegrationFixture {
 	void attachPlant(WheelPlant &plant, FakeTmc4671 &chip);
 	void detachPlant();
 	WheelPlant *plant() const { return plant_; }
+
+	// --- position script (WO I1-1) ---
+	/**
+	 * Attaches a PositionScript to a chip (default chip1) and makes ChainScheduler step (f) call PositionScript::stepToUs once per
+	 * scheduler step (value written at the END of the step: the firmware reads it in the FFB cycle of the next step, see
+	 * PositionScript.h). The slot is shared with the plant: attaching a script while a plant is attached, or a plant while a
+	 * script is attached, is a fixture fault (firstFault(); the second attach is refused). Not owned; a script destroyed before the
+	 * fixture is forgotten (destroy hook, as for the plant).
+	 */
+	void attachPositionScript(PositionScript &script) { attachPositionScript(script, chip1); }
+	void attachPositionScript(PositionScript &script, FakeTmc4671 &chip);
+	void detachPositionScript();
+	PositionScript *positionScript() const { return script_; }
+	/** Forgets the recorded fixture fault (only for the self-test that provokes it on purpose) */
+	void clearFixtureFault() { fixtureFault_.clear(); }
 
 	// --- observation (public interfaces only) ---
 	/** The TMC4671 driver object of axis 0 (CommandHandler "tmc" instance 0), nullptr if the axis has no TMC_1 */
@@ -194,6 +220,8 @@ struct IntegrationFixture {
 
 private:
 	WheelPlant *plant_ = nullptr;
+	PositionScript *script_ = nullptr;
+	std::string fixtureFault_; //!< first misuse of the fixture (plant and script attached together)
 	HostRtos::ObjectCounts atStart_;
 	uint64_t startUs_ = 0;
 	int32_t supplyExt_ = 0;

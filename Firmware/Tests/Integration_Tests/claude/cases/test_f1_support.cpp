@@ -18,6 +18,9 @@
 #include "FrequencyResponse.h"
 #include "OscillationDetector.h"
 #include "../../fakes/WheelPlant.h"
+#include "FfbHost.h"
+#include "IntegrationFixture.h"
+#include "PositionScript.h"
 
 #include <cmath>
 #include <cstdint>
@@ -1851,4 +1854,360 @@ TEST_CASE("F1-A5: the DFT reports an error for a window that is not a whole numb
 	// a window of a whole number of periods but under 4 samples per period (f = 300 Hz: 3.33 samples per period, 300 samples = 90 periods)
 	CHECK_FALSE(FrequencyResponse::measure(sine(0, 300, 300.0, 1000.0), sine(0, 300, 300.0, 1000.0), freqOpt(300.0)).valid);
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// WO I1-1 helpers: PositionScript, plant / script exclusivity, TorqueTrace, FfbHost decoding
+// ---------------------------------------------------------------------------------------------------------------------
+namespace {
+// One SPI frame to the chip on CS PA4 (TMC_1): DS 4.2.1 p17: bit 39 = write, address in bits 38..32, data bits 31..0, MSB first
+void spiWrite(uint8_t addr, uint32_t data) {
+	uint8_t tx[5] = {static_cast<uint8_t>(0x80 | addr), static_cast<uint8_t>(data >> 24), static_cast<uint8_t>(data >> 16), static_cast<uint8_t>(data >> 8), static_cast<uint8_t>(data)};
+	uint8_t rx[5] = {0};
+	HAL_GPIO_WritePin(SPI1_SS1_GPIO_Port, SPI1_SS1_Pin, GPIO_PIN_RESET);
+	HAL_SPI_TransmitReceive(&hspi1, tx, rx, 5, 10);
+	HAL_GPIO_WritePin(SPI1_SS1_GPIO_Port, SPI1_SS1_Pin, GPIO_PIN_SET);
+}
+} // namespace
+
+// Hand derivation: ramp 100 + 2 counts/ms: t = 0, 1500 us, 10 ms -> 100, 103, 120. Constant 77. Sine amplitude 1000, period 8 ms,
+// phase 0, offset 5: t = 2 ms (quarter period) -> 5 + 1000 = 1005, 4 ms -> 5, 6 ms -> 5 - 1000 = -995; phase pi/2: t = 0 -> 1005.
+// Function: any function of the microseconds since attach. Saturation: 1e12 counts clamp to INT32_MAX.
+TEST_CASE("support: PositionScript gives the constant, ramp, sine and function values of the hand derivation") {
+	PositionScript s;
+	s.setConstant(77);
+	CHECK(s.valueAt(0) == 77);
+	CHECK(s.valueAt(123456) == 77);
+	s.setRamp(100, 2.0);
+	CHECK(s.valueAt(0) == 100);
+	CHECK(s.valueAt(1500) == 103);
+	CHECK(s.valueAt(10000) == 120);
+	s.setRamp(0, -1.0);
+	CHECK(s.valueAt(5000) == -5);
+	s.setSine(1000.0, 8.0, 0.0, 5.0);
+	CHECK(s.valueAt(0) == 5);
+	CHECK(s.valueAt(2000) == 1005);
+	CHECK(s.valueAt(4000) == 5);
+	CHECK(s.valueAt(6000) == -995);
+	s.setSine(1000.0, 8.0, 1.5707963267948966, 5.0);
+	CHECK(s.valueAt(0) == 1005);
+	s.setFunction([](uint64_t us) { return static_cast<int32_t>(us / 10); });
+	CHECK(s.valueAt(12345) == 1234);
+	CHECK(s.violations().empty());
+}
+
+// Strictness: a value outside the int32 range saturates AND is a violation; an empty function and NaN are violations (they would
+// otherwise write a position the test never asked for)
+TEST_CASE("support: PositionScript records a violation for a saturated value, an empty function and NaN") {
+	PositionScript s;
+	s.setRamp(0, 1e12);
+	CHECK(s.valueAt(1000000) == INT32_MAX);
+	CHECK(s.violations().size() == 1);
+	PositionScript lo;
+	lo.setRamp(0, -1e12);
+	CHECK(lo.valueAt(1000000) == INT32_MIN);
+	CHECK(lo.violations().size() == 1);
+	PositionScript edge;
+	edge.setConstant(INT32_MAX);
+	CHECK(edge.valueAt(0) == INT32_MAX);
+	CHECK(edge.violations().empty());
+	PositionScript e;
+	e.setFunction(PositionScript::Function());
+	CHECK(e.valueAt(0) == 0);
+	CHECK(e.violations().size() == 1);
+	PositionScript n;
+	n.setFunction([](uint64_t) { return 0; });
+	n.setRamp(0, std::nan(""));
+	CHECK(n.valueAt(1000) == 0);
+	CHECK(n.violations().size() == 1);
+}
+
+TEST_CASE("support: PositionScript attached to a bare chip writes 0x6B at attach and once per step, relative to the attach time, without a log entry") {
+	FakeTmc4671 chip{0};
+	PositionScript s;
+	s.setRamp(10, 1.0);
+	s.attach(chip, 5000);
+	CHECK(chip.reg(0x6B) == 10u);
+	s.stepToUs(6000); // 1 ms after attach
+	CHECK(chip.reg(0x6B) == 11u);
+	s.stepToUs(9000);
+	CHECK(chip.reg(0x6B) == 14u);
+	CHECK(s.steps() == 2);
+	s.setConstant(-3);
+	s.stepToUs(10000);
+	CHECK(chip.reg(0x6B) == static_cast<uint32_t>(-3)); // signed 32 bit two's complement, DS 0x6B s32
+	CHECK(chip.log().empty());
+}
+
+// Order proof (PositionScript.h): the script writes in step (f), the FFB cycle of a step runs in (c). A step from 0 to 1000 counts written
+// in step k is therefore first read by the firmware (TMC4671::getPos, one 0x6B read frame per cycle) in the cycle of step k + 1.
+TEST_CASE_FIXTURE(IntegrationFixture, "support: a position change written by the script in step k is first read by the firmware in the FFB cycle of step k+1" * IT_DELETES_FFBHIDMAIN) {
+	bringUp();
+	setSpiFrameUs(0);
+	PositionScript script;
+	script.setFunction([this](uint64_t us) { return us >= 20000 ? 1000 : 0; }); // 20 ms after attach
+	attachPositionScript(script);
+	int writeStep = -1, seenStep = -1;
+	for (int step = 0; step < 60 && seenStep < 0; step++) {
+		const size_t mark = chip1.log().size();
+		sched.advanceMs(1);
+		for (size_t i = mark; i < chip1.log().size(); i++) {
+			const FakeTmc4671::Frame &f = chip1.log()[i];
+			if (!f.write && f.addr == 0x6B && f.answer == 1000 && seenStep < 0) {
+				seenStep = step;
+			}
+		}
+		if (writeStep < 0 && script.lastValue() == 1000) {
+			writeStep = step;
+		}
+	}
+	REQUIRE(writeStep >= 0);
+	REQUIRE(seenStep >= 0);
+	CHECK(seenStep == writeStep + 1);
+}
+
+TEST_CASE_FIXTURE(IntegrationFixture, "support: attaching a position script while a plant is attached, or a plant while a script is attached, is a fixture fault") {
+	CHECK(firstFault().empty());
+	PositionScript script;
+	attachPlant();
+	attachPositionScript(script);
+	CHECK(firstFault().find("IntegrationFixture") != std::string::npos);
+	CHECK(positionScript() == nullptr);
+	CHECK(plant() != nullptr);
+	clearFixtureFault();
+	detachPlant();
+	attachPositionScript(script);
+	CHECK(firstFault().empty());
+	attachPlant();
+	CHECK(firstFault().find("IntegrationFixture") != std::string::npos);
+	clearFixtureFault();
+	CHECK(positionScript() == &script);
+}
+
+TEST_CASE_FIXTURE(IntegrationFixture, "support: a position script that is destroyed before the fixture is forgotten") {
+	{
+		PositionScript script;
+		attachPositionScript(script);
+		CHECK(positionScript() == &script);
+	}
+	CHECK(positionScript() == nullptr);
+	CHECK_FALSE(static_cast<bool>(sched.plantHook));
+	CHECK(firstFault().empty());
+}
+
+// TorqueTrace rules, fed by hand (onStep) over a chip that gets real SPI frames: cycle 1 without a write keeps the value written before
+// the trace started; cycle 2 has one write; cycle 3 has two writes (last wins); then a step without a cycle (counter unchanged) with
+// one write: no sample, strayWrites 1; cycle 4 keeps the last value. 0x64: flux [15:0], torque [31:16] (DS 0x64).
+TEST_CASE_FIXTURE(IntegrationFixture, "support: TorqueTrace takes one sample per FFB cycle with the register value and the number of 0x64 writes, and none for a step without a cycle") {
+	spiWrite(0x64, (uint32_t(static_cast<uint16_t>(-5)) << 16) | 7u); // before the trace: torque -5, flux 7
+	TorqueTrace t(chip1);
+	t.startManual(10);
+	t.onStep(11, 1000);
+	spiWrite(0x64, (uint32_t(300) << 16) | 0u);
+	t.onStep(12, 2000);
+	spiWrite(0x64, (uint32_t(400) << 16) | 1u);
+	spiWrite(0x64, (uint32_t(static_cast<uint16_t>(-600)) << 16) | 2u);
+	t.onStep(13, 3000);
+	spiWrite(0x64, (uint32_t(50) << 16) | 3u);
+	t.onStep(13, 4000); // no cycle in this step
+	t.onStep(14, 5000);
+	REQUIRE(t.samples().size() == 4);
+	CHECK(t.samples()[0].cycle == 11);
+	CHECK(t.samples()[0].torque == -5);
+	CHECK(t.samples()[0].flux == 7);
+	CHECK(t.samples()[0].writes == 0);
+	CHECK(t.samples()[1].torque == 300);
+	CHECK(t.samples()[1].writes == 1);
+	CHECK(t.samples()[2].torque == -600);
+	CHECK(t.samples()[2].flux == 2);
+	CHECK(t.samples()[2].writes == 2);
+	CHECK(t.samples()[2].timeUs == 3000);
+	CHECK(t.samples()[3].cycle == 14);
+	CHECK(t.samples()[3].torque == 50); // the stray write of the step without a cycle is the value that carries over
+	CHECK(t.samples()[3].writes == 0);
+	CHECK(t.strayWrites() == 1);
+	CHECK(t.missedCycles() == 0);
+	CHECK(t.writesPerCycleMax() == 2);
+	CHECK(t.torqueAt(12) == 300);
+	CHECK(t.find(13 + 100) == nullptr);
+	CHECK(t.steadyValue(14, 14) == 50);
+	t.stop();
+	CHECK_FALSE(t.running());
+}
+
+TEST_CASE_FIXTURE(IntegrationFixture, "support: TorqueTrace counts cycles that elapsed without a sample and steadyValue returns the common torque") {
+	spiWrite(0x64, uint32_t(9) << 16);
+	TorqueTrace t(chip1);
+	t.startManual(0);
+	t.onStep(1, 1000);
+	t.onStep(2, 2000);
+	t.onStep(4, 3000); // cycle 3 was never seen
+	CHECK(t.missedCycles() == 1);
+	CHECK(t.steadyValue(1, 2) == 9);
+	CHECK(t.steadyFlux(1, 2) == 0);
+}
+
+TEST_CASE_FIXTURE(IntegrationFixture, "support: TorqueTrace started on the scheduler samples every step with a cycle through the step-end hook, and stop removes the hook") {
+	TorqueTrace t(chip1);
+	t.start(*this);
+	CHECK(static_cast<bool>(sched.stepEndHook));
+	sched.advanceMs(5); // no firmware running: no FFB cycle in any step
+	CHECK(t.samples().empty());
+	t.stop();
+	CHECK_FALSE(static_cast<bool>(sched.stepEndHook));
+}
+
+// FfbHost decoding on hand-built bytes with a descriptor written byte by byte (the Block Load, Pool and State reports as the PID 1.01
+// section 9 / 6 examples lay them out, same items as the firmware's reports):
+//  Block Load, report ID 0x12 (feature): Effect Block Index 8 bit Variable (logical 1..40, byte 1), Block Load Status 8 bit Array with
+//  usages Success, Full, Error (logical 1..3: 1 selects Success, 2 Full, 3 Error, HID 1.11 6.2.2.5, byte 2), RAM Pool Available 16 bit
+//  Array (usage 0xAC, logical 0..65535, bytes 3-4, little-endian, HID 1.11 5.8).
+//  Pool, ID 0x13: RAM Pool Size 16 bit (bytes 1-2), Simultaneous Effects Max 8 bit (byte 3), Device Managed Pool bit 0 and Shared Parameter
+//  Blocks bit 1 of byte 4, 6 constant bits.
+//  State, ID 2 (input): Device Paused bit 0, Actuators Enabled 1, Safety Switch 2, Actuator Power 3, Effect Playing 4 of byte 1.
+namespace {
+std::vector<uint8_t> fixHidDescriptor() {
+	return B({0x05, 0x0F,
+			  0x09, 0x89, 0xA1, 0x02, 0x85, 0x12, 0x09, 0x22, 0x25, 0x28, 0x15, 0x01, 0x35, 0x01, 0x45, 0x28, 0x75, 0x08, 0x95, 0x01, 0xB1, 0x02,
+			  0x09, 0x8B, 0xA1, 0x02, 0x09, 0x8C, 0x09, 0x8D, 0x09, 0x8E, 0x15, 0x01, 0x25, 0x03, 0x35, 0x01, 0x45, 0x03, 0x75, 0x08, 0x95, 0x01, 0xB1, 0x00, 0xC0,
+			  0x09, 0xAC, 0x15, 0x00, 0x27, 0xFF, 0xFF, 0x00, 0x00, 0x35, 0x00, 0x47, 0xFF, 0xFF, 0x00, 0x00, 0x75, 0x10, 0x95, 0x01, 0xB1, 0x00, 0xC0,
+			  0x09, 0x7F, 0xA1, 0x02, 0x85, 0x13, 0x09, 0x80, 0x75, 0x10, 0x95, 0x01, 0x15, 0x00, 0x35, 0x00, 0x27, 0xFF, 0xFF, 0x00, 0x00, 0x47, 0xFF, 0xFF, 0x00, 0x00, 0xB1, 0x02,
+			  0x09, 0x83, 0x26, 0xFF, 0x00, 0x46, 0xFF, 0x00, 0x75, 0x08, 0x95, 0x01, 0xB1, 0x02,
+			  0x09, 0xA9, 0x09, 0xAA, 0x75, 0x01, 0x95, 0x02, 0x15, 0x00, 0x25, 0x01, 0x35, 0x00, 0x45, 0x01, 0xB1, 0x02, 0x75, 0x06, 0x95, 0x01, 0xB1, 0x03, 0xC0,
+			  0x09, 0x92, 0xA1, 0x02, 0x85, 0x02, 0x09, 0x9F, 0x09, 0xA0, 0x09, 0xA4, 0x09, 0xA6, 0x09, 0x94, 0x15, 0x00, 0x25, 0x01, 0x35, 0x00, 0x45, 0x01,
+			  0x75, 0x01, 0x95, 0x05, 0x81, 0x02, 0x95, 0x03, 0x81, 0x03, 0xC0});
+}
+} // namespace
+
+TEST_CASE("support: FfbHost decodes Block Load, Pool and PID State reports from hand-built bytes by the descriptor") {
+	HidReportDescriptor d;
+	REQUIRE(d.parse(fixHidDescriptor()));
+	pid::PidReportBuilder b(d, false);
+	// Block Load: index 7, status 2 (selects Full), RAM Pool Available bytes 02 01 = 0x0102 = 258
+	const FfbHost::BlockLoad bl = FfbHost::decodeBlockLoad(b, B({0x12, 7, 2, 0x02, 0x01}));
+	REQUIRE(bl.decoded);
+	CHECK(bl.effectBlockIndex == 7);
+	CHECK(bl.status == 2);
+	CHECK(bl.full());
+	CHECK_FALSE(bl.success());
+	CHECK_FALSE(bl.error());
+	CHECK(bl.ramPoolAvailable == 258);
+	CHECK(bl.ramPoolAvailableIsArray); // declared Feature 0x00 (Array): IB 4 shows as the declaration, the value is decoded raw
+	CHECK(bl.ramPoolAvailableBits == 16);
+	const FfbHost::BlockLoad ok = FfbHost::decodeBlockLoad(b, B({0x12, 40, 1, 0, 0}));
+	CHECK(ok.success());
+	CHECK(ok.effectBlockIndex == 40);
+	const FfbHost::BlockLoad err = FfbHost::decodeBlockLoad(b, B({0x12, 1, 3, 0, 0}));
+	CHECK(err.error());
+	// wrong length / wrong ID are decode errors, not values
+	CHECK_FALSE(FfbHost::decodeBlockLoad(b, B({0x12, 7, 2, 0x02})).decoded);
+	CHECK_FALSE(FfbHost::decodeBlockLoad(b, B({0x13, 7, 2, 0x02, 0x01})).decoded);
+	// Pool: RAM Pool Size bytes 34 12 = 0x1234 = 4660, max 40 = 0x28, flags 0x01: Device Managed Pool 1, Shared Parameter Blocks 0
+	const FfbHost::PoolResult p = FfbHost::decodePool(b, B({0x13, 0x34, 0x12, 0x28, 0x01}));
+	REQUIRE(p.decoded);
+	CHECK(p.ramPoolSize == 4660);
+	CHECK(p.simultaneousEffectsMax == 40);
+	CHECK(p.deviceManagedPool == 1);
+	CHECK(p.sharedParameterBlocks == 0);
+	// State byte 0x09 = bits 0 and 3: Device Paused and Actuator Power
+	const FfbHost::PidState st = FfbHost::decodeState(b, B({0x02, 0x09}), 42);
+	CHECK(st.devicePaused);
+	CHECK_FALSE(st.actuatorsEnabled);
+	CHECK_FALSE(st.safetySwitch);
+	CHECK(st.actuatorPower);
+	CHECK_FALSE(st.effectPlaying);
+	CHECK(st.timeUs == 42);
+	CHECK(FfbHost::decodeState(b, B({0x02, 0x12})).actuatorsEnabled); // 0x12 = bits 1 and 4
+	CHECK(FfbHost::decodeState(b, B({0x02, 0x12})).effectPlaying);
+}
+
+// steadyValue over a missing cycle must fail cleanly (a REQUIRE inside an INFO expression deadlocked the reporter): the non-REQUIRE query
+// answers false with a reason, find() gives nullptr, and INFO-free paths are the only ones reachable from the helpers.
+TEST_CASE_FIXTURE(IntegrationFixture, "support: TorqueTrace steady queries report a missing cycle or a differing value without failing the test") {
+	spiWrite(0x64, uint32_t(9) << 16);
+	TorqueTrace t(chip1);
+	t.startManual(0);
+	t.onStep(1, 1000);
+	spiWrite(0x64, uint32_t(10) << 16);
+	t.onStep(2, 2000);
+	int16_t v = 0;
+	std::string why;
+	CHECK(t.steadyQuery(1, 1, v, why));
+	CHECK(v == 9);
+	CHECK_FALSE(t.steadyQuery(2, 3, v, why)); // cycle 3 never sampled
+	CHECK(why.find("no sample for FFB cycle 3") != std::string::npos);
+	CHECK_FALSE(t.steadyQuery(1, 2, v, why)); // 9 then 10
+	CHECK(why.find("cycle 2") != std::string::npos);
+	CHECK_FALSE(t.steadyQuery(3, 2, v, why));
+	CHECK(t.find(3) == nullptr);
+	CHECK(t.steadyFluxQuery(1, 2, v, why));
+	CHECK(v == 0);
+}
+
+// A host transfer's USB step may write 0x64 (a report can change the torque at once): skipLog takes those frames out of the next sample
+TEST_CASE_FIXTURE(IntegrationFixture, "support: TorqueTrace.skipLog keeps writes made outside an FFB cycle out of the next sample and counts them in pumpWrites") {
+	TorqueTrace t(chip1);
+	t.startManual(0);
+	spiWrite(0x64, uint32_t(1) << 16);
+	t.skipLog();
+	spiWrite(0x64, uint32_t(2) << 16);
+	t.onStep(1, 1000);
+	REQUIRE(t.samples().size() == 1);
+	CHECK(t.samples()[0].writes == 1);
+	CHECK(t.pumpWrites() == 1);
+	CHECK(t.writesPerCycleMax() == 1);
+}
+
+// A decode error is an error, not an all-false state
+TEST_CASE("support: FfbHost::decodeState records an error for a wrong length or an unknown report ID instead of returning flags") {
+	HidReportDescriptor d;
+	REQUIRE(d.parse(fixHidDescriptor()));
+	pid::PidReportBuilder b(d, false);
+	const FfbHost::PidState shortState = FfbHost::decodeState(b, B({0x02}), 0, false);
+	CHECK_FALSE(shortState.errors.empty());
+	CHECK_FALSE(shortState.hasActuatorsEnabled);
+	const FfbHost::PidState wrongId = FfbHost::decodeState(b, B({0x05, 0x09}), 0, false);
+	CHECK_FALSE(wrongId.errors.empty());
+	CHECK(FfbHost::decodeState(b, B({0x02, 0x09}), 0, false).errors.empty());
+	HidReportDescriptor none;
+	REQUIRE(none.parse(B({0x05, 0x0F, 0x09, 0x89, 0xA1, 0x02, 0x85, 0x12, 0x09, 0x22, 0x15, 0x01, 0x25, 0x28, 0x75, 0x08, 0x95, 0x01, 0xB1, 0x02, 0xC0})));
+	pid::PidReportBuilder nb(none, false);
+	CHECK_FALSE(FfbHost::decodeState(nb, B({0x02, 0x09}), 0, false).errors.empty());
+}
+
+// Live: Create New Effect makes the firmware send a PID State report (HidFFB::new_effect -> sendStatusReport). The host must drain the IN
+// endpoint before its SET_REPORT, otherwise an older undrained report blocks the endpoint and this one is lost.
+TEST_CASE_FIXTURE(IntegrationFixture, "support: FfbHost captures and decodes the PID State report the firmware sends on Create New Effect" * IT_DELETES_FFBHIDMAIN) {
+	bringUp();
+	setSpiFrameUs(0);
+	FfbHost host(*this);
+	sched.advanceMs(5); // the joystick report of the FFB cycles waits undrained on the IN endpoint
+	const size_t mark = host.stateMark();
+	const FfbHost::CreateResult r = host.createEffect(pid::use::EtConstantForce);
+	REQUIRE(r.load.success());
+	const std::vector<FfbHost::PidState> got = host.statesSince(mark);
+	REQUIRE(got.size() == 1);
+	CHECK(got[0].errors.empty());
+	CHECK(got[0].hasDevicePaused);
+	CHECK(got[0].hasActuatorsEnabled);
+	CHECK(got[0].hasSafetySwitch);
+	CHECK(got[0].hasActuatorPower);
+	CHECK(got[0].hasEffectPlaying);
+	FfbHost::PidState latest;
+	REQUIRE(host.latestState(latest));
+	CHECK(latest.raw == got[0].raw);
+}
+
+// CDC reply format "[text|value]\n" (StringCommandInterface::formatReply, CommandInterface.cpp): value after the last '|'
+TEST_CASE("support: FfbHost takes the value of a CDC reply after the last bar and rejects text that is no reply frame") {
+	std::string v;
+	CHECK(FfbHost::replyValueText("[axis.0.power?|5000]\n", v));
+	CHECK(v == "5000");
+	CHECK(FfbHost::replyValueText("[axis.0.power=100|OK]\n", v));
+	CHECK(v == "OK");
+	CHECK(FfbHost::replyValueText("[x.0.y?|-12]\n", v));
+	CHECK(v == "-12");
+	CHECK_FALSE(FfbHost::replyValueText("", v));
+	CHECK_FALSE(FfbHost::replyValueText("garbage\n", v));
+}
+
 } // TEST_SUITE
