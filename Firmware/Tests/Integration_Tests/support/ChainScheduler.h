@@ -29,6 +29,10 @@
  *   (g) observer hook: stepEndHook(), after (f) (WO I1-1: TorqueTrace samples here; it sees the chip registers of the end of the
  *       step, i.e. including what the plant or the position script wrote in (f)).
  *
+ * Order option (WO I1-2, for F1-H6 only): setUsbAfterFfb(true) moves step (a) after step (c): the order of a step is then (b), (c), (d),
+ * (e) with (a) executed between (c) and (d) (the USB thread and the command threads of (a) run once more in (e)). A report the host
+ * put on the OUT endpoint with FfbHost::queue is then processed AFTER the FFB cycle of the step instead of before it. Default false.
+ *
  * Host-vs-target: on the target these preempt by priority (USB 40 > TMCENC 33 > CMD 32 > FFBMAIN 30 > TMC 25) and a long
  * activation (e.g. the 500 ms ADC calibration of the TMC thread, which busy-waits on HAL_GetTick) is interrupted by the
  * timers; here an activation runs to its next blocking call, and the timer updates that elapsed meanwhile are all raised
@@ -86,6 +90,14 @@ public:
 	/** Plant hook of step (f): called at the end of every step with the simulated time in microseconds. Empty when no plant is attached */
 	std::function<void(uint64_t nowUs)> plantHook;
 
+	/**
+	 * USB feed hook of step (a) (WO I1-2, FfbHost::queue): called by the scheduler's own step (a) (advanceMs only, NOT by pumpUsb(): the host's NAK retries and transfers pump without feeding) before every run of the "USB" thread; returns true if it put
+	 * one OUT packet on the bus. step (a) repeats (hook, USB thread, command threads) until the hook returns false, so a queue of reports
+	 * is taken in order by ONE USB step (the OUT endpoint is re-armed by the USB thread after each packet, so a second packet can only be
+	 * sent after the thread ran). Empty when nobody queues. Not cleared by reset()
+	 */
+	std::function<bool()> usbFeed;
+
 	/** Observer hook of step (g): called at the very end of every step, after the plant hook. Empty when nobody observes. Not cleared by reset() */
 	std::function<void()> stepEndHook;
 
@@ -94,11 +106,17 @@ public:
 	/** Clears the counters and the timer phases (the next step starts the phase of a running timer at 0) */
 	void reset();
 
+	/** F1-H6: true runs step (a) (USB) after step (c) (FFB) in each step, see the order option in the file comment. Default false. Cleared by reset() */
+	void setUsbAfterFfb(bool after) { usbAfterFfb_ = after; }
+	bool usbAfterFfb() const { return usbAfterFfb_; }
+
 	/** Runs n steps of 1 ms in the order above */
 	void advanceMs(uint32_t n);
 
 	/** Step (a) without time: the "USB" thread and the command threads. This is what the simulated host's pump does */
 	void pumpUsb();
+	/** Step (a) of advanceMs: the feed hook (usbFeed) and pumpUsb() until the hook has nothing more */
+	void usbStep();
 
 	/** Makes every existing thread of kThreadNames resumable (idempotent). Called by every step and after thread creation */
 	void adoptThreads();
@@ -124,6 +142,7 @@ private:
 	Stats stats_;
 	TimerPhase tim13_, tim6_;
 	uint64_t lastUs_ = 0;
+	bool usbAfterFfb_ = false;
 };
 
 #endif

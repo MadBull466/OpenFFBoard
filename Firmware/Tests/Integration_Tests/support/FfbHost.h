@@ -39,6 +39,7 @@
 #include "PidReportBuilder.h"
 
 #include <cstdint>
+#include <deque>
 #include <string>
 #include <vector>
 
@@ -93,6 +94,9 @@ public:
 
 	/** The fixture must have brought the chain up (bringUp()): the constructor reads and parses the descriptor over USB (REQUIREs) */
 	explicit FfbHost(IntegrationFixture &fixture);
+	~FfbHost();
+	FfbHost(const FfbHost &) = delete;
+	FfbHost &operator=(const FfbHost &) = delete;
 
 	IntegrationFixture &fixture() { return fx_; }
 	const hid::HidReportDescriptor &descriptor() const { return desc_; }
@@ -117,8 +121,23 @@ public:
 	// --- output reports (interrupt OUT endpoint) ---
 	/** hidWrite, REQUIRE an ACK, then the USB step (see "WHICH SCHEDULER STEP", above) and the IN drain */
 	void send(const pid::PidReport &report);
+	/**
+	 * F1-H6: puts the report on the host's queue WITHOUT pumping: nothing runs. The scheduler's own USB step (a) of the next advanceMs /
+	 * run (ChainScheduler::usbFeed) writes the queued reports to the OUT endpoint (hidWrite) one after the other, the USB thread taking each
+	 * before the next (the endpoint is re-armed only by the thread; a second hidWrite without it would be NAKed and the host's retry would
+	 * pump the first report in early). So all queued reports are processed by ONE step (a), in order, i.e. within one ms, and before or
+	 * after the FFB cycle of that step as ChainScheduler::setUsbAfterFfb says. A host transfer in between (send, setFeature, sendRaw, command) does not flush the queue (the feed runs only in the
+	 * scheduler's step (a)), but mixing them is not meant. A handshake other than ACK is recorded in
+	 * queueErrors() and run() REQUIREs it empty.
+	 */
+	void queue(const pid::PidReport &report);
 	/** Same for arbitrary bytes (short / long / undeclared ID reports of F1-H5). Does not REQUIRE the handshake. @return the handshake */
 	HostDcd::Handshake sendRaw(const std::vector<uint8_t> &bytes);
+
+	/** Handshakes other than ACK of queued reports (empty if all were taken) */
+	const std::vector<std::string> &queueErrors() const { return queueErrors_; }
+	/** Number of queued reports not yet put on the bus */
+	size_t queued() const { return pending_.size(); }
 
 	// --- PID State capture ---
 	/** Takes the IN endpoint (drainHidIn) and decodes every captured report whose ID is the descriptor's PID State report, oldest first */
@@ -173,6 +192,9 @@ private:
 	IntegrationFixture &fx_;
 	class TorqueTrace *trace_ = nullptr;
 	uint32_t pumpWrites_ = 0;
+	std::deque<std::vector<uint8_t>> pending_; //!< queue(): reports waiting for step (a)
+	std::vector<std::string> queueErrors_;
+	bool feeding_ = false;
 	std::vector<uint8_t> descBytes_;
 	hid::HidReportDescriptor desc_;
 	pid::PidReportBuilder builder_;

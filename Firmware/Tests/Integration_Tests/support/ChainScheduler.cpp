@@ -14,6 +14,7 @@ void ChainScheduler::reset() {
 	tim13_ = TimerPhase();
 	tim6_ = TimerPhase();
 	lastUs_ = HostPlatform::nowUs();
+	usbAfterFfb_ = false;
 }
 
 void ChainScheduler::adoptThreads() {
@@ -49,6 +50,14 @@ void ChainScheduler::pumpUsb() {
 		HostRtos::runUntilBlocked(usb);
 	}
 	runCommandThreads();
+}
+
+void ChainScheduler::usbStep() {
+	bool fed;
+	do {
+		fed = usbFeed ? usbFeed() : false;
+		pumpUsb();
+	} while (fed);
 }
 
 void ChainScheduler::runTmcThread() {
@@ -133,8 +142,10 @@ uint32_t ChainScheduler::runTimer(TIM_HandleTypeDef &h, TimerPhase &phase, uint6
 void ChainScheduler::advanceMs(uint32_t n) {
 	for (uint32_t i = 0; i < n; i++) {
 		stats_.steps++;
-		// (a) USB
-		pumpUsb();
+		// (a) USB (after (c) if usbAfterFfb_)
+		if (!usbAfterFfb_) {
+			usbStep();
+		}
 		// (b) time, timers, ADC
 		HostPlatform::advanceMs(1);
 		const uint64_t now = HostPlatform::nowUs();
@@ -157,6 +168,9 @@ void ChainScheduler::advanceMs(uint32_t n) {
 				stats_.ffbCycles++;
 			}
 			HostRtos::runUntilBlocked(ffb);
+		}
+		if (usbAfterFfb_) {
+			usbStep(); // (a) moved behind (c)
 		}
 		// (d) the "TMC" thread when its Delay expired, counted per task handle: every other known task is suspended
 		//     (vTaskSuspend from the test thread) while runUntilIdle runs, so only the TMC thread can be activated; the suspend

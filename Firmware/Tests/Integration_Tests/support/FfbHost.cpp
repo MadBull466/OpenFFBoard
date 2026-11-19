@@ -19,6 +19,25 @@ FfbHost::FfbHost(IntegrationFixture &fixture) : fx_(fixture), builder_(desc_) {
 	descBytes_ = fx_.readHidReportDescriptor();
 	INFO("report descriptor parse error: " << desc_.error());
 	REQUIRE(desc_.parse(descBytes_));
+	fx_.sched.usbFeed = [this]() -> bool {
+		if (pending_.empty() || feeding_) {
+			return false;
+		}
+		feeding_ = true; // hidWrite retries a NAK with the scheduler's pump, which calls this hook again
+		const std::vector<uint8_t> bytes = pending_.front();
+		pending_.pop_front();
+		const HostDcd::Handshake hs = fx_.host.hidWrite(bytes);
+		feeding_ = false;
+		if (hs != HostDcd::Handshake::Ack) {
+			queueErrors_.push_back("queued report of " + std::to_string(bytes.size()) + " bytes (id " + std::to_string(bytes.empty() ? 0 : bytes[0]) + ") got handshake " +
+								   std::to_string(static_cast<int>(hs)));
+		}
+		return true;
+	};
+}
+
+FfbHost::~FfbHost() {
+	fx_.sched.usbFeed = nullptr;
 }
 
 // --- feature reports ---
@@ -89,6 +108,13 @@ HostDcd::Handshake FfbHost::sendRaw(const std::vector<uint8_t> &bytes) {
 	return h;
 }
 
+void FfbHost::queue(const pid::PidReport &report) {
+	REQUIRE(report.valid());
+	INFO("report " << report.name());
+	REQUIRE(report.errors().empty());
+	pending_.push_back(report.bytes());
+}
+
 void FfbHost::send(const pid::PidReport &report) {
 	REQUIRE(report.valid());
 	INFO("report " << report.name());
@@ -149,6 +175,7 @@ void FfbHost::run(uint32_t ms) {
 	for (uint32_t i = 0; i < ms; i++) {
 		fx_.sched.advanceMs(1);
 		fx_.drainHidIn();
+		REQUIRE(queueErrors_.empty());
 	}
 }
 

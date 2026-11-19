@@ -10,8 +10,8 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 | Kind | Count | Open | Resolved |
 |---|---|---|---|
-| Suspected firmware bugs (IB) | 7 | 7 | 0 |
-| NEEDS REVIEW items (INR) | 4 | 4 | 0 |
+| Suspected firmware bugs (IB) | 13 | 13 | 0 |
+| NEEDS REVIEW items (INR) | 6 | 6 | 0 |
 | Defects in shared test fakes (A) | 3 | 0 | 3 |
 | Defects in test tools (T) | 1 | 0 | 1 |
 
@@ -24,10 +24,18 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | IB 5 | firmware bug | HidFFB | open |
 | IB 6 | firmware bug | HidFFB | open |
 | IB 7 | firmware bug | Axis | open |
+| IB 8 | firmware bug | HID descriptor + HidFFB | open |
+| IB 9 | firmware bug | HidFFB | open |
+| IB 10 | firmware bug | HidFFB | open |
+| IB 11 | firmware bug | HidFFB | open |
+| IB 12 | firmware bug | HidFFB | open |
+| IB 13 | firmware bug | global_callbacks | open |
 | INR 1 | NEEDS REVIEW | Axis / TMC4671 | open |
 | INR 2 | NEEDS REVIEW | HID descriptor | open |
 | INR 3 | NEEDS REVIEW | HID descriptor | open |
 | INR 4 | NEEDS REVIEW | HID descriptor | open |
+| INR 5 | NEEDS REVIEW | HidFFB | open |
+| INR 6 | NEEDS REVIEW | TinyUSB HID / HidFFB | open |
 | A-1 | fake defect | Fake HAL SPI + GPIO / EXTI | fixed |
 | A-2 | fake defect | Fake ADC, timers, flash map | fixed |
 | A-3 | fake defect | `HostDcd` + `UsbHost` + `HostRtos` ext | fixed |
@@ -91,6 +99,54 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 - **Test / evidence:** `KNOWN_ISSUE` case `F1-H1: on a fresh flash a constant force over HID reaches the chip without the user setting power and effect ratio` in `test_f1_hid.cpp` (WO I1-1)
 - **Resolved?:** no
 
+### IB 8: HID descriptor + HidFFB
+
+- **Where:** `FFBoard/UserExtensions/Inc/usb_hid_ffb_desc.h:574-578`; `FFBoard/Src/HidFFB.cpp:221-239`
+- **What:** PID Device Control is declared as 8 one-bit Variable fields and `ffb_control` decodes the byte as bit flags (1 Enable, 2 Disable, 4 Stop All, 8 Reset, 16 Pause, 32 Continue); PID 1.01 §5.13 / Figure 16 define one command number 1..6 (owner, [IQ12](OPEN_QUESTIONS.md)): Device Reset (4) is read as Stop All and never calls `reset_ffb` (only 39 of 40 effects can be created afterwards), Device Continue (6) is read as Disable + Stop and the torque stays 0; Pause (5 = 1 | 4) passes only by accident
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` cases `F1-H2: Device Control Device Reset clears the effects ...`, `F1-H2: Device Control Device Continue gives the torque of th...` in `test_f1_hid.cpp` (WO I1-2)
+- **Resolved?:** no
+
+### IB 9: HidFFB
+
+- **Where:** `FFBoard/Src/HidFFB.cpp:227-229`, `:400-436`
+- **What:** Device Control Stop All Effects calls `stop_FFB` (the `start_FFB` after it is commented out) and Effect Operation Start never re-enables FFB, so after Stop All a started effect gives no torque until the next Set Effect, under either Device Control encoding (PID 1.01 §5.13: Stop All stops the effects, the device stays enabled)
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-H2: after Device Control Stop All Effects an Effect Operation Start ...` in `test_f1_hid.cpp` (WO I1-2)
+- **Resolved?:** no
+
+### IB 10: HidFFB
+
+- **Where:** `FFBoard/Src/HidFFB.cpp:115`, `:434` (`sendStatusReport` commented out)
+- **What:** The PID State input report is sent only from `new_effect` / `set_effect`; after Device Control (Disable, Enable, Pause, Continue) and Effect Operation Stop the host keeps the stale flags (HID 1.11 §7.2.4: with the joystick default idle rate the device reports when the report data change; PID 1.01 §5.12)
+- **Same as (coverage):** (none)
+- **Test / evidence:** 5 `KNOWN_ISSUE` cases `F1-H4: the latest PID State report after ...` in `test_f1_hid.cpp` (WO I1-2)
+- **Resolved?:** no
+
+### IB 11: HidFFB
+
+- **Where:** `FFBoard/Src/HidFFB.cpp:75-80`, `:348`
+- **What:** PID State flags derived wrongly: Device Paused is set whenever `ffb_active` is false (e.g. after Disable Actuators), Effect Playing is set for an effect that was defined but never started (PID 1.01 §5.12 / §5.13)
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` cases `F1-H4: a PID State report after Device Control Disable Actua...`, `F1-H4: the PID State report sent for a defined but not start...` in `test_f1_hid.cpp` (WO I1-2)
+- **Resolved?:** no
+
+### IB 12: HidFFB
+
+- **Where:** `FFBoard/Src/HidFFB.cpp:108-110`, `:130`, `:243`; `FFBoard/Src/global_callbacks.cpp:312`
+- **What:** No length check of PID output reports: the handlers ignore `bufsize` and read the 64-byte static OUT buffer, so a short Set Constant Force takes the previous report's stale bytes as its magnitude, and a short Set Effect is completed from the struct's default member initialisers (`ffb_defs.h:224-244`; Direction Enable 0, torque 0 for good) (HID 1.11 / PID 1.01 §7: report lengths from the descriptor)
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` cases `F1-H5: a Set Constant Force report cut to ...`, `F1-H5: a Set Effect report cut to 3 bytes ...` in `test_f1_hid.cpp` (WO I1-2)
+- **Resolved?:** no
+
+### IB 13: global_callbacks
+
+- **Where:** `FFBoard/Src/global_callbacks.cpp:312-314`
+- **What:** `tud_hid_set_report_cb` reads `*buffer` as the report ID even when `bufsize` is 0, so a zero-length OUT packet replays the previous report (after an Effect Operation Start it restarts a running ramp)
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-H5: a zero-length packet after an Effect Operation Start ...` in `test_f1_hid.cpp` (WO I1-2)
+- **Resolved?:** no
+
 ## 2. NEEDS REVIEW items (INR)
 
 ### INR 1: Axis / TMC4671
@@ -118,6 +174,20 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 - **Test / location:** `usb_hid_ffb_desc.h` (PID Block Load, Effect Block Index `15 01`, logical 1..40); characterization case in `test_f1_setup.cpp` (WO I0-6 review)
 - **Question:** PID 1.01 §9 (an example sequence, not a rule) says that when Block Load fails the device returns Effect Block Index 0, which is outside the declared logical range 1..40. Which value does the firmware send on failure, and should 0 be in the range? Observed in WO I1-1: on Full the firmware returns status Full and leaves the Effect Block Index of the last successful create (40) untouched (`HidFFB.cpp:262`; characterization case `characterization: [F1-H3] a failed Create New Effect returns the Effect Block Index of the last successful create, not 0 (INR 4)` in `test_f1_hid.cpp`). Asked as [IQ11](OPEN_QUESTIONS.md)
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 5: HidFFB
+
+- **Test / location:** `HidFFB.cpp:75`; characterization case `characterization: [F1-H4] ...` in `test_f1_hid.cpp` (WO I1-2)
+- **Question:** Every PID State report has Actuator Power set and Safety Switch clear, whatever the device state. PID 1.01 §5.12: "If the Safety Flag is set and the device is usable": a Safety Switch that is always clear reads as "not usable". Intended?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 6: TinyUSB HID / HidFFB
+
+- **Test / location:** `hid_device.c`, `global_callbacks.cpp:312`; characterization case `characterization: [F1-H5] the bytes after the first 64 of a 100 byte OUT transfer are parsed as a new report (INR 6)` in `test_f1_hid.cpp` (WO I1-2)
+- **Question:** An OUT transfer longer than one 64-byte packet is processed packet by packet: the bytes from 64 on are parsed as a new report (a Set Constant Force with magnitude 0 there drops the torque to 0). Acceptable for a malformed transfer, or should the device reject it?
 - **Same as (coverage):** (none)
 - **Resolved?:** no
 
