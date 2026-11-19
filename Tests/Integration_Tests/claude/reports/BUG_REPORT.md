@@ -10,8 +10,8 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 | Kind | Count | Open | Resolved |
 |---|---|---|---|
-| Suspected firmware bugs (IB) | 16 | 16 | 0 |
-| NEEDS REVIEW items (INR) | 13 | 13 | 0 |
+| Suspected firmware bugs (IB) | 21 | 21 | 0 |
+| NEEDS REVIEW items (INR) | 16 | 16 | 0 |
 | Defects in shared test fakes (A) | 3 | 0 | 3 |
 | Defects in test tools (T) | 1 | 0 | 1 |
 
@@ -30,6 +30,11 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | IB 11 | firmware bug | HidFFB | open |
 | IB 12 | firmware bug | HidFFB | open |
 | IB 13 | firmware bug | global_callbacks | open |
+| IB 14 | firmware bug | TMC4671 / Axis | open |
+| IB 15 | firmware bug | TMC4671 | open |
+| IB 16 | firmware bug | TMC4671 / Encoder / Axis | open |
+| IB 17 | firmware bug | Axis / TMC4671 | open |
+| IB 18 | firmware bug | Axis | open |
 | IB 19 | firmware bug | EffectsCalculator | open |
 | IB 20 | firmware bug | EffectsCalculator | open |
 | IB 21 | firmware bug | EffectsCalculator | open |
@@ -39,6 +44,9 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | INR 4 | NEEDS REVIEW | HID descriptor | open |
 | INR 5 | NEEDS REVIEW | HidFFB | open |
 | INR 6 | NEEDS REVIEW | TinyUSB HID / HidFFB | open |
+| INR 7 | NEEDS REVIEW | Axis / TMC4671 | open |
+| INR 8 | NEEDS REVIEW | Axis | open |
+| INR 9 | NEEDS REVIEW | Axis / TMC4671 | open |
 | INR 10 | NEEDS REVIEW | EffectsCalculator / Axis | open |
 | INR 11 | NEEDS REVIEW | TMC4671 | open |
 | INR 12 | NEEDS REVIEW | EffectsCalculator | open |
@@ -157,6 +165,46 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 - **Test / evidence:** `KNOWN_ISSUE` case `F1-H5: a zero-length packet after an Effect Operation Start ...` in `test_f1_hid.cpp` (WO I1-2)
 - **Resolved?:** no
 
+### IB 14: TMC4671 / Axis
+
+- **Where:** `Axis.cpp:488-495` (`drv->turn(int16_t)`), `TMC4671.cpp` `turn`
+- **What:** `axis.0.power` above 0x7fff: the clipped axis torque is narrowed to int16 in `turn()`, so a full-scale demand wraps and reverses the direction (power 20000 gives -20000, power 40000 gives +25536)
+- **Same as (coverage):** bug 32
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-X1: a power above 0x7fff never reverses the direction ...` in `test_f1_axis.cpp` (WO I1-7)
+- **Resolved?:** no
+
+### IB 15: TMC4671
+
+- **Where:** `TMC4671.cpp:1753`, `:2720`, `:2823`, `:2832`; `Axis.cpp:601-606`, `:884`
+- **What:** `tmc.0.invertForce=1` is accepted without `combineEncoder` and flips only the torque, not the measured position (the axis `invert` flips both), so a spring pushes away from the centre and a damper assists the motion (positive feedback; PID 1.01 §5.3 restoring / opposing, with the commissioned-loop sign convention); the firmware's own invariant (flash restore masks it, clearing combineEncoder clears it) is bypassed by the setter, and the setting silently disappears at the next boot
+- **Same as (coverage):** (none)
+- **Test / evidence:** 2 `KNOWN_ISSUE` cases `F1-X2: a spring / damper stays restoring / opposing after tmc.0.invertForce=1 ...` in `test_f1_axis.cpp` (WO I1-7)
+- **Resolved?:** no
+
+### IB 16: TMC4671 / Encoder / Axis
+
+- **Where:** `TMC4671.cpp:1932-1941`, `Encoder.cpp:67-72`, `Axis.cpp:1259-1264`
+- **What:** The integrated encoder reports cpr 0xffff (65535) although PhiM counts 65536 per mechanical revolution (TMC4671 DS 0x6B): `axis.0.cpr?` is 65535 and 30 revolutions read 30 counts too far (seam S1)
+- **Same as (coverage):** (none)
+- **Test / evidence:** 2 `KNOWN_ISSUE` cases `F1-X3: the cpr reported ...`, `F1-X3: thirty revolutions of 0x6B ...` in `test_f1_axis.cpp` (WO I1-7)
+- **Resolved?:** no
+
+### IB 17: Axis / TMC4671
+
+- **Where:** `Axis.cpp:512-544`; `TMC4671.cpp:245-249`, `TMC4671.h:238`
+- **What:** `Axis::setDrvType` never passes the axis power to a newly created driver: `TMC4671::setupDriver` writes its default torque limit 30000 into 0x5E (its comment says the axis sets it), so after every runtime `axis.0.drvtype` selection 0x5E holds 30000 while `axis.0.power?` reports 5000 (flux dissipation also clips at that limit, `TMC4671.cpp:1736`); a configured board at boot is fine (`restoreFlash` calls setDrvType before setPower). Not fixed by the IB 7 fix
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-X1: on a fresh flash the torque limit field of 0x5E equals ...` in `test_f1_axis.cpp` (WO I1-7)
+- **Resolved?:** no
+
+### IB 18: Axis
+
+- **Where:** `Axis.cpp:592` (`scaleEncValue`)
+- **What:** Out-of-range float to int32 conversion: with a small rotation range (e.g. `axis.0.degrees=1`, reachable after about 91 turns) and a large 0x6B the scaled position overflows; on x86 it becomes INT_MIN, `abs()` stays negative and the out-of-bounds shutdown is skipped (drive stays on); on ARM VCVT saturates and the drive would shut down. Undefined behaviour (F1-B2)
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE_UB` case `F1-X5: a scripted position beyond the s32 scaling of a one degree range switches the drive off at the chip` in `test_f1_axis.cpp` (WO I1-7)
+- **Resolved?:** no
+
 ### IB 19: EffectsCalculator
 
 - **Where:** `FFBoard/Src/EffectsCalculator.cpp:408`
@@ -222,6 +270,27 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 - **Test / location:** `hid_device.c`, `global_callbacks.cpp:312`; characterization case `characterization: [F1-H5] the bytes after the first 64 of a 100 byte OUT transfer are parsed as a new report (INR 6)` in `test_f1_hid.cpp` (WO I1-2)
 - **Question:** An OUT transfer longer than one 64-byte packet is processed packet by packet: the bytes from 64 on are parsed as a new report (a Set Constant Force with magnitude 0 there drops the torque to 0). Acceptable for a malformed transfer, or should the device reject it?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 7: Axis / TMC4671
+
+- **Test / location:** characterization case `characterization: [F1-X2] absolute sign ...` in `test_f1_axis.cpp` (WO I1-7)
+- **Question:** With both inversions off, Direction 9000 gives -1525 and 27000 +1525 at 0x64; consistent with INR 10 (axis invert default 1). PID 1.01 §5.1 defines no polar zero: intended convention?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 8: Axis
+
+- **Test / location:** `Axis.cpp` out-of-bounds check; 2 characterization cases in `test_f1_axis.cpp` (WO I1-7)
+- **Question:** The out-of-bounds shutdown threshold lies between 0.9 D and 1.1 D (D = `axis.0.degrees`) at both ends; the exact threshold is a firmware constant: intended? (After the shutdown 0x64 keeps the stale target until the next `turn()`: checked in I1-8)
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 9: Axis / TMC4671
+
+- **Test / location:** `Axis.cpp:488-495`; characterization case `characterization: [F1-X2] a tmc.0.invertForce change under a steady force reaches 0x64 only when the axis torque changes` in `test_f1_axis.cpp` (WO I1-7)
+- **Question:** `turn()` is called only when the axis torque changes, so a runtime change of `tmc.0.invertForce` does not reach the chip under a steady force until the torque changes (same pattern as seam S2). Intended?
 - **Same as (coverage):** (none)
 - **Resolved?:** no
 
