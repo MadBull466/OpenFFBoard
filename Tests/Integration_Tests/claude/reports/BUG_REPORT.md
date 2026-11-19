@@ -10,8 +10,8 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 | Kind | Count | Open | Resolved |
 |---|---|---|---|
-| Suspected firmware bugs (IB) | 13 | 13 | 0 |
-| NEEDS REVIEW items (INR) | 6 | 6 | 0 |
+| Suspected firmware bugs (IB) | 15 | 15 | 0 |
+| NEEDS REVIEW items (INR) | 10 | 10 | 0 |
 | Defects in shared test fakes (A) | 3 | 0 | 3 |
 | Defects in test tools (T) | 1 | 0 | 1 |
 
@@ -30,12 +30,18 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | IB 11 | firmware bug | HidFFB | open |
 | IB 12 | firmware bug | HidFFB | open |
 | IB 13 | firmware bug | global_callbacks | open |
+| IB 20 | firmware bug | EffectsCalculator | open |
+| IB 21 | firmware bug | EffectsCalculator | open |
 | INR 1 | NEEDS REVIEW | Axis / TMC4671 | open |
 | INR 2 | NEEDS REVIEW | HID descriptor | open |
 | INR 3 | NEEDS REVIEW | HID descriptor | open |
 | INR 4 | NEEDS REVIEW | HID descriptor | open |
 | INR 5 | NEEDS REVIEW | HidFFB | open |
 | INR 6 | NEEDS REVIEW | TinyUSB HID / HidFFB | open |
+| INR 10 | NEEDS REVIEW | EffectsCalculator / Axis | open |
+| INR 11 | NEEDS REVIEW | TMC4671 | open |
+| INR 12 | NEEDS REVIEW | EffectsCalculator | open |
+| INR 13 | NEEDS REVIEW | EffectsCalculator | open |
 | A-1 | fake defect | Fake HAL SPI + GPIO / EXTI | fixed |
 | A-2 | fake defect | Fake ADC, timers, flash map | fixed |
 | A-3 | fake defect | `HostDcd` + `UsbHost` + `HostRtos` ext | fixed |
@@ -147,6 +153,22 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 - **Test / evidence:** `KNOWN_ISSUE` case `F1-H5: a zero-length packet after an Effect Operation Start ...` in `test_f1_hid.cpp` (WO I1-2)
 - **Resolved?:** no
 
+### IB 20: EffectsCalculator
+
+- **Where:** `FFBoard/Src/EffectsCalculator.cpp:490-492`; `HidFFB.cpp:341`
+- **What:** With an infinite Duration (the firmware maps Duration 0 to INFINITE; the descriptor declares no Null state for Duration, `usb_hid_ffb_desc.h:240-252`) `getEnvelopeMagnitude` returns the plain magnitude: the envelope's attack is not applied (PID 1.01 §5.1 Duration: with an envelope "the attack will be applied, followed by an infinite sustain")
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-E4: an envelope on a constant force of infinite Duration ...` in `test_f1_effects.cpp` (WO I1-3)
+- **Resolved?:** no
+
+### IB 21: EffectsCalculator
+
+- **Where:** `FFBoard/Src/EffectsCalculator.cpp:190-210`; `HidFFB.cpp:457`
+- **What:** The envelope is skipped for every Ramp effect (`if (effect->type != FFB_EFFECT_RAMP)`), although `set_ramp` sets the magnitude to 0x7fff "for envelope calculation"; PID 1.01 Table 3 (§5.1.1.1): ET Ramp uses the Ramp and Envelope parameter blocks
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-E4: an envelope on a ramp effect shapes the ramp ...` in `test_f1_effects.cpp` (WO I1-3)
+- **Resolved?:** no
+
 ## 2. NEEDS REVIEW items (INR)
 
 ### INR 1: Axis / TMC4671
@@ -188,6 +210,34 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 - **Test / location:** `hid_device.c`, `global_callbacks.cpp:312`; characterization case `characterization: [F1-H5] the bytes after the first 64 of a 100 byte OUT transfer are parsed as a new report (INR 6)` in `test_f1_hid.cpp` (WO I1-2)
 - **Question:** An OUT transfer longer than one 64-byte packet is processed packet by packet: the bytes from 64 on are parsed as a new report (a Set Constant Force with magnitude 0 there drops the torque to 0). Acceptable for a malformed transfer, or should the device reject it?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 10: EffectsCalculator / Axis
+
+- **Test / location:** `EffectsCalculator.cpp:359`, `Axis.cpp:884`, `Axis.h:510`; two characterization cases in `test_f1_effects.cpp` (WO I1-3)
+- **Question:** The polar Direction to torque sign mapping and the absolute count: with the defaults (axis.0.invert = 1) Direction 9000 gives +1525 at 0x64 for Magnitude 10000 at power 5000 (two negations: `-v*sin` and the axis inversion). PID 1.01 §5.1 defines no polar zero; the same mapping is seen in I1-5 / I1-7 (INR 14, INR 7). Intended direction convention?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 11: TMC4671
+
+- **Test / location:** `TMC4671.cpp:1752`; characterization case in `test_f1_effects.cpp` (WO I1-3)
+- **Question:** The flux half of 0x64 is -min(|torque|, tmc.0.fluxoffset) (0 at the default fluxoffset 0); extends the unit characterization of driver charter R62 to the chain
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 12: EffectsCalculator
+
+- **Test / location:** `EffectsCalculator.h:61`, `EffectsCalculator.cpp:345`, `:868-872`; characterization case in `test_f1_effects.cpp` (WO I1-3)
+- **Question:** The constant-force filter is off at its default 500 Hz (= Nyquist at the 1 kHz FFB rate): the bypass for Fc >= 0.5 is necessary (a biquad at Fc 0.5 saturates), but no document says the default means off (seam S5; the `filter[axis]` vs `filter[0]` half is not visible on the one-axis FFBWheel). Intended?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 13: EffectsCalculator
+
+- **Test / location:** `EffectsCalculator.cpp:228`; characterization case `characterization: [F1-E3] a ramp is linear in time ...` in `test_f1_effects.cpp` (WO I1-3)
+- **Question:** A ramp is linear in time between Ramp Start and Ramp End; PID 1.01 §5.7 does not name the shape
 - **Same as (coverage):** (none)
 - **Resolved?:** no
 
