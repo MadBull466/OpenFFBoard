@@ -10,8 +10,8 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 | Kind | Count | Open | Resolved |
 |---|---|---|---|
-| Suspected firmware bugs (IB) | 15 | 15 | 0 |
-| NEEDS REVIEW items (INR) | 10 | 10 | 0 |
+| Suspected firmware bugs (IB) | 16 | 16 | 0 |
+| NEEDS REVIEW items (INR) | 13 | 13 | 0 |
 | Defects in shared test fakes (A) | 3 | 0 | 3 |
 | Defects in test tools (T) | 1 | 0 | 1 |
 
@@ -30,6 +30,7 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | IB 11 | firmware bug | HidFFB | open |
 | IB 12 | firmware bug | HidFFB | open |
 | IB 13 | firmware bug | global_callbacks | open |
+| IB 19 | firmware bug | EffectsCalculator | open |
 | IB 20 | firmware bug | EffectsCalculator | open |
 | IB 21 | firmware bug | EffectsCalculator | open |
 | INR 1 | NEEDS REVIEW | Axis / TMC4671 | open |
@@ -42,6 +43,9 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | INR 11 | NEEDS REVIEW | TMC4671 | open |
 | INR 12 | NEEDS REVIEW | EffectsCalculator | open |
 | INR 13 | NEEDS REVIEW | EffectsCalculator | open |
+| INR 14 | NEEDS REVIEW | EffectsCalculator / HidFFB | open |
+| INR 15 | NEEDS REVIEW | EffectsCalculator | open |
+| INR 16 | NEEDS REVIEW | EffectsCalculator | open |
 | A-1 | fake defect | Fake HAL SPI + GPIO / EXTI | fixed |
 | A-2 | fake defect | Fake ADC, timers, flash map | fixed |
 | A-3 | fake defect | `HostDcd` + `UsbHost` + `HostRtos` ext | fixed |
@@ -153,6 +157,14 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 - **Test / evidence:** `KNOWN_ISSUE` case `F1-H5: a zero-length packet after an Effect Operation Start ...` in `test_f1_hid.cpp` (WO I1-2)
 - **Resolved?:** no
 
+### IB 19: EffectsCalculator
+
+- **Where:** `FFBoard/Src/EffectsCalculator.cpp:408`
+- **What:** The friction coefficient is read into a `uint16_t` from the signed Positive / Negative Coefficient field (seam S4), so a negative coefficient becomes a large positive one: -8000 gives -6103 where +8000 gives -4882, instead of the reversed force; oracle: the descriptor FFBWheel sends declares the coefficients signed (logical -32768..32767, `usb_hid_2ffb_desc.c:298-309`), PID 1.01 §5.3's per-side formula, and the firmware's own signed spring / damper / inertia paths (PID is silent on negative coefficients)
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-E8: a negative friction coefficient reverses the force ...` in `test_f1_conditions.cpp` (WO I1-5)
+- **Resolved?:** no
+
 ### IB 20: EffectsCalculator
 
 - **Where:** `FFBoard/Src/EffectsCalculator.cpp:490-492`; `HidFFB.cpp:341`
@@ -238,6 +250,27 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 - **Test / location:** `EffectsCalculator.cpp:228`; characterization case `characterization: [F1-E3] a ramp is linear in time ...` in `test_f1_effects.cpp` (WO I1-3)
 - **Question:** A ramp is linear in time between Ramp Start and Ramp End; PID 1.01 §5.7 does not name the shape
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 14: EffectsCalculator / HidFFB
+
+- **Test / location:** `HidFFB.cpp:333-337`; characterization case in `test_f1_conditions.cpp` (WO I1-5)
+- **Question:** Polar direction for a condition block with Direction Enable: 9000 gives the restoring spring with full force at invert 0, 27000 the reversed one (sin of the angle); same open question as INR 10 (PID 1.01 §5.1 defines no polar zero)
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 15: EffectsCalculator
+
+- **Test / location:** `EffectsCalculator.cpp` condition forces; characterization cases `// INR 15` in `test_f1_conditions.cpp` (WO I1-5)
+- **Question:** Absolute scale of spring, damper, inertia and friction at the chip against hand derivations from the firmware constants (gains, scalers, cpr 65536); intended scales?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 16: EffectsCalculator
+
+- **Test / location:** `EffectsCalculator.h:238`, friction ramp; characterization case in `test_f1_conditions.cpp` (WO I1-5)
+- **Question:** Friction ramp-up around zero speed follows a sine factor of the speed relative to `frictionPctSpeedToRampup` (0.47296 at 16 counts/ms vs hand 0.47302); intended shape?
 - **Same as (coverage):** (none)
 - **Resolved?:** no
 
