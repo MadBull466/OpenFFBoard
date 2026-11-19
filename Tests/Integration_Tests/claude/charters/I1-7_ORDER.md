@@ -1,0 +1,20 @@
+# WO I1-7: axis limits, sign table, position chain, multi-turn (F1-X1, F1-X2, F1-X3, F1-X5) (as sent, 2026-11-19)
+
+One `integration-test-writer` run, in parallel with other writers. File list: `wo/I1-7.files` (`claude/cases/test_f1_axis.cpp`, new). **`I1_PARALLEL_COMMON.md` (same folder) is part of this order: read it first and follow it.**
+
+## Order
+
+You write the axis-layer tests between the effects and the TMC4671 driver of the OpenFFBoard integration executable `ffb_integration_tests`: torque limit, sign conventions, position scaling and multi-turn handling, with the position scripted through 0x6B (`PositionScript`) and the torque target at 0x64 observed per FFB cycle (`TorqueTrace`). Repository root `/home/ben/Documents/OpenFFBoard/testing/OpenFFBoard`, branch `add-test-suite`, WO id `I1-7`.
+
+Spec: datasheet 0x5E (PID torque / flux limits: find the torque-limit bits and cite the page), 0x64, 0x6B (s32, PhiM 65536 counts per mechanical revolution); PID 1.01 5.3 (spring restoring, damper opposing); unit charter `Tests/Code_Coverage/claude/charters/driver/TMC4671_REQUIREMENTS.md` R42 (power limit), R62 (inversion in `turn()`).
+
+### Cases
+
+1. **F1-X1**: `axis.0.power=P` sets the torque-limit field of 0x5E to the value R42 / the datasheet define for P (cite where the firmware maps P to the field; if the mapping is a firmware choice not fixed by the datasheet, `characterization:`), for at least three values including the default; a demand beyond P (a full-scale constant force with high gains, or a large spring displacement) arrives at 0x64 clipped to |torque| <= P (the axis clips before the chip, so the chip never has to: assert the 0x64 value, not only 0x5E); both signs. `power` above 0x7fff: bug 32 (coverage register) cross-reference: if hit, `(IB I1-7/<k>; same as bug 32)`.
+2. **F1-X2 sign table**: for every combination reachable by command of `axis.0.invert` (0 / 1) x `tmc.0.invertForce` (0 / 1; find the command name in `TMC4671.cpp`) x encoder direction (whatever the TMC / axis commands offer for the integrated encoder on the fresh-flash bring-up; if none is reachable, say so and list it as covered by F1-T9 in I2) x two displacement signs: a spring is restoring at the chip (torque opposes the scripted displacement) and a damper opposing (torque opposes the scripted motion). Seam S3 (charter: two independent inversions, axis `invert` and TMC `invertForce`): if any combination gives a pushing spring or an assisting damper, that combination is a `KNOWN_ISSUE` of the intended behaviour (positive feedback is never intended; PID 5.3); decide from the source whether `invertForce` is meant to compensate the motor wiring (then it must flip both the torque and the measured position, or neither) and explain.
+3. **F1-X3 position chain**: scripted 0x6B values -> `axis.0.curpos?` (or the documented position command: find its unit) for 0, +-65536/4, +-65536 counts and a non-multiple: 65536 PhiM counts = 360 degrees (datasheet: PhiM 16 bit per revolution). Seam S1 (charter: the integrated encoder's cpr is returned as 0xffff, `TMC4671.cpp:1932-1941`, `Encoder.cpp:67-72`, `Axis.cpp:1259-1264`): if one revolution reads as 360.0055 degrees, that is a `KNOWN_ISSUE` of the datasheet scaling. Endstop onset: with `axis.0.degrees=D` the endstop torque starts at +-D/2 of rotation (find the firmware's rule; plain test only for "starts at the range edge and pushes back", the gain is I1-8).
+4. **F1-X5 multi-turn**: a ramp over many revolutions (e.g. 20 turns each way) keeps `curpos` continuous (no jump per revolution); scripted jumps towards the ends of the s32 range the chip can report (the datasheet says what 0x6B does at the s32 limit: quote it; scripted values can reach it although a real session would take very long, say so): the axis's out-of-range handling (`outOfBounds` or equivalent: find it in `Axis.cpp`) stops the motor / zeroes the torque at the chip as the firmware documents (the threshold is HD: `characterization:`; "torque 0 at the chip once out of bounds" is the safety property the charter requires: plain).
+
+### Verification
+
+As in `I1_PARALLEL_COMMON.md` item 3 with `--wo I1-7`.

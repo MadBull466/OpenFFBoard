@@ -77,6 +77,42 @@ class Variants(unittest.TestCase):
         self.assertEqual(ig.build_dir_for("/x/repo", "m32"), os.path.realpath("/x/ffb-test-build/it-m32"))
 
 
+class OwnBuildFolders(unittest.TestCase):
+    def test_own_build_folder_names_for_every_variant(self):
+        for v in ig.VARIANT_ARGS:
+            self.assertEqual(ig.build_dir_for("/x/repo", v, "I1-2"), os.path.realpath("/x/ffb-test-build/it-I1-2-%s" % v))
+            self.assertEqual(ig.build_dir_for("/x/repo", v), os.path.realpath("/x/ffb-test-build/it-%s" % v))
+            self.assertEqual(ig.build_dir_for("/x/repo", v, None), ig.build_dir_for("/x/repo", v))
+
+    def test_isolated_build_folder_names_are_separate_from_the_own_build_folders(self):
+        for v in ig.VARIANT_ARGS:
+            self.assertEqual(ig.build_dir_for("/x/repo", v, "I1-2", True), os.path.realpath("/x/ffb-test-build/it-iso-I1-2-%s" % v))
+            self.assertNotEqual(ig.build_dir_for("/x/repo", v, "I1-2", True), ig.build_dir_for("/x/repo", v, "I1-2"))
+
+    def test_odd_characters_of_a_wo_id_cannot_leave_the_build_folder(self):
+        bd = ig.build_dir_for("/x/repo", "m32", "a/../b c")
+        self.assertEqual(os.path.dirname(bd), os.path.realpath("/x/ffb-test-build"))
+
+    def test_a_reference_recorded_in_the_shared_folder_equals_the_per_wo_folder(self):
+        tmp = tempfile.mkdtemp()
+        try:
+            root = os.path.join(tmp, "repo")
+            os.makedirs(root)
+            shared = ig.build_dir_for(root, "default")
+            own = ig.build_dir_for(root, "default", "I1-2")
+            for bd in (shared, own):
+                os.makedirs(bd)
+                with open(os.path.join(bd, "compile_commands.json"), "w") as f:
+                    json.dump([entry(bd, "ffb_unit_tests", "a.cpp"), entry(bd, "ffb_integration_tests", "t.cpp")], f)
+            ig.record_reference(root, shared, "default")
+            self.assertTrue(ig.check_compile_reference(root, own, "default")["ok"])
+            with open(os.path.join(own, "compile_commands.json"), "w") as f:
+                json.dump([entry(own, "ffb_unit_tests", "a.cpp", "-O3")], f)
+            self.assertFalse(ig.check_compile_reference(root, own, "default")["ok"])
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
 class Warnings(unittest.TestCase):
     ROOT = "/r/repo"
     PATS = ["Firmware/Tests/Integration_Tests/*", "Firmware/Tests/CMakeLists.txt"]
@@ -302,6 +338,406 @@ class ScopeAndEvidence(unittest.TestCase):
         self.assertEqual(loaded["scope"], {"result": "OK", "offenders": []})
 
 
+class ActiveWorkOrders(ScopeAndEvidence):
+    """The ACTIVE file and the scope check with other active WOs (reuses the repository of ScopeAndEvidence)."""
+
+    OTHER = "Firmware/Tests/Integration_Tests/support/Other.cpp"
+
+    def write_wo(self, wo, *pats):
+        self.write("Tests/Integration_Tests/claude/charters/wo/%s.files" % wo, "# list\n" + "\n".join(pats) + "\n")
+
+    def write_active(self, text):
+        self.write(ig.ACTIVE_REL, text)
+
+    def scope_with_active(self):
+        active, errors = ig.load_active(self.root, "T-1")
+        return ig.scope_check(self.root, self.pats, active=active, active_errors=errors, wo="T-1")
+
+    def test_active_file_parsing_ignores_comments_blanks_and_duplicates(self):
+        self.assertEqual(ig.parse_active("# head\n\nI1-2  # paused\n  I1-3\nI1-2\n#I1-4\n"), ["I1-2", "I1-3"])
+        self.assertEqual(ig.parse_active(""), [])
+
+    def test_missing_active_file_means_no_other_active_wo(self):
+        self.assertEqual(ig.load_active(self.root, "T-1"), ({}, []))
+
+    def test_load_active_skips_the_current_wo_and_reads_the_lists(self):
+        self.write_wo("I1-2", self.OTHER)
+        self.write_wo("T-1", "Firmware/Tests/CMakeLists.txt")
+        self.write_active("# x\nT-1\nI1-2\n")
+        self.assertEqual(ig.load_active(self.root, "T-1"), ({"I1-2": [self.OTHER]}, []))
+
+    def test_changed_file_of_another_active_wo_is_listed_and_not_an_offender(self):
+        self.write_wo("I1-2", self.OTHER)
+        self.write_active("I1-2\n")
+        self.write(self.OTHER, "x\n")
+        self.write("Firmware/Tests/CMakeLists.txt", "b\n")
+        s = self.scope_with_active()
+        self.assertEqual((s["result"], s["offenders"]), ("OK", []))
+        self.assertEqual(s["other_active"], [self.OTHER + " (I1-2)"])
+        self.assertEqual(s["changed"], ["Firmware/Tests/CMakeLists.txt"])  # files / fingerprint cover only this WO
+
+    def test_file_claimed_by_this_wo_and_an_active_wo_is_an_offender(self):
+        self.write_wo("I1-2", "Firmware/Tests/CMakeLists.txt")
+        self.write_active("I1-2\n")
+        self.write("Firmware/Tests/CMakeLists.txt", "b\n")
+        s = self.scope_with_active()
+        self.assertEqual(s["result"], "FAIL")
+        self.assertIn("claimed by active WOs T-1 and I1-2", s["offenders"][0])
+
+    def test_file_claimed_by_two_other_active_wos_is_an_offender(self):
+        self.write_wo("I1-2", self.OTHER)
+        self.write_wo("I1-3", self.OTHER)
+        self.write_active("I1-2\nI1-3\n")
+        self.write(self.OTHER, "x\n")
+        s = self.scope_with_active()
+        self.assertEqual(s["result"], "FAIL")
+        self.assertIn("claimed by active WOs I1-2 and I1-3", s["offenders"][0])
+        self.assertEqual(s["other_active"], [])
+
+    def test_unchanged_overlap_of_file_lists_is_not_reported(self):
+        self.write_wo("I1-2", "Firmware/Tests/CMakeLists.txt")
+        self.write_active("I1-2\n")
+        self.assertEqual(self.scope_with_active()["result"], "OK")
+
+    def test_active_wo_without_a_files_list_is_an_offender(self):
+        self.write_active("I1-9\n")
+        s = self.scope_with_active()
+        self.assertEqual(s["result"], "FAIL")
+        self.assertIn("I1-9", s["offenders"][0])
+        self.assertIn("configuration error", s["offenders"][0])
+
+    def test_file_of_a_wo_that_is_not_active_is_an_offender_as_before(self):
+        self.write_wo("I1-2", self.OTHER)  # has a list but is not in ACTIVE
+        self.write_active("# nobody\n")
+        self.write(self.OTHER, "x\n")
+        s = self.scope_with_active()
+        self.assertEqual(s["result"], "FAIL")
+        self.assertIn("not in the WO file list", s["offenders"][0])
+
+    def test_protected_and_outside_paths_stay_offenders_with_active_wos(self):
+        self.write_wo("I1-2", "Firmware/FFBoard/Src/Axis.cpp", "Firmware/Tests/Code_Coverage/fakes/Fake.h")
+        self.write_active("I1-2\n")
+        self.write("Firmware/FFBoard/Src/Axis.cpp", "changed\n")
+        s = self.scope_with_active()
+        self.assertEqual(s["result"], "FAIL")
+        self.assertIn("outside Firmware/Tests/", s["offenders"][0])
+        self.write("Firmware/FFBoard/Src/Axis.cpp", "a\n")
+        self.write("Firmware/Tests/Code_Coverage/fakes/Fake.h", "b\n")  # in this WO's list, not approved
+        s = self.scope_with_active()
+        self.assertEqual(s["result"], "FAIL")
+        self.assertIn("claimed by active WOs", s["offenders"][0])
+        self.write_active("# none\n")
+        s = self.scope_with_active()
+        self.assertIn("protected", s["offenders"][0])
+
+    def test_protected_path_only_another_active_wo_lists_is_an_offender(self):
+        # review finding 1: a path that only another active WO lists was not checked against the protected paths
+        self.write_wo("I1-2", "Firmware/Tests/Code_Coverage/fakes/Fake.h", "Firmware/Tests/CMakeLists.txt", self.OTHER)
+        self.write_active("I1-2\n")
+        self.write("Firmware/Tests/Code_Coverage/fakes/Fake.h", "b\n")
+        self.pats = ["Firmware/Tests/Integration_Tests/claude/cases/*.cpp"]
+        s = self.scope_with_active()
+        self.assertEqual(s["result"], "FAIL")
+        self.assertIn("protected", s["offenders"][0])
+        self.assertIn("claimed by active WO I1-2", s["offenders"][0])
+        self.assertEqual(s["other_active"], [])
+        self.write("Firmware/Tests/Code_Coverage/fakes/Fake.h", "a\n")
+        self.write("Firmware/Tests/CMakeLists.txt", "b\n")  # the CMake file is approved in the test repo: only I1-2's business
+        self.write(self.OTHER, "x\n")
+        self.assertEqual(self.scope_with_active()["result"], "OK")
+        self.write(g.APPROVED_FILE, "# none\n")
+        self.assertEqual(self.scope_with_active()["result"], "FAIL")
+
+    def test_pattern_in_the_list_of_another_active_wo_is_an_offender(self):
+        for pat in ("Firmware/Tests/Integration_Tests/support/*.cpp", "Firmware/Tests/a?.cpp", "Firmware/Tests/[ab].cpp"):
+            self.write_wo("I1-2", self.OTHER, pat)
+            self.write_active("I1-2\n")
+            active, errors = ig.load_active(self.root, "T-1")
+            self.assertEqual(active, {}, pat)
+            self.assertEqual(len(errors), 1, pat)
+            self.assertIn("uses a pattern", errors[0])
+            self.assertIn("exact paths", errors[0])
+            self.assertEqual(self.scope_with_active()["result"], "FAIL")
+
+    def test_this_wos_own_list_may_still_use_patterns(self):
+        self.write("Firmware/Tests/Integration_Tests/claude/cases/test_x.cpp", "n\n")
+        self.write_active("# empty\n")
+        self.assertEqual(self.scope_with_active()["result"], "OK")  # self.pats has cases/*.cpp
+
+    def test_active_id_must_match_the_id_pattern_and_is_not_read(self):
+        for bad in ("../x", "i1-2", "I1-", "I1-2/..", "T-1x", "I1_2", "I1-2 3"):
+            self.write_active(bad + "\n")
+            active, errors = ig.load_active(self.root, "T-1")
+            self.assertEqual(active, {}, bad)
+            self.assertEqual(len(errors), 1, bad)
+            self.assertIn("does not match", errors[0])
+        self.assertEqual(self.scope_with_active()["result"], "FAIL")
+
+    def test_the_current_wo_is_skipped_by_exact_id_only(self):
+        self.write_active("T-1\n")
+        self.assertEqual(ig.load_active(self.root, "T-1"), ({}, []))
+        active, errors = ig.load_active(self.root, "t-1")  # other case: not the current WO, and not a valid id
+        self.assertEqual(len(errors), 1)
+
+    def test_undecodable_active_and_files_are_offenders_not_crashes(self):
+        p = os.path.join(self.root, ig.ACTIVE_REL)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "wb") as f:
+            f.write(b"I1-2\n\xff\xfe\n")
+        active, errors = ig.load_active(self.root, "T-1")
+        self.assertEqual((active, len(errors)), ({}, 1))
+        self.write_active("I1-2\n")
+        with open(os.path.join(self.root, ig.WO_DIR_REL, "I1-2.files"), "wb") as f:
+            f.write(b"\xff\xfe\x00")
+        active, errors = ig.load_active(self.root, "T-1")
+        self.assertEqual((active, len(errors)), ({}, 1))
+        self.assertIn("cannot read", errors[0])
+
+    def test_every_scope_result_has_the_other_active_keys(self):
+        keys = {"result", "offenders", "changed", "other_active", "other_active_paths"}
+        self.assertTrue(keys <= set(self.scope_with_active()))
+        bare = tempfile.mkdtemp()  # not a git repository: git status fails
+        try:
+            s = ig.scope_check(bare, self.pats)
+        finally:
+            shutil.rmtree(bare, ignore_errors=True)
+        self.assertEqual(s["result"], "FAIL")
+        self.assertIn("git status failed", s["offenders"][0])
+        self.assertTrue(keys <= set(s))
+        ev = ig.make_evidence(self.root, "T-1", {}, s, "abc", "FAIL")
+        self.assertEqual((ev["other_active"], ev["other_active_blobs"]), ([], {}))
+
+    def test_evidence_records_the_blobs_of_other_active_paths(self):
+        self.write_wo("I1-2", self.OTHER)
+        self.write_active("I1-2\n")
+        self.write(self.OTHER, "x\n")
+        s = self.scope_with_active()
+        ev = ig.make_evidence(self.root, "T-1", {}, s, "abc", "PASS")
+        self.assertEqual(ev["other_active_blobs"], {self.OTHER: g.blob_of_file(self.root, self.OTHER)})
+        self.assertNotIn(self.OTHER, ev["files"])
+
+    def test_evidence_records_own_build_and_other_active(self):
+        self.write_wo("I1-2", self.OTHER)
+        self.write_active("I1-2\n")
+        self.write(self.OTHER, "x\n")
+        self.write("Firmware/Tests/CMakeLists.txt", "b\n")
+        s = self.scope_with_active()
+        ev = ig.make_evidence(self.root, "T-1", {}, s, "abc", "PASS", own_build=True)
+        self.assertIs(ev["own_build"], True)
+        self.assertEqual(ev["other_active"], [self.OTHER + " (I1-2)"])
+        self.assertEqual(list(ev["files"]), ["Firmware/Tests/CMakeLists.txt"])
+        self.assertEqual(ev["fingerprint"], g.fingerprint(ev["files"]))
+        ev = ig.make_evidence(self.root, "T-1", {}, s, "abc", "PASS")
+        self.assertIs(ev["own_build"], False)
+
+
+class IsolatedTree(unittest.TestCase):
+    def setUp(self):
+        self.tmp = os.path.realpath(tempfile.mkdtemp())
+        self.root = os.path.join(self.tmp, "repo")
+        os.makedirs(self.root)
+        for rel, text in (("Firmware/Tests/CMakeLists.txt", "head\n"), ("Firmware/Tests/a.cpp", "head a\n"),
+                          ("Firmware/Tests/gone.cpp", "head gone\n"), ("Firmware/Tests/other.cpp", "head other\n"),
+                          ("Firmware/FFBoard/Src/Axis.cpp", "axis\n"), ("Docs/readme.md", "doc\n")):
+            self.write(rel, text)
+        sh(self.root, "git", "init", "-q", "-b", "add-test-suite")
+        sh(self.root, "git", "add", "-A")
+        sh(self.root, *ID, "commit", "-q", "-m", "init")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def write(self, rel, text):
+        p = os.path.join(self.root, rel)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w") as f:
+            f.write(text)
+
+    def read(self, base, rel):
+        with open(os.path.join(base, rel)) as f:
+            return f.read()
+
+    def test_tree_is_head_plus_exactly_the_wo_files_and_the_shared_repo_is_untouched(self):
+        self.write("Firmware/Tests/a.cpp", "work a\n")  # changed, this WO
+        self.write("Firmware/Tests/new.cpp", "work new\n")  # untracked, this WO
+        os.remove(os.path.join(self.root, "Firmware/Tests/gone.cpp"))  # deleted, this WO
+        self.write("Firmware/Tests/other.cpp", "work other\n")  # another WO's change: must not be in the tree
+        before = sh(self.root, "git", "status", "--porcelain=v1", "-uall")
+        index = sh(self.root, "git", "ls-files", "-s")
+        mine = ["Firmware/Tests/a.cpp", "Firmware/Tests/new.cpp", "Firmware/Tests/gone.cpp"]
+        sroot, blobs = ig.make_isolated_tree(self.root, "I1-9", mine)
+        self.assertEqual(sroot, os.path.join(self.tmp, "ffb-test-build", "it-iso-I1-9", "src"))
+        self.assertEqual(self.read(sroot, "Firmware/Tests/a.cpp"), "work a\n")
+        self.assertEqual(self.read(sroot, "Firmware/Tests/new.cpp"), "work new\n")
+        self.assertFalse(os.path.exists(os.path.join(sroot, "Firmware/Tests/gone.cpp")))
+        self.assertEqual(self.read(sroot, "Firmware/Tests/other.cpp"), "head other\n")
+        self.assertEqual(self.read(sroot, "Firmware/Tests/CMakeLists.txt"), "head\n")
+        self.assertEqual(self.read(sroot, "Docs/readme.md"), "doc\n")  # the whole of HEAD (tool tests read .claude, Tests/)
+        self.assertEqual(blobs["Firmware/Tests/gone.cpp"], None)
+        for rel in mine:  # the overlay is what the working tree has
+            self.assertEqual(blobs[rel], g.blob_of_file(self.root, rel))
+        self.assertEqual(sh(self.root, "git", "status", "--porcelain=v1", "-uall"), before)
+        self.assertEqual(sh(self.root, "git", "ls-files", "-s"), index)
+        self.assertEqual(sh(self.root, "git", "stash", "list"), "")
+
+    def make_submodule(self):
+        sub = os.path.join(self.root, "Firmware/Libraries/Sub")
+        os.makedirs(sub)
+        sh(sub, "git", "init", "-q", "-b", "main")
+        with open(os.path.join(sub, "lib.c"), "w") as f:
+            f.write("lib\n")
+        sh(sub, "git", "add", "-A")
+        sh(sub, *ID, "commit", "-q", "-m", "sub")
+        sha = sh(sub, "git", "rev-parse", "HEAD").strip()
+        sh(self.root, "git", "update-index", "--add", "--cacheinfo", "160000,%s,Firmware/Libraries/Sub" % sha)
+        sh(self.root, *ID, "commit", "-q", "-m", "gitlink")
+        return sub
+
+    def test_submodules_are_the_exact_recorded_commit_whatever_the_checkout_looks_like(self):
+        sub = self.make_submodule()
+        self.assertEqual([p for p, _ in ig.head_submodules(self.root)], ["Firmware/Libraries/Sub"])
+        sroot, _ = ig.make_isolated_tree(self.root, "I1-9", [])
+        self.assertEqual(self.read(sroot, "Firmware/Libraries/Sub/lib.c"), "lib\n")
+        self.assertFalse(os.path.exists(os.path.join(sroot, "Firmware/Libraries/Sub/.git")))
+        with open(os.path.join(sub, "lib.c"), "w") as f:  # a dirty checkout does not leak into the tree
+            f.write("dirty\n")
+        with open(os.path.join(sub, "extra.c"), "w") as f:
+            f.write("untracked\n")
+        sh(sub, "git", "add", "lib.c")
+        sh(sub, *ID, "commit", "-q", "-m", "moved on")  # and neither does a checkout at another commit
+        sroot, _ = ig.make_isolated_tree(self.root, "I1-9", [])
+        self.assertEqual(self.read(sroot, "Firmware/Libraries/Sub/lib.c"), "lib\n")
+        self.assertFalse(os.path.exists(os.path.join(sroot, "Firmware/Libraries/Sub/extra.c")))
+
+    def test_a_submodule_commit_that_is_not_available_locally_fails_clearly(self):
+        self.make_submodule()
+        sh(self.root, "git", "update-index", "--cacheinfo", "160000,%s,Firmware/Libraries/Sub" % ("1234567890abcdef" * 2 + "12345678"))
+        sh(self.root, *ID, "commit", "-q", "-m", "bad gitlink")
+        with self.assertRaises(OSError) as c:
+            ig.make_isolated_tree(self.root, "I1-9", [])
+        self.assertIn("not available locally", str(c.exception))
+        self.assertIn("Firmware/Libraries/Sub", str(c.exception))
+
+    def test_the_archive_is_the_given_commit_not_the_moving_head(self):
+        first = sh(self.root, "git", "rev-parse", "HEAD").strip()
+        self.write("Firmware/Tests/a.cpp", "second commit\n")
+        sh(self.root, "git", "add", "-A")
+        sh(self.root, *ID, "commit", "-q", "-m", "second")
+        sroot, _ = ig.make_isolated_tree(self.root, "I1-9", [], head=first)
+        self.assertEqual(self.read(sroot, "Firmware/Tests/a.cpp"), "head a\n")
+        sroot, _ = ig.make_isolated_tree(self.root, "I1-9", [])  # default: HEAD resolved now
+        self.assertEqual(self.read(sroot, "Firmware/Tests/a.cpp"), "second commit\n")
+        self.assertEqual(ig.resolve_head(self.root), sh(self.root, "git", "rev-parse", "HEAD").strip())
+
+    def test_changed_docs_exclude_codex_and_agents_and_include_deleted_ones(self):
+        raw = ("?? Tests/Integration_Tests/claude/plans/PROGRESS.md\0 M Tests/Integration_Tests/claude/reports/BUG_REPORT.md\0"
+               " D Tests/Integration_Tests/claude/charters/old.md\0?? Tests/Integration_Tests/codex/x.md\0"
+               "?? Tests/Integration_Tests/claude/codex/y.md\0?? AGENTS.md\0?? Firmware/Tests/a.cpp\0")
+        self.assertEqual(ig.changed_docs(self.root, raw), [
+            "Tests/Integration_Tests/claude/charters/old.md", "Tests/Integration_Tests/claude/plans/PROGRESS.md",
+            "Tests/Integration_Tests/claude/reports/BUG_REPORT.md"])
+
+    def test_documents_are_overlaid_from_the_working_tree_with_their_blobs(self):
+        self.write("Tests/Integration_Tests/claude/plans/PROGRESS.md", "head progress\n")
+        self.write("Tests/Integration_Tests/claude/charters/old.md", "old\n")
+        sh(self.root, "git", "add", "-A")
+        sh(self.root, *ID, "commit", "-q", "-m", "docs")
+        self.write("Tests/Integration_Tests/claude/plans/PROGRESS.md", "new progress\n")
+        self.write("Tests/Integration_Tests/claude/charters/new.md", "new\n")
+        os.remove(os.path.join(self.root, "Tests/Integration_Tests/claude/charters/old.md"))
+        self.write("Tests/Integration_Tests/codex/c.md", "codex\n")
+        sroot, _ = ig.make_isolated_tree(self.root, "I1-9", [])
+        self.assertEqual(self.read(sroot, "Tests/Integration_Tests/claude/plans/PROGRESS.md"), "head progress\n")
+        docs = ig.overlay_docs(self.root, sroot)
+        self.assertEqual(self.read(sroot, "Tests/Integration_Tests/claude/plans/PROGRESS.md"), "new progress\n")
+        self.assertEqual(self.read(sroot, "Tests/Integration_Tests/claude/charters/new.md"), "new\n")
+        self.assertFalse(os.path.exists(os.path.join(sroot, "Tests/Integration_Tests/claude/charters/old.md")))
+        self.assertFalse(os.path.exists(os.path.join(sroot, "Tests/Integration_Tests/codex/c.md")))
+        self.assertEqual(sorted(docs), ["Tests/Integration_Tests/claude/charters/new.md", "Tests/Integration_Tests/claude/charters/old.md",
+                                        "Tests/Integration_Tests/claude/plans/PROGRESS.md"])
+        self.assertIsNone(docs["Tests/Integration_Tests/claude/charters/old.md"])
+        self.assertEqual(docs["Tests/Integration_Tests/claude/plans/PROGRESS.md"],
+                         g.blob_of_file(self.root, "Tests/Integration_Tests/claude/plans/PROGRESS.md"))
+
+    def test_a_progress_row_without_a_regenerated_bug_report_fails_the_check_in_the_isolated_tree(self):
+        real = os.path.realpath(os.path.join(HERE, "..", "..", "..", ".."))
+        tool = "Firmware/Tests/Integration_Tests/tools/make_integration_bug_report.py"
+        helper = "Firmware/Tests/Code_Coverage/tools/make_bug_report.py"
+        progress = "Tests/Integration_Tests/claude/plans/PROGRESS.md"
+        report = "Tests/Integration_Tests/claude/reports/BUG_REPORT.md"
+        for rel in (tool, helper, progress):
+            if not os.path.isfile(os.path.join(real, rel)):
+                self.skipTest("missing " + rel)
+            with open(os.path.join(real, rel), encoding="utf-8") as f:
+                self.write(rel, f.read())
+        os.makedirs(os.path.join(self.root, os.path.dirname(report)), exist_ok=True)
+        run_tool = lambda base, *a: subprocess.run([sys.executable, "-B", os.path.join(base, tool)] + list(a),
+                                                   capture_output=True, text=True).returncode
+        self.assertEqual(run_tool(self.root), 0)  # writes the report of the committed registers
+        self.assertEqual(run_tool(self.root, "--check"), 0)
+        sh(self.root, "git", "add", "-A")
+        sh(self.root, *ID, "commit", "-q", "-m", "docs consistent")
+        with open(os.path.join(self.root, progress), encoding="utf-8") as f:
+            text = f.read()
+        i = text.index("## Integration bugs")
+        j = text.index("\n", text.index("|---", i)) + 1
+        self.write(progress, text[:j] + "| IB 9999 | m | l | d | - | t | no |\n" + text[j:])  # register changed, report not regenerated
+        sroot, _ = ig.make_isolated_tree(self.root, "I1-9", [])
+        self.assertEqual(run_tool(sroot, "--check"), 0)  # HEAD documents only: consistent, the new row is invisible
+        ig.overlay_docs(self.root, sroot)
+        self.assertEqual(run_tool(sroot, "--check"), 1)  # the document being committed is checked: stale report
+        self.assertEqual(run_tool(self.root, "--check"), 1)
+
+    def test_the_tree_is_recreated_per_run(self):
+        sroot, _ = ig.make_isolated_tree(self.root, "I1-9", [])
+        self.write("Firmware/Tests/a.cpp", "work a\n")
+        stale = os.path.join(sroot, "Firmware/Tests/leftover.cpp")
+        with open(stale, "w") as f:
+            f.write("x")
+        sroot, _ = ig.make_isolated_tree(self.root, "I1-9", ["Firmware/Tests/a.cpp"])
+        self.assertFalse(os.path.exists(stale))
+        self.assertEqual(self.read(sroot, "Firmware/Tests/a.cpp"), "work a\n")
+
+    def test_a_reference_recorded_from_the_repository_equals_the_isolated_tree_and_a_real_change_fails(self):
+        def cc(build, src, flag="-O0"):
+            return [{"directory": build, "file": src + "/Firmware/Tests/a.cpp", "output": "CMakeFiles/ffb_unit_tests.dir/a.o",
+                     "command": "c++ %s -I%s/gen -I%s/Firmware/Tests -o CMakeFiles/ffb_unit_tests.dir/a.o -c %s/Firmware/Tests/a.cpp"
+                     % (flag, build, src, src)},
+                    {"directory": build, "file": src + "/t.cpp", "output": "CMakeFiles/ffb_integration_tests.dir/t.o",
+                     "command": "c++ -c " + src + "/t.cpp"}]
+        shared = ig.build_dir_for(self.root, "default")
+        os.makedirs(shared)
+        with open(os.path.join(shared, "compile_commands.json"), "w") as f:
+            json.dump(cc(shared, self.root), f)
+        ig.record_reference(self.root, shared, "default")
+        sroot, _ = ig.make_isolated_tree(self.root, "I1-9", [])
+        iso_bd = ig.build_dir_for(self.root, "default", "I1-9")
+        os.makedirs(iso_bd)
+        with open(os.path.join(iso_bd, "compile_commands.json"), "w") as f:
+            json.dump(cc(iso_bd, sroot), f)
+        r = ig.check_compile_reference(self.root, iso_bd, "default", sroot)
+        self.assertTrue(r["ok"], r)
+        self.assertFalse(ig.check_compile_reference(self.root, iso_bd, "default")["ok"])  # the source root matters
+        with open(os.path.join(iso_bd, "compile_commands.json"), "w") as f:
+            json.dump(cc(iso_bd, sroot, "-O3"), f)
+        r = ig.check_compile_reference(self.root, iso_bd, "default", sroot)
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["counts"], [0, 0, 1])
+
+    def test_a_reference_recorded_before_the_source_root_was_normalised_still_compares(self):
+        shared = ig.build_dir_for(self.root, "default")
+        os.makedirs(shared)
+        entries = {"CMakeFiles/x.o|%s/a.cpp" % self.root: "c++ -I%s/inc -c %s/a.cpp" % (self.root, self.root)}
+        path = ig.reference_path(self.root, "default")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as f:
+            json.dump({"format": ig.REF_FORMAT, "entries": entries}, f)
+        with open(os.path.join(shared, "compile_commands.json"), "w") as f:
+            json.dump([{"directory": shared, "file": self.root + "/a.cpp", "output": "CMakeFiles/x.o",
+                        "command": "c++ -I%s/inc -c %s/a.cpp" % (self.root, self.root)}], f)
+        self.assertTrue(ig.check_compile_reference(self.root, shared, "default")["ok"])
+
+
 class SeparatorsAndReference(unittest.TestCase):
     def test_backslashes_are_normalised_before_the_build_dir_replacement(self):
         bd = os.path.realpath(tempfile.mkdtemp())
@@ -427,19 +863,27 @@ class Stub:
         self.calls = []
 
     def bd_of(self, cmd):
+        if "-B" in cmd:
+            return str(cmd[cmd.index("-B") + 1])
         for a in cmd:
-            m = re.search(r"(.*/it-[a-z0-9-]+)", str(a))
+            m = re.search(r"(.*/it-[A-Za-z0-9._-]+)", str(a))
             if m:
                 return m.group(1)
         return None
 
     def variant_of(self, cmd):
-        return re.search(r"it-([a-z0-9-]+)", self.bd_of(cmd)).group(1)
+        name = os.path.basename(self.bd_of(cmd))  # it-<variant> or it-<WO>-<variant>
+        return max((v for v in ig.VARIANT_ARGS if name == "it-" + v or name.endswith("-" + v)), key=len)
 
-    def write_build(self, bd, variant, cache=True):
+    def write_build(self, bd, variant, cache=True, home=None):
         os.makedirs(bd, exist_ok=True)
+        src = self.root
+        if home and home.endswith("/Firmware/Tests"):
+            src = home[:-len("/Firmware/Tests")]  # the compile commands carry the source root of the configure call
         if cache:
             c = CacheCheck().good(variant)
+            if home:
+                c["CMAKE_HOME_DIRECTORY"] = home
             c.update(self.o["cache_override"])
             with open(os.path.join(bd, "CMakeCache.txt"), "w") as f:
                 f.write("".join("%s:STRING=%s\n" % kv for kv in c.items()))
@@ -448,7 +892,7 @@ class Stub:
              "output": "CMakeFiles/ffb_integration_tests.dir/x.o",
              "command": "c++ %s -o CMakeFiles/ffb_integration_tests.dir/x.o -c %s" % (self.o["cc_flag"], os.path.join(self.root, CASE_REL))},
             {"directory": bd, "file": "/src/Axis.cpp", "output": "CMakeFiles/ffb_unit_tests.dir/a.o",
-             "command": "c++ -O0 -o CMakeFiles/ffb_unit_tests.dir/a.o -c /src/Axis.cpp"},
+             "command": "c++ -O0 -I%s/Firmware/Tests/inc -o CMakeFiles/ffb_unit_tests.dir/a.o -c /src/Axis.cpp" % src},
         ]
         if self.o["cc_flag"] != "-O0":
             cc[1]["command"] = cc[1]["command"].replace("-O0", self.o["cc_flag"])  # an OTHER target changed
@@ -468,7 +912,8 @@ class Stub:
         joined = " ".join(str(c) for c in cmd)
         if cmd[0] == "cmake" and "-S" in cmd:
             bd = cmd[cmd.index("-B") + 1]
-            self.write_build(bd, self.variant_of(cmd), cache=not os.path.isfile(os.path.join(bd, "CMakeCache.txt")))
+            self.write_build(bd, self.variant_of(cmd), cache=not os.path.isfile(os.path.join(bd, "CMakeCache.txt")),
+                             home=str(cmd[cmd.index("-S") + 1]))
             rc = o["configure_rc"]
             text = o.get("configure_text", "")
         elif cmd[0] == "cmake" and "help" in cmd:
@@ -750,6 +1195,248 @@ class MainLogic(unittest.TestCase):
         rc, last, _ = self.run_main(["--variants", "default,m32"])
         self.assertEqual(rc, 1)
         self.assertTrue(last.startswith("GATE FAIL ") and "empty" in last)
+
+    def test_own_build_uses_the_per_wo_folders_and_records_it(self):
+        for v in ("default", "m32"):
+            self.assertFalse(os.path.exists(ig.build_dir_for(self.root, v, "T-1")))
+        rc, last, out = self.run_main(["--variants", "default,m32", "--own-build"])
+        self.assertEqual(rc, 0, out)
+        for v in ("default", "m32"):
+            bd = ig.build_dir_for(self.root, v, "T-1")
+            self.assertTrue(os.path.isfile(os.path.join(bd, "CMakeCache.txt")), bd)
+            self.assertIn(bd, out)
+            self.assertEqual(self.latest()["variants"][v]["build_dir"], bd)
+            self.assertEqual(self.latest()["variants"][v]["compile_check"]["ok"], True)
+        ev = self.latest()
+        self.assertIs(ev["own_build"], True)
+        self.assertEqual(ev["result"], "PASS")
+
+    def test_default_run_uses_the_shared_folders_and_own_build_false(self):
+        rc, last, out = self.run_main(["--variants", "default,m32"])
+        self.assertEqual(rc, 0, out)
+        self.assertIs(self.latest()["own_build"], False)
+        self.assertEqual(self.latest()["variants"]["default"]["build_dir"], ig.build_dir_for(self.root, "default"))
+        self.assertFalse(os.path.exists(ig.build_dir_for(self.root, "default", "T-1")))
+
+    def test_other_active_files_are_printed_and_kept_in_the_evidence(self):
+        other = "Firmware/Tests/Integration_Tests/claude/cases/test_other.cpp"
+        self.write("Tests/Integration_Tests/claude/charters/wo/I1-9.files", other + "\n")
+        self.write(ig.ACTIVE_REL, "T-1\nI1-9\n")
+        self.write("Tests/Integration_Tests/claude/charters/wo/T-1.files", CASE_REL + "\n")
+        self.write(other, "x\n")
+        rc, last, out = self.run_main(["--variants", "default,m32"])
+        self.assertEqual(rc, 0, out)
+        self.assertIn("other_active: %s (I1-9)" % other, out)
+        ev = self.latest()
+        self.assertEqual(ev["other_active"], [other + " (I1-9)"])
+        self.assertEqual(list(ev["files"]), [CASE_REL])
+
+    def test_isolated_run_builds_head_plus_the_wo_files_and_records_it(self):
+        other = "Firmware/Tests/Integration_Tests/claude/cases/test_other.cpp"
+        self.write("Tests/Integration_Tests/claude/charters/wo/I1-9.files", other + "\n")
+        self.write("Tests/Integration_Tests/claude/charters/wo/T-1.files", CASE_REL + "\n")
+        self.write(ig.ACTIVE_REL, "T-1\nI1-9\n")
+        self.write(other, "other WO, uncommitted\n")
+        stub = Stub(self.root)
+        import io
+        import contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = ig.main(["--root", self.root, "--wo", "T-1", "--variants", "default,m32", "--isolated"], runner=stub)
+        out = buf.getvalue()
+        self.assertEqual(rc, 0, out)
+        _, sroot = ig.iso_paths(self.root, "T-1")
+        ev = self.latest()
+        self.assertIs(ev["isolated"], True)
+        self.assertEqual(ev["source_root"], sroot)
+        self.assertEqual(list(ev["files"]), [CASE_REL])  # repository-relative
+        self.assertEqual(ev["files"][CASE_REL], g.blob_of_file(self.root, CASE_REL))
+        self.assertEqual(ev["fingerprint"], g.fingerprint(ev["files"]))
+        self.assertEqual(ev["other_active"], [other + " (I1-9)"])
+        self.assertEqual(ev["other_active_blobs"], {other: g.blob_of_file(self.root, other)})
+        self.assertFalse(os.path.exists(os.path.join(sroot, other)))  # not in the tree the build saw
+        with open(os.path.join(sroot, CASE_REL)) as f:
+            self.assertEqual(f.read(), "changed\n")
+        for v in ("default", "m32"):
+            self.assertEqual(ev["variants"][v]["build_dir"], ig.build_dir_for(self.root, v, "T-1", True))
+            self.assertIn("/it-iso-T-1-", ev["variants"][v]["build_dir"])
+            self.assertFalse(os.path.exists(ig.build_dir_for(self.root, v, "T-1")))  # never the writer's own-build folder
+            self.assertTrue(ev["variants"][v]["compile_check"]["ok"])
+        self.assertEqual(ev["git_head"], sh(self.root, "git", "rev-parse", "HEAD").strip())
+        self.assertIn("Tests/Integration_Tests/claude/charters/wo/ACTIVE", ev["docs_overlaid"])  # the lead's documents, not in `files`
+        self.assertTrue(all(k.startswith("Tests/Integration_Tests/") for k in ev["docs_overlaid"]))
+        cfg = [c for c in stub.calls if c[0] == "cmake" and "-S" in c]
+        self.assertTrue(all(c[c.index("-S") + 1] == os.path.join(sroot, "Firmware/Tests") for c in cfg), cfg)
+
+    def run_isolated(self, runner, wo="T-1"):
+        import io
+        import contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = ig.main(["--root", self.root, "--wo", wo, "--variants", "default,m32", "--isolated"], runner=runner)
+        return rc, buf.getvalue()
+
+    def test_isolated_run_fails_when_head_moves_during_the_gate(self):
+        outer = self
+
+        class Committing(Stub):
+            def __call__(self2, cmd, log, cwd=None, timeout=None):
+                if cmd[0] == "ctest" and "-N" not in cmd:
+                    sh(outer.root, *ID, "commit", "-q", "--allow-empty", "-m", "moved")
+                return Stub.__call__(self2, cmd, log, cwd, timeout)
+        head0 = sh(self.root, "git", "rev-parse", "HEAD").strip()
+        rc, out = self.run_isolated(Committing(self.root))
+        self.assertEqual(rc, 1)
+        self.assertIn("HEAD moved during the gate", out.strip().splitlines()[-1])
+        ev = self.latest()
+        self.assertEqual((ev["result"], ev["git_head"]), ("FAIL", head0))  # the commit that was archived, not the new HEAD
+
+    def test_isolated_evidence_records_the_archived_commit_and_the_overlaid_documents(self):
+        self.write("Tests/Integration_Tests/claude/plans/PROGRESS.md", "progress\n")
+        self.write("Tests/Integration_Tests/codex/c.md", "codex\n")
+        rc, out = self.run_isolated(Stub(self.root))
+        self.assertEqual(rc, 0, out)
+        ev = self.latest()
+        d = "Tests/Integration_Tests/claude/plans/PROGRESS.md"
+        self.assertIn(d, ev["docs_overlaid"])
+        self.assertEqual(ev["docs_overlaid"][d], g.blob_of_file(self.root, d))
+        self.assertTrue(all("codex" not in k for k in ev["docs_overlaid"]))
+        self.assertNotIn(d, ev["files"])
+        self.assertEqual(list(ev["files"]), [CASE_REL])
+        _, sroot = ig.iso_paths(self.root, "T-1")
+        with open(os.path.join(sroot, d)) as f:
+            self.assertEqual(f.read(), "progress\n")
+
+    def test_isolated_run_fails_when_a_document_changes_during_the_run(self):
+        outer = self
+        self.write("Tests/Integration_Tests/claude/plans/PROGRESS.md", "progress\n")
+
+        class Editing(Stub):
+            def __call__(self2, cmd, log, cwd=None, timeout=None):
+                if cmd[0] == "ctest" and "-N" not in cmd:
+                    outer.write("Tests/Integration_Tests/claude/plans/PROGRESS.md", "edited\n")
+                return Stub.__call__(self2, cmd, log, cwd, timeout)
+        rc, out = self.run_isolated(Editing(self.root))
+        self.assertEqual(rc, 1)
+        self.assertIn("documents under Tests/Integration_Tests/ changed", out.strip().splitlines()[-1])
+
+    def test_gate_scripts_run_from_the_isolated_tree_in_isolated_mode_only(self):
+        stub = Stub(self.root)
+        rc, out = self.run_isolated(stub)
+        self.assertEqual(rc, 0, out)
+        _, sroot = ig.iso_paths(self.root, "T-1")
+        scripts = [c[2] for c in stub.calls if len(c) > 2 and str(c[2]).endswith(("check_baseline.py", "summarise_results.py"))]
+        self.assertEqual(len(scripts), 4)
+        self.assertTrue(all(x.startswith(sroot + os.sep) for x in scripts), scripts)
+        stub = Stub(self.root)
+        self.run_main(["--variants", "default,m32"])
+        stub2 = Stub(self.root)
+        import io
+        import contextlib
+        with contextlib.redirect_stdout(io.StringIO()):
+            ig.main(["--root", self.root, "--wo", "T-1", "--variants", "default,m32"], runner=stub2)
+        scripts = [c[2] for c in stub2.calls if len(c) > 2 and str(c[2]).endswith(("check_baseline.py", "summarise_results.py"))]
+        self.assertTrue(scripts and all(x.startswith(self.root + os.sep) for x in scripts), scripts)
+
+    def test_dropping_the_isolated_source_root_from_the_compile_check_makes_it_fail(self):
+        # the stub's compile commands carry the source root of the configure call (-I<src>/Firmware/Tests/inc)
+        rc, out = self.run_isolated(Stub(self.root))
+        self.assertEqual(rc, 0, out)
+        saved = ig.check_compile_reference
+        ig.check_compile_reference = lambda root, bd, variant, src_root=None: saved(root, bd, variant)  # the old behaviour
+        try:
+            rc, out = self.run_isolated(Stub(self.root))
+        finally:
+            ig.check_compile_reference = saved
+        self.assertEqual(rc, 1)
+        self.assertIn("compile commands differ", out)
+
+    def test_a_build_folder_of_another_source_tree_is_deleted_and_configured_fresh(self):
+        bd = ig.build_dir_for(self.root, "default", "T-1")
+        Stub(self.root).write_build(bd, "default", home="/somewhere/else/Firmware/Tests")
+        marker = os.path.join(bd, "stale-object.o")
+        with open(marker, "w") as f:
+            f.write("x")
+        rc, last, out = self.run_main(["--variants", "default,m32", "--own-build"])
+        self.assertEqual(rc, 0, out)
+        self.assertIn("deleted, configuring fresh", out)
+        self.assertFalse(os.path.exists(marker))
+        self.assertIn("fresh_configure", self.latest()["variants"]["default"])
+        self.assertNotIn("fresh_configure", self.latest()["variants"]["m32"])
+
+    def test_a_build_folder_of_this_repository_is_reused(self):
+        bd = ig.build_dir_for(self.root, "default", "T-1")
+        Stub(self.root).write_build(bd, "default", home=os.path.join(self.root, "Firmware/Tests"))
+        marker = os.path.join(bd, "kept-object.o")
+        with open(marker, "w") as f:
+            f.write("x")
+        rc, last, out = self.run_main(["--variants", "default,m32", "--own-build"])
+        self.assertEqual(rc, 0, out)
+        self.assertTrue(os.path.exists(marker))
+        self.assertNotIn("fresh_configure", self.latest()["variants"]["default"])
+
+    def test_isolated_run_fails_when_the_wo_files_change_during_the_run(self):
+        stub = Stub(self.root)
+        orig = stub.__call__
+        root = self.root
+        outer = self
+
+        class Changing(Stub):
+            def __call__(self2, cmd, log, cwd=None, timeout=None):
+                if cmd[0] == "ctest" and "-N" not in cmd:
+                    outer.write(CASE_REL, "edited while the gate runs\n")
+                return Stub.__call__(self2, cmd, log, cwd, timeout)
+        import io
+        import contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = ig.main(["--root", root, "--wo", "T-1", "--variants", "default,m32", "--isolated"], runner=Changing(root))
+        self.assertEqual(rc, 1)
+        self.assertIn("changed while the isolated gate ran", buf.getvalue().strip().splitlines()[-1])
+
+    def test_isolated_run_does_not_build_when_the_scope_fails(self):
+        self.write("Firmware/FFBoard/Src/Axis.cpp", "changed by mistake\n")
+        stub = Stub(self.root)
+        import io
+        import contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = ig.main(["--root", self.root, "--wo", "T-1", "--variants", "default,m32", "--isolated"], runner=stub)
+        self.assertEqual(rc, 1)
+        self.assertEqual(stub.calls, [])
+        self.assertTrue(buf.getvalue().strip().splitlines()[-1].startswith("GATE FAIL "))
+
+    def test_git_status_failure_ends_with_a_gate_fail_line(self):
+        shutil.rmtree(os.path.join(self.root, ".git"))  # not a repository any more: git status fails
+        rc, last, out = self.run_main(["--variants", "default,m32"])
+        self.assertEqual(rc, 1)
+        self.assertTrue(last.startswith("GATE FAIL "), last)
+        self.assertIn("git status failed", out)
+
+    def test_an_unexpected_error_still_ends_with_a_gate_fail_line(self):
+        import io
+        import contextlib
+        buf = io.StringIO()
+        saved = ig.scope_check
+        ig.scope_check = lambda *a, **k: 1 / 0
+        try:
+            with contextlib.redirect_stdout(buf):
+                rc = ig.main(["--root", self.root, "--wo", "T-1", "--variants", "default,m32"], runner=Stub(self.root))
+        finally:
+            ig.scope_check = saved
+        self.assertEqual(rc, 1)
+        self.assertTrue(buf.getvalue().strip().splitlines()[-1].startswith("GATE FAIL internal error"))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(ig.main(["--no-such-option"]), 1)
+        self.assertTrue(buf.getvalue().strip().splitlines()[-1].startswith("GATE FAIL "))
+
+    def test_undecodable_wo_file_list_is_a_gate_fail(self):
+        with open(os.path.join(self.root, "Tests/Integration_Tests/claude/charters/wo/T-1.files"), "wb") as f:
+            f.write(b"\xff\xfe")
+        rc, last, _ = self.run_main(["--variants", "default,m32"])
+        self.assertEqual(rc, 1)
+        self.assertTrue(last.startswith("GATE FAIL ") and "cannot be read" in last)
 
     def test_scope_check_sees_the_deleted_source_of_a_rename(self):
         sh(self.root, "git", "mv", "Firmware/FFBoard/Src/Axis.cpp", "Firmware/Tests/Integration_Tests/claude/cases/test_moved.cpp")

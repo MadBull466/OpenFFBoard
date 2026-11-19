@@ -1,0 +1,3 @@
+# Files of WO I1-T1 (read by it_gate.py): parallel-agent support of the gate
+Firmware/Tests/Integration_Tests/tools/it_gate.py
+Firmware/Tests/Integration_Tests/tools/test_it_gate.py

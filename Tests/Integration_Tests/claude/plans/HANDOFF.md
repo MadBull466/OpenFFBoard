@@ -27,7 +27,7 @@ Phase I0 is complete and was approved by the owner on 2026-11-18 ([../reports/I0
 
 ## Method (per work order)
 
-Lead writes a self-contained work order -> `integration-test-writer` implements it and runs `it_gate.py` (64-bit and 32-bit) -> `integration-reviewer` reviews in a fresh context -> writer fixes -> gate -> lead QC -> `PROGRESS.md`, this file, registers, generated bug report -> local commit with the gate fingerprint. Details: `AGENT_PLAN.md` section 3.
+Up to four agents at once, only on independent work; a step that another uses or affects is finished, reviewed and committed first (owner, 2026-11-19): parallel writers on disjoint file lists, each listed in `../charters/wo/ACTIVE`, gate with `--own-build`; the lead's final gate in the shared folders before each commit (`AGENT_PLAN.md` section 3). Lead writes a self-contained work order -> `integration-test-writer` implements it and runs `it_gate.py` (64-bit and 32-bit) -> `integration-reviewer` reviews in a fresh context -> writer fixes -> gate -> lead QC -> `PROGRESS.md`, this file, registers, generated bug report -> local commit with the gate fingerprint. Details: `AGENT_PLAN.md` section 3.
 
 ## Hooks (since WO I0-1)
 

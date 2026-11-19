@@ -1,19 +1,44 @@
 #!/usr/bin/env python3
 """Gate of the OpenFFBoard integration track (Tests/Integration_Tests/claude/plans/AGENT_PLAN.md sections 2.3 and 2.4).
 
-  python3 -B Firmware/Tests/Integration_Tests/tools/it_gate.py --wo <ID> [--variants default,m32] [--full] [--files <path>]
+  python3 -B Firmware/Tests/Integration_Tests/tools/it_gate.py --wo <ID> [--variants default,m32] [--full] [--own-build | --isolated] [--files <path>]
   python3 -B Firmware/Tests/Integration_Tests/tools/it_gate.py --record-compile-reference <build dir> --variant <name>
 
-Per variant (build directory ../ffb-test-build/it-<variant>, outside the repository):
+Per variant (build directory ../ffb-test-build/it-<variant>, outside the repository; with --own-build
+../ffb-test-build/it-<WO>-<variant>, so parallel writers do not share a build folder; the lead's final gate uses the
+shared folders (an existing build folder whose CMAKE_HOME_DIRECTORY is not this repository's Firmware/Tests is deleted and
+configured fresh, with a note in the run log); the compile reference of it-gate/ is the same for both layouts, the build directory is normalised away):
   1. configure (if there is no CMakeCache.txt) and build; a compiler or CMake warning in a file of the WO's file list fails;
   2. ctest --output-on-failure;
   3. Code_Coverage/tools/check_baseline.py --build-dir <dir>;
   4. ffb_integration_tests -r=xml, summarised by Code_Coverage/tools/summarise_results.py;
   5. the compile commands of every target other than ffb_integration_tests equal the recorded reference
      (../ffb-test-build/it-gate/compile_reference-<variant>.json).
+--isolated (the lead's final gate before a commit): the build uses a source tree outside the repository,
+../ffb-test-build/it-iso-<WO>/src = `git archive <HEAD commit id, resolved once>` (the whole repository: the tool tests of
+ctest read .claude and Tests/) plus the submodules below Firmware/ (CMSIS-DSP: `git archive` of the commit HEAD records,
+from the submodule's local repository) plus exactly this WO's changed / untracked files copied from the working tree
+(deleted files removed) plus every changed / untracked / deleted path under Tests/Integration_Tests/ (the documents of
+the commit: PROGRESS.md, BUG_REPORT.md, charters; never codex/ or AGENTS.md), so integration_tool_tests checks the
+documents being committed. The evidence records `git_head` = the archived commit (the gate fails when HEAD moved during
+the run), `isolated`, `source_root` and `docs_overlaid` ({path: blob}; not part of `files`). The scripts of the gate
+(check_baseline.py, summarise_results.py, its baseline) are taken from the isolated tree. Build directories
+../ffb-test-build/it-iso-<WO>-<variant> (never the writer's it-<WO>-<variant>); both are
+deleted and re-created per run. Nothing in the shared working tree, index or stash is touched, so a PASS cannot depend
+on another active WO's uncommitted files. The compile reference compares equal because the build directory and the
+source root are both normalised (@BUILD@, @SRC@).
 After all variants: scope check (git status of Firmware/ against the WO file list and the protected paths of the hooks).
+Parallel work orders: Tests/Integration_Tests/claude/charters/wo/ACTIVE (one WO id per line, # comments; missing file =
+none) names the other active WOs. A changed path under Firmware/Tests/ that is not in this WO's list but is in the
+.files list of exactly one other active WO is not an offender; it is reported as `other_active`. A changed path claimed
+by two WOs (this one and an active one, or two active ones) is an offender, and so is an active WO without a .files file.
+A path only another active WO lists still goes through the protected-path check (offender when protected). Other active
+WOs must use exact paths (no `*?[` in their list) and an id matching ^I[0-9]+-[A-Za-z0-9]+$ (else offender, file not
+read); this WO's own list may use patterns. The current WO is skipped in ACTIVE by exact (case-sensitive) id match.
 Evidence: ../ffb-test-build/it-gate/<WO>/<UTC timestamp>.json and latest.json, in the format of .claude/hooks/guard_lib.py
-(`files` = git blob of every changed or untracked file under Firmware/ that is in the WO list, `fingerprint`).
+(`files` = git blob of every changed or untracked file under Firmware/ that is in the WO list, `fingerprint`;
+plus `own_build`, `isolated`, `source_root`, `other_active` and `other_active_blobs` (git blob of each other_active path,
+so a later gate can see that another WO's file changed during a run)).
 The last line printed is `GATE PASS <evidence path>` or `GATE FAIL <reason>`; exit status 0 / 1.
 
 Python standard library only (plus .claude/hooks/guard_lib.py of this repository).
@@ -21,6 +46,7 @@ Python standard library only (plus .claude/hooks/guard_lib.py of this repository
 
 import argparse
 import datetime
+import io
 import fnmatch
 import json
 import os
@@ -29,6 +55,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tarfile
 
 sys.dont_write_bytecode = True
 
@@ -82,9 +109,65 @@ def variant_list(spec, full):
     return out
 
 
-def build_dir_for(root, variant):
-    """../ffb-test-build/it-<variant>, resolved from the repository root."""
-    return os.path.realpath(os.path.join(root, "..", "ffb-test-build", "it-" + variant))
+def build_dir_for(root, variant, wo=None, iso=False):
+    """../ffb-test-build/it-<variant>, resolved from the repository root; with a WO id (--own-build)
+    ../ffb-test-build/it-<WO>-<variant>; iso (--isolated) ../ffb-test-build/it-iso-<WO>-<variant>."""
+    name = "it-" + variant
+    if wo:
+        name = "it-%s%s-%s" % ("iso-" if iso else "", re.sub(r"[^A-Za-z0-9._-]", "_", wo), variant)
+    return os.path.realpath(os.path.join(root, "..", "ffb-test-build", name))
+
+
+ACTIVE_REL = "Tests/Integration_Tests/claude/charters/wo/ACTIVE"
+WO_DIR_REL = "Tests/Integration_Tests/claude/charters/wo"
+ACTIVE_ID = re.compile(r"^I[0-9]+-[A-Za-z0-9]+$")
+
+
+def parse_active(text):
+    """WO ids of the ACTIVE file: one per line, # comments and blank lines ignored, no duplicates."""
+    out = []
+    for line in text.splitlines():
+        line = line.split("#", 1)[0].strip()
+        if line and line not in out:
+            out.append(line)
+    return out
+
+
+def load_active(root, wo=None):
+    """(patterns of the other active WOs {id: [pattern]}, configuration errors [str]). The current WO is skipped (exact,
+    case-sensitive id match). A missing ACTIVE file means no other active WO. Errors: an id that does not match
+    ACTIVE_ID (its file is not read), an unreadable / undecodable ACTIVE or .files file, a missing .files file, a
+    pattern with glob characters in the list of another active WO (parallel WOs need exact paths)."""
+    try:
+        with open(os.path.join(root, ACTIVE_REL), encoding="utf-8") as f:
+            ids = parse_active(f.read())
+    except FileNotFoundError:
+        return {}, []
+    except (OSError, ValueError) as e:
+        return {}, ["cannot read %s: %s (configuration error)" % (ACTIVE_REL, e)]
+    active, errors = {}, []
+    for i in ids:
+        if i == wo:
+            continue
+        if not ACTIVE_ID.match(i):
+            errors.append("ACTIVE id %r does not match ^I[0-9]+-[A-Za-z0-9]+$ (configuration error)" % i)
+            continue
+        path = os.path.join(root, WO_DIR_REL, i + ".files")
+        try:
+            with open(path, encoding="utf-8") as f:
+                pats = parse_file_list(f.read())
+        except FileNotFoundError:
+            errors.append("ACTIVE names WO %s but %s is missing (configuration error)" % (i, path))
+            continue
+        except (OSError, ValueError) as e:
+            errors.append("ACTIVE WO %s: cannot read %s: %s (configuration error)" % (i, path, e))
+            continue
+        globs = [x for x in pats if any(c in x for c in "*?[")]
+        if globs:
+            errors.append("active WO %s uses a pattern (%s): parallel WOs need exact paths" % (i, globs[0]))
+            continue
+        active[i] = pats
+    return active, errors
 
 
 def parse_file_list(text):
@@ -150,17 +233,22 @@ def is_integration_entry(entry):
     return ("CMakeFiles/%s.dir/" % EXE) in entry.get("command", "")
 
 
-def normalise_entries(entries, build_dir):
+def normalise_entries(entries, build_dir, src_root=None):
     """{ "<output>|<file>": command } of the entries of all targets except ffb_integration_tests; the absolute build
-    directory is replaced by @BUILD@ so two build directories of the same variant compare equal."""
+    directory is replaced by @BUILD@ and the source root (repository root or isolated source tree) by @SRC@, so two
+    build directories or source trees of the same variant compare equal."""
     bd = os.path.realpath(build_dir).replace("\\", "/").rstrip("/")
+    sd = os.path.realpath(src_root).replace("\\", "/").rstrip("/") if src_root else None
     out = {}
     for e in entries:
         if is_integration_entry(e):
             continue
 
         def norm(s):
-            return s.replace("\\", "/").replace(bd, "@BUILD@") if isinstance(s, str) else s
+            if not isinstance(s, str):
+                return s
+            s = s.replace("\\", "/").replace(bd, "@BUILD@")
+            return s.replace(sd, "@SRC@") if sd else s
         key = "%s|%s" % (norm(e.get("output", "")), norm(e.get("file", "")))
         out[key] = norm(e.get("command", " ".join(e.get("arguments", []))))
     return out
@@ -183,8 +271,15 @@ def read_compile_commands(build_dir):
         return json.load(f)
 
 
+def renorm_reference(entries, root):
+    """A stored reference with the repository root replaced by @SRC@ (no-op for references recorded with @SRC@, makes
+    the references recorded before the source root was normalised comparable)."""
+    rd = os.path.realpath(root).replace("\\", "/").rstrip("/")
+    return {k.replace(rd, "@SRC@"): v.replace(rd, "@SRC@") for k, v in entries.items()}
+
+
 def record_reference(root, build_dir, variant):
-    entries = normalise_entries(read_compile_commands(build_dir), build_dir)
+    entries = normalise_entries(read_compile_commands(build_dir), build_dir, root)
     path = reference_path(root, variant)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
@@ -193,7 +288,7 @@ def record_reference(root, build_dir, variant):
     return path, len(entries)
 
 
-def check_compile_reference(root, build_dir, variant):
+def check_compile_reference(root, build_dir, variant, src_root=None):
     """Result dict: ok, entries, missing / extra / changed (first few), message."""
     path = reference_path(root, variant)
     if not os.path.isfile(path):
@@ -205,8 +300,8 @@ def check_compile_reference(root, build_dir, variant):
         if data.get("format") != REF_FORMAT:
             return {"ok": False, "message": "compile reference %s has format %r, expected %d: record it again" % (
                 path, data.get("format"), REF_FORMAT)}
-        ref = data["entries"]
-        cur = normalise_entries(read_compile_commands(build_dir), build_dir)
+        ref = renorm_reference(data["entries"], root)
+        cur = normalise_entries(read_compile_commands(build_dir), build_dir, src_root or root)
     except (OSError, ValueError, KeyError) as e:
         return {"ok": False, "message": "cannot compare compile commands: %s" % e}
     missing, extra, changed = compare_entries(ref, cur)
@@ -235,23 +330,34 @@ def parse_porcelain(raw):
     return out
 
 
-def scope_check(root, patterns, block_reason=None, status_raw=None):
+def _scope_result(offenders, changed, other_active):
+    return {"result": "FAIL" if offenders else "OK", "offenders": offenders, "changed": sorted(changed),
+            "other_active": sorted(p + " (" + w + ")" for p, w in other_active),
+            "other_active_paths": sorted(p for p, _ in other_active)}
+
+
+def scope_check(root, patterns, block_reason=None, status_raw=None, active=None, active_errors=None, wo="this WO"):
     """Scope of the working tree below Firmware/ against the WO file list.
 
-    Returns {"result": "OK"|"FAIL", "offenders": [str], "changed": [rel paths in the list]}.
+    Returns {"result": "OK"|"FAIL", "offenders": [str], "changed": [rel paths in the list],
+             "other_active": ["<path> (<WO>)"], "other_active_paths": [path]}.
+    `active` = {WO id: patterns} of the other active WOs, `active_errors` = their configuration errors (offenders).
       - ignored paths outside Firmware/Tests/, and any path outside Firmware/Tests/: offender
-      - a changed or untracked path under Firmware/Tests/ that is not in the list: offender
-      - a changed path in the list that the hooks protect (guard_lib.path_block_reason, i.e. not approved): offender"""
+      - a changed or untracked path under Firmware/Tests/ that is not in the list: offender, unless exactly one other
+        active WO lists it (then it is reported in "other_active"); a path claimed by two WOs is an offender
+      - a changed path that the hooks protect (guard_lib.path_block_reason, i.e. not approved): offender, also when only
+        another active WO lists it"""
     if block_reason is None:
         def block_reason(rel):
             return guard_lib.path_block_reason(rel, root)
+    active = active or {}
+    offenders, changed, other_active = list(active_errors or []), [], []
     if status_raw is None:
         r = subprocess.run(["git", "-C", root, "status", "--porcelain=v1", "-z", "-uall", "--ignored", "--no-renames", "--", "Firmware"],
                            capture_output=True, text=True)
         if r.returncode != 0:
-            return {"result": "FAIL", "offenders": ["git status failed: " + r.stderr.strip()], "changed": []}
+            return _scope_result(offenders + ["git status failed: " + " ".join(r.stderr.split())], [], [])
         status_raw = r.stdout
-    offenders, changed = [], []
     for status, rel in parse_porcelain(status_raw):
         ignored = status == "!!"
         if not rel.startswith("Firmware/"):
@@ -261,18 +367,27 @@ def scope_check(root, patterns, block_reason=None, status_raw=None):
             continue
         if ignored:
             continue  # ignored files below Firmware/Tests/ (build leftovers) are not part of the change
-        if not matches(rel, patterns):
+        own = matches(rel, patterns)
+        owners = ([wo] if own else []) + [w for w, pats in sorted(active.items()) if matches(rel, pats)]
+        if len(owners) > 1:
+            offenders.append("%s: claimed by active WOs %s" % (rel, " and ".join(owners)))
+            continue
+        if not own and not owners:
             offenders.append("%s: not in the WO file list" % rel)
             continue
         reason = block_reason(rel)
         if reason:
-            offenders.append("%s: protected (%s)" % (rel, reason))
+            offenders.append("%s: protected (%s)%s" % (rel, reason, "" if own else ", claimed by active WO " + owners[0]))
             continue
-        changed.append(rel)
-    return {"result": "FAIL" if offenders else "OK", "offenders": offenders, "changed": sorted(changed)}
+        if own:
+            changed.append(rel)
+        else:
+            other_active.append((rel, owners[0]))
+    return _scope_result(offenders, changed, other_active)
 
 
-def make_evidence(root, wo, variants, scope, git_head, result, now=None, requested=None, files_path=None, patterns=None):
+def make_evidence(root, wo, variants, scope, git_head, result, now=None, requested=None, files_path=None, patterns=None,
+                  own_build=False, isolated=False, source_root=None, docs_overlaid=None):
     """The evidence dict in the format guard_lib.load_evidence / fingerprint expect."""
     files = {rel: guard_lib.blob_of_file(root, rel) for rel in scope.get("changed", [])}
     return {
@@ -287,11 +402,17 @@ def make_evidence(root, wo, variants, scope, git_head, result, now=None, request
         "file_patterns": list(patterns or []),
         "variants": variants,
         "scope": {"result": scope["result"], "offenders": scope["offenders"]},
+        "own_build": bool(own_build),
+        "isolated": bool(isolated),
+        "docs_overlaid": dict(docs_overlaid or {}),
+        "source_root": source_root or root,
+        "other_active": list(scope.get("other_active", [])),
+        "other_active_blobs": {rel: guard_lib.blob_of_file(root, rel) for rel in scope.get("other_active_paths", [])},
     }
 
 
 def final_line(ok, evidence_path=None, reason=""):
-    return ("GATE PASS %s" % evidence_path) if ok else ("GATE FAIL %s" % (reason or "see the evidence"))
+    return ("GATE PASS %s" % evidence_path) if ok else ("GATE FAIL %s" % (" ".join(reason.split()) or "see the evidence"))  # always one line
 
 
 def parse_counts(summary_text):
@@ -439,23 +560,147 @@ def run(cmd, log_path, cwd=None, timeout=None):
     return rc, text
 
 
+def iso_paths(root, wo):
+    """(base folder, source root) of the isolated tree of a WO: ../ffb-test-build/it-iso-<WO>[/src]."""
+    safe = re.sub(r"[^A-Za-z0-9._-]", "_", wo)
+    base = os.path.realpath(os.path.join(root, "..", "ffb-test-build", "it-iso-" + safe))
+    return base, os.path.join(base, "src")
+
+
+def head_submodules(root):
+    """[(path, commit)] of the gitlinks of HEAD below Firmware/."""
+    r = subprocess.run(["git", "-C", root, "ls-tree", "-r", "-z", "HEAD", "Firmware"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if r.returncode != 0:
+        raise OSError("git ls-tree failed: " + " ".join(r.stderr.split()))
+    out = []
+    for line in r.stdout.split("\0"):
+        meta, _, path = line.partition("\t")
+        parts = meta.split()
+        if len(parts) == 3 and parts[0] == "160000":
+            out.append((path, parts[2]))
+    return out
+
+
+def _extract_tar(data, dest):
+    with tarfile.open(fileobj=io.BytesIO(data)) as t:
+        if hasattr(tarfile, "fully_trusted_filter"):
+            t.extractall(dest, filter="fully_trusted")  # our own `git archive`
+        else:
+            t.extractall(dest)
+
+
+def copy_submodules(root, sroot):
+    """Extracts `git archive <recorded commit>` of every submodule below Firmware/ into the isolated tree (an exact copy
+    of the commit HEAD records, whatever the submodule's checkout looks like); the commit must be available locally."""
+    for path, commit in head_submodules(root):
+        sub = os.path.join(root, path)
+        r = subprocess.run(["git", "-C", sub, "archive", "--format=tar", commit], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if r.returncode != 0:
+            raise OSError("commit %s of submodule %s is not available locally (git archive: %s)" % (
+                commit[:12], path, " ".join(r.stderr.decode("utf-8", "replace").split())))
+        dst = os.path.join(sroot, path)
+        shutil.rmtree(dst, ignore_errors=True)
+        os.makedirs(dst)
+        _extract_tar(r.stdout, dst)
+
+
+def resolve_head(root):
+    """The commit id of HEAD ('' when git fails)."""
+    r = subprocess.run(["git", "-C", root, "rev-parse", "HEAD"], capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def make_isolated_tree(root, wo, changed, head=None):
+    """Deletes and re-creates the isolated source tree of `wo`: `git archive <head>` (default: HEAD resolved now;
+    read-only on the shared repository), the submodules below Firmware/ (git archive leaves them empty) from their
+    recorded commits, plus the WO's changed / untracked files copied from the working tree (a deleted file is removed).
+    Returns (source root, {rel: git blob of the file in the isolated tree})."""
+    head = head or resolve_head(root)
+    if not head:
+        raise OSError("cannot resolve HEAD")
+    base, sroot = iso_paths(root, wo)
+    shutil.rmtree(base, ignore_errors=True)
+    os.makedirs(sroot)
+    r = subprocess.run(["git", "-C", root, "archive", "--format=tar", head], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if r.returncode != 0:
+        raise OSError("git archive failed: " + " ".join(r.stderr.decode("utf-8", "replace").split()))
+    _extract_tar(r.stdout, sroot)
+    copy_submodules(root, sroot)
+    blobs = {}
+    for rel in changed:
+        src, dst = os.path.join(root, rel), os.path.join(sroot, rel)
+        if os.path.isfile(src):
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            shutil.copyfile(src, dst)
+        elif os.path.lexists(dst):
+            os.remove(dst)
+        blobs[rel] = guard_lib.blob_of_file(sroot, rel)
+    return sroot, blobs
+
+
+DOCS_DIR = "Tests/Integration_Tests"
+
+
+def changed_docs(root, status_raw=None):
+    """Repo-relative paths under Tests/Integration_Tests/ that are changed, untracked or deleted in the working tree,
+    without codex/ paths and AGENTS.md."""
+    if status_raw is None:
+        r = subprocess.run(["git", "-C", root, "status", "--porcelain=v1", "-z", "-uall", "--no-renames", "--", DOCS_DIR],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            raise OSError("git status failed: " + " ".join(r.stderr.split()))
+        status_raw = r.stdout
+    out = []
+    for _, rel in parse_porcelain(status_raw):
+        parts = rel.split("/")
+        if not rel.startswith(DOCS_DIR + "/") or "codex" in parts or rel == "AGENTS.md":
+            continue
+        out.append(rel)
+    return sorted(out)
+
+
+def overlay_docs(root, sroot, status_raw=None):
+    """Copies the changed documents under Tests/Integration_Tests/ into the isolated tree (deleted ones are removed).
+    Returns {rel: git blob of the working-tree file (None = deleted)}."""
+    blobs = {}
+    for rel in changed_docs(root, status_raw):
+        src, dst = os.path.join(root, rel), os.path.join(sroot, rel)
+        if os.path.isfile(src):
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            shutil.copyfile(src, dst)
+        elif os.path.lexists(dst):
+            os.remove(dst)
+        blobs[rel] = guard_lib.blob_of_file(root, rel)
+    return blobs
+
+
 def _fail(res, reason):
     res["ok"] = False
     res["reason"] = reason
     return res
 
 
-def run_variant(root, variant, patterns, evid_dir, runner=run):
+def run_variant(root, variant, patterns, evid_dir, runner=run, own_wo=None, src_root=None, iso=False):
     """Configure, build, test one variant. `runner(cmd, log_path, cwd=None, timeout=None) -> (rc, text)` runs every
-    subprocess (injectable for the unit tests). Returns a result dict with `ok` and, when not ok, `reason`."""
-    bd = build_dir_for(root, variant)
+    subprocess (injectable for the unit tests). `own_wo` = WO id of --own-build. Returns a result dict with `ok` and,
+    when not ok, `reason`."""
+    bd = build_dir_for(root, variant, own_wo, iso)
+    sroot = src_root or root  # repository root or isolated source tree
     os.makedirs(os.path.dirname(bd), exist_ok=True)
     res = {"build_dir": bd}
 
     def logs(n):
         return os.path.join(evid_dir, "%s.%s.log" % (variant, n))
-    src = os.path.join(root, SOURCE_DIR)
+    src = os.path.join(sroot, SOURCE_DIR)
     cache_file = os.path.join(bd, "CMakeCache.txt")
+
+    # a build folder configured for another source tree (another checkout or an isolated tree) is not reused
+    home = read_cache(bd).get("CMAKE_HOME_DIRECTORY") if os.path.isfile(cache_file) else None
+    if home and os.path.realpath(home) != os.path.realpath(src):
+        note = "build directory %s was configured for %s, not %s: deleted, configuring fresh" % (bd, home, src)
+        print("   " + note, flush=True)
+        res["fresh_configure"] = note
+        shutil.rmtree(bd, ignore_errors=True)
 
     # (3) an existing build directory must be the variant it is used as; it is re-configured every time so the
     # configure warnings are always in the log (the -D options are only given to a new directory).
@@ -490,11 +735,11 @@ def run_variant(root, variant, patterns, evid_dir, runner=run):
         return _fail(res, "build failed (%s)" % logs("build"))
     jobs = []
     try:
-        jobs = syntax_jobs(read_compile_commands(bd), root, patterns)
+        jobs = syntax_jobs(read_compile_commands(bd), sroot, patterns)
     except (OSError, ValueError):
         pass
     syn_text, syn_failed = syntax_recheck(jobs, runner)
-    warnings = attribute_warnings(warn_text + "\n" + syn_text, root, patterns, bd)
+    warnings = attribute_warnings(warn_text + "\n" + syn_text, sroot, patterns, bd)
     res["build"]["warnings_in_wo_files"] = sorted({"%s:%d: %s" % w for w in warnings})[:20]
     res["build"]["syntax_rechecked_sources"] = len(jobs)
     if syn_failed:
@@ -514,7 +759,7 @@ def run_variant(root, variant, patterns, evid_dir, runner=run):
     elif rc != 0 or cc is None or cc[0] != 0 or cc[1] == 0:
         problems.append("ctest failed (%s)" % logs("ctest"))
 
-    rc_b, text = runner([sys.executable, "-B", os.path.join(root, "Firmware/Tests/Code_Coverage/tools/check_baseline.py"),
+    rc_b, text = runner([sys.executable, "-B", os.path.join(sroot, "Firmware/Tests/Code_Coverage/tools/check_baseline.py"),
                          "--build-dir", bd], logs("check_baseline"), timeout=BASELINE_TIMEOUT)
     res["check_baseline"] = {"rc": rc_b, "last": (text.strip().splitlines() or [""])[-1]}
     if rc_b == 124:
@@ -527,7 +772,7 @@ def run_variant(root, variant, patterns, evid_dir, runner=run):
         excl = integration_excludes(read_cache(bd))
         cmd = [exe, "-r=xml"] + (["--test-case-exclude=" + ",".join(excl)] if excl else [])
         rc_i, _ = runner(cmd, logs("integration.xml"), timeout=INTEGRATION_TIMEOUT)
-        rc_s, summary = runner([sys.executable, "-B", os.path.join(root, "Firmware/Tests/Code_Coverage/tools/summarise_results.py"),
+        rc_s, summary = runner([sys.executable, "-B", os.path.join(sroot, "Firmware/Tests/Code_Coverage/tools/summarise_results.py"),
                                 "--format", "xml", logs("integration.xml")], logs("integration.summary"))
         counts = parse_counts(summary)
         res["integration"] = {"exe_rc": rc_i, "summary_rc": rc_s,
@@ -545,7 +790,7 @@ def run_variant(root, variant, patterns, evid_dir, runner=run):
         problems.append("%s not found in %s" % (EXE, bd))
 
     if os.path.isfile(os.path.join(bd, "compile_commands.json")):
-        res["compile_check"] = check_compile_reference(root, bd, variant)
+        res["compile_check"] = check_compile_reference(root, bd, variant, sroot)
     else:
         res["compile_check"] = {"ok": False, "message": "compile_commands.json missing in " + bd}
     if not res["compile_check"]["ok"]:
@@ -602,10 +847,28 @@ def decide(names, full, ok):
 
 
 def main(argv=None, runner=run):
+    """Runs the gate; always ends with a GATE PASS / GATE FAIL line (an unexpected error is a GATE FAIL)."""
+    try:
+        return _main(argv, runner)
+    except SystemExit as e:
+        if e.code in (0, None):
+            return 0
+        print("GATE FAIL bad command line")
+        return 1
+    except Exception as e:  # noqa: BLE001 - the gate must always say GATE FAIL
+        print("GATE FAIL internal error: %s: %s" % (type(e).__name__, e))
+        return 1
+
+
+def _main(argv, runner):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--wo", help="work order id (e.g. I0-4)")
     ap.add_argument("--variants", default="default,m32", help="comma separated: %s" % ", ".join(VARIANT_ARGS))
     ap.add_argument("--full", action="store_true", help="also run the variants: %s" % ", ".join(FULL_VARIANTS))
+    ap.add_argument("--own-build", action="store_true",
+                    help="build in ../ffb-test-build/it-<WO>-<variant> instead of the shared it-<variant> (parallel writers)")
+    ap.add_argument("--isolated", action="store_true",
+                    help="build HEAD plus only this WO's changed files in ../ffb-test-build/it-iso-<WO>/src (final gate before a commit)")
     ap.add_argument("--files", help="WO file list (default: Tests/Integration_Tests/claude/charters/wo/<ID>.files)")
     ap.add_argument("--record-compile-reference", metavar="BUILD_DIR",
                     help="record the compile commands of BUILD_DIR as the reference of --variant and exit")
@@ -633,8 +896,11 @@ def main(argv=None, runner=run):
     try:
         with open(files_path, encoding="utf-8") as f:
             patterns = parse_file_list(f.read())
-    except OSError:
+    except FileNotFoundError:
         print("GATE FAIL WO file list %s is missing" % files_path)
+        return 1
+    except (OSError, ValueError) as e:
+        print("GATE FAIL WO file list %s cannot be read: %s" % (files_path, e))
         return 1
     if not patterns:
         print("GATE FAIL WO file list %s is empty" % files_path)
@@ -648,20 +914,59 @@ def main(argv=None, runner=run):
     now = datetime.datetime.now(datetime.timezone.utc)
     evid_dir = os.path.join(guard_lib.gate_dir(root), args.wo, "logs-" + now.strftime("%Y%m%dT%H%M%SZ"))
     os.makedirs(evid_dir, exist_ok=True)
-    variants = {}
-    for v in names:
-        print("== variant %s (%s)" % (v, build_dir_for(root, v)), flush=True)
-        variants[v] = run_variant(root, v, patterns, evid_dir, runner)
-        print("   " + variant_summary(v, variants[v]), flush=True)
+    active, active_errors = load_active(root, args.wo)
+    variants, failures = {}, []
+    sroot, overlay, docs, head0 = root, None, None, None
+    scope = None
+    if args.isolated:
+        head0 = resolve_head(root)  # resolved once: the archive and the evidence use this commit id
+        scope = scope_check(root, patterns, active=active, active_errors=active_errors, wo=args.wo)
+        if scope["result"] == "OK":
+            try:
+                sroot, overlay = make_isolated_tree(root, args.wo, scope["changed"], head0)
+                docs = overlay_docs(root, sroot)
+            except (OSError, tarfile.TarError) as e:
+                failures.append("cannot build the isolated source tree: %s" % e)
+            else:
+                print("== isolated source tree %s (%s + %d file(s) of %s + %d document(s) of Tests/Integration_Tests)" % (
+                    sroot, head0[:12], len(overlay), args.wo, len(docs)), flush=True)
+    own_wo = args.wo if (args.own_build or args.isolated) else None
+    if not failures and not (scope and scope["result"] != "OK"):
+        for v in names:
+            if args.isolated:
+                shutil.rmtree(build_dir_for(root, v, own_wo, True), ignore_errors=True)
+            print("== variant %s (%s)" % (v, build_dir_for(root, v, own_wo, args.isolated)), flush=True)
+            variants[v] = run_variant(root, v, patterns, evid_dir, runner, own_wo, sroot if args.isolated else None, args.isolated)
+            print("   " + variant_summary(v, variants[v]), flush=True)
 
-    scope = scope_check(root, patterns)
+    scope = scope_check(root, patterns, active=active, active_errors=active_errors, wo=args.wo)
     print("== scope: %s%s" % (scope["result"], "".join("\n   " + o for o in scope["offenders"])))
-    failures = ["%s: %s" % (v, r.get("reason", "failed")) for v, r in variants.items() if not r.get("ok")]
+    if scope["other_active"]:
+        print("   other active WOs' changed files (not checked here): %d" % len(scope["other_active"]))
+        for o in scope["other_active"]:
+            print("   other_active: " + o)
+    if overlay is not None:
+        now_blobs = {rel: guard_lib.blob_of_file(root, rel) for rel in scope["changed"]}
+        if now_blobs != overlay:
+            failures.append("the files of %s changed while the isolated gate ran (overlay != working tree)" % args.wo)
+        try:
+            docs_now = {rel: guard_lib.blob_of_file(root, rel) for rel in changed_docs(root)}
+        except OSError as e:
+            docs_now = None
+            failures.append("cannot re-read the documents: %s" % e)
+        if docs_now is not None and docs_now != docs:
+            failures.append("the documents under Tests/Integration_Tests/ changed while the isolated gate ran")
+    if args.isolated:
+        head_end = resolve_head(root)
+        if head_end != head0:
+            failures.append("HEAD moved during the gate (%s -> %s)" % (head0[:12], head_end[:12]))
+    failures += ["%s: %s" % (v, r.get("reason", "failed")) for v, r in variants.items() if not r.get("ok")]
     if scope["result"] != "OK":
         failures.append("scope check failed (%s)" % scope["offenders"][0])
     result, covers = decide(names, args.full, not failures)
-    evidence = make_evidence(root, args.wo, variants, scope, git_head(root), result, now,
-                             requested=names, files_path=files_path, patterns=patterns)
+    evidence = make_evidence(root, args.wo, variants, scope, head0 if args.isolated else git_head(root), result, now,
+                             requested=names, files_path=files_path, patterns=patterns, own_build=args.own_build,
+                             isolated=args.isolated, source_root=sroot, docs_overlaid=docs)
     path = write_evidence(root, args.wo, evidence, now)
     if result == "PASS":
         print(final_line(True, path))
