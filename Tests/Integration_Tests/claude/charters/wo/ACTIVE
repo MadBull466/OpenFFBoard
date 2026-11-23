@@ -1,2 +1,5 @@
 # Active work orders (read by it_gate.py scope check; maintained by the lead only).
 # One WO id per line. Changed files of an active WO are not scope offenders of another WO; a file claimed by two active WOs is.
+I1-4
+I1-6
+I1-8

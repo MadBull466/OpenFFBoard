@@ -233,6 +233,43 @@ def is_integration_entry(entry):
     return ("CMakeFiles/%s.dir/" % EXE) in entry.get("command", "")
 
 
+def cmake_object_name_form(path):
+    """The form CMake gives an absolute path inside the object file name of a source outside its binary tree
+    (CMakeFiles/<target>.dir/mnt/SATA_SSD1/OpenFFBoard_Testing/...).
+    Observed rule (CMake 4.5.1, Linux; found in compile_commands.json): the leading '/' is dropped, a space becomes '_',
+    and the characters + ( ) = , # ~ are kept. NOT verified here: ':' -> '_' (the drive letter of a Windows path,
+    'C:/x y' -> 'C_/x_y'); that is taken from cmLocalGenerator::CreateSafeUniqueObjectFileName and was not run.
+    Limits (both fail in the safe direction, a false FAIL and never a false PASS): CMake hashes object paths longer than
+    CMAKE_OBJECT_PATH_MAX (likely on Windows for the long isolated-tree paths), and the commands quote a path only when
+    it contains a space, so quoting differs when only one of the two trees has a space in its path."""
+    return path.lstrip("/").replace(" ", "_").replace(":", "_")
+
+
+# A literal root is replaced only where it starts a path and ends a path component, so '/other/mnt/repo' or '/repo2' keep
+# their text when the root is '/mnt/repo' / '/repo'. Start: the beginning, whitespace, a quote, '=' or ',;:(|' before it,
+# or a flag glued to it (-I/root, -o/root, "-include/root"). End: '/', a quote, '|' (key separator), the end, or white
+# space followed by something that starts the next argument (-flag, '/', a quote) or the end; so for a spaced root
+# '<root> 2/inc' and '<root> (copy)' are other folders, not '@SRC@ 2/inc'.
+_FLAGS = ("I", "L", "B", "F", "o", "MF", "MT", "MQ", "include", "imacros", "iquote", "isystem", "idirafter", "iprefix",
+          "iwithprefix", "iwithprefixbefore", "isysroot", "isystem-after")
+_PATH_START = r"""(^|[\s"'=,;:(|]|(?:^|[\s"'])-(?:%s))""" % "|".join(sorted(_FLAGS, key=len, reverse=True))
+_PATH_END = r"""(?=/|["'|]|$|\s(?:-|/|["']|$))"""
+
+
+def _normalise_string(s, build_dir_fwd, src_root_fwd):
+    """Backslashes to '/', then the root and build directory in their object-name form (only right after '.dir/' and up to
+    a component boundary), then in their literal form (_PATH_START / _PATH_END). The build directory goes first, so a
+    build directory inside the source root stays @BUILD@."""
+    s = s.replace("\\", "/")
+    for root, tag in ((build_dir_fwd, "@BUILD@"), (src_root_fwd, "@SRC@")):
+        if root:
+            s = re.sub(r"(\.dir/)%s(?=/|$)" % re.escape(cmake_object_name_form(root)), lambda m, t=tag: m.group(1) + t, s)
+    for root, tag in ((build_dir_fwd, "@BUILD@"), (src_root_fwd, "@SRC@")):
+        if root:
+            s = re.sub(_PATH_START + re.escape(root) + _PATH_END, lambda m, t=tag: m.group(1) + t, s)
+    return s
+
+
 def normalise_entries(entries, build_dir, src_root=None):
     """{ "<output>|<file>": command } of the entries of all targets except ffb_integration_tests; the absolute build
     directory is replaced by @BUILD@ and the source root (repository root or isolated source tree) by @SRC@, so two
@@ -247,8 +284,7 @@ def normalise_entries(entries, build_dir, src_root=None):
         def norm(s):
             if not isinstance(s, str):
                 return s
-            s = s.replace("\\", "/").replace(bd, "@BUILD@")
-            return s.replace(sd, "@SRC@") if sd else s
+            return _normalise_string(s, bd, sd)
         key = "%s|%s" % (norm(e.get("output", "")), norm(e.get("file", "")))
         out[key] = norm(e.get("command", " ".join(e.get("arguments", []))))
     return out
@@ -272,10 +308,16 @@ def read_compile_commands(build_dir):
 
 
 def renorm_reference(entries, root):
-    """A stored reference with the repository root replaced by @SRC@ (no-op for references recorded with @SRC@, makes
-    the references recorded before the source root was normalised comparable)."""
+    """A stored reference with the repository root replaced by @SRC@ (no-op for references recorded with @SRC@; makes the
+    references recorded before the source root was normalised, or with the previous object-name handling, comparable).
+    A reference recorded by the previous code at a root without a space holds 'CMakeFiles/x.dir@SRC@/...' (the root's
+    '/mnt/..' form was replaced inside the object name); it is mapped to the current 'x.dir/@SRC@/...'. REF_FORMAT is kept:
+    the stored files stay valid, so they need no re-recording."""
     rd = os.path.realpath(root).replace("\\", "/").rstrip("/")
-    return {k.replace(rd, "@SRC@"): v.replace(rd, "@SRC@") for k, v in entries.items()}
+
+    def fix(s):
+        return _normalise_string(re.sub(r"(\.dir)(@SRC@|@BUILD@)", r"\1/\2", s), None, rd)
+    return {fix(k): fix(v) for k, v in entries.items()}
 
 
 def record_reference(root, build_dir, variant):

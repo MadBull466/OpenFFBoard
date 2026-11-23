@@ -1,0 +1,3 @@
+# Files of WO I1-T2 (read by it_gate.py): compile-check normalisation for paths with spaces
+Firmware/Tests/Integration_Tests/tools/it_gate.py
+Firmware/Tests/Integration_Tests/tools/test_it_gate.py

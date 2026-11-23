@@ -738,6 +738,134 @@ class IsolatedTree(unittest.TestCase):
         self.assertTrue(ig.check_compile_reference(self.root, shared, "default")["ok"])
 
 
+def spaced_entry(root, build, src, tail="-O0"):
+    """An entry as CMake writes it for a source under a root that contains a space (object name mangled, paths quoted)."""
+    mangled = root.lstrip("/").replace(" ", "_").replace(":", "_")
+    out = "CMakeFiles/lib.dir/%s/%s.o" % (mangled, src)
+    return {"directory": build, "file": "%s/%s" % (root, src), "output": out,
+            "command": '/usr/bin/cc %s -I"%s/inc" -DX="%s/" -o %s -c "%s/%s"' % (tail, root, root, out, root, src)}
+
+
+class SpacedPaths(unittest.TestCase):
+    REPO = "/mnt/SATA_SSD1/Open FFB Testing/Repo"
+    ISO = "/mnt/SATA_SSD1/Open FFB Testing/ffb-test-build/it-iso-X/src"
+
+    def norm(self, root, build, tail="-O0", src="Libs/a.c"):
+        return ig.normalise_entries([spaced_entry(root, build, src, tail)], build, root)
+
+    def test_repository_and_isolated_tree_with_spaces_compare_equal_including_object_names(self):
+        a = self.norm(self.REPO, "/mnt/SATA_SSD1/Open FFB Testing/ffb-test-build/ref-default")
+        b = self.norm(self.ISO, "/mnt/SATA_SSD1/Open FFB Testing/ffb-test-build/it-iso-X-default")
+        self.assertEqual(a, b)
+        self.assertIn("CMakeFiles/lib.dir/@SRC@/Libs/a.c.o", list(a)[0])
+        self.assertEqual(ig.compare_entries(a, b), ([], [], []))
+
+    def test_shared_and_per_wo_build_folders_with_spaces_compare_equal(self):
+        a = self.norm(self.REPO, "/mnt/SATA_SSD1/Open FFB Testing/ffb-test-build/it-default")
+        b = self.norm(self.REPO, "/mnt/SATA_SSD1/Open FFB Testing/ffb-test-build/it-I1-2-default")
+        self.assertEqual(a, b)
+
+    def test_a_real_flag_change_still_fails(self):
+        a = self.norm(self.REPO, "/b one")
+        b = self.norm(self.ISO, "/b two", "-O0 -O3")
+        self.assertEqual(ig.compare_entries(a, b)[2], list(a))
+
+    def test_a_changed_define_and_a_missing_entry_still_fail(self):
+        a = ig.normalise_entries([spaced_entry(self.REPO, "/b", "x.c")], "/b", self.REPO)
+        e = spaced_entry(self.ISO, "/b", "x.c")
+        e["command"] = e["command"].replace("-DX=", "-DY=")
+        b = ig.normalise_entries([e], "/b", self.ISO)
+        self.assertEqual(len(ig.compare_entries(a, b)[2]), 1)
+        c = ig.normalise_entries([], "/b", self.ISO)
+        self.assertEqual(len(ig.compare_entries(a, c)[0]), 1)
+
+    def test_a_path_containing_the_root_only_as_a_substring_is_not_over_normalised(self):
+        root = "/mnt/my repo"
+        e = {"directory": "/b", "file": "/other/mnt/my repository/a.c", "output": "CMakeFiles/t.dir/other/mnt/my_repository/a.c.o",
+             "command": "cc -I/other/mnt/my_repository -c a.c"}
+        n = ig.normalise_entries([e], "/b", root)
+        key = list(n)[0]
+        self.assertIn("mnt/my_repository", key)
+        self.assertIn("mnt/my repository", key)
+        self.assertNotIn("@SRC@", key)
+
+    def test_windows_style_paths_keep_working(self):
+        root = "C:/Users/x y/repo"
+        mangled = "C_/Users/x_y/repo"
+        e = {"directory": "C:/b", "file": root + "/a.c", "output": "CMakeFiles/t.dir/%s/a.c.o" % mangled,
+             "command": 'cc -I"%s/inc" -c "%s/a.c"' % (root, root)}
+        # (normalise_entries applies realpath, which on Linux would prefix a drive-letter path; test the string rule)
+        n = lambda v: ig._normalise_string(v.replace("/", "\\"), "C:/b", root)
+        self.assertEqual(n(e["output"] + "|" + e["file"]), "CMakeFiles/t.dir/@SRC@/a.c.o|@SRC@/a.c")
+        self.assertEqual(n(e["command"]), 'cc -I"@SRC@/inc" -c "@SRC@/a.c"')
+
+    def test_a_build_dir_inside_the_source_root_stays_build(self):
+        root = "/mnt/Open FFB/Repo"
+        bd = root + "/build dir"
+        e = {"directory": bd, "file": root + "/a.c", "output": "CMakeFiles/t.dir/mnt/Open_FFB/Repo/a.c.o",
+             "command": 'cc -I"%s/gen" -I"%s/inc" -c "%s/a.c"' % (bd, root, root)}
+        n = ig.normalise_entries([e], bd, root)
+        self.assertEqual(list(n.values())[0], 'cc -I"@BUILD@/gen" -I"@SRC@/inc" -c "@SRC@/a.c"')
+
+    def test_shared_and_per_wo_build_dir_in_a_command_and_a_generated_include_compare_equal(self):
+        def one(build):
+            return ig.normalise_entries([{"directory": build, "file": self.REPO + "/a.c", "output": "CMakeFiles/lib.dir/x.o",
+                "command": 'cc -I"%s/gen" -include "%s/gen/pre.h" -c "%s/a.c"' % (build, build, self.REPO)}], build, self.REPO)
+        a = one("/mnt/SATA_SSD1/Open FFB Testing/ffb-test-build/it-default")
+        b = one("/mnt/SATA_SSD1/Open FFB Testing/ffb-test-build/it-I1-2-default")
+        self.assertEqual(a, b)
+        self.assertIn('-I"@BUILD@/gen"', list(a.values())[0])
+
+    def test_the_quoted_include_flag_form_is_normalised(self):
+        n = ig._normalise_string('cc "-include/mnt/R S/inc/a.h" -isystem/mnt/R S/x -idirafter /mnt/R S/y -o/mnt/R S/o.o', None, "/mnt/R S")
+        self.assertEqual(n, 'cc "-include@SRC@/inc/a.h" -isystem@SRC@/x -idirafter @SRC@/y -o@SRC@/o.o')
+
+    def test_glued_flags_and_equals_forms_are_normalised(self):
+        for pre in ("-I", "-L", "-B", "-F", "-MF", "-MT", "-MQ", "-iquote", "-imacros", "-iprefix", "-iwithprefix",
+                    "-isysroot", "-idirafter", "-DX=", "-DX=\"", "-DX='", "-I\"", " ", "\""):
+            self.assertEqual(ig._normalise_string("cc %s/mnt/Root/inc" % pre, None, "/mnt/Root"), "cc %s@SRC@/inc" % pre, pre)
+
+    def test_a_prefix_that_continues_another_path_is_not_normalised(self):
+        for t in ("/x/mnt/Root/inc", "a/mnt/Root/inc", "-Ix/mnt/Root/inc", "foo-I/mnt/Root/inc", ".dirx/mnt/Root/inc"):
+            self.assertEqual(ig._normalise_string("cc " + t, None, "/mnt/Root"), "cc " + t, t)
+
+    def test_a_suffix_that_continues_another_name_is_not_normalised(self):
+        for t in ("/mnt/Root2/inc", "/mnt/Root.old/inc", "/mnt/Root-b/inc", "/mnt/Root_b"):
+            self.assertEqual(ig._normalise_string("cc -I" + t, None, "/mnt/Root"), "cc -I" + t, t)
+        self.assertEqual(ig._normalise_string("cc -I/mnt/Root -c a.c", None, "/mnt/Root"), "cc -I@SRC@ -c a.c")
+        self.assertEqual(ig._normalise_string('cc -I"/mnt/Root"', None, "/mnt/Root"), 'cc -I"@SRC@"')
+
+    def test_a_sibling_folder_of_a_spaced_root_is_not_normalised(self):
+        root = "/mnt/Open FFB/Repo"
+        for t in ('-I"%s 2/inc"' % root, '-I"%s (copy)/inc"' % root, '-I"%s copy"' % root):
+            self.assertEqual(ig._normalise_string("cc " + t, None, root), "cc " + t, t)
+        self.assertEqual(ig._normalise_string('cc -I"%s/inc" -c a.c' % root, None, root), 'cc -I"@SRC@/inc" -c a.c')
+        self.assertEqual(ig._normalise_string("cc -I%s -c a.c" % root, None, root), "cc -I@SRC@ -c a.c")
+        self.assertEqual(ig._normalise_string("cc -I%s" % root, None, root), "cc -I@SRC@")
+
+    def test_the_object_name_form_is_replaced_only_after_dir_and_up_to_a_component_boundary(self):
+        root = "/mnt/Open FFB/Repo"
+        f = lambda t: ig._normalise_string(t, None, root)
+        self.assertEqual(f("CMakeFiles/t.dir/mnt/Open_FFB/Repo/a.c.o"), "CMakeFiles/t.dir/@SRC@/a.c.o")
+        self.assertEqual(f("CMakeFiles/t.dir/mnt/Open_FFB/Repo2/a.c.o"), "CMakeFiles/t.dir/mnt/Open_FFB/Repo2/a.c.o")
+        self.assertEqual(f("CMakeFiles/t.dir/x/mnt/Open_FFB/Repo/a.c.o"), "CMakeFiles/t.dir/x/mnt/Open_FFB/Repo/a.c.o")
+        self.assertEqual(f("other/mnt/Open_FFB/Repo/a.c.o"), "other/mnt/Open_FFB/Repo/a.c.o")
+
+    def test_a_reference_recorded_at_a_root_without_a_space_by_the_previous_code_is_made_comparable(self):
+        root = "/mnt/plain/Repo"
+        old = {"CMakeFiles/lib.dir@SRC@/Libs/a.c.o|@SRC@/Libs/a.c": "cc -I@SRC@/inc -o CMakeFiles/lib.dir@SRC@/Libs/a.c.o -c @SRC@/Libs/a.c"}
+        new = ig.renorm_reference(old, root)
+        cur = ig.normalise_entries([{"directory": "/b", "file": root + "/Libs/a.c", "output": "CMakeFiles/lib.dir/mnt/plain/Repo/Libs/a.c.o",
+            "command": "cc -I%s/inc -o CMakeFiles/lib.dir/mnt/plain/Repo/Libs/a.c.o -c %s/Libs/a.c" % (root, root)}], "/b", root)
+        self.assertEqual(ig.compare_entries(new, cur), ([], [], []))
+
+    def test_a_stored_reference_with_a_raw_mangled_name_is_made_comparable(self):
+        raw = {"CMakeFiles/lib.dir/mnt/SATA_SSD1/Open_FFB_Testing/Repo/Libs/a.c.o|%s/Libs/a.c" % self.REPO: "cc -c %s/Libs/a.c" % self.REPO}
+        r = ig.renorm_reference(raw, self.REPO)
+        self.assertEqual(list(r), ["CMakeFiles/lib.dir/@SRC@/Libs/a.c.o|@SRC@/Libs/a.c"])
+        self.assertEqual(list(r.values())[0], "cc -c @SRC@/Libs/a.c")
+
+
 class SeparatorsAndReference(unittest.TestCase):
     def test_backslashes_are_normalised_before_the_build_dir_replacement(self):
         bd = os.path.realpath(tempfile.mkdtemp())
