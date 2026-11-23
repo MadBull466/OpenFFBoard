@@ -10,8 +10,8 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 | Kind | Count | Open | Resolved |
 |---|---|---|---|
-| Suspected firmware bugs (IB) | 21 | 21 | 0 |
-| NEEDS REVIEW items (INR) | 16 | 16 | 0 |
+| Suspected firmware bugs (IB) | 26 | 26 | 0 |
+| NEEDS REVIEW items (INR) | 18 | 18 | 0 |
 | Defects in shared test fakes (A) | 3 | 0 | 3 |
 | Defects in test tools (T) | 1 | 0 | 1 |
 
@@ -38,6 +38,11 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | IB 19 | firmware bug | EffectsCalculator | open |
 | IB 20 | firmware bug | EffectsCalculator | open |
 | IB 21 | firmware bug | EffectsCalculator | open |
+| IB 33 | firmware bug | HidFFB | open |
+| IB 34 | firmware bug | HidFFB | open |
+| IB 35 | firmware bug | HidFFB | open |
+| IB 36 | firmware bug | HidFFB / EffectsCalculator | open |
+| IB 37 | firmware bug | HidFFB / EffectsCalculator | open |
 | INR 1 | NEEDS REVIEW | Axis / TMC4671 | open |
 | INR 2 | NEEDS REVIEW | HID descriptor | open |
 | INR 3 | NEEDS REVIEW | HID descriptor | open |
@@ -54,6 +59,8 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | INR 14 | NEEDS REVIEW | EffectsCalculator / HidFFB | open |
 | INR 15 | NEEDS REVIEW | EffectsCalculator | open |
 | INR 16 | NEEDS REVIEW | EffectsCalculator | open |
+| INR 30 | NEEDS REVIEW | HidFFB | open |
+| INR 31 | NEEDS REVIEW | EffectsCalculator | open |
 | A-1 | fake defect | Fake HAL SPI + GPIO / EXTI | fixed |
 | A-2 | fake defect | Fake ADC, timers, flash map | fixed |
 | A-3 | fake defect | `HostDcd` + `UsbHost` + `HostRtos` ext | fixed |
@@ -229,6 +236,46 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 - **Test / evidence:** `KNOWN_ISSUE` case `F1-E4: an envelope on a ramp effect shapes the ramp ...` in `test_f1_effects.cpp` (WO I1-3)
 - **Resolved?:** no
 
+### IB 33: HidFFB
+
+- **Where:** `FFBoard/Src/HidFFB.cpp:333`, `:391-393`
+- **What:** With one condition block, Direction Enable off and no Axes Enable X, the torque depends on the order of the reports and on repeating an identical Set Effect: Set Effect writes the axis magnitude 0, only a later Set Condition promotes 0 to 1.0, so condition-first gives 0 and a repeated unchanged Set Effect silences a running spring (-2860 -> 0); PID 1.01 §5.1 / §5.3 do not make the result depend on the order or on repetition (which value is intended: INR 30)
+- **Same as (coverage):** (none)
+- **Test / evidence:** 2 `KNOWN_ISSUE` cases `F1-E9: the order of Set Condition and Set Effect ...`, `F1-E9: a repeated Set Effect with unchanged parameters ...` in `test_f1_conditions.cpp` (WO I1-6)
+- **Resolved?:** no
+
+### IB 34: HidFFB
+
+- **Where:** `FFBoard/Src/HidFFB.cpp:333`
+- **What:** A condition block with a direction is scaled linearly by sin(θ): the torque reverses over 180°, a spring is an anti-spring at 27000 and a friction pushes along the motion (+4882 at +100 counts/cycle: adds energy); PID 1.01 §5.3: a rotated condition acts along a line (θ and θ+180° identical, restoring / opposing at every direction, projection share sin² / cos²; lead decision 2026-11-23)
+- **Same as (coverage):** (none)
+- **Test / evidence:** 2 `KNOWN_ISSUE` cases `F1-E9: a rotated spring acts along a line ...`, `F1-E9: a rotated friction opposes the motion ...` in `test_f1_conditions.cpp` (WO I1-6)
+- **Resolved?:** no
+
+### IB 35: HidFFB
+
+- **Where:** `FFBoard/Src/HidFFB.cpp:333`, `:317-327`, `ffb_defs.h:359`
+- **What:** One condition block with Axes Enable X and Direction Enable off (what a host sends for an unrotated condition) gets axis magnitude (direction - 18000) / 18000 = -1 at direction 0: a full anti-spring (+2860 at +6000 counts); PID 1.01 §5.3: one block per enabled axis, "the effect must not be rotated"
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-E9: one condition block with Axes Enable X and Direction Enable off acts on axis 0 as an unrotated restoring spring` in `test_f1_conditions.cpp` (WO I1-6)
+- **Resolved?:** no
+
+### IB 36: HidFFB / EffectsCalculator
+
+- **Where:** `HidFFB.cpp:301-307`, `:423-425`; `EffectsCalculator.cpp:416`, `:425`, `:433`
+- **What:** A running effect without filters (spring, sine, ramp) changed by Set Effect to damper / inertia / friction keeps null filters (set_filters runs before the type is written, bug 11; filters are created only for a non-running effect) and the next force calculation dereferences them: the process crashes (SIGSEGV on the host); recorded as a skipped case of the intended behaviour
+- **Same as (coverage):** bug 12
+- **Test / evidence:** skipped case `F1-E14: a running spring changed to a damper by Set Effect damps the motion` in `test_f1_conditions.cpp` (WO I1-6)
+- **Resolved?:** no
+
+### IB 37: HidFFB / EffectsCalculator
+
+- **Where:** `HidFFB.cpp:301-302`; `EffectsCalculator.cpp:138`
+- **What:** A type change by Set Effect sets `startTime = 0`, so a running finite effect changed to another type after more than Duration ms of uptime ends at once (constant 6103 -> sine gives 0 after 33.5 s uptime); PID 1.01 §5.1 / §5.9: a Set Effect changes parameters, the effect keeps playing
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-E14: a running effect changed to another type after more than Duration ms of uptime keeps playing` in `test_f1_conditions.cpp` (WO I1-6)
+- **Resolved?:** no
+
 ## 2. NEEDS REVIEW items (INR)
 
 ### INR 1: Axis / TMC4671
@@ -324,8 +371,8 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 ### INR 14: EffectsCalculator / HidFFB
 
-- **Test / location:** `HidFFB.cpp:333-337`; characterization case in `test_f1_conditions.cpp` (WO I1-5)
-- **Question:** Polar direction for a condition block with Direction Enable: 9000 gives the restoring spring with full force at invert 0, 27000 the reversed one (sin of the angle); same open question as INR 10 (PID 1.01 §5.1 defines no polar zero)
+- **Test / location:** `HidFFB.cpp:333-337`; characterization case in `test_f1_conditions.cpp` (WO I1-5, revised in WO I1-6)
+- **Question:** Polar zero for a condition block with Direction Enable: direction 9000 gives the full restoring torque of the unrotated spring. PID 1.01 §5.1 defines no polar zero; same open question as INR 10. (The reversal over 180° the I1-5 case first asserted is IB 34.)
 - **Same as (coverage):** (none)
 - **Resolved?:** no
 
@@ -340,6 +387,20 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 - **Test / location:** `EffectsCalculator.h:238`, friction ramp; characterization case in `test_f1_conditions.cpp` (WO I1-5)
 - **Question:** Friction ramp-up around zero speed follows a sine factor of the speed relative to `frictionPctSpeedToRampup` (0.47296 at 16 counts/ms vs hand 0.47302); intended shape?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 30: HidFFB
+
+- **Test / location:** `HidFFB.cpp:391-393`; IB 33 cases in `test_f1_conditions.cpp` (WO I1-6)
+- **Question:** With one condition block, Direction Enable off and no Axes Enable X, PID 1.01 §5.1 gives 0 on axis 0; the firmware's promotion of a 0 axis magnitude to 1.0 in set_condition gives full force (and every I1-5 condition case relies on it). Which torque is intended?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 31: EffectsCalculator
+
+- **Test / location:** `EffectsCalculator.cpp:180-185`, `:314`; characterization case `characterization: [F1-E13] condition effects ignore the Effect Gain` in `test_f1_conditions.cpp` (WO I1-6)
+- **Question:** Condition effects ignore the per-effect Gain (seam S9); PID 1.01 §5.1 applies the Gain "to all magnitudes and envelopes", which condition blocks do not have (§5.1.1.1 rule 2). Intended?
 - **Same as (coverage):** (none)
 - **Resolved?:** no
 

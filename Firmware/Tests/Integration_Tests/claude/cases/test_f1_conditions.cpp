@@ -411,37 +411,26 @@ TEST_CASE_FIXTURE(CondFixture, "F1-E5: a negative spring coefficient reverses th
 	CHECK_NEAR(neg, -pos, 4);
 }
 
-// PID 5.1: with Direction Enable the Direction is a polar direction and a force along theta acts with a factor that reverses when theta
-// changes by 180 degrees. Set Effect (Direction Enable) first, then Set Condition. Only the reversal is asserted.
-TEST_CASE_FIXTURE(CondFixture, "F1-E5: with Direction Enable the spring torque reverses when the direction changes by 180 degrees" * IT_DELETES_FFBHIDMAIN) {
-	up();
-	const int64_t a = newEffect(pid::use::EtSpring, 9000, true);
-	setCondition(a, 0, 16000, 16000, 32767, 32767, 0);
-	start(a);
-	const int t9 = springAt(6000);
-	const int64_t b = newEffect(pid::use::EtSpring, 27000, true);
-	setCondition(b, 0, 16000, 16000, 32767, 32767, 0);
-	h().run(5);
-	pid::PidReport eo = h().builder().make(ReportType::Output, pid::use::EffectOperationReport);
-	eo.set(pid::use::EffectBlockIndex, a).select(pid::use::OpEffectStop).set(pid::use::LoopCount, 1);
-	h().send(eo);
-	start(b);
-	const int t27 = springAt(6000);
-	MESSAGE("direction 9000: " << t9 << ", 27000: " << t27);
-	REQUIRE(t9 != 0);
-	CHECK_NEAR(t27, -t9, 4);
-}
-
-// characterization: the absolute direction -> sign mapping of the polar direction. Polar zero undefined, PID 1.01 5.1; reconciled by the lead.
-// Firmware: axisMagnitudes[0] = sin(2 pi direction / 36000) (HidFFB.cpp:337), Direction 9000 = +1: restoring spring (T < 0 for +6000).
+// characterization: which polar direction gives the full force (polar zero undefined, PID 1.01 5.1; reconciled by the lead). Firmware:
+// axisMagnitudes[0] = sin(2 pi direction / 36000) (HidFFB.cpp:333): Direction 9000 gives share 1.0, the same restoring torque as the spring
+// without a direction (+6000 counts). How the torque behaves over all directions (a rotated condition acts along a line) is F1-E9 (IB 34).
 // INR 14
-TEST_CASE_FIXTURE(CondFixture, "characterization: [F1-E5] polar direction 9000 gives the restoring spring torque, 27000 the reversed one" * IT_DELETES_FFBHIDMAIN) {
+TEST_CASE_FIXTURE(CondFixture, "characterization: [F1-E5] polar direction 9000 gives the full restoring spring torque" * IT_DELETES_FFBHIDMAIN) {
 	up();
+	const int64_t ref = newEffect(pid::use::EtSpring);
+	setCondition(ref, 0, 16000, 16000, 32767, 32767, 0);
+	start(ref);
+	const int t0 = springAt(6000);
+	pid::PidReport eo = h().builder().make(ReportType::Output, pid::use::EffectOperationReport);
+	eo.set(pid::use::EffectBlockIndex, ref).select(pid::use::OpEffectStop).set(pid::use::LoopCount, 1);
+	h().send(eo);
 	const int64_t a = newEffect(pid::use::EtSpring, 9000, true);
 	setCondition(a, 0, 16000, 16000, 32767, 32767, 0);
 	start(a);
 	const int t9 = springAt(6000);
+	MESSAGE("no direction " << t0 << ", direction 9000 " << t9);
 	CHECK(t9 < 0);
+	CHECK_NEAR(t9, t0, 2);
 }
 
 // characterization: absolute scale, one setting. HD chain: q = 1000 (counts 10005 -> q 1000.5 truncated to 1000), force = 16000 / 32767 *
@@ -787,3 +776,735 @@ TEST_CASE_FIXTURE(CondFixture, "characterization: [F1-E8] friction coefficient 8
 }
 
 } // TEST_SUITE
+
+// =====================================================================================================================
+// WO I1-6: F1-E9 geometry, F1-E12 combined effects, F1-E13 per-effect Gain, F1-E14 type change
+//
+// Oracles: PID 1.01 5.1 (Gain: "normalized scaling factor that is applied to all magnitudes and envelopes of an effect"; Direction Enable:
+// "the Axes Enable flags are ignored, only one Condition Parameter Block is defined and the Direction is applied to the Condition Parameter
+// Block as a polar direction"), 5.3 (last paragraphs: with one block per axis the first block applies to the first axis and the effect "must
+// not be rotated"; with a single block for a multi-axis effect the Direction rotates it, and it acts along a line), Table 3. The polar zero is
+// undefined (5.1); the line rule needs none (lead decision 2026-11-23, MATH at the F1-E9 cases); which direction gives the full force is INR 14.
+// Settings: as the file comment (power 20000, fxratio 255, invert 0, ...). torqueScaler = 20000 / 32767 = 0.6103.
+// Rounding bound for sums: every part has a truncation chain of at most 0.61 + 1 = 1.61 counts, the sum of four parts 6.4, the combined
+// one 1.61: tolerance 9 counts (kSumTol).
+// Float to int: nothing here converts out of range for a reachable setting (sums of at most three forces of 32767 stay far below int32; the
+// largest float -> int32 conversion is the 32767-magnitude constant force times the sine share 1.0).
+// =====================================================================================================================
+namespace {
+
+constexpr int kSumTol = 9;
+
+struct MixFixture : CondFixture {
+	int64_t createOnly(uint32_t type) {
+		const FfbHost::CreateResult c = h().createEffect(type);
+		REQUIRE(c.load.success());
+		return c.load.effectBlockIndex;
+	}
+	void setEffectRaw(int64_t idx, uint32_t type, int64_t direction, bool directionEnable, int64_t gain = 255) {
+		pid::PidReport se = h().builder().make(ReportType::Output, pid::use::SetEffectReport);
+		se.set(pid::use::EffectBlockIndex, idx).select(type).set(pid::use::Duration, 32767).set(pid::use::Gain, gain);
+		se.flag(pid::use::DirectionEnable, directionEnable);
+		se.setIn({pid::use::Direction}, kDirectionX, direction);
+		h().send(se);
+	}
+	void setConditionAt(int64_t idx, int64_t block, int64_t offset, int64_t pc, int64_t nc, int64_t ps, int64_t ns, int64_t db) {
+		pid::PidReport cond = h().builder().make(ReportType::Output, pid::use::SetConditionReport);
+		cond.set(pid::use::EffectBlockIndex, idx).set(pid::use::ParameterBlockOffset, block).set(pid::use::CpOffset, offset);
+		cond.set(pid::use::PositiveCoefficient, pc).set(pid::use::NegativeCoefficient, nc);
+		cond.set(pid::use::PositiveSaturation, ps).set(pid::use::NegativeSaturation, ns).set(pid::use::DeadBand, db);
+		h().send(cond);
+	}
+	void stopFx(int64_t idx) {
+		pid::PidReport eo = h().builder().make(ReportType::Output, pid::use::EffectOperationReport);
+		eo.set(pid::use::EffectBlockIndex, idx).select(pid::use::OpEffectStop).set(pid::use::LoopCount, 1);
+		h().send(eo);
+	}
+	void setConstant(int64_t idx, int64_t magnitude) {
+		pid::PidReport sc = h().builder().make(ReportType::Output, pid::use::SetConstantForceReport);
+		sc.set(pid::use::EffectBlockIndex, idx).set(pid::use::Magnitude, magnitude);
+		h().send(sc);
+	}
+	void setPeriodic(int64_t idx, int64_t magnitude, int64_t offset, int64_t phase, int64_t period) {
+		pid::PidReport per = h().builder().make(ReportType::Output, pid::use::SetPeriodicReport);
+		per.set(pid::use::EffectBlockIndex, idx).set(pid::use::Magnitude, magnitude).set(pid::use::Offset, offset).set(pid::use::Phase, phase).set(pid::use::Period, period);
+		h().send(per);
+	}
+	void setRamp(int64_t idx, int64_t startLevel, int64_t endLevel) {
+		pid::PidReport r = h().builder().make(ReportType::Output, pid::use::SetRampForceReport);
+		r.set(pid::use::EffectBlockIndex, idx).set(pid::use::RampStart, startLevel).set(pid::use::RampEnd, endLevel);
+		h().send(r);
+	}
+	/** A running constant force (Direction Enable, 9000 = share 1.0 of the firmware's sin; torque = -magnitude * 0.6103) */
+	int64_t startConstant(int64_t magnitude, int64_t gain = 255) {
+		const int64_t idx = createOnly(pid::use::EtConstantForce);
+		setEffectRaw(idx, pid::use::EtConstantForce, 9000, true, gain);
+		setConstant(idx, magnitude);
+		start(idx);
+		return idx;
+	}
+	std::vector<TorqueTrace::Sample> record(uint32_t ms) {
+		TorqueTrace trace(chip1);
+		trace.start(*this);
+		h().observe(&trace);
+		h().run(ms);
+		h().observe(nullptr);
+		return trace.samples();
+	}
+	/** Runs `ms`, REQUIREs the last `last` cycles within `spread`, returns the last torque (no clip limit: saturation cases) */
+	int steady(uint32_t ms, size_t last = 30, int spread = 2) {
+		const std::vector<TorqueTrace::Sample> s = record(ms);
+		REQUIRE(s.size() >= last);
+		int lo = 100000, hi = -100000;
+		for (size_t i = s.size() - last; i < s.size(); i++) {
+			lo = std::min<int>(lo, s[i].torque);
+			hi = std::max<int>(hi, s[i].torque);
+		}
+		INFO("window min " << lo << " max " << hi);
+		REQUIRE(hi - lo <= spread);
+		return s.back().torque;
+	}
+	int maxAbs(uint32_t ms) {
+		const std::vector<TorqueTrace::Sample> s = record(ms);
+		REQUIRE(s.size() > 100);
+		int m = 0;
+		for (const auto &x : s) {
+			m = std::max<int>(m, std::abs(x.torque));
+		}
+		return m;
+	}
+};
+
+} // namespace
+
+TEST_SUITE("F1ConditionsGeometry") {
+
+// ---------------------------------------------------------------------------------------------------------------------
+// F1-E9 geometry
+// ---------------------------------------------------------------------------------------------------------------------
+
+// PID 5.3 (last paragraphs): with one block per axis the first block (Parameter Block Offset 0) applies to the first axis. FFBWheel has one
+// axis: a second block (offset 1 = second axis) changes nothing at 0x64, whatever its coefficient.
+TEST_CASE_FIXTURE(MixFixture, "F1-E9: a second condition block does not change the torque of axis 0" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	const int64_t idx = newEffect(pid::use::EtSpring);
+	setConditionAt(idx, 0, 0, 16000, 16000, 32767, 32767, 0);
+	start(idx);
+	const int before = springAt(6000);
+	const int beforeNeg = springAt(-6000);
+	setConditionAt(idx, 1, 0, 32767, 32767, 32767, 32767, 0);
+	const int after = springAt(6000);
+	setConditionAt(idx, 1, 3000, 1000, 5000, 20000, 20000, 100);
+	const int after2 = springAt(6000);
+	const int afterNeg = springAt(-6000);
+	MESSAGE("block 0 only " << before << " / " << beforeNeg << ", with block 1 " << after << " / " << after2 << " / " << afterNeg);
+	REQUIRE(before != 0);
+	CHECK_NEAR(after, before, 1);
+	CHECK_NEAR(after2, before, 1);
+	CHECK_NEAR(afterNeg, beforeNeg, 1);
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// PID 5.3 / Table 3: Condition (Y Axis) is the second block; an effect that has only that block has nothing for the X axis: torque 0.
+TEST_CASE_FIXTURE(MixFixture, "F1-E9: an effect with only the condition block of the second axis gives axis 0 no torque" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	const int64_t idx = newEffect(pid::use::EtSpring);
+	setConditionAt(idx, 1, 0, 32767, 32767, 32767, 32767, 0);
+	start(idx);
+	const int t = springAt(6000);
+	const int tn = springAt(-6000);
+	MESSAGE("only block 1: " << t << " / " << tn);
+	CHECK(std::abs(t) <= 1);
+	CHECK(std::abs(tn) <= 1);
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// Rotated condition (lead decision 2026-11-23; PID 1.01 5.3, last paragraphs): a single condition block with a direction acts along a LINE (5.3:
+// a friction rotated 45 degrees resists motion along north-east / south-west and has no effect on motion along north-west / south-east).
+// MATH: the condition acts along the unit vector u = (cos a, sin a), a = the angle between u and axis 0 (a function of the polar direction
+// theta whose zero PID does not define). A displacement m0 along axis 0 has the component m_u = m0 cos a along u, the 1-D condition gives the
+// force F = k m_u along u, and axis 0 receives F cos a = k m0 cos^2 a. Hence (a) theta and theta + 18000 (u and -u, the same line) give the same
+// torque; (b) the share cos^2 a >= 0: a spring with positive coefficients restores or is zero at every direction, a friction / damper opposes the
+// motion or is zero; (c) 30 and 60 degrees: with the polar zero along or across axis 0 (a = theta or 90 deg - theta) the 60 : 30 torque ratio is
+// cos^2 60 / cos^2 30 = 1/3 or sin^2 60 / sin^2 30 = 3; "3 or 1/3" needs no choice of the zero. The firmware scales linearly by sin(theta)
+// (HidFFB.cpp:333): the torque reverses over 180 degrees, 27000 is an anti-spring, the 60 : 30 ratio is 1.73.
+// Spring: +6000 counts (axis.0.invert 0: host-positive), restoring = torque <= 0 (F1-E5). Directions are changed by Set Effect on the running
+// effect (the polar share is written by Set Effect, HidFFB.cpp:333). First failing assertion: (a) at 30 / 210 degrees (-1430 / +1430).
+TEST_CASE_FIXTURE(MixFixture, "F1-E9: a rotated spring acts along a line: equal torque at theta and theta plus 180 degrees, restoring at every direction, 60 to 30 degree ratio 3 or 1/3"
+	* KNOWN_ISSUE("(IB 34) a rotated condition is scaled linearly by sin(theta) (HidFFB.cpp:333): the torque reverses over 180 degrees, an anti-spring at 27000") * IT_DELETES_FFBHIDMAIN) {
+	up();
+	const int64_t idx = newEffect(pid::use::EtSpring, 3000, true);
+	setConditionAt(idx, 0, 0, 16000, 16000, 32767, 32767, 0);
+	start(idx);
+	auto at = [&](int64_t dir) {
+		setEffectRaw(idx, pid::use::EtSpring, dir, true);
+		return springAt(6000);
+	};
+	const int t30 = springAt(6000);
+	const int t210 = at(21000), t60 = at(6000), t240 = at(24000);
+	const int t0 = at(0), t90 = at(9000), t180 = at(18000), t270 = at(27000);
+	MESSAGE("30 " << t30 << ", 210 " << t210 << ", 60 " << t60 << ", 240 " << t240 << "; 0 " << t0 << ", 90 " << t90 << ", 180 " << t180 << ", 270 " << t270);
+	REQUIRE(t30 != 0);
+	REQUIRE(t60 != 0);
+	REQUIRE_CHAIN_MODELLED();
+	CHECK_NEAR(t210, t30, 4);
+	CHECK_NEAR(t240, t60, 4);
+	CHECK(t0 <= 0);
+	CHECK(t90 <= 0);
+	CHECK(t180 <= 0);
+	CHECK(t270 <= 0);
+	const double r = static_cast<double>(t60) / t30;
+	CHECK((std::fabs(r - 3.0) < 0.06 || std::fabs(r - 1.0 / 3.0) < 0.01));
+}
+
+// Same line rule for a friction (MATH above, (b)): it opposes the motion or is zero at every direction. Motion +100 counts per cycle (far above the
+// ramp-up speed, F1-E8): opposing = torque <= 0. 9000 and 4500 come first (the firmware's sin > 0: opposing), the first failing assertion is
+// 27000, where the firmware's friction pushes along the motion (+4882 counts: it adds energy).
+TEST_CASE_FIXTURE(MixFixture, "F1-E9: a rotated friction opposes the motion or is zero at every direction"
+	* KNOWN_ISSUE("(IB 34) a rotated condition is scaled linearly by sin(theta) (HidFFB.cpp:333): at 27000 the friction pushes along the motion") * IT_DELETES_FFBHIDMAIN) {
+	up();
+	const int64_t idx = newEffect(pid::use::EtFriction, 9000, true);
+	setConditionAt(idx, 0, 0, 8000, 8000, 32767, 32767, 0);
+	start(idx);
+	const int t90 = damperAt(100);
+	setEffectRaw(idx, pid::use::EtFriction, 4500, true);
+	const int t45 = damperAt(100);
+	setEffectRaw(idx, pid::use::EtFriction, 27000, true);
+	const int t270 = damperAt(100);
+	setEffectRaw(idx, pid::use::EtFriction, 22500, true);
+	const int t225 = damperAt(100);
+	MESSAGE("+100 counts/cycle: 9000 " << t90 << ", 4500 " << t45 << ", 27000 " << t270 << ", 22500 " << t225);
+	REQUIRE(t90 < 0);
+	CHECK(t45 <= 0);
+	REQUIRE_CHAIN_MODELLED();
+	CHECK(t270 <= 0);
+	CHECK(t225 <= 0);
+}
+
+// PID 5.1 / 5.3: Direction Enable off, Axes Enable X on (what a host sends for an unrotated condition), one condition block: one block per enabled
+// axis, "the effect must not be rotated": the block acts on axis 0 unrotated, a spring with positive coefficients restores on both sides.
+// Firmware: axisMagnitudes[0] = (directionX - 18000) / 18000 = -1 for direction 0 (HidFFB.cpp:333; useSingleCondition defaults to true,
+// ffb_defs.h:359, so the condition override at HidFFB.cpp:317-327 is skipped; the promotion at :391 needs a zero magnitude): a full anti-spring.
+TEST_CASE_FIXTURE(MixFixture, "F1-E9: one condition block with Axes Enable X and Direction Enable off acts on axis 0 as an unrotated restoring spring"
+	* KNOWN_ISSUE("(IB 35) with Axes Enable X and Direction Enable off the axis magnitude is (direction - 18000) / 18000 = -1 for direction 0 (HidFFB.cpp:333): an anti-spring") * IT_DELETES_FFBHIDMAIN) {
+	up();
+	const int64_t idx = createOnly(pid::use::EtSpring);
+	pid::PidReport se = h().builder().make(ReportType::Output, pid::use::SetEffectReport);
+	se.set(pid::use::EffectBlockIndex, idx).select(pid::use::EtSpring).set(pid::use::Duration, 32767).set(pid::use::Gain, 255);
+	se.flag(pid::use::DirectionEnable, false);
+	se.setIn({pid::use::AxesEnable}, hid::usage(0x01, 0x30), 1);
+	se.setIn({pid::use::Direction}, kDirectionX, 0);
+	h().send(se);
+	setConditionAt(idx, 0, 0, 16000, 16000, 32767, 32767, 0);
+	start(idx);
+	const int t = springAt(6000);
+	const int tn = springAt(-6000);
+	MESSAGE("Axes Enable X, direction 0: +6000 counts " << t << ", -6000 counts " << tn);
+	REQUIRE(t != 0);
+	REQUIRE_CHAIN_MODELLED();
+	CHECK(t < 0);
+	CHECK(tn > 0);
+	CHECK_NEAR(t, -tn, 4);
+}
+
+// PID 5.1 / 5.3 do not make the result depend on the order of the reports. Set Effect (Direction Enable off, no Axes Enable X) before Set
+// Condition: the firmware promotes the axis magnitude 0 -> 1.0 in Set Condition (HidFFB.cpp:391-393). Set Condition before Set Effect: Set
+// Effect writes 0 (HidFFB.cpp:333-334) and nothing promotes it again: torque 0. Neither value is called the defect here: with Direction Enable
+// and Axes Enable X off, PID 5.1 gives axis 0 no share (0); the full force comes from the firmware's 0 -> 1.0 promotion in set_condition
+// (HidFFB.cpp:391-393). Which value is intended is INR 30; the defect asserted is that the torque depends on the order of the reports (IB 33).
+TEST_CASE_FIXTURE(MixFixture, "F1-E9: the order of Set Condition and Set Effect does not change the torque"
+	* KNOWN_ISSUE("(IB 33) the torque depends on the order of the reports and on repeating an identical Set Effect (HidFFB.cpp:333 writes 0, only set_condition promotes 0 -> 1.0, :391-393)") * IT_DELETES_FFBHIDMAIN) {
+	up();
+	const int64_t a = newEffect(pid::use::EtSpring);
+	setConditionAt(a, 0, 0, 16000, 16000, 32767, 32767, 0);
+	start(a);
+	const int tA = springAt(6000);
+	stopFx(a);
+	const int64_t b = createOnly(pid::use::EtSpring);
+	setConditionAt(b, 0, 0, 16000, 16000, 32767, 32767, 0);
+	setEffectRaw(b, pid::use::EtSpring, 0, false);
+	start(b);
+	const int tB = springAt(6000);
+	MESSAGE("effect first: " << tA << ", condition first: " << tB);
+	REQUIRE(tA != 0);
+	REQUIRE_CHAIN_MODELLED();
+	CHECK_NEAR(tB, tA, 1);
+}
+
+// PID 5.1: Set Effect may be sent again while the effect exists (parameters unchanged here): the effect keeps acting. Direction Enable off, no
+// Axes Enable X, Set Condition already received: the firmware writes the axis magnitude 0 again (HidFFB.cpp:333) and the running condition
+// effect goes silent: the torque depends on repeating an identical report
+// (IB 33; which value is intended: INR 30).
+TEST_CASE_FIXTURE(MixFixture, "F1-E9: a repeated Set Effect with unchanged parameters does not silence a running condition effect"
+	* KNOWN_ISSUE("(IB 33) the torque depends on the order of the reports and on repeating an identical Set Effect (HidFFB.cpp:333 writes 0, only set_condition promotes 0 -> 1.0, :391-393)") * IT_DELETES_FFBHIDMAIN) {
+	up();
+	const int64_t a = newEffect(pid::use::EtSpring);
+	setConditionAt(a, 0, 0, 16000, 16000, 32767, 32767, 0);
+	start(a);
+	const int before = springAt(6000);
+	setEffectRaw(a, pid::use::EtSpring, 0, false);
+	const int after = springAt(6000);
+	MESSAGE("before the repeat " << before << ", after " << after);
+	REQUIRE(before != 0);
+	REQUIRE_CHAIN_MODELLED();
+	CHECK_NEAR(after, before, 1);
+}
+
+// Same with Direction Enable: the polar share is written by Set Effect in both orders, so the order does not matter (plain).
+TEST_CASE_FIXTURE(MixFixture, "F1-E9: with Direction Enable the order of Set Condition and Set Effect does not change the torque" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	const int64_t a = newEffect(pid::use::EtSpring, 9000, true);
+	setConditionAt(a, 0, 0, 16000, 16000, 32767, 32767, 0);
+	start(a);
+	const int tA = springAt(6000);
+	stopFx(a);
+	const int64_t b = createOnly(pid::use::EtSpring);
+	setConditionAt(b, 0, 0, 16000, 16000, 32767, 32767, 0);
+	setEffectRaw(b, pid::use::EtSpring, 9000, true);
+	start(b);
+	const int tB = springAt(6000);
+	MESSAGE("effect first: " << tA << ", condition first: " << tB);
+	REQUIRE(tA != 0);
+	CHECK_NEAR(tB, tA, 1);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// F1-E12 combined effects
+// ---------------------------------------------------------------------------------------------------------------------
+
+// PID 5.1: the effects of a device are summed. Position -20000 counts (q -2000) moving at -4 counts per FFB cycle (cycle-keyed script), a
+// constant force (-6000), a spring (coefficient 2000) and a damper (coefficient 5000), all with positive torque here, and a constant force of
+// +2500 with negative torque (a sum that lost a sign would fail). Each alone, then
+// together: per FFB cycle, the combined torque equals the sum of the three single ones (the position sequence relative to the ramp start is
+// identical in every run: cycle index keyed). The cycles 400-480 after the ramp start are compared (damper filter settled: tau 10.6 ms).
+TEST_CASE_FIXTURE(MixFixture, "F1-E12: a constant force, a spring and a damper together give the sum of their single torques before the clip" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	const int64_t c = startConstant(-6000);
+	const int64_t sp = newEffect(pid::use::EtSpring);
+	setCondition(sp, 0, 2000, 2000, 32767, 32767, 0);
+	const int64_t d = newEffect(pid::use::EtDamper);
+	setCondition(d, 0, 5000, 5000, 32767, 32767, 0);
+	const int64_t o = startConstant(2500);
+	const std::vector<int64_t> all = {c, sp, d, o};
+	auto runWith = [&](const std::vector<int64_t> &on) {
+		for (int64_t i : all) {
+			stopFx(i);
+		}
+		for (int64_t i : on) {
+			start(i);
+		}
+		script.setConstant(-20000);
+		h().run(1000);
+		const uint32_t c0 = ffbCycles();
+		rampFrom(-4);
+		std::vector<int> byCycle(500, 0);
+		for (const TorqueTrace::Sample &s : record(500)) {
+			const int64_t rel = static_cast<int64_t>(s.cycle) - c0;
+			if (rel >= 0 && rel < 500) {
+				byCycle[rel] = s.torque;
+			}
+		}
+		return byCycle;
+	};
+	const std::vector<int> tc = runWith({c}), ts = runWith({sp}), td = runWith({d}), to = runWith({o}), ta = runWith(all);
+	MESSAGE("constant " << tc[450] << ", spring " << ts[450] << ", damper " << td[450] << ", opposite constant " << to[450] << ", all " << ta[450]);
+	CHECK(tc[450] > 1000);
+	CHECK(ts[450] > 500);
+	CHECK(td[450] > 100);
+	CHECK(to[450] < -1000);
+	int worst = 0;
+	for (int i = 400; i < 480; i++) {
+		worst = std::max(worst, std::abs(ta[i] - (tc[i] + ts[i] + td[i] + to[i])));
+	}
+	MESSAGE("largest |all - sum of parts| " << worst);
+	CHECK(worst <= kSumTol);
+	CHECK(ta[450] < 19000);
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// PID 5.1 sums the effects; the device cannot output more than its power: 0x64 saturates at +-power. Constant force (-20000) alone gives
+// 20000 * 20000 / 32767 = 12207 (within 3); two give 24414 > 20000: +power exactly; a third with the opposite sign (+5000: sum 35000 -> 21362)
+// is still beyond: +power, sign of the sum. The mirrored sum gives -power.
+TEST_CASE_FIXTURE(MixFixture, "F1-E12: a sum beyond power saturates at power with the sign of the sum" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	const int64_t a = startConstant(-20000);
+	const int one = steady(300);
+	const int64_t b = startConstant(-20000);
+	const int two = steady(300);
+	const int64_t c = startConstant(5000);
+	const int three = steady(300);
+	stopFx(a);
+	stopFx(b);
+	stopFx(c);
+	h().run(100);
+	const int64_t m1 = startConstant(20000);
+	const int64_t m2 = startConstant(20000);
+	const int neg = steady(300);
+	MESSAGE("one " << one << ", two " << two << ", three " << three << ", mirrored " << neg);
+	CHECK_NEAR(one, 12207, 3);
+	CHECK(two == kPower);
+	CHECK(three == kPower);
+	CHECK(neg == -kPower);
+	(void)m1;
+	(void)m2;
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// The int32 -> int16 narrowing before turn() never wraps for settings reachable by command with power <= 0x7fff (power > 0x7fff is IB 14, same
+// as bug 32, covered by I1-7): the largest power 32767 (torqueScaler 1.0), three constant forces of the extreme magnitudes (sum +-98301) give
+// exactly +-32767 in every cycle after the change, never a wrapped (opposite sign) value.
+TEST_CASE_FIXTURE(MixFixture, "F1-E12: the largest sums at the largest power give plus or minus 32767 and never wrap" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	h().command("axis.0.power=32767");
+	REQUIRE(h().getValue("axis.0.power?") == 32767);
+	h().run(50);
+	const int64_t a = startConstant(-32767);
+	const int64_t b = startConstant(-32767);
+	const int64_t c = startConstant(-32767);
+	h().run(100);
+	const std::vector<TorqueTrace::Sample> s = record(300);
+	REQUIRE(s.size() > 100);
+	int lo = 100000, hi = -100000;
+	for (const auto &x : s) {
+		lo = std::min<int>(lo, x.torque);
+		hi = std::max<int>(hi, x.torque);
+	}
+	stopFx(a);
+	stopFx(b);
+	stopFx(c);
+	h().run(100);
+	const int64_t d = startConstant(32767);
+	const int64_t e = startConstant(32767);
+	const int64_t f = startConstant(32767);
+	h().run(100);
+	const std::vector<TorqueTrace::Sample> s2 = record(300);
+	int lo2 = 100000, hi2 = -100000;
+	for (const auto &x : s2) {
+		lo2 = std::min<int>(lo2, x.torque);
+		hi2 = std::max<int>(hi2, x.torque);
+	}
+	MESSAGE("positive sums: " << lo << ".." << hi << ", negative sums: " << lo2 << ".." << hi2);
+	CHECK(lo == 32767);
+	CHECK(hi == 32767);
+	CHECK(lo2 == -32767);
+	CHECK(hi2 == -32767);
+	(void)d;
+	(void)e;
+	(void)f;
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// F1-E13 per-effect Gain
+// ---------------------------------------------------------------------------------------------------------------------
+
+// PID 5.1: Gain is a normalized scaling factor applied to all magnitudes of an effect. Square (one waveform) magnitude 16000, period 100:
+// the peak |torque| over 300 ms with Gain 128 is 128 / 255 of the one with Gain 255 (both > 4900 counts: ratio tolerance 0.01).
+TEST_CASE_FIXTURE(MixFixture, "F1-E13: the effect Gain scales a periodic effect" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	const int64_t idx = createOnly(pid::use::EtSquare);
+	setEffectRaw(idx, pid::use::EtSquare, 9000, true, 255);
+	setPeriodic(idx, 16000, 0, 0, 100);
+	start(idx);
+	h().run(100);
+	const int full = maxAbs(300);
+	setEffectRaw(idx, pid::use::EtSquare, 9000, true, 128);
+	h().run(20);
+	const int half = maxAbs(300);
+	MESSAGE("gain 255: " << full << ", gain 128: " << half);
+	REQUIRE(full > 4000);
+	CHECK_NEAR(static_cast<double>(half) / full, 128.0 / 255.0, 0.01);
+}
+
+// PID 5.1: same for a ramp (Ramp Start = Ramp End = 16000 keeps it constant: the firmware multiplies every non-condition force by gain / 255,
+// EffectsCalculator.cpp:314; the I1-3 mutation note that
+// ramp Gain is ignored is refuted).
+TEST_CASE_FIXTURE(MixFixture, "F1-E13: the effect Gain scales a ramp" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	const int64_t idx = createOnly(pid::use::EtRamp);
+	setEffectRaw(idx, pid::use::EtRamp, 9000, true, 255);
+	setRamp(idx, 16000, 16000);
+	start(idx);
+	h().run(100);
+	const int full = steady(200);
+	setEffectRaw(idx, pid::use::EtRamp, 9000, true, 128);
+	const int half = steady(200);
+	MESSAGE("gain 255: " << full << ", gain 128: " << half);
+	REQUIRE(std::abs(full) > 4000);
+	CHECK_NEAR(static_cast<double>(half) / full, 128.0 / 255.0, 0.01);
+}
+
+// characterization: PID 5.1 applies the Gain "to all magnitudes and envelopes of an effect"; condition blocks have neither (5.1.1.1 rule 2:
+// effects that use Condition Blocks do not use Envelope Blocks; 5.3 has coefficients and saturations), and Table 3 says nothing about the Gain,
+// so PID does not fix whether the Gain scales a condition. The firmware ignores it (seam S9 confirmed): calcNonConditionEffectForce returns 0
+// for the condition types (EffectsCalculator.cpp:180-185) before its Gain line (:314), and the condition path never reads effect->gain.
+// Gain 128 gives the torque of Gain 255 for spring, damper, friction and inertia (ratio 1.0).
+// INR 31
+TEST_CASE_FIXTURE(MixFixture, "characterization: [F1-E13] condition effects ignore the Effect Gain" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	const int64_t sp = newEffect(pid::use::EtSpring, 9000, true);
+	setCondition(sp, 0, 16000, 16000, 32767, 32767, 0);
+	start(sp);
+	const int sp255 = springAt(6000);
+	setEffectRaw(sp, pid::use::EtSpring, 9000, true, 128);
+	const int sp128 = springAt(6000);
+	MESSAGE("spring: " << sp255 << " -> " << sp128);
+	REQUIRE(sp255 != 0);
+	CHECK_NEAR(static_cast<double>(sp128) / sp255, 1.0, 0.01);
+	stopFx(sp);
+	const int64_t dp = newEffect(pid::use::EtDamper, 9000, true);
+	setCondition(dp, 0, 32767, 32767, 32767, 32767, 0);
+	start(dp);
+	script.setConstant(0);
+	h().run(100);
+	const int dp255 = damperAt(4);
+	setEffectRaw(dp, pid::use::EtDamper, 9000, true, 128);
+	const int dp128 = damperAt(4);
+	MESSAGE("damper: " << dp255 << " -> " << dp128);
+	REQUIRE(dp255 != 0);
+	CHECK_NEAR(static_cast<double>(dp128) / dp255, 1.0, 0.01);
+	stopFx(dp);
+	settleHold();
+	const int64_t fr = newEffect(pid::use::EtFriction, 9000, true);
+	setCondition(fr, 0, 8000, 8000, 32767, 32767, 0);
+	start(fr);
+	const int fr255 = damperAt(100);
+	setEffectRaw(fr, pid::use::EtFriction, 9000, true, 128);
+	const int fr128 = damperAt(100);
+	MESSAGE("friction: " << fr255 << " -> " << fr128);
+	REQUIRE(fr255 != 0);
+	CHECK_NEAR(static_cast<double>(fr128) / fr255, 1.0, 0.01);
+	stopFx(fr);
+	settleHold();
+	const int64_t in = newEffect(pid::use::EtInertia, 9000, true);
+	setCondition(in, 0, 1000, 1000, 32767, 32767, 0);
+	start(in);
+	const int in255 = parabolaAt(1);
+	settleHold();
+	setEffectRaw(in, pid::use::EtInertia, 9000, true, 128);
+	const int in128 = parabolaAt(1);
+	MESSAGE("inertia: " << in255 << " -> " << in128);
+	REQUIRE(in255 != 0);
+	CHECK_NEAR(static_cast<double>(in128) / in255, 1.0, 0.01);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// F1-E14 type change
+// ---------------------------------------------------------------------------------------------------------------------
+// Type change on a RUNNING effect to damper, friction or inertia from a type without filters (spring, sine, ramp, ...): HidFFB::set_effect calls
+// set_filters before it writes the new type (HidFFB.cpp:301-307, bug 11: the filters of the OLD type, none), and Effect Operation Start sets the
+// filters only for an effect that is not running (:423-425), so the next cycle calls process() on a null filter (EffectsCalculator.cpp:416 /
+// :425 / :433) and the host process dies: the skipped case below (IB 36; same as bug 12). Only running effects are affected: a STOPPED effect gets
+// the filters of its new type at the next Start (the plain cases below).
+
+// A stopped spring changed by Set Effect to a damper (Set Condition for the damper, then Start): the damper opposes the motion and gives the
+// torque of a damper created as such with the same parameters (same chain: equal within 3 counts, the measurement spread).
+TEST_CASE_FIXTURE(MixFixture, "F1-E14: a stopped spring changed to a damper and started damps the motion like a new damper" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	const int64_t idx = newEffect(pid::use::EtSpring, 9000, true);
+	setConditionAt(idx, 0, 0, 16000, 16000, 32767, 32767, 0);
+	start(idx);
+	h().run(100);
+	stopFx(idx);
+	setEffectRaw(idx, pid::use::EtDamper, 9000, true);
+	setConditionAt(idx, 0, 0, 32767, 32767, 32767, 32767, 0);
+	start(idx);
+	const int changed = damperAt(4);
+	stopFx(idx);
+	settleHold();
+	const int64_t fresh = newEffect(pid::use::EtDamper, 9000, true);
+	setConditionAt(fresh, 0, 0, 32767, 32767, 32767, 32767, 0);
+	start(fresh);
+	const int ref = damperAt(4);
+	MESSAGE("changed " << changed << ", new damper " << ref);
+	CHECK(changed < 0);
+	CHECK_NEAR(changed, ref, 3);
+}
+
+// A stopped sine changed to an inertia and started: opposes the acceleration like a new inertia with the same parameters.
+TEST_CASE_FIXTURE(MixFixture, "F1-E14: a stopped sine changed to an inertia and started opposes the acceleration like a new inertia" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	const int64_t idx = createOnly(pid::use::EtSine);
+	setEffectRaw(idx, pid::use::EtSine, 9000, true);
+	setPeriodic(idx, 4000, 0, 0, 100);
+	start(idx);
+	h().run(200);
+	stopFx(idx);
+	setEffectRaw(idx, pid::use::EtInertia, 9000, true);
+	setConditionAt(idx, 0, 0, 1000, 1000, 32767, 32767, 0);
+	start(idx);
+	const int changed = parabolaAt(1);
+	stopFx(idx);
+	settleHold();
+	const int64_t fresh = newEffect(pid::use::EtInertia, 9000, true);
+	setConditionAt(fresh, 0, 0, 1000, 1000, 32767, 32767, 0);
+	start(fresh);
+	const int ref = parabolaAt(1);
+	MESSAGE("changed " << changed << ", new inertia " << ref);
+	CHECK(changed < 0);
+	CHECK_NEAR(changed, ref, 3);
+}
+
+// A stopped ramp changed to a friction and started: opposes the motion like a new friction with the same parameters.
+TEST_CASE_FIXTURE(MixFixture, "F1-E14: a stopped ramp changed to a friction and started opposes the motion like a new friction" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	const int64_t idx = createOnly(pid::use::EtRamp);
+	setEffectRaw(idx, pid::use::EtRamp, 9000, true);
+	setRamp(idx, 8000, 8000);
+	start(idx);
+	h().run(200);
+	stopFx(idx);
+	setEffectRaw(idx, pid::use::EtFriction, 9000, true);
+	setConditionAt(idx, 0, 0, 8000, 8000, 32767, 32767, 0);
+	start(idx);
+	const int changed = damperAt(100);
+	stopFx(idx);
+	settleHold();
+	const int64_t fresh = newEffect(pid::use::EtFriction, 9000, true);
+	setConditionAt(fresh, 0, 0, 8000, 8000, 32767, 32767, 0);
+	start(fresh);
+	const int ref = damperAt(100);
+	MESSAGE("changed " << changed << ", new friction " << ref);
+	CHECK(changed < 0);
+	CHECK_NEAR(changed, ref, 3);
+}
+
+// Intended behaviour (PID 5.1: Set Effect changes the parameters of an existing effect, here its type): a running spring changed to a damper
+// damps the motion. Not run: the running effect keeps null filters (comment above) and the first cycle after the change calls process() on a
+// null Biquad (EffectsCalculator.cpp:425), which kills the test process (host SIGSEGV; on the target the vector table is read as a Biquad, bug 12).
+TEST_CASE_FIXTURE(MixFixture, "F1-E14: a running spring changed to a damper by Set Effect damps the motion" * doctest::skip()
+	* doctest::description("KNOWN ISSUE (crash): (IB 36; same as bug 12) a running effect changed to a damper keeps null filters (HidFFB.cpp:301-307, :423-425), EffectsCalculator.cpp:425 calls process() on a null Biquad. Skipped because it terminates the test run")) {
+	up();
+	const int64_t idx = newEffect(pid::use::EtSpring, 9000, true);
+	setConditionAt(idx, 0, 0, 16000, 16000, 32767, 32767, 0);
+	start(idx);
+	h().run(100);
+	setEffectRaw(idx, pid::use::EtDamper, 9000, true);
+	setConditionAt(idx, 0, 0, 32767, 32767, 32767, 32767, 0);
+	const int t = damperAt(4);
+	CHECK(t < 0);
+}
+
+// PID 5.1 / 5.9: a Set Effect changes the parameters of an existing effect; the effect keeps playing, its Duration counts from Op Effect Start.
+// The firmware sets startTime = 0 on a type change (HidFFB.cpp:301-302) and ends a finite effect when tick - startTime > Duration
+// (EffectsCalculator.cpp:138): after more than Duration ms of uptime the changed effect ends at once. Duration 32767 (the largest), uptime
+// beyond 33.5 s first; a running constant force (-10000) changed to a sine (magnitude 4000, period 100 ms): in the 300 ms after the change the
+// sine reaches both polarities beyond 2000 counts (bound 2441, see the constant -> sine case below). Firmware: 0 in every cycle.
+TEST_CASE_FIXTURE(MixFixture, "F1-E14: a running effect changed to another type after more than Duration ms of uptime keeps playing"
+	* KNOWN_ISSUE("(IB 37) a type change sets startTime = 0 (HidFFB.cpp:301-302), the effect ends at once when the uptime exceeds its Duration (EffectsCalculator.cpp:138)") * IT_DELETES_FFBHIDMAIN) {
+	up();
+	const uint64_t target = 33500000ULL;
+	if (HostPlatform::nowUs() < target) {
+		h().run(static_cast<uint32_t>((target - HostPlatform::nowUs()) / 1000 + 1));
+	}
+	REQUIRE(HostPlatform::nowUs() > 32767000ULL + 500000ULL);
+	const int64_t idx = startConstant(-10000);
+	const int before = steady(200);
+	REQUIRE(before > 6000);
+	setPeriodic(idx, 4000, 0, 0, 100);
+	setEffectRaw(idx, pid::use::EtSine, 9000, true);
+	const std::vector<TorqueTrace::Sample> s = record(300);
+	REQUIRE(s.size() > 200);
+	int lo = 100000, hi = -100000;
+	for (const auto &x : s) {
+		lo = std::min<int>(lo, x.torque);
+		hi = std::max<int>(hi, x.torque);
+	}
+	MESSAGE("constant before " << before << ", after the change " << lo << ".." << hi);
+	REQUIRE_CHAIN_MODELLED();
+	CHECK(hi > 2000);
+	CHECK(lo < -2000);
+}
+
+// A constant force changed by Set Effect to a sine (Set Periodic: magnitude 4000): bound of the new effect 4000 * 0.6103 = 2441 counts, +3 for
+// the truncation chain; no cycle after the change beyond it, both polarities reached (the effect is the sine, not the old constant force).
+TEST_CASE_FIXTURE(MixFixture, "F1-E14: an effect changed from a constant force to a sine stays within the bound of the sine in every cycle" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	const int64_t idx = startConstant(-10000);
+	const int before = steady(200);
+	setPeriodic(idx, 4000, 0, 0, 100);
+	TorqueTrace trace(chip1);
+	trace.start(*this);
+	h().observe(&trace);
+	setEffectRaw(idx, pid::use::EtSine, 9000, true);
+	h().run(600);
+	h().observe(nullptr);
+	int lo = 100000, hi = -100000;
+	for (const auto &s : trace.samples()) {
+		lo = std::min<int>(lo, s.torque);
+		hi = std::max<int>(hi, s.torque);
+	}
+	MESSAGE("constant -10000: " << before << ", after the change " << lo << ".." << hi);
+	CHECK_NEAR(before, 6103, 3);
+	CHECK(hi <= 2444);
+	CHECK(lo >= -2444);
+	CHECK(hi > 2000);
+	CHECK(lo < -2000);
+}
+
+// A sine changed to a spring without coefficients gives 0 (bound 0 +- 2) in every cycle after the change (2 ms of margin for the report); a
+// Set Condition then gives the restoring spring torque, never beyond its saturation 1500 * 0.6103 = 916 counts (+2).
+TEST_CASE_FIXTURE(MixFixture, "F1-E14: an effect changed from a sine to a spring gives no torque until the coefficients arrive and stays within the saturation" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	const int64_t idx = createOnly(pid::use::EtSine);
+	setEffectRaw(idx, pid::use::EtSine, 9000, true);
+	setPeriodic(idx, 8000, 0, 0, 100);
+	start(idx);
+	h().run(300);
+	script.setConstant(6000);
+	TorqueTrace trace(chip1);
+	trace.start(*this);
+	h().observe(&trace);
+	setEffectRaw(idx, pid::use::EtSpring, 9000, true);
+	const uint64_t tChange = HostPlatform::nowUs();
+	h().run(200);
+	setConditionAt(idx, 0, 0, 16000, 16000, 1500, 1500, 0);
+	const uint64_t tCond = HostPlatform::nowUs();
+	h().run(300);
+	h().observe(nullptr);
+	int worstBefore = 0, worstAfter = 0;
+	for (const auto &s : trace.samples()) {
+		if (s.timeUs > tChange + 2000 && s.timeUs < tCond) {
+			worstBefore = std::max(worstBefore, std::abs(static_cast<int>(s.torque)));
+		}
+		if (s.timeUs > tCond + 2000) {
+			worstAfter = std::max(worstAfter, std::abs(static_cast<int>(s.torque)));
+		}
+	}
+	const int last = trace.samples().back().torque;
+	MESSAGE("spring without coefficients: worst " << worstBefore << ", with: worst " << worstAfter << ", last " << last);
+	CHECK(worstBefore <= 2);
+	CHECK(worstAfter <= 918);
+	CHECK(last < 0);
+	CHECK(last >= -918);
+}
+
+// A damper changed to a friction (both have filters, so the filter state is valid): saturation 1000 bounds both: 1000 * 0.6103 = 610 counts
+// (+2) in every cycle, before and after the change, while the position moves at 4 counts per cycle; the torque opposes the motion afterwards.
+// Bug 11 cross-reference: set_filters runs before the new type is written (HidFFB.cpp:301-307), so the friction keeps the damper's filter
+// parameters (30 Hz / Q 0.4 instead of 50 Hz / Q 0.2, EffectsCalculator.h:61-64); the saturation bound and the sign cannot see that.
+TEST_CASE_FIXTURE(MixFixture, "F1-E14: an effect changed from a damper to a friction stays within the saturation in every cycle and opposes the motion" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	const int64_t idx = newEffect(pid::use::EtDamper, 9000, true);
+	setCondition(idx, 0, 32767, 32767, 1000, 1000, 0);
+	start(idx);
+	rampFrom(4);
+	h().run(300);
+	TorqueTrace trace(chip1);
+	trace.start(*this);
+	h().observe(&trace);
+	setEffectRaw(idx, pid::use::EtFriction, 9000, true);
+	h().run(500);
+	h().observe(nullptr);
+	int worst = 0;
+	for (const auto &s : trace.samples()) {
+		worst = std::max(worst, std::abs(static_cast<int>(s.torque)));
+	}
+	const int last = trace.samples().back().torque;
+	MESSAGE("worst " << worst << ", last " << last);
+	CHECK(worst <= 612);
+	CHECK(last < 0);
+	CHECK(last >= -612);
+}
+
+} // TEST_SUITE F1ConditionsGeometry

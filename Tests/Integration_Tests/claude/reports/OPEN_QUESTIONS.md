@@ -17,6 +17,7 @@ Questions of the integration track (`Tests/Integration_Tests/`), numbered IQ1, I
 | IQ9 | PID State input report without Effect Block Index (INR 2) | 2026-11-18 | **open** |
 | IQ10 | Direction as ordinal-usage values (INR 3) | 2026-11-18 | **open** (low priority) |
 | IQ11 | Block Load index 0 on failure outside the declared range 1..40 (INR 4) | 2026-11-18 | **open** |
+| IQ13 | Direction of the Sawtooth Up / Down waveforms (WO I1-4, INR 29) | 2026-11-23 | **open** |
 | IQ12 | Device Control encoding: descriptor bit flags vs PID 1.01 command numbers (WO I1-2) | 2026-11-19 | answered 2026-11-19: PID 1.01 command numbers (IB 8) |
 
 Faults found by the track are in [BUG_REPORT.md](BUG_REPORT.md).
@@ -120,3 +121,11 @@ The PID Block Load feature report declares the Effect Block Index with logical r
 The firmware's HID descriptor declares the PID Device Control field as 8 one-bit Variable fields (`usb_hid_ffb_desc.h:574-578`, `75 01 95 08 91 02`); HID 1.11 §6.2.2.5 reads that as eight on/off switches, and the firmware decodes the byte as bit flags (`HidFFB.cpp:221-239`: 1 Enable, 2 Disable, 4 Stop All, 8 Reset, 16 Pause, 32 Continue). PID 1.01 §5.13 calls the field a selector (NAry) and Figure 16 shows one command byte with the numbers 1..6 (Stop All 3, Reset 4, Continue 6); PID's own §6 example carries the same 1-bit bytes. Sent as PID numbers, Reset and Continue do the wrong thing; sent as flags they work. Which encoding is intended? (Stop All followed by Start gives no torque under either encoding: IB 9 regardless.)
 
 **Answer (owner, 2026-11-19):** PID 1.01 command numbers. The descriptor layout plus the bit-flag decoding is integration bug IB 8; the tests keep sending Figure 16 command bytes. This supersedes the I0-6 decision log entry "Device Control ... no finding".
+
+## Batch 5 (phase I1, WO I1-4, 2026-11-23)
+
+### IQ13. Direction of the Sawtooth Up / Down waveforms (INR 29)
+
+The firmware's Sawtooth Up force falls within each period and its Sawtooth Down force rises (`EffectsCalculator.cpp:239`, `:262`), relative to a constant force of positive Magnitude. PID 1.01 (and 1.02) only name the effect types ET Sawtooth Up / ET Sawtooth Down in Table 2 and section 5.1, and 5.1 even describes ET Sawtooth Down as defining "a Sawtooth Up waveform" (a typo); HID 1.11 says nothing; the conventional reading (e.g. DirectInput DIEFT_SAWTOOTHUP: rises) is not a supplied specification. Should "Sawtooth Up" rise (then the firmware swaps the two and the I1-4 characterization becomes a known issue), or is the firmware's direction intended? Until answered, a characterization case records what the firmware does.
+
+**Answer:** open.
