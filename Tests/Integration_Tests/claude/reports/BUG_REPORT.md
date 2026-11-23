@@ -10,8 +10,8 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 | Kind | Count | Open | Resolved |
 |---|---|---|---|
-| Suspected firmware bugs (IB) | 32 | 32 | 0 |
-| NEEDS REVIEW items (INR) | 23 | 23 | 0 |
+| Suspected firmware bugs (IB) | 37 | 37 | 0 |
+| NEEDS REVIEW items (INR) | 32 | 32 | 0 |
 | Defects in shared test fakes (A) | 3 | 0 | 3 |
 | Defects in test tools (T) | 1 | 0 | 1 |
 
@@ -38,6 +38,11 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | IB 19 | firmware bug | EffectsCalculator | open |
 | IB 20 | firmware bug | EffectsCalculator | open |
 | IB 21 | firmware bug | EffectsCalculator | open |
+| IB 22 | firmware bug | Axis / TMC4671 | open |
+| IB 23 | firmware bug | Axis | open |
+| IB 24 | firmware bug | TMC4671 | open |
+| IB 25 | firmware bug | Axis | open |
+| IB 26 | firmware bug | Axis | open |
 | IB 27 | firmware bug | EffectsCalculator | open |
 | IB 28 | firmware bug | HidFFB | open |
 | IB 29 | firmware bug | HidFFB / EffectsCalculator | open |
@@ -65,6 +70,14 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | INR 14 | NEEDS REVIEW | EffectsCalculator / HidFFB | open |
 | INR 15 | NEEDS REVIEW | EffectsCalculator | open |
 | INR 16 | NEEDS REVIEW | EffectsCalculator | open |
+| INR 17 | NEEDS REVIEW | Axis | open |
+| INR 18 | NEEDS REVIEW | Axis | open |
+| INR 19 | NEEDS REVIEW | Axis / EffectsCalculator | open |
+| INR 20 | NEEDS REVIEW | Axis | open |
+| INR 21 | NEEDS REVIEW | Axis | open |
+| INR 22 | NEEDS REVIEW | Axis | open |
+| INR 23 | NEEDS REVIEW | Axis | open |
+| INR 24 | NEEDS REVIEW | Axis | open |
 | INR 25 | NEEDS REVIEW | EffectsCalculator | open |
 | INR 26 | NEEDS REVIEW | EffectsCalculator | open |
 | INR 27 | NEEDS REVIEW | HidFFB / EffectsCalculator | open |
@@ -72,6 +85,7 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | INR 29 | NEEDS REVIEW | EffectsCalculator | open |
 | INR 30 | NEEDS REVIEW | HidFFB | open |
 | INR 31 | NEEDS REVIEW | EffectsCalculator | open |
+| INR 32 | NEEDS REVIEW | Axis | open |
 | A-1 | fake defect | Fake HAL SPI + GPIO / EXTI | fixed |
 | A-2 | fake defect | Fake ADC, timers, flash map | fixed |
 | A-3 | fake defect | `HostDcd` + `UsbHost` + `HostRtos` ext | fixed |
@@ -245,6 +259,46 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 - **What:** The envelope is skipped for every Ramp effect (`if (effect->type != FFB_EFFECT_RAMP)`), although `set_ramp` sets the magnitude to 0x7fff "for envelope calculation"; PID 1.01 Table 3 (§5.1.1.1): ET Ramp uses the Ramp and Envelope parameter blocks
 - **Same as (coverage):** (none)
 - **Test / evidence:** `KNOWN_ISSUE` case `F1-E4: an envelope on a ramp effect shapes the ramp ...` in `test_f1_effects.cpp` (WO I1-3)
+- **Resolved?:** no
+
+### IB 22: Axis / TMC4671
+
+- **Where:** `Axis.cpp:431-444`, `:480-485`, `:488-495`; `TMC4671.cpp:1682-1694`
+- **What:** 0x64 keeps the last torque through an out-of-bounds stop; when the host stops all effects meanwhile (axis torque 0) and `sys.errorsclr` restarts the motor, the drive comes back on with the old force (-3051 at 0x64, MODE_MOTION 1, PWM on, `axis.0.curtorque` 0, still 3 s later) because `turn()` is called only on a torque change; oracle PID 1.01 §5.13 (Stop All Effects: no effect plays) and charter rule 3 (0x64 equals the axis torque)
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-X5: the motor restarts after the out-of-bounds stop without driving the old torque the host has withdrawn` in `test_f1_axis.cpp` (WO I1-8)
+- **Resolved?:** no
+
+### IB 23: Axis
+
+- **Where:** `Axis.cpp:872-876`, `:384`, `:996`
+- **What:** The zeroenc fade-in documented "over fadeTime" (0.5 s) adds fadeTime / filter_f per cycle and takes 1.5 s (1500 cycles at 1 kHz)
+- **Same as (coverage):** bug 30
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-X7: the fade-in after axis.0.zeroenc brings the force back to full torque within its fade time of 0.5 s` in `test_f1_axis.cpp` (WO I1-8)
+- **Resolved?:** no
+
+### IB 24: TMC4671
+
+- **Where:** `TMC4671.cpp:453`, `:473-492`, `:643-650`, `:1682-1687`
+- **What:** A start request made while the driver waits for power is lost: the supply drops (state saved in `requestedState`), the PC connects (`usbResume` -> `startMotor` only sets `motorEnabledRequested` outside Shutdown), and when the supply returns the driver goes to the saved Shutdown and nothing asks for Running: PWM on, MODE_MOTION stopped, the motor never runs. Oracle: the firmware sequence (charter F1-X7 "recover correctly after the driver becomes ready late"; the start-up sequence honours a recorded request, `TMC4671.cpp:619-621`). The long not-ready slew scenario of coverage bug 33 is not reachable through the chain on this path
+- **Same as (coverage):** related to bug 152 (same waitPower recovery)
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-X7: the motor starts once the supply returns after the PC connected while the supply was off` in `test_f1_axis.cpp` (WO I1-8)
+- **Resolved?:** no
+
+### IB 25: Axis
+
+- **Where:** `Axis.cpp:488-495`, `:447-449`; `TMC4671.cpp:643-650`
+- **What:** After a supply dropout 0x64 keeps the torque from before it: `updateDriveTorque` writes only on a change, so a force withdrawn during the dropout stays at the chip (-6103 with axis torque 0), and an effect started during the dropout never reaches it (0 with axis torque -6103); charter rule 3 (0x64 equals the axis torque)
+- **Same as (coverage):** extends bug 152
+- **Test / evidence:** 2 `KNOWN_ISSUE` cases `F1-X7: after a supply dropout the chip carries the torque the axis computes now ...` and `F1-X7: an effect started during a supply dropout reaches the chip once the driver is ready again` in `test_f1_axis.cpp` (WO I1-8)
+- **Resolved?:** no
+
+### IB 26: Axis
+
+- **Where:** `Axis.cpp:908-921`, `:186`, `Axis.h:484`
+- **What:** The slew limiter clips at R per FFB cycle without the sample rate: at `main.hidsendspd=1` (500 Hz, 2 ms per cycle) the documented R counts per millisecond is halved (step 100 instead of 200 per cycle at R = 100)
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-X7: at an FFB rate of 500 Hz slewrate R still allows R counts per millisecond, 2 R per FFB cycle` in `test_f1_axis.cpp` (WO I1-8)
 - **Resolved?:** no
 
 ### IB 27: EffectsCalculator
@@ -449,6 +503,62 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 - **Same as (coverage):** (none)
 - **Resolved?:** no
 
+### INR 17: Axis
+
+- **Test / location:** `Axis.cpp:826-836`, `Axis.h:512`; characterization case `characterization: [F1-X4] the endstop torque is linear in the penetration ...` in `test_f1_axis.cpp` (WO I1-8)
+- **Question:** Endstop torque = (|pos| - D/2) degrees * esgain * 25 raw counts, scaled by power / 0x7fff (also pins the IB 16 degree scale); PID 1.01 has no endstop. Intended gain?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 18: Axis
+
+- **Test / location:** `Axis.cpp:669-673`; characterization case `characterization: [F1-X6] the idle spring torque is displacement * (0.5 + 0.01 * idlespring) scaled by power` in `test_f1_axis.cpp` (WO I1-8)
+- **Question:** Idle spring scale 0.5 + 0.01 * S with clip min(35 S, 10000). Intended?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 19: Axis / EffectsCalculator
+
+- **Test / location:** `Axis.h` / `EffectsCalculator.h` scalers; characterization case `characterization: [F1-X6] the absolute scale of the axis damper, friction and inertia follows the firmware constants` in `test_f1_axis.cpp` (WO I1-8)
+- **Question:** Absolute scale of the axis damper (40 * 0.7 / 255 per deg/s), friction (0.7 * 32) and inertia (4 * 0.7 / 255 per deg/s^2) against hand derivations from the firmware constants. Intended?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 20: Axis
+
+- **Test / location:** `Axis.cpp:935`; characterization case `characterization: [F1-X7] the speed limiter leaves a force that points against the motion untouched` in `test_f1_axis.cpp` (WO I1-8)
+- **Question:** The speed limiter acts only on torque along the motion; a force against the motion above maxspeed is untouched. Intended?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 21: Axis
+
+- **Test / location:** `Axis.cpp:924-972`; characterization case `characterization: [F1-X7] above maxspeed the reduction of the force grows by 0.03 counts per cycle per deg/s of excess speed` in `test_f1_axis.cpp` (WO I1-8)
+- **Question:** Growth of the speed-limiter reduction: 0.03 counts per cycle per deg/s of excess speed (same in the DSP and non-DSP builds). Intended rate?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 22: Axis
+
+- **Test / location:** `Axis.cpp:952-954`; characterization case `characterization: [F1-X7] a long run above maxspeed reduces the force along the motion to 0 and never reverses it` in `test_f1_axis.cpp` (WO I1-8)
+- **Question:** The reduction is clipped at |torque|: a long run above maxspeed ends at 0, never reversed; no document says what a speed limiter does at the end of its range. Intended?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 23: Axis
+
+- **Test / location:** `Axis.cpp:384`, `:872-876`; characterization case `characterization: [F1-X7] the fade-in after axis.0.zeroenc starts at a quarter of the torque` in `test_f1_axis.cpp` (WO I1-8)
+- **Question:** The zeroenc fade starts at 0.25 of the torque. Intended?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 24: Axis
+
+- **Test / location:** `Axis.cpp:1019-1031`; characterization case `characterization: [F1-X7] the expo curve is n to the power 1 + v / 50 ...` in `test_f1_axis.cpp` (WO I1-8)
+- **Question:** Expo curve torque = T_full * n^p, p = 1 + v/50 (v > 0) or 1 / (1 + |v|/50) (v < 0). Intended?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
 ### INR 25: EffectsCalculator
 
 - **Test / location:** `EffectsCalculator.cpp:300-306`; characterization case `characterization: [F1-E2] a sine effect follows sin(2 pi t / Period) ...` in `test_f1_effects.cpp` (WO I1-4)
@@ -495,6 +605,13 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 - **Test / location:** `EffectsCalculator.cpp:180-185`, `:314`; characterization case `characterization: [F1-E13] condition effects ignore the Effect Gain` in `test_f1_conditions.cpp` (WO I1-6)
 - **Question:** Condition effects ignore the per-effect Gain (seam S9); PID 1.01 §5.1 applies the Gain "to all magnitudes and envelopes", which condition blocks do not have (§5.1.1.1 rule 2). Intended?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 32: Axis
+
+- **Test / location:** `Axis.cpp:1413-1418`, `Axis.h:549`; characterization case `characterization: [F1-X7] a band-1 gain of g / 10 dB scales a constant force by 10 to the power g / 200 ...` in `test_f1_axis.cpp` (WO I1-8)
+- **Question:** Equalizer: band-1 gain g gives g/10 dB at DC (low shelf), bands 2-6 unity at DC. Intended?
 - **Same as (coverage):** (none)
 - **Resolved?:** no
 
