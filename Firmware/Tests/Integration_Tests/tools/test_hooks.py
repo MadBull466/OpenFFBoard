@@ -32,8 +32,10 @@ def sh(root, *args):
 class TempRepo(unittest.TestCase):
     """A throw-away git repository at <tmp>/repo with <tmp>/ffb-test-build/it-gate beside it."""
 
+    TMP_PREFIX = "tmp"  # a subclass sets a prefix with a space to run the hooks under a path with spaces
+
     def setUp(self):
-        self.tmp = tempfile.mkdtemp()
+        self.tmp = tempfile.mkdtemp(prefix=self.TMP_PREFIX)
         self.root = os.path.join(self.tmp, "repo")
         os.makedirs(os.path.join(self.root, "Tests/Integration_Tests/claude/plans"))
         os.makedirs(os.path.join(self.root, "Firmware/Tests/Integration_Tests/tools"))
@@ -308,6 +310,35 @@ class HookScripts(TempRepo):
                                 "content": [{"type": "text", "text": "x\nGATE FAIL ctest"}]}}) + "\n")
         r = self.run_hook("require_gate_evidence.py", {"agent_type": g.WRITER, "agent_transcript_path": tr})
         self.assertEqual(r.stdout.strip(), "")
+
+
+
+class HookScriptsInPathWithSpaces(HookScripts):
+    """The hook scripts again with the repository and the gate directory under a path that contains a space (the
+    repository lives in "/mnt/SATA_SSD1/OpenFFBoard Testing/" since 2026-11-23): every evidence path then has a space."""
+
+    TMP_PREFIX = "ffb hooks "
+
+    def test_the_temporary_root_really_contains_a_space(self):
+        self.assertIn(" ", self.root)
+
+    def test_writer_stop_accepts_a_gate_pass_line_whose_evidence_path_contains_a_space(self):
+        rel = "Firmware/Tests/Integration_Tests/a.cpp"
+        self.write(rel, "1\n")
+        p = self.evidence("I0-4", {rel: g.blob_of_file(self.root, rel)})
+        self.assertIn(" ", p)
+        msg = {"agent_type": g.WRITER, "last_assistant_message": "counts\nGATE PASS " + p}
+        self.assertEqual(self.run_hook("require_gate_evidence.py", msg).stdout.strip(), "")
+        self.write(rel, "2\n")
+        self.assertIn("block", self.run_hook("require_gate_evidence.py", msg).stdout)
+
+    def test_writer_stop_rejects_a_spaced_path_outside_the_gate_directory(self):
+        outside = os.path.join(self.tmp, "other dir", "latest.json")
+        os.makedirs(os.path.dirname(outside))
+        with open(outside, "w") as f:
+            f.write("{}")
+        msg = {"agent_type": g.WRITER, "last_assistant_message": "x\nGATE PASS " + outside}
+        self.assertIn("not under", self.run_hook("require_gate_evidence.py", msg).stdout)
 
 
 if __name__ == "__main__":

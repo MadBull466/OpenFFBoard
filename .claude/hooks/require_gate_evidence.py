@@ -51,7 +51,9 @@ def check(data, root):
     last = text.splitlines()[-1].strip() if text else ""
     if last.startswith("GATE FAIL"):
         return None
-    m = re.match(r"^GATE PASS (\S+)$", last)
+    # The whole rest of the line is the evidence path: it may contain spaces (repository moved to a path with a space,
+    # 2026-11-23); it is still required to lie under the gate directory and is checked against the tree below.
+    m = re.match(r"^GATE PASS (.+)$", last)
     if not m:
         return ("end your answer with the last line of it_gate.py ('GATE PASS <evidence path>' or 'GATE FAIL ...'); "
                 "run: python3 -B Firmware/Tests/Integration_Tests/tools/it_gate.py --wo <ID> --variants default,m32")
