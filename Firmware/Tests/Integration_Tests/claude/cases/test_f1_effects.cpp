@@ -48,8 +48,8 @@
  * first-cycle rule instead of assuming it). With a configured filter (S5 case) the settling time is derived from the filter there.
  * IB 1: the FFB period is 1001 us, so N cycles are not N ms where a case counts both. Device Gain default 255 (EffectsCalculator.h:235)
  * is relied on by every case that does not send a Device Gain report.
- * Limit for I1-4 (not tested here): Start Delay is ignored when Duration is infinite (EffectsCalculator.cpp:131-135 skips the delay check
- * for an infinite effect).
+ * Start Delay with an infinite Duration (ignored, EffectsCalculator.cpp:131-135) is tested by WO I1-4 below: case "F1-E10: a constant force
+ * with Start Delay 300 ms and infinite Duration (0) starts 300 ms after the Start" (IB 27).
  */
 #include "doctest.h"
 
@@ -281,6 +281,114 @@ bool holds(const std::vector<Sample> &v, uint64_t t0, double from, double to, in
 		}
 	}
 	return ok;
+}
+
+} // namespace
+
+// ---------------------------------------------------------------------------------------------------------------------
+// WO I1-4 helpers (periodic effects F1-E2, Effect Operation F1-E10, Device Control over time F1-E11)
+//
+// Sense of a torque: PID 1.01 5.1 defines no polar zero, so no case here relies on the sign the firmware produces. `fsign` is the sign of
+// the torque of a constant force of POSITIVE Magnitude at the same Direction (measured once per case); a periodic torque is multiplied by
+// it, so "x > 0" means "along the positive-Magnitude force" and "rises" means "rises in that sense". The expected levels are the torques
+// of reference constant forces (the same scaling chain), so Offset +- Magnitude is asserted as T(Offset +- Magnitude).
+// Timing: one sample per FFB cycle (IB 1: 1.001 ms), a crossing time is linearly interpolated between two samples. Each crossing time is
+// uncertain by up to 1 ms (the sample is taken at the end of its 1 ms scheduler step, the waveforms advance in whole ms of the elapsed time),
+// so the difference of two crossings by up to kTimeMs = 2 ms: the mean period over n crossings is known to kTimeMs / (n - 1), a phase shift to kTimeMs.
+// ---------------------------------------------------------------------------------------------------------------------
+namespace {
+
+struct Wave {
+	uint32_t type;
+	const char *name;
+};
+const Wave kSine = {pid::use::EtSine, "sine"};
+const Wave kSquare = {pid::use::EtSquare, "square"};
+const Wave kTriangle = {pid::use::EtTriangle, "triangle"};
+const Wave kSawUp = {pid::use::EtSawtoothUp, "sawtooth up"};
+const Wave kSawDown = {pid::use::EtSawtoothDown, "sawtooth down"};
+const Wave kAllWaves[] = {kSine, kSquare, kTriangle, kSawUp, kSawDown};
+const Wave kWavesButSquare[] = {kSine, kTriangle, kSawUp, kSawDown};
+
+struct PerFixture : EffFixture {
+	void setPeriodic(int64_t idx, int64_t magnitude, int64_t offset, int64_t phase, int64_t period) {
+		pid::PidReport r = h().builder().make(ReportType::Output, pid::use::SetPeriodicReport);
+		r.set(pid::use::EffectBlockIndex, idx).set(pid::use::Magnitude, magnitude).set(pid::use::Offset, offset);
+		r.set(pid::use::Phase, phase).set(pid::use::Period, period);
+		h().send(r);
+	}
+	/** A periodic effect created and configured, not started. Direction 9000, gain 255 */
+	int64_t makePeriodic(const Wave &w, int64_t magnitude, int64_t offset, int64_t phase, int64_t period, int64_t duration = 32767, int64_t startDelay = 0) {
+		const int64_t idx = newEffect(w.type);
+		setEffect(idx, w.type, 9000, 255, duration, startDelay);
+		setPeriodic(idx, magnitude, offset, phase, period);
+		return idx;
+	}
+	/** The sign of a constant force of positive Magnitude at Direction 9000 (the sense of the other torques, see above) */
+	int fsign() {
+		const int16_t t = reference(10000);
+		REQUIRE(t != 0);
+		return sgn(t);
+	}
+	/** Creates, starts and traces a periodic effect for `ms` ms, then stops it. x = torque * fsign */
+	std::vector<Sample> runPeriodic(const Wave &w, int64_t magnitude, int64_t offset, int64_t phase, int64_t period, uint32_t ms, uint64_t &t0) {
+		const int64_t idx = makePeriodic(w, magnitude, offset, phase, period);
+		std::vector<Sample> s;
+		t0 = startAndTrace(idx, ms, s);
+		stop(idx);
+		return s;
+	}
+	void control(uint32_t dcUsage) { h().send(h().builder().deviceControl(dcUsage)); }
+	/** Device Control as the firmware's bit flags (HidFFB::ffb_control: 1 enable, 2 disable, 4 stop, 8 reset, 16 pause, 32 continue), raw byte after the report ID (IB 8) */
+	void controlFlags(uint8_t flags) {
+		std::vector<uint8_t> b = h().builder().deviceControl(pid::use::DcDeviceReset).bytes();
+		REQUIRE(b.size() == 2);
+		b[1] = flags;
+		CHECK(h().sendRaw(b) == HostDcd::Handshake::Ack);
+	}
+	/** Effect Operation with an explicit Loop Count */
+	void operationLoop(int64_t idx, uint32_t op, int64_t loops) {
+		pid::PidReport eo = h().builder().make(ReportType::Output, pid::use::EffectOperationReport);
+		eo.set(pid::use::EffectBlockIndex, idx).select(op).set(pid::use::LoopCount, loops);
+		h().send(eo);
+	}
+};
+
+std::vector<double> xs(const std::vector<Sample> &s, int sign) {
+	std::vector<double> x;
+	for (const Sample &v : s) {
+		x.push_back(sign * static_cast<double>(v.torque));
+	}
+	return x;
+}
+
+/** Times (ms after t0) at which x goes from < 0 to >= 0, linearly interpolated between the two samples */
+std::vector<double> upCrossings(const std::vector<Sample> &s, int sign, uint64_t t0) {
+	std::vector<double> out;
+	const std::vector<double> x = xs(s, sign);
+	for (size_t i = 1; i < s.size(); i++) {
+		if (x[i - 1] < 0 && x[i] >= 0) {
+			const double ta = tMs(s[i - 1], t0), tb = tMs(s[i], t0);
+			out.push_back(ta + (0 - x[i - 1]) / (x[i] - x[i - 1]) * (tb - ta));
+		}
+	}
+	return out;
+}
+
+double circDist(double a, double b, double period) {
+	double d = std::fmod(a - b, period);
+	if (d < 0) {
+		d += period;
+	}
+	return std::min(d, period - d);
+}
+
+/** The shift (ms) between the first up-crossings of two runs, modulo the period: (u0 - uPhi) mod P */
+double firstShift(const std::vector<double> &u0, const std::vector<double> &uPhi, double period) {
+	REQUIRE(!u0.empty());
+	REQUIRE(!uPhi.empty());
+	double d = std::fmod(u0.front() - uPhi.front(), period);
+	return d < 0 ? d + period : d;
 }
 
 } // namespace
@@ -777,6 +885,785 @@ TEST_CASE_FIXTURE(EffFixture, "F1-E4: an envelope on a ramp effect shapes the ra
 	REQUIRE_CHAIN_MODELLED();
 	CHECK(std::abs(static_cast<int>(s.front().torque)) * 2 < std::abs(static_cast<int>(tM))); // the defect: the first cycle is already the ramp value
 	CHECK(sgn(tM - tA) * (tM - static_cast<int>(s[100].torque)) > 0);
+}
+
+
+// =====================================================================================================================
+// WO I1-4. Common settings of every case: configure() (power 5000, fxratio 255 first, IB 7), Direction 9000, Gain 255, Device Gain 255.
+// Expected torque levels are T(M) = reference(M), the torque of a constant force of Magnitude M (same chain): T(10000) = 1525 at P 5000.
+// =====================================================================================================================
+
+namespace {
+
+/** Torque extremes of the samples of a window */
+void extremes(const std::vector<Sample> &s, int &lo, int &hi) {
+	lo = 1 << 20;
+	hi = -(1 << 20);
+	for (const Sample &x : s) {
+		lo = std::min(lo, static_cast<int>(x.torque));
+		hi = std::max(hi, static_cast<int>(x.torque));
+	}
+}
+
+/** true if every sample with from <= t <= to has |torque| within tol of |level|; counts them */
+bool absNear(const std::vector<Sample> &v, uint64_t t0, double from, double to, int level, double tol, int &n) {
+	n = 0;
+	bool ok = true;
+	for (const Sample &s : v) {
+		const double t = tMs(s, t0);
+		if (t >= from && t <= to) {
+			n++;
+			ok = ok && std::fabs(std::fabs(static_cast<double>(s.torque)) - std::abs(level)) <= tol;
+		}
+	}
+	return ok;
+}
+
+/**
+ * Period check, F1-E2: the mean spacing of the up-crossings of x, (last - first) / (n - 1), equals the Period within kTimeMs / (n - 1) (each
+ * end uncertain by 1 ms, see above; 20 periods in the window, so n - 1 >= 17 and the bound is <= 0.12 ms: a period 1 ms off fails), and no single
+ * spacing is off by more than kTimeMs.
+ */
+void checkPeriod(PerFixture &f, const Wave &w, int64_t period) {
+	INFO("waveform " << std::string(w.name) << ", Period " << period << " ms");
+	const int sg = f.fsign();
+	uint64_t t0 = 0;
+	const std::vector<Sample> s = f.runPeriodic(w, 10000, 0, 0, period, static_cast<uint32_t>(period * 20), t0);
+	const std::vector<double> u = upCrossings(s, sg, t0);
+	REQUIRE(u.size() >= 18); // 20 periods in the window, the first crossing needs a negative sample before it
+	const double n1 = static_cast<double>(u.size() - 1);
+	const double mean = (u.back() - u.front()) / n1;
+	double worst = 0;
+	for (size_t i = 1; i < u.size(); i++) {
+		worst = std::max(worst, std::fabs((u[i] - u[i - 1]) - static_cast<double>(period)));
+	}
+	INFO("mean period " << mean << " ms over " << n1 << " spacings, worst single spacing error " << worst << " ms");
+	CHECK_NEAR(mean, static_cast<double>(period), kTimeMs / n1);
+	CHECK(worst <= kTimeMs);
+}
+
+/** Phase check, F1-E2: Phase (0.01 degree units) moves the up-crossing earlier by Phase/36000 of the period (PID 5.5: the position in the wave where playback begins) */
+void checkPhase(PerFixture &f, const Wave &w, int64_t phase, int64_t period) {
+	INFO("waveform " << std::string(w.name) << ", Phase " << phase << ", Period " << period << " ms");
+	const int sg = f.fsign();
+	uint64_t t0a = 0, t0b = 0;
+	const std::vector<Sample> a = f.runPeriodic(w, 10000, 0, 0, period, static_cast<uint32_t>(period * 6), t0a);
+	const std::vector<Sample> b = f.runPeriodic(w, 10000, 0, phase, period, static_cast<uint32_t>(period * 6), t0b);
+	const std::vector<double> ua = upCrossings(a, sg, t0a), ub = upCrossings(b, sg, t0b);
+	REQUIRE(ua.size() >= 3);
+	REQUIRE(ub.size() >= 3);
+	const double pm = (ua.back() - ua.front()) / static_cast<double>(ua.size() - 1); // measured period (own value, so a period error is not counted twice)
+	const double expected = static_cast<double>(phase) / 36000.0 * pm;
+	const double shift = firstShift(ua, ub, pm);
+	INFO("measured period " << pm << " ms, shift " << shift << " ms, expected " << expected << " ms");
+	CHECK(circDist(shift, expected, pm) <= kTimeMs);
+}
+
+struct Steps {
+	int pos = 0, neg = 0, jumps = 0, jumpUp = 0, jumpDown = 0;
+};
+Steps stepStats(const std::vector<double> &x, double jumpMin) {
+	Steps r;
+	for (size_t i = 1; i < x.size(); i++) {
+		const double d = x[i] - x[i - 1];
+		if (std::fabs(d) > jumpMin) {
+			r.jumps++;
+			(d > 0 ? r.jumpUp : r.jumpDown)++;
+		} else if (d > 0) {
+			r.pos++;
+		} else if (d < 0) {
+			r.neg++;
+		}
+	}
+	return r;
+}
+
+/**
+ * F1-E2 span: Offset +- Magnitude (PID 5.5) as the torques of the constant forces Offset + Magnitude and Offset - Magnitude (Period P = 100 ms,
+ * 6 periods). Tolerance per waveform = kBound(1) (the rounding bound of two torques of the chain) + the distance of the nearest sample from the
+ * extreme, as a fraction of the span:
+ *  - sine: flat extreme; the nearest of the samples (1.001 ms apart) is within 0.5 ms of the peak: (1 - cos(2 pi 0.5 / P)) / 2 = 0.012 % of
+ *    the span; square: the levels themselves are sampled. Both are allowed 1 % (float rounding of sin / the reference, margin): a sine 5 % low fails;
+ *  - triangle: slope 2 span / P per ms, sharp extreme; with whole-ms sampling the nearest sample is within 1 ms of it: 2 % (plus 1 % margin) = 3 %;
+ *  - sawtooth: slope span / P per ms, the end of the ramp is reached one sample before the jump at the latest: 1 % (plus 1 % margin) = 2 %.
+ */
+void checkSpan(PerFixture &f, const Wave &w, int64_t offset, int64_t magnitude) {
+	INFO("waveform " << std::string(w.name) << ", Offset " << offset << ", Magnitude " << magnitude);
+	const double sc = f.scalerOf(5000);
+	const int16_t tHi = f.reference(offset + magnitude), tLo = f.reference(offset - magnitude);
+	const double span = std::fabs(static_cast<double>(tHi) - tLo);
+	REQUIRE(span > 0);
+	const double frac = (w.type == pid::use::EtTriangle) ? 0.03 : (w.type == pid::use::EtSawtoothUp || w.type == pid::use::EtSawtoothDown) ? 0.02 : 0.01;
+	const double tol = span * frac + kBound(1, sc);
+	uint64_t t0 = 0;
+	const std::vector<Sample> s = f.runPeriodic(w, magnitude, offset, 0, 100, 600, t0);
+	int lo = 0, hi = 0;
+	extremes(s, lo, hi);
+	INFO("torque range " << lo << " .. " << hi << ", expected " << std::min(tHi, tLo) << " .. " << std::max(tHi, tLo));
+	CHECK_NEAR(hi, std::max(tHi, tLo), tol);
+	CHECK_NEAR(lo, std::min(tHi, tLo), tol);
+}
+
+} // namespace
+
+// ---------------------------------------------------------------------------------------------------------------------
+// F1-E2 periodic effects. PID 5.5: "The range of forces generated by the effect will be Offset - Magnitude to Offset + Magnitude";
+// "Once started a periodic effect will loop every Period"; Phase: "the position in the wave where playback begins ... between 0 and 360
+// degrees" (descriptor units 0.01 degree, 0..35999); Period in ms (descriptor unit exponent -3). The descriptor declares Magnitude 0..32767
+// (usb_hid_ffb_desc.h:381-388), so a negative Magnitude cannot be sent (the report builder would reject it): negative values are tested for the Offset
+// (-32767..32767) only.
+// ---------------------------------------------------------------------------------------------------------------------
+
+#define PERIODIC_SPAN_CASE(WAVE, TEXT) \
+	TEST_CASE_FIXTURE(PerFixture, "F1-E2: a " TEXT " effect of Magnitude 10000 and Offset 0 spans the torques of the constant forces -10000 and +10000" * IT_DELETES_FFBHIDMAIN) { \
+		up(); \
+		configure(); \
+		checkSpan(*this, WAVE, 0, 10000); \
+		REQUIRE_CHAIN_MODELLED(); \
+	}
+PERIODIC_SPAN_CASE(kSine, "sine")
+PERIODIC_SPAN_CASE(kSquare, "square")
+PERIODIC_SPAN_CASE(kTriangle, "triangle")
+PERIODIC_SPAN_CASE(kSawUp, "sawtooth up")
+PERIODIC_SPAN_CASE(kSawDown, "sawtooth down")
+
+// PID 5.5: range Offset - Magnitude .. Offset + Magnitude, with a negative Offset (-6000, Magnitude 10000: -16000 .. +4000).
+TEST_CASE_FIXTURE(PerFixture, "F1-E2: every periodic waveform with a negative Offset spans the torques of the constant forces Offset - Magnitude and Offset + Magnitude" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	for (const Wave &w : kAllWaves) {
+		checkSpan(*this, w, -6000, 10000);
+	}
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// Same with a positive Offset (5000, Magnitude 10000: -5000 .. +15000).
+TEST_CASE_FIXTURE(PerFixture, "F1-E2: every periodic waveform with a positive Offset spans the torques of the constant forces Offset - Magnitude and Offset + Magnitude" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	for (const Wave &w : kAllWaves) {
+		checkSpan(*this, w, 5000, 10000);
+	}
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// PID 5.5 "the amplitude of the entire effect" with Magnitude 0: only the Offset remains: a constant torque T(Offset) for every waveform.
+TEST_CASE_FIXTURE(PerFixture, "F1-E2: a periodic effect of Magnitude 0 and Offset 8000 gives the constant torque of a constant force of 8000" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	const double sc = scalerOf(5000);
+	const int16_t t = reference(8000);
+	REQUIRE(t != 0);
+	for (const Wave &w : kAllWaves) {
+		INFO("waveform " << std::string(w.name));
+		uint64_t t0 = 0;
+		const std::vector<Sample> s = runPeriodic(w, 0, 8000, 0, 100, 300, t0);
+		int n = 0;
+		CHECK(holds(s, t0, 0, 295, t, kBound(1, sc), n));
+		CHECK(n > 250);
+	}
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// PID 5.5 "Once started a periodic effect will loop every Period": the up-crossings of the torque are one Period apart (+-1.5 ms: one FFB
+// cycle, IB 1 stated, plus the tick granularity). The square wave is a separate case (period + 2 ms in the firmware).
+TEST_CASE_FIXTURE(PerFixture, "F1-E2: sine, triangle and both sawtooth effects repeat every Period (Period 80 ms, 20 periods)" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	for (const Wave &w : kWavesButSquare) {
+		checkPeriod(*this, w, 80);
+	}
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// IB 30: EffectsCalculator.cpp:234-235 `(elapsed_time + phase) % (period + 2)` and `< (period + 2) / 2`: the square wave repeats every
+// Period + 2 ms (82 ms for Period 80), PID 5.5: every Period. The mean period over 20 periods is 2 ms off (bound 0.12 ms).
+TEST_CASE_FIXTURE(PerFixture, "F1-E2: a square effect repeats every Period (Period 80 ms, 20 periods)"
+	* KNOWN_ISSUE("(IB 30) the square wave uses the modulus period + 2 (EffectsCalculator.cpp:234-235), so it repeats every Period + 2 ms") * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	REQUIRE_CHAIN_MODELLED();
+	checkPeriod(*this, kSquare, 80);
+}
+
+// PID 5.5 Phase: "the position in the wave where playback begins", a quarter turn (9000 = 90 degrees) of a Period 80 ms wave starts 20 ms
+// further into the cycle: the up-crossing comes 20 ms earlier (compared with Phase 0, modulo the Period, measured period used).
+TEST_CASE_FIXTURE(PerFixture, "F1-E2: Phase 9000 (90 degrees) starts sine, triangle and both sawtooth effects a quarter Period into the wave" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	for (const Wave &w : kWavesButSquare) {
+		checkPhase(*this, w, 9000, 80);
+	}
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// IB 31: EffectsCalculator.cpp:234-235 adds the raw Phase (0.01 degree units, 0..35999) to the elapsed milliseconds: Phase 18000 shifts
+// the square wave by 18000 ms mod 52, not by half a Period.
+TEST_CASE_FIXTURE(PerFixture, "F1-E2: Phase 18000 (180 degrees) starts a square effect half a Period into the wave"
+	* KNOWN_ISSUE("(IB 31) the square wave adds the raw Phase value (units of 0.01 degree) to the elapsed milliseconds (EffectsCalculator.cpp:234-235)") * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	REQUIRE_CHAIN_MODELLED();
+	checkPhase(*this, kSquare, 18000, 50);
+}
+
+// PID 5.5 names the waveforms only. Shape properties every reading of the names shares. Square: two levels, +-T(Magnitude), both used.
+TEST_CASE_FIXTURE(PerFixture, "F1-E2: a square effect takes exactly two torque levels, +T and -T of its Magnitude" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	const double sc = scalerOf(5000);
+	const int16_t t = reference(10000);
+	REQUIRE(t != 0);
+	uint64_t t0 = 0;
+	const std::vector<Sample> s = runPeriodic(kSquare, 10000, 0, 0, 100, 800, t0);
+	REQUIRE(s.size() > 700);
+	int high = 0, low = 0, other = 0;
+	for (const Sample &x : s) {
+		if (std::fabs(static_cast<double>(x.torque) - std::abs(t)) <= kBound(1, sc) + 1) {
+			high++;
+		} else if (std::fabs(static_cast<double>(x.torque) + std::abs(t)) <= kBound(1, sc) + 1) {
+			low++;
+		} else {
+			other++;
+		}
+	}
+	CHECK(other == 0);
+	CHECK(high > 200);
+	CHECK(low > 200);
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// Triangle: what every reading of the name shares: it rises linearly from the minimum to the maximum and falls linearly back, symmetric
+// (rise time = fall time = Period/2) and with one constant slope 2 span / P. Period 100 ms, 800 ms = 8 periods, span = 2 T(10000).
+// Asserted: (a) every rise and every fall between two consecutive turning points lasts P/2 +- kTimeMs (at least 12 of them); this rejects a
+// sawtooth (99 + 1 ms) and a square; (b) no step larger than 2 x the slope per FFB cycle (a cycle with a skipped ms of elapsed time, IB 1, makes one
+// double step; anything larger is a jump: rejects saw / square) and (c) at most 2 steps (the IB 1 skip, the window ends) larger than 1.25 x the
+// slope: a sine of the same span has its steepest slope pi/2 = 1.57 x and exceeds 1.25 x in about 40 % of its cycles. Rounding: + 2 counts.
+TEST_CASE_FIXTURE(PerFixture, "F1-E2: a triangle effect rises and falls linearly with equal rise and fall times of half a Period" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	const int16_t t = reference(10000);
+	REQUIRE(t != 0);
+	const double span = 2.0 * std::abs(static_cast<int>(t));
+	const double slope = 2.0 * span / 100.0; // counts per ms
+	uint64_t t0 = 0;
+	const std::vector<Sample> s = runPeriodic(kTriangle, 10000, 0, 0, 100, 800, t0);
+	REQUIRE(s.size() > 700);
+	std::vector<double> turns;
+	int last = 0, big = 0;
+	double maxStep = 0;
+	for (size_t i = 1; i < s.size(); i++) {
+		const int step = static_cast<int>(s[i].torque) - static_cast<int>(s[i - 1].torque);
+		maxStep = std::max(maxStep, std::fabs(static_cast<double>(step)));
+		if (std::fabs(static_cast<double>(step)) > 1.25 * slope + 2) {
+			big++;
+		}
+		const int d = sgn(step);
+		if (d != 0) {
+			if (last != 0 && d != last) {
+				turns.push_back(tMs(s[i - 1], t0));
+			}
+			last = d;
+		}
+	}
+	INFO("turning points " << turns.size() << ", largest step " << maxStep << " (slope " << slope << " per ms), steps > 1.25 slope: " << big);
+	REQUIRE(turns.size() >= 13);
+	double worst = 0;
+	for (size_t i = 1; i < turns.size(); i++) {
+		worst = std::max(worst, std::fabs((turns[i] - turns[i - 1]) - 50.0));
+	}
+	INFO("worst rise / fall time error " << worst << " ms");
+	CHECK(worst <= kTimeMs);
+	CHECK(maxStep <= 2.0 * slope + 2);
+	CHECK(big <= 2);
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// Sawtooth (both): inside a period the torque changes monotonically in ONE direction and drops (or rises) back once per period: one jump
+// per Period (8 periods: 7..9 jumps larger than half the span), all other steps of the same sign, the jump of the opposite sign.
+TEST_CASE_FIXTURE(PerFixture, "F1-E2: a sawtooth effect (up and down) is monotone inside a Period and jumps back once per Period" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	const int16_t t = reference(10000);
+	REQUIRE(t != 0);
+	for (const Wave &w : {kSawUp, kSawDown}) {
+		INFO("waveform " << std::string(w.name));
+		uint64_t t0 = 0;
+		const std::vector<Sample> s = runPeriodic(w, 10000, 0, 0, 100, 800, t0);
+		REQUIRE(s.size() > 700);
+		const Steps st = stepStats(xs(s, 1), std::abs(t));
+		INFO("steps up " << st.pos << " down " << st.neg << ", jumps " << st.jumps << " (up " << st.jumpUp << ", down " << st.jumpDown << ")");
+		CHECK(st.jumps >= 7);
+		CHECK(st.jumps <= 9);
+		CHECK((st.pos == 0 || st.neg == 0));
+		CHECK(st.pos + st.neg > 600);
+		CHECK((st.pos > 0 ? st.jumpDown == st.jumps : st.jumpUp == st.jumps));
+	}
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// INR 29. No supplied document defines the direction of the sawtooth waveforms: PID 1.01 5.1.1 / Table 2 only name ET Sawtooth Up and ET
+// Sawtooth Down (5.1 even describes ET Sawtooth Down as "a Sawtooth Up waveform"), 5.5 names no shape and HID 1.11 says nothing. The lead asks
+// the owner (IQ13). Observed: relative to a constant force of positive Magnitude (fsign; the absolute sign is INR 10) the Sawtooth Up force falls
+// within each period (EffectsCalculator.cpp:278 `minMagnitude + slope * (period - remainder)`) and the Sawtooth Down force rises (:296
+// `minMagnitude + slope * remainder`). Steps larger than 1500 counts are the once-per-period jumps (span 3050) and are not counted.
+TEST_CASE_FIXTURE(PerFixture, "characterization: [F1-E2] the Sawtooth Up force falls within each period relative to a positive-Magnitude constant force, Sawtooth Down rises (INR 29)" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	const int sg = fsign();
+	uint64_t t0 = 0;
+	const std::vector<Sample> up = runPeriodic(kSawUp, 10000, 0, 0, 100, 800, t0);
+	REQUIRE(up.size() > 700);
+	const Steps su = stepStats(xs(up, sg), 1500);
+	INFO("sawtooth up: steps up " << su.pos << ", down " << su.neg);
+	CHECK(su.pos == 0);
+	CHECK(su.neg > 600);
+	const std::vector<Sample> down = runPeriodic(kSawDown, 10000, 0, 0, 100, 800, t0);
+	REQUIRE(down.size() > 700);
+	const Steps sd = stepStats(xs(down, sg), 1500);
+	INFO("sawtooth down: steps up " << sd.pos << ", down " << sd.neg);
+	CHECK(sd.neg == 0);
+	CHECK(sd.pos > 600);
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// characterization of the shapes PID does not define, from the firmware's formulas. INR 25: sine at t = P/12, P/4, 3P/4 is
+// T * sin(30 deg) (T/2), T, -T (EffectsCalculator.cpp:300-306: offset + magnitude * sin(2 pi (t / P + phase / 35999))), in the
+// sense of the positive-Magnitude constant force (the absolute sign is INR 10). Period 1200 ms (t = 100, 300, 900 ms) so the timing
+// uncertainty kTimeMs costs little: tolerance at phase theta = T (w kTimeMs |cos theta| + (w kTimeMs)^2 / 2) + kBound(1) with w = 2 pi / P:
+// 0.91 % of T at 30 degrees, 0.005 % at the extremes, plus the rounding bound (a sine 5 % low fails at every point).
+TEST_CASE_FIXTURE(PerFixture, "characterization: [F1-E2] a sine effect follows sin(2 pi t / Period): T/2 at Period/12, T at Period/4 and -T at 3 Period/4 (INR 25)" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	const double sc = scalerOf(5000);
+	const int sg = fsign();
+	const int16_t t = reference(10000);
+	const double T = std::abs(static_cast<int>(t));
+	uint64_t t0 = 0;
+	const std::vector<Sample> s = runPeriodic(kSine, 10000, 0, 0, 1200, 1000, t0);
+	const double wk = 2.0 * M_PI / 1200.0 * kTimeMs;
+	auto tol = [&](double thetaDeg) { return T * (wk * std::fabs(std::cos(thetaDeg * M_PI / 180.0)) + wk * wk / 2.0) + kBound(1, sc); };
+	CHECK_NEAR(sg * valueAt(s, t0, 100), T / 2, tol(30));
+	CHECK_NEAR(sg * valueAt(s, t0, 300), T, tol(90));
+	CHECK_NEAR(sg * valueAt(s, t0, 900), -T, tol(270));
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// characterization (INR 26): the triangle starts at its minimum -T, rises to +T at Period/2 and is back at -T after one Period
+// (EffectsCalculator.cpp:240-262: force = slope * remainder + minMagnitude, mirrored after half the period).
+TEST_CASE_FIXTURE(PerFixture, "characterization: [F1-E2] a triangle effect starts at -T, reaches +T at Period/2 and returns to -T at Period (INR 26)" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	const double sc = scalerOf(5000);
+	const int sg = fsign();
+	const int16_t t = reference(10000);
+	const double T = std::abs(static_cast<int>(t));
+	uint64_t t0 = 0;
+	const std::vector<Sample> s = runPeriodic(kTriangle, 10000, 0, 0, 100, 300, t0);
+	const double tol = 2.0 * 2.0 * T / 100.0 * kTimeMs + kBound(1, sc);
+	CHECK_NEAR(sg * s.front().torque, -T, tol);
+	CHECK_NEAR(sg * valueAt(s, t0, 50), T, tol);
+	CHECK_NEAR(sg * valueAt(s, t0, 100), -T, tol);
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// F1-E10 Effect Operation (PID 5.9) and F1-E1 timing for periodic effects (PID 5.1)
+// ---------------------------------------------------------------------------------------------------------------------
+
+// PID 5.9 Op Effect Start: "Start the effect": a defined effect gives no torque before it and its torque after.
+TEST_CASE_FIXTURE(PerFixture, "F1-E10: Effect Operation Start starts a defined effect: no torque before it, the torque of the effect after" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	const double sc = scalerOf(5000);
+	const int16_t t = reference(10000);
+	REQUIRE(t != 0);
+	const int64_t idx = newEffect(pid::use::EtConstantForce);
+	setEffect(idx, pid::use::EtConstantForce, 9000);
+	setConstant(idx, 10000);
+	CHECK(settled(200) == 0);
+	operation(idx, pid::use::OpEffectStart);
+	CHECK_NEAR(settled(), t, kBound(1, sc));
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// PID 5.9 Op Effect Stop: "Stop the effect": with two effects running, stopping one leaves the torque of the other; stopping both gives 0.
+TEST_CASE_FIXTURE(PerFixture, "F1-E10: Effect Operation Stop of one of two running effects leaves the torque of the other" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	const double sc = scalerOf(5000);
+	const int16_t tA = reference(10000), tB = reference(20000);
+	const int64_t a = startConstant(10000);
+	const int64_t b = startConstant(20000);
+	CHECK_NEAR(settled(), tA + tB, 2 * kBound(1, sc));
+	operation(a, pid::use::OpEffectStop);
+	CHECK_NEAR(settled(), tB, kBound(1, sc));
+	operation(b, pid::use::OpEffectStop);
+	CHECK(settled() == 0);
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// Starting an effect while another runs adds the torques (both are active: sum of the forces, PID 5.9 only says Start starts "the effect").
+TEST_CASE_FIXTURE(PerFixture, "F1-E10: Effect Operation Start of a second effect while the first runs adds the two torques" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	const double sc = scalerOf(5000);
+	const int16_t tA = reference(10000), tB = reference(20000);
+	startConstant(10000);
+	CHECK_NEAR(settled(), tA, kBound(1, sc));
+	startConstant(20000);
+	CHECK_NEAR(settled(), tA + tB, 2 * kBound(1, sc));
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// PID 5.9 Op Effect Start Solo: "Start the effect ... and stop all other effects": with A and B running (torque tA + tB), Start Solo of A gives
+// tA alone, and B does not come back after A is stopped.
+TEST_CASE_FIXTURE(PerFixture, "F1-E10: Effect Operation Start Solo leaves only the soloed effect, the others stay stopped" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	const double sc = scalerOf(5000);
+	const int16_t tA = reference(10000), tB = reference(20000);
+	const int64_t a = startConstant(10000);
+	startConstant(20000);
+	CHECK_NEAR(settled(), tA + tB, 2 * kBound(1, sc));
+	operation(a, pid::use::OpEffectStartSolo);
+	CHECK_NEAR(settled(), tA, kBound(1, sc));
+	operation(a, pid::use::OpEffectStop);
+	CHECK(settled() == 0);
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// Start Solo of an effect that was not running: it starts and stops the running one (torque tB -> tA).
+TEST_CASE_FIXTURE(PerFixture, "F1-E10: Effect Operation Start Solo of a stopped effect starts it and stops the running one" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	const double sc = scalerOf(5000);
+	const int16_t tA = reference(10000), tB = reference(20000);
+	startConstant(20000);
+	CHECK_NEAR(settled(), tB, kBound(1, sc));
+	const int64_t a = newEffect(pid::use::EtConstantForce);
+	setEffect(a, pid::use::EtConstantForce, 9000);
+	setConstant(a, 10000);
+	operation(a, pid::use::OpEffectStartSolo);
+	CHECK_NEAR(settled(), tA, kBound(1, sc));
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// PID 5.1 Duration for a periodic effect: it acts for Duration ms after the start and then ends (constant force: I1-3). Square, Magnitude
+// 10000, Period 50, Duration 300: |torque| = T in [0, 299] ms, 0 from 301 ms.
+TEST_CASE_FIXTURE(PerFixture, "F1-E10: a periodic effect with Duration 300 ms ends after 300 ms" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	const double sc = scalerOf(5000);
+	const int16_t t = reference(10000);
+	const int64_t idx = makePeriodic(kSquare, 10000, 0, 0, 50, 300);
+	std::vector<Sample> s;
+	const uint64_t t0 = startAndTrace(idx, 700, s);
+	int n = 0;
+	CHECK(absNear(s, t0, 0, 300 - kEdgeMs, t, kBound(1, sc) + 1, n));
+	CHECK(n > 250);
+	CHECK(holds(s, t0, 300 + kEdgeMs, 690, 0, 0, n));
+	CHECK(n > 350);
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// PID 5.1 Start Delay: "the start delay interval, for the playback of effect": a periodic effect with Start Delay 300 ms and Duration 500
+// ms: 0 up to 299 ms, |T| from 301 to 799 ms (a delay does not shorten the duration: it counts from the end of the delay), 0 after.
+TEST_CASE_FIXTURE(PerFixture, "F1-E10: a periodic effect with Start Delay 300 ms and Duration 500 ms acts from 300 ms to 800 ms after the start" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	const double sc = scalerOf(5000);
+	const int16_t t = reference(10000);
+	const int64_t idx = makePeriodic(kSquare, 10000, 0, 0, 50, 500, 300);
+	std::vector<Sample> s;
+	const uint64_t t0 = startAndTrace(idx, 1100, s);
+	int n = 0;
+	CHECK(holds(s, t0, 0, 300 - kEdgeMs, 0, 0, n));
+	CHECK(n > 250);
+	CHECK(absNear(s, t0, 300 + kEdgeMs, 800 - kEdgeMs, t, kBound(1, sc) + 1, n));
+	CHECK(n > 450);
+	CHECK(holds(s, t0, 800 + kEdgeMs, 1090, 0, 0, n));
+	CHECK(n > 250);
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// IB 27. PID 5.1 Start Delay: the delay applies to the playback of the effect, whatever its Duration. The firmware maps Duration 0 to INFINITE
+// (HidFFB.cpp:341; the descriptor declares no Null state for Duration, usb_hid_ffb_desc.h:240-252, so an infinite Duration is reachable only
+// through that firmware convention, as for IB 20) and EffectsCalculator.cpp:131-135 checks the start time only for a finite effect: an infinite
+// effect acts at once.
+// F1-B2 note (not tested here): on this path a periodic effect would be evaluated before its start time, so elapsed_time = micros() - startTime * 1000
+// is negative and `uint32_t timeTemp = elapsed_time + phasetime * 1000` (EffectsCalculator.cpp:251-252 triangle, :274-275 saw up, :292-293 saw
+// down) converts a negative float to uint32_t: out of range, undefined behaviour (x86 and ARM differ: ARM vcvt saturates to 0). micros() held in a
+// float also loses 1 us resolution after about 16.7 s of uptime (2^24 us) and the 32-bit microsecond count wraps after about 71.6 min.
+TEST_CASE_FIXTURE(PerFixture, "F1-E10: a constant force with Start Delay 300 ms and infinite Duration (0) starts 300 ms after the Start"
+	* KNOWN_ISSUE("(IB 27) the start delay is ignored for an infinite effect (EffectsCalculator.cpp:131-135 skips the start time check)") * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	const int16_t t = reference(20000);
+	REQUIRE(t != 0);
+	const int64_t idx = newEffect(pid::use::EtConstantForce);
+	setEffect(idx, pid::use::EtConstantForce, 9000, 255, 0, 300);
+	setConstant(idx, 20000);
+	std::vector<Sample> s;
+	const uint64_t t0 = startAndTrace(idx, 600, s);
+	int n = 0;
+	REQUIRE_CHAIN_MODELLED();
+	CHECK(holds(s, t0, 0, 300 - kEdgeMs, 0, 0, n)); // the defect: the torque is already T
+	CHECK(n > 250);
+	CHECK(holds(s, t0, 300 + kEdgeMs, 590, t, kBound(1, scalerOf(5000)), n));
+	CHECK(n > 250);
+}
+
+// IB 28 (seam S10). PID 5.9 Loop Count: "The number of times the device will repeat the operation. i.e. a Stop command is not required."
+// The firmware never reads Loop Count (HidFFB.cpp:400-436 set_effect_operation uses only the index and the operation; the field exists only in
+// the struct, ffb_defs.h:332). Intended (shape-free): Duration 200 ms with Loop Count 3 is still acting at 350 ms (inside the second repeat) and
+// is over at 700 ms (after three repeats of 200 ms: 600 ms).
+TEST_CASE_FIXTURE(PerFixture, "F1-E10: Effect Operation Start with Loop Count 3 repeats a 200 ms effect three times"
+	* KNOWN_ISSUE("(IB 28) Loop Count of Effect Operation is not evaluated (HidFFB.cpp:400-436): the effect plays once") * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	const int16_t t = reference(20000);
+	REQUIRE(t != 0);
+	const int64_t idx = newEffect(pid::use::EtConstantForce);
+	setEffect(idx, pid::use::EtConstantForce, 9000, 255, 200);
+	setConstant(idx, 20000);
+	TorqueTrace trace(chip1);
+	trace.start(*this);
+	h().observe(&trace);
+	const uint64_t t0 = HostPlatform::nowUs();
+	operationLoop(idx, pid::use::OpEffectStart, 3);
+	h().run(900);
+	h().observe(nullptr);
+	const std::vector<Sample> s = trace.samples();
+	int n = 0;
+	REQUIRE_CHAIN_MODELLED();
+	CHECK(absNear(s, t0, 250, 550, t, kBound(1, scalerOf(5000)) + 1, n)); // the defect: 0 after 200 ms
+	CHECK(n > 250);
+	CHECK(holds(s, t0, 700, 890, 0, 0, n));
+	CHECK(n > 150);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// F1-E11 Device Control over time (PID 5.13). Ramp 4000 -> 30000 over 4000 ms: T(4000) = 610 .. T(30000) = 4577, about 1 count per ms.
+// ---------------------------------------------------------------------------------------------------------------------
+
+namespace {
+struct RampRefs {
+	int16_t tS, tE;
+	double slope; //!< counts per ms
+	double at(double ms) const { return tS + (static_cast<double>(tE) - tS) * ms / 4000.0; }
+};
+} // namespace
+
+#define RAMP_SETUP() \
+	up(); \
+	configure(); \
+	const double sc = scalerOf(5000); \
+	RampRefs rr; \
+	rr.tS = reference(4000); \
+	rr.tE = reference(30000); \
+	REQUIRE(rr.tE != rr.tS); \
+	rr.slope = std::fabs(static_cast<double>(rr.tE) - rr.tS) / 4000.0; \
+	const double rampTol = kTimeMs * rr.slope + kBound(2, sc); \
+	const int64_t ramp = newEffect(pid::use::EtRamp); \
+	setEffect(ramp, pid::use::EtRamp, 9000, 255, 4000); \
+	setRamp(ramp, 4000, 30000)
+
+// PID 5.13 DC Disable Actuators: "Disable all the device actuators", DC Enable Actuators enables them: no torque while disabled, the ramp's
+// torque is back after the Enable and stays within the ramp's range.
+TEST_CASE_FIXTURE(PerFixture, "F1-E11: Disable Actuators gives torque 0 while a ramp runs and Enable Actuators gives the ramp torque back" * IT_DELETES_FFBHIDMAIN) {
+	RAMP_SETUP();
+	std::vector<Sample> all;
+	const uint64_t t0 = startAndTrace(ramp, 1000, all);
+	control(pid::use::DcDisableActuators);
+	std::vector<Sample> part = run(500);
+	all.insert(all.end(), part.begin(), part.end());
+	control(pid::use::DcEnableActuators);
+	part = run(1000);
+	all.insert(all.end(), part.begin(), part.end());
+	int n = 0;
+	CHECK(holds(all, t0, 0, 1000 - 3, rr.at(500), rr.at(500) - rr.tS + rampTol, n)); // before: inside the ramp's range so far
+	CHECK(holds(all, t0, 1000 + 2 * kTimeMs, 1500 - kTimeMs, 0, 0, n));
+	CHECK(n > 400);
+	for (const Sample &x : all) {
+		const double t = tMs(x, t0);
+		if (t >= 1500 + 2 * kTimeMs && t <= 2500) {
+			CHECK(sgn(x.torque) == sgn(rr.tS));
+			CHECK(std::abs(static_cast<int>(x.torque)) >= std::abs(static_cast<int>(rr.tS)) - rampTol);
+			CHECK(std::abs(static_cast<int>(x.torque)) <= std::abs(static_cast<int>(rr.tE)) + rampTol);
+		}
+	}
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// characterization (INR 27): PID 5.13 says only "Disable all the device actuators", nothing about the effects' time. The firmware's
+// effect time is wall time (HAL_GetTick, micros): after a 500 ms Disable at 1000 ms the ramp is at its value for 2000 ms (not 1500 ms).
+TEST_CASE_FIXTURE(PerFixture, "characterization: [F1-E11] the effect time of a ramp continues while the actuators are disabled (INR 27)" * IT_DELETES_FFBHIDMAIN) {
+	RAMP_SETUP();
+	std::vector<Sample> all;
+	const uint64_t t0 = startAndTrace(ramp, 1000, all);
+	control(pid::use::DcDisableActuators);
+	std::vector<Sample> part = run(500);
+	all.insert(all.end(), part.begin(), part.end());
+	control(pid::use::DcEnableActuators);
+	part = run(1000);
+	all.insert(all.end(), part.begin(), part.end());
+	CHECK_NEAR(valueAt(all, t0, 2000), rr.at(2000), rampTol);
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// PID 5.13 DC Device Pause: "all effects are paused": a ramp paused at 1000 ms for 1000 ms continues from the value it had at 1000 ms after
+// Device Continue and ends 1000 ms later (5000 ms after the start). Encoding: Figure 16 command numbers (owner IQ12). IB 8: under that
+// encoding Continue (6 = flags 2 | 4) is read as Disable + Stop and the torque stays 0: the first failing assertion (torque after Continue != 0)
+// is the IB 8 symptom; the time hold is asserted after it (and shown independent of IB 8 by the cases with the flag encoding below: IB 29).
+TEST_CASE_FIXTURE(PerFixture, "F1-E11: Device Pause holds the effect time: a ramp paused for 1000 ms continues from its held value after Device Continue"
+	* KNOWN_ISSUE("(IB 8) Device Continue under the PID 5.13 command numbering is decoded as bit flags 2 | 4 (Disable, Stop), the torque never comes back (HidFFB.cpp:221-239)") * IT_DELETES_FFBHIDMAIN) {
+	RAMP_SETUP();
+	std::vector<Sample> all;
+	const uint64_t t0 = startAndTrace(ramp, 1000, all);
+	control(pid::use::DcDevicePause);
+	std::vector<Sample> part = run(1000);
+	all.insert(all.end(), part.begin(), part.end());
+	int n = 0;
+	CHECK(holds(all, t0, 1000 + 2 * kTimeMs, 2000 - kTimeMs, 0, 0, n)); // paused: no torque (passes by the accident described in test_f1_hid.cpp)
+	control(pid::use::DcDeviceContinue);
+	part = run(1000);
+	all.insert(all.end(), part.begin(), part.end());
+	REQUIRE_CHAIN_MODELLED();
+	CHECK(std::abs(static_cast<int>(valueAt(all, t0, 2500))) > 0); // IB 8: Continue gives no torque
+	CHECK_NEAR(valueAt(all, t0, 2500), rr.at(1500), rampTol + 5);
+}
+
+// IB 29. The time hold with the flag encoding the firmware understands (Pause = 0x10, Continue = 0x20, sent raw), so IB 8 is out of the
+// way: the torque comes back after Continue (passes), but the ramp has run on during the pause: at 2500 ms (500 ms after Continue) it is at
+// its value for 2500 ms, not for the 1500 ms the held time gives. PID 5.13: Device Pause pauses all effects.
+TEST_CASE_FIXTURE(PerFixture, "F1-E11: Device Pause holds the effect time (flag encoding): after Device Continue the ramp continues from its held value"
+	* KNOWN_ISSUE("(IB 29) Device Pause only gates the output (stop_FFB): the effects' start times are not moved, the ramp runs on during the pause (HidFFB.cpp:221-239, EffectsCalculator.cpp:138)") * IT_DELETES_FFBHIDMAIN) {
+	RAMP_SETUP();
+	std::vector<Sample> all;
+	const uint64_t t0 = startAndTrace(ramp, 1000, all);
+	controlFlags(0x10);
+	std::vector<Sample> part = run(1000);
+	all.insert(all.end(), part.begin(), part.end());
+	int n = 0;
+	CHECK(holds(all, t0, 1000 + 2 * kTimeMs, 2000 - kTimeMs, 0, 0, n));
+	CHECK(n > 900);
+	controlFlags(0x20);
+	part = run(1000);
+	all.insert(all.end(), part.begin(), part.end());
+	CHECK(std::abs(static_cast<int>(valueAt(all, t0, 2500))) > 0); // the torque is back after Continue
+	REQUIRE_CHAIN_MODELLED();
+	CHECK_NEAR(valueAt(all, t0, 2500), rr.at(1500), rampTol + 5); // the defect: the value is rr.at(2500)
+}
+
+// characterization (INR 28): with the flag encoding the observed behaviour of Pause / Continue: the ramp value at 500 ms after Continue is
+// the value for the wall time (2500 ms), and the effect ends at its original end (4000 ms after the start), pause included.
+TEST_CASE_FIXTURE(PerFixture, "characterization: [F1-E11] with the flag encoding the ramp continues at its wall-clock value after Continue and ends at 4000 ms (INR 28)" * IT_DELETES_FFBHIDMAIN) {
+	RAMP_SETUP();
+	std::vector<Sample> all;
+	const uint64_t t0 = startAndTrace(ramp, 1000, all);
+	controlFlags(0x10);
+	std::vector<Sample> part = run(1000);
+	all.insert(all.end(), part.begin(), part.end());
+	controlFlags(0x20);
+	part = run(3200);
+	all.insert(all.end(), part.begin(), part.end());
+	CHECK_NEAR(valueAt(all, t0, 2500), rr.at(2500), rampTol + 5);
+	int n = 0;
+	CHECK(holds(all, t0, 4000 + 2 * kTimeMs, 5100, 0, 0, n));
+	CHECK(n > 900);
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// PID 5.13 DC Stop All Effects: "Issues a stop on every running effect": two running effects give torque 0, and 0 stays. Note: under the
+// Figure 16 numbering this passes only because of IB 8: Stop All (3) is decoded as the flags 0x01 | 0x02 (Enable, then Disable), so the torque is
+// 0 because the actuators are disabled, not because the effects were stopped (the 0x04 branch is never reached; see the IB 8 and IB 32 cases below).
+TEST_CASE_FIXTURE(PerFixture, "F1-E11: Stop All Effects while two effects run gives torque 0" * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	startConstant(10000);
+	startConstant(20000);
+	REQUIRE(settled() != 0);
+	control(pid::use::DcStopAllEffects);
+	CHECK(settled(300) == 0);
+	CHECK(settled(500) == 0);
+	REQUIRE_CHAIN_MODELLED();
+}
+
+// IB 9 with two effects: after Stop All a Start of effect A gives A's torque alone (PID 5.13: the device stays enabled; B, stopped by Stop All, stays
+// stopped). Firmware: stop_FFB, the Start never re-enables (IB 9); the first assertion is the IB 9 symptom.
+TEST_CASE_FIXTURE(PerFixture, "F1-E11: after Stop All Effects an Effect Operation Start of one of the two effects gives its torque alone"
+	* KNOWN_ISSUE("(IB 9) Device Control Stop All Effects ends in stop_FFB and Effect Operation Start never re-enables the actuators (HidFFB.cpp:227-229, :400-436)") * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	const double sc = scalerOf(5000);
+	const int16_t tA = reference(10000);
+	const int64_t a = startConstant(10000);
+	startConstant(20000);
+	REQUIRE(settled() != 0);
+	control(pid::use::DcStopAllEffects);
+	REQUIRE(settled(300) == 0);
+	operation(a, pid::use::OpEffectStart);
+	const int16_t v = settled();
+	REQUIRE_CHAIN_MODELLED();
+	CHECK_NEAR(v, tA, kBound(1, sc));
+}
+
+// IB 8 (cited). PID 5.13 DC Stop All Effects stops every running effect: after it and a DC Enable Actuators nothing plays. Under the Figure 16
+// numbering the firmware receives 3 and decodes it as the flags 0x01 | 0x02 (HidFFB.cpp:221-239): Enable, then Disable; the Stop All branch (0x04)
+// is never reached, the effects keep running behind the disabled output and Enable Actuators brings both back.
+TEST_CASE_FIXTURE(PerFixture, "F1-E11: after Stop All Effects and Enable Actuators the stopped effects do not play"
+	* KNOWN_ISSUE("(IB 8) Stop All Effects (3) is decoded as the flags 0x01 | 0x02, Enable then Disable (HidFFB.cpp:221-239): the 0x04 branch is never reached, the effects are not stopped and Enable Actuators resumes them") * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	startConstant(10000);
+	startConstant(20000);
+	REQUIRE(settled() != 0);
+	control(pid::use::DcStopAllEffects);
+	REQUIRE(settled(300) == 0);
+	control(pid::use::DcEnableActuators);
+	const int16_t v = settled();
+	REQUIRE_CHAIN_MODELLED();
+	CHECK(v == 0);
+}
+
+// IB 32. The Stop All branch itself, reached with the flag encoding the firmware understands (0x04, then Enable = 0x01, sent raw, so IB 8 is
+// out of the way). PID 5.13 DC Stop All Effects "Issues a stop on every running effect": the effects stay stopped until they are started again,
+// so the Enable gives no torque. The firmware's 0x04 branch only calls stop_FFB (HidFFB.cpp:227-229, the start_FFB there is commented out):
+// the effects keep state 1 and the Enable brings both back.
+TEST_CASE_FIXTURE(PerFixture, "F1-E11: after Stop All Effects (flag encoding) and Enable Actuators the stopped effects do not play"
+	* KNOWN_ISSUE("(IB 32) the Stop All branch of ffb_control only disables the output (stop_FFB, HidFFB.cpp:227-229): the effects are not stopped and Enable Actuators resumes them") * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	startConstant(10000);
+	startConstant(20000);
+	const int16_t before = settled();
+	REQUIRE(before != 0);
+	controlFlags(0x04);
+	REQUIRE(settled(300) == 0);
+	controlFlags(0x01);
+	const int16_t v = settled();
+	MESSAGE("before " << before << ", after Stop All (0x04) and Enable (0x01) " << v);
+	REQUIRE_CHAIN_MODELLED();
+	CHECK(v == 0);
+}
+
+// IB 8 (cited): PID 5.13 DC Device Reset clears the effects from memory: after a Reset and an Enable Actuators the old effects do not play.
+// Firmware under the Figure 16 numbering: Reset (4) is decoded as Stop (flag 4), reset_ffb is never called, the effects stay, and Enable brings
+// the torque back.
+TEST_CASE_FIXTURE(PerFixture, "F1-E11: after Device Reset and Enable Actuators the effects of before the reset do not play"
+	* KNOWN_ISSUE("(IB 8) Device Reset is decoded as flag 4 (stop): reset_ffb is never called and the effects survive (HidFFB.cpp:221-239)") * IT_DELETES_FFBHIDMAIN) {
+	up();
+	configure();
+	startConstant(10000);
+	startConstant(20000);
+	REQUIRE(settled() != 0);
+	control(pid::use::DcDeviceReset);
+	REQUIRE(settled(300) == 0);
+	control(pid::use::DcEnableActuators);
+	const int16_t v = settled();
+	REQUIRE_CHAIN_MODELLED();
+	CHECK(v == 0);
 }
 
 } // TEST_SUITE

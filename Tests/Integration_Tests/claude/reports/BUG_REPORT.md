@@ -10,8 +10,8 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 | Kind | Count | Open | Resolved |
 |---|---|---|---|
-| Suspected firmware bugs (IB) | 26 | 26 | 0 |
-| NEEDS REVIEW items (INR) | 18 | 18 | 0 |
+| Suspected firmware bugs (IB) | 32 | 32 | 0 |
+| NEEDS REVIEW items (INR) | 23 | 23 | 0 |
 | Defects in shared test fakes (A) | 3 | 0 | 3 |
 | Defects in test tools (T) | 1 | 0 | 1 |
 
@@ -38,6 +38,12 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | IB 19 | firmware bug | EffectsCalculator | open |
 | IB 20 | firmware bug | EffectsCalculator | open |
 | IB 21 | firmware bug | EffectsCalculator | open |
+| IB 27 | firmware bug | EffectsCalculator | open |
+| IB 28 | firmware bug | HidFFB | open |
+| IB 29 | firmware bug | HidFFB / EffectsCalculator | open |
+| IB 30 | firmware bug | EffectsCalculator | open |
+| IB 31 | firmware bug | EffectsCalculator | open |
+| IB 32 | firmware bug | HidFFB | open |
 | IB 33 | firmware bug | HidFFB | open |
 | IB 34 | firmware bug | HidFFB | open |
 | IB 35 | firmware bug | HidFFB | open |
@@ -59,6 +65,11 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | INR 14 | NEEDS REVIEW | EffectsCalculator / HidFFB | open |
 | INR 15 | NEEDS REVIEW | EffectsCalculator | open |
 | INR 16 | NEEDS REVIEW | EffectsCalculator | open |
+| INR 25 | NEEDS REVIEW | EffectsCalculator | open |
+| INR 26 | NEEDS REVIEW | EffectsCalculator | open |
+| INR 27 | NEEDS REVIEW | HidFFB / EffectsCalculator | open |
+| INR 28 | NEEDS REVIEW | HidFFB / EffectsCalculator | open |
+| INR 29 | NEEDS REVIEW | EffectsCalculator | open |
 | INR 30 | NEEDS REVIEW | HidFFB | open |
 | INR 31 | NEEDS REVIEW | EffectsCalculator | open |
 | A-1 | fake defect | Fake HAL SPI + GPIO / EXTI | fixed |
@@ -236,6 +247,54 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 - **Test / evidence:** `KNOWN_ISSUE` case `F1-E4: an envelope on a ramp effect shapes the ramp ...` in `test_f1_effects.cpp` (WO I1-3)
 - **Resolved?:** no
 
+### IB 27: EffectsCalculator
+
+- **Where:** `EffectsCalculator.cpp:131-135`; `HidFFB.cpp:341`
+- **What:** The Start Delay is ignored for an infinite Duration (the firmware maps Duration 0 to INFINITE; the descriptor declares no Null state for Duration): the start-time check runs only for a finite effect, so the effect acts at once; PID 1.01 §5.1: Start Delay delays the playback whatever the Duration. On this path a periodic effect is also evaluated before its start time and a negative float is converted to `uint32_t` (`EffectsCalculator.cpp:251-252`, `:274-275`, `:292-293`; out of range, x86 and ARM differ; F1-B2 note, not tested)
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-E10: a constant force with Start Delay 300 ms and infinite Duration (0) starts 300 ms after the Start` in `test_f1_effects.cpp` (WO I1-4)
+- **Resolved?:** no
+
+### IB 28: HidFFB
+
+- **Where:** `HidFFB.cpp:400-436`; `ffb_defs.h:332`
+- **What:** Loop Count of Effect Operation is never read (seam S10): a Start with Loop Count 3 plays a 200 ms effect once; PID 1.01 §5.9: "The number of times the device will repeat the operation"
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-E10: Effect Operation Start with Loop Count 3 repeats a 200 ms effect three times` in `test_f1_effects.cpp` (WO I1-4)
+- **Resolved?:** no
+
+### IB 29: HidFFB / EffectsCalculator
+
+- **Where:** `HidFFB.cpp:221-239`; `EffectsCalculator.cpp:138`
+- **What:** Device Pause (sent with the flag encoding the firmware decodes, 0x10 / 0x20, so IB 8 is out of the way) only gates the output (`stop_FFB`); the effects' start times are not moved, so a ramp runs on during the pause and continues at its wall-clock value (3090 instead of 2098 counts 500 ms after Continue); PID 1.01 §5.13: Device Pause pauses all effects
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-E11: Device Pause holds the effect time (flag encoding): ...` in `test_f1_effects.cpp` (WO I1-4)
+- **Resolved?:** no
+
+### IB 30: EffectsCalculator
+
+- **Where:** `EffectsCalculator.cpp:234-235`
+- **What:** The square wave uses `(elapsed_time + phase) % (period + 2)` and `< (period + 2) / 2`: it repeats every Period + 2 ms (mean 81.97 ms for Period 80 over 20 periods); PID 1.01 §5.5: a periodic effect "will loop every Period"
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-E2: a square effect repeats every Period (Period 80 ms, 20 periods)` in `test_f1_effects.cpp` (WO I1-4)
+- **Resolved?:** no
+
+### IB 31: EffectsCalculator
+
+- **Where:** `EffectsCalculator.cpp:234-235`
+- **What:** The square wave adds the raw Phase (units of 0.01 degree, 0..35999) to the elapsed milliseconds: Phase 18000 shifts a 50 ms square wave by 18000 ms mod 52, not by half a Period; PID 1.01 §5.5: Phase "Determines the position in the wave that playback begins", normalized between 0 and 360 degrees
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-E2: Phase 18000 (180 degrees) starts a square effect half a Period into the wave` in `test_f1_effects.cpp` (WO I1-4)
+- **Resolved?:** no
+
+### IB 32: HidFFB
+
+- **Where:** `HidFFB.cpp:227-229`
+- **What:** The Stop All branch of `ffb_control` (reached with the flag encoding 0x04, then Enable 0x01, so IB 8 is out of the way) only calls `stop_FFB`: the effects keep their running state and Enable Actuators brings them back (4577 counts); PID 1.01 §5.13: DC Stop All Effects "Issues a stop on every running effect". Related to IB 9 (same branch, different symptom)
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-E11: after Stop All Effects (flag encoding) and Enable Actuators the stopped effects do not play` in `test_f1_effects.cpp` (WO I1-4)
+- **Resolved?:** no
+
 ### IB 33: HidFFB
 
 - **Where:** `FFBoard/Src/HidFFB.cpp:333`, `:391-393`
@@ -387,6 +446,41 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 - **Test / location:** `EffectsCalculator.h:238`, friction ramp; characterization case in `test_f1_conditions.cpp` (WO I1-5)
 - **Question:** Friction ramp-up around zero speed follows a sine factor of the speed relative to `frictionPctSpeedToRampup` (0.47296 at 16 counts/ms vs hand 0.47302); intended shape?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 25: EffectsCalculator
+
+- **Test / location:** `EffectsCalculator.cpp:300-306`; characterization case `characterization: [F1-E2] a sine effect follows sin(2 pi t / Period) ...` in `test_f1_effects.cpp` (WO I1-4)
+- **Question:** Sine shape: T/2 at Period/12, T at Period/4, -T at 3 Period/4 in the sense of the positive-Magnitude constant force (absolute sign INR 10); PID 1.01 §5.5 names no waveform shape. Intended?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 26: EffectsCalculator
+
+- **Test / location:** `EffectsCalculator.cpp:240-262`; characterization case `characterization: [F1-E2] a triangle effect starts at -T, reaches +T at Period/2 and returns to -T at Period` in `test_f1_effects.cpp` (WO I1-4)
+- **Question:** Triangle shape: starts at its minimum -T, +T at Period/2, -T again at Period (rise = fall = Period/2, no jump); PID 1.01 names no shape or start point. Intended?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 27: HidFFB / EffectsCalculator
+
+- **Test / location:** `HidFFB.cpp:221-239`; characterization case `characterization: [F1-E11] the effect time of a ramp continues while the actuators are disabled` in `test_f1_effects.cpp` (WO I1-4)
+- **Question:** The effect time is wall time: after a 500 ms Disable Actuators at 1000 ms a ramp is at its value for 2000 ms, not 1500 ms; PID 1.01 §5.13 says only "Disable all the device actuators". Intended?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 28: HidFFB / EffectsCalculator
+
+- **Test / location:** `HidFFB.cpp:221-239`, `EffectsCalculator.cpp:138`; characterization case `characterization: [F1-E11] with the flag encoding the ramp continues at its wall-clock value after Continue and ends at 4000 ms` in `test_f1_effects.cpp` (WO I1-4)
+- **Question:** Observed Pause / Continue with the flag encoding: after Continue the ramp is at its wall-clock value and ends at its original end (pause included); the intended hold is IB 29. Records today's behaviour for review
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 29: EffectsCalculator
+
+- **Test / location:** `EffectsCalculator.cpp:278`, `:296`; characterization case `characterization: [F1-E2] the Sawtooth Up force falls within each period ...` in `test_f1_effects.cpp` (WO I1-4)
+- **Question:** Sawtooth direction: relative to a positive-Magnitude constant force, Sawtooth Up falls within each period and Sawtooth Down rises; PID 1.01 §5.1.1 / Table 2 only name the two types (§5.1 calls Sawtooth Down "a Sawtooth Up waveform"). Owner question [IQ13](OPEN_QUESTIONS.md)
 - **Same as (coverage):** (none)
 - **Resolved?:** no
 
