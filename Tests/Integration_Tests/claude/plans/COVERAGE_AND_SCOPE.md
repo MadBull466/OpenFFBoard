@@ -16,7 +16,7 @@ Chain files of F1: `HidFFB.cpp`, `EffectsCalculator.cpp`, `Filters.cpp`, `Axis.c
 
 | Flow | Chain | Phase | Status |
 |---|---|---|---|
-| F1 | HID PID (USB) -> HidFFB -> EffectsCalculator (CMSIS-DSP) -> Axis -> TMC4671 (`FakeTmc4671`), with feedback, supply, init, faults, E-stop, commands, persistence, timing, stability | I0-I5 | I0 complete (approved 2026-11-18): infrastructure and group G-A (F1-A1 to F1-A5) covered; chain line coverage measured as a starting point (numbers in `PROGRESS.md`) |
+| F1 | HID PID (USB) -> HidFFB -> EffectsCalculator (CMSIS-DSP) -> Axis -> TMC4671 (`FakeTmc4671`), with feedback, supply, init, faults, E-stop, commands, persistence, timing, stability | I0-I5 | I0 complete (approved 2026-11-18): infrastructure and group G-A (F1-A1 to F1-A5) covered; chain line coverage measured as a starting point. I1 complete (2026-11-23, waiting for approval): groups G-H, G-E, G-X (27 requirements) have cases, open-loop with a scripted position; chain coverage and the classification of unexecuted parts in `../reports/I1_REPORT.md` (numbers in `PROGRESS.md`) |
 | F2 | same chain with ODrive (`FakeOdrivePeer`, CAN) | I6 | planned after F1 |
 | F3 | VESC (`FakeVescPeer`, CAN) | I7 | planned after F2 |
 | F4 | PWM (`MotorPWM`, fake TIM1) | I8 | planned after F3 |
@@ -34,4 +34,11 @@ Chain files of F1: `HidFFB.cpp`, `EffectsCalculator.cpp`, `Filters.cpp`, `Axis.c
 
 ## 4. Not covered yet
 
-Everything in section 2: no integration test exists yet (planning).
+| Item | Planned in |
+|---|---|
+| F1 groups G-T (driver in the chain: calibration, encoders, faults, E-stop, commands) and G-P (persistence) | I2 |
+| F1 groups G-R (reconstruction filter, spline) and G-S (timing, SPI frames per cycle) | I3 |
+| F1 group G-O (stability with the wheel plant) | I4 |
+| F1 close-out (mutation score, random-order and repeat runs) | I5 |
+| Integration cases that delete the main class run under ASan / UBSan only by hand (coverage bug 24) | each phase report |
+| F2-F6 | I6-I10 |
