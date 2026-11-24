@@ -59,8 +59,11 @@
 #include "doctest.h"
 
 #include <cstdint>
+#include <map>
 #include <string>
 #include <vector>
+
+class ChipEventLog; // support/ChipEventLog.h
 
 extern FFBoardMain *mainclass; // cppmain.cpp
 extern USBdevice *usb_device;  // global_callbacks.cpp
@@ -197,6 +200,72 @@ struct IntegrationFixture {
 	/** Forgets the recorded fixture fault (only for the self-test that provokes it on purpose) */
 	void clearFixtureFault() { fixtureFault_.clear(); }
 
+	// --- reboot (WO I2-1) ---
+	/**
+	 * Simulated power cycle: the flash survives, everything else is lost and the chain comes up again through the real cppmain path.
+	 * Sequence: (1) copy HostPlatform::flash() (the copy is taken BEFORE the teardown: the destructors of the firmware objects
+	 * would not run on a real power loss, so whatever they write is not part of the model); (2) remember the supply and the chips'
+	 * ENABLE_IN level; (3) detach the plant and the position script (the cases attach them again: they hold a pointer to chip state
+	 * that is reset), check the kernel object counts like the destructor does; (4) delete the main class (with the USBdevice, axis,
+	 * TMC driver and their threads: BUG 24, the FFBHIDMain base is deleted without a virtual destructor, so every case that calls
+	 * this carries IT_DELETES_FFBHIDMAIN), then resetAll() (tud_deinit, HostDcd, HostPlatform::reset = time 0 and an empty flash
+	 * map, HostRtos::reset, HostTarget::reset, ErrorHandler, firmware globals, CDC); (5) restore the flash map; (6) the board set-up of
+	 * the constructor again (chips reset to their power-on register values, present, ADC raw mid scale, 1 us per frame as at a fresh
+	 * start, responder, ADC reference, CS lines idle), the supply and ENABLE_IN as before, the scheduler statistics reset, kernel
+	 * object baseline taken again, the attached ChipEventLogs reset (onReboot); (7) bring-up: boot(), the supply is switched OFF (it rises later), enumerateUsb()
+	 * ONCE (a power cycle has one enumeration), then, if no TMC driver exists after the start: `axis.0.drvtype?`; a stored type other
+	 * than the TMC (id above 1) is a fixture fault (only the TMC chain is brought up) and the function returns; otherwise
+	 * "axis.0.drvtype=1" is sent unless sendDrvType is false (then the function returns after the enumeration, supply restored, result
+	 * 0: the case sends the command itself). 600 ms without supply, the supply as before the reboot, then the chain runs until Running
+	 * and motorReady() or the budget.
+	 * DEFAULT (allowReplug = false): no USB re-plug. If Running is not reached a fixture fault is recorded and the function returns with
+	 * the state observable. With a stored TMC configuration the chain ends in Shutdown: the driver is created at start, the USB mount
+	 * (tud_mount_cb -> Axis::usbResume -> startMotor) comes while the state machine is still uninitialised, so startMotor() changes
+	 * nothing (TMC4671.cpp:1682-1686 needs state Shutdown && initialized && encoderAligned), initialisation ends in Shutdown
+	 * (TMC4671.cpp:1574-1588) and nothing calls startMotor() again until a USB mount. allowReplug = true: when the state is Shutdown the
+	 * host unplugs and plugs the device in (usbSuspend / usbResume frames appear in the chip log) and rebootReplugged() is true; use it
+	 * only where Running is needed and the replug is not part of what is tested. Limits of the model: the supply-off phase models a cold
+	 * start in which RAM is initialised while no supply is present ("supply present at boot" is not modelled); the E-stop pin is
+	 * released after a reboot (a held physical E-stop would stay pressed): not modelled; bringUp()'s timing depends on the
+	 * process-wide static powerCheckCounter (TMC4671.cpp:478) and so on the position of the case in its shard (1181 ms first, 631 ms
+	 * later), the reboot's does not. Live host objects do not survive: stop a TorqueTrace before (its cycle counter would exceed the reset
+	 * ffbCycles; a fixture fault is raised if a step-end observer is attached and no ChipEventLog is), re-create an FfbHost afterwards
+	 * (block indices and the descriptor it read are stale).
+	 */
+	uint32_t rebootKeepingFlash(uint32_t budgetMs = 20000, bool allowReplug = false, bool sendDrvType = true);
+	/** True if the last rebootKeepingFlash(.., allowReplug = true) had to unplug and plug in USB again to reach Running */
+	bool rebootReplugged() const { return rebootReplugged_; }
+
+	// --- E-stop (WO I2-1) ---
+	/**
+	 * The board's E-stop switch: active low (FFBHIDMain::exti, FFBHIDMain.cpp:341: pressed = HAL_GPIO_ReadPin(E_STOP_GPIO_Port,
+	 * E_STOP_Pin) == GPIO_PIN_RESET; E_STOP = PD5, Targets/F407VG/Core/Inc/main.h:162-163). Sets the pin level (HostTarget::setPin)
+	 * and raises the EXTI interrupt (HostTarget::triggerExti(E_STOP_Pin)). Does not advance time.
+	 * Debounce: the firmware accepts an edge only if HAL_GetTick() - lastEstop > 1000 (FFBHIDMain.cpp:343) and the pin state differs
+	 * from control.emergency. A wrapper edge no more than 1000 ms after the previous edge the wrapper sent is a fixture fault
+	 * (firstFault(); the edge is still sent, so a case can show that the firmware ignores it, then clearFixtureFault()). The FIRST edge
+	 * after start-up is subject to the same rule: lastEstop starts at 0 (FFBHIDMain.h:153 `volatile uint32_t lastEstop = 0`) and is
+	 * set only when the pin is already low at start-up (FFBHIDMain.cpp:101-108), so the first press needs HAL_GetTick() > 1000: a
+	 * first edge at a tick <= 1000 is a fixture fault too. bringUp() ends at a tick of 1181 ms in the first case of a process but 631 ms in later ones (the static
+	 * powerCheckCounter of TMC4671.cpp:478 keeps its value between cases and skips two 250 ms waits), so a case that presses soon
+	 * after bringUp() must advance the clock first (a first press at tick 731 ms was ignored by the firmware and reported by the wrapper). After a rebootKeepingFlash() the clock starts at 0 again: the same applies.
+	 */
+	void pressEstop() { estopEdge(true); }
+	/* The wrapper's window counts from the wrapper's own last edge, also after an edge the firmware ignored (it only counts accepted
+	 * ones): after an ignored edge the wrapper can be stricter than the firmware (a false fault is possible, a missed one is not). */
+	void releaseEstop() { estopEdge(false); }
+	/** True while the E-stop pin reads low (pressed) */
+	bool estopPressed() const;
+	/** Records a misuse of a helper as the fixture fault (first one wins), used by ChipEventLog */
+	void reportFixtureFault(const std::string &what) {
+		if (fixtureFault_.empty()) {
+			fixtureFault_ = what;
+		}
+	}
+	/** Called by ChipEventLog's constructor / destructor */
+	void registerEventLog(ChipEventLog *log);
+	void unregisterEventLog(ChipEventLog *log);
+
 	// --- observation (public interfaces only) ---
 	/** The TMC4671 driver object of axis 0 (CommandHandler "tmc" instance 0), nullptr if the axis has no TMC_1 */
 	TMC4671 *tmc();
@@ -219,6 +288,11 @@ struct IntegrationFixture {
 	std::string firstFault() const;
 
 private:
+	void setupBoard();
+	void estopEdge(bool press);
+	std::vector<ChipEventLog *> eventLogs_;
+	bool rebootReplugged_ = false;
+	int64_t lastEstopEdgeMs_ = -1; //!< HAL_GetTick() of the last edge sent by pressEstop / releaseEstop, -1 if none since start
 	WheelPlant *plant_ = nullptr;
 	PositionScript *script_ = nullptr;
 	std::string fixtureFault_; //!< first misuse of the fixture (plant and script attached together)

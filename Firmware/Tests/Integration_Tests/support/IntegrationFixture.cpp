@@ -3,6 +3,8 @@
  */
 #include "IntegrationFixture.h"
 
+#include "ChipEventLog.h"
+
 #include "CDCcomm.h"
 #include "CommandHandler.h"
 #include "ErrorHandler.h"
@@ -14,6 +16,7 @@
 #include "voltagesense.h"
 
 #include <cmath>
+#include <cstdlib>
 #include <sstream>
 
 extern float vSenseMult; // voltagesense.cpp (not declared in the header)
@@ -32,7 +35,9 @@ struct ItPersistentStorageStartup : PersistentStorage {
  * registry and the flash map of that case, which the later resets clear.
  * Host-vs-target: function-local statics of the firmware are not re-initialised by a reset (TMC4671.cpp:478 `static uint8_t
  * powerCheckCounter` in the waitPower state keeps its value between cases; the fixture cannot reset it). The state machine
- * sets it to 0 whenever power is absent, and every bring-up has power present before the first count, so it starts at 0.
+ * sets it to 0 whenever power is absent. bringUp() has power present from the start, so it keeps the value of the earlier case of
+ * the process: 0 in the first case (bring-up ends at tick 1181 ms), above 5 in later ones (631 ms: two 250 ms waits skipped).
+ * rebootKeepingFlash() runs its first phase without supply and so starts the counter at 0.
  */
 void IntegrationFixture::resetAll() {
 	tud_deinit(0);
@@ -56,6 +61,10 @@ void IntegrationFixture::resetAll() {
 
 IntegrationFixture::IntegrationFixture() {
 	resetAll();
+	setupBoard();
+}
+
+void IntegrationFixture::setupBoard() {
 	// Board. The target reset leaves SPI1_SS2 / SS3 low like MX_GPIO_Init (main.c): idle is high.
 	HAL_GPIO_WritePin(SPI1_SS1_GPIO_Port, SPI1_SS1_Pin, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(SPI1_SS2_GPIO_Port, SPI1_SS2_Pin, GPIO_PIN_SET);
@@ -72,6 +81,7 @@ IntegrationFixture::IntegrationFixture() {
 	HostTarget::adcSetInput(&hadc1, 7, 1100);
 	HostTarget::adcSetInput(&hadc1, 6, 950);
 	sched.reset();
+	lastEstopEdgeMs_ = -1;
 	atStart_ = HostRtos::objectCounts();
 }
 
@@ -131,6 +141,12 @@ std::string IntegrationFixture::firstFault() const {
 	}
 	if (script_ != nullptr && !script_->violations().empty()) {
 		return "PositionScript: " + script_->violations().front();
+	}
+	for (const ChipEventLog *l : eventLogs_) {
+		const std::string f = l->hookFault();
+		if (!f.empty()) {
+			return "IntegrationFixture: " + f;
+		}
 	}
 	for (const FakeTmc4671 *c : {&chip1, &chip2}) {
 		const auto v = c->unexpectedViolations();
@@ -350,4 +366,133 @@ std::vector<IntegrationFixture::FluxTorque> IntegrationFixture::fluxTorqueWrites
 		out.push_back(ft);
 	}
 	return out;
+}
+
+// --- E-stop ---
+bool IntegrationFixture::estopPressed() const { return HAL_GPIO_ReadPin(E_STOP_GPIO_Port, E_STOP_Pin) == GPIO_PIN_RESET; }
+
+void IntegrationFixture::estopEdge(bool press) {
+	const uint32_t now = HAL_GetTick();
+	if (lastEstopEdgeMs_ < 0) {
+		if (now <= 1000) {
+			reportFixtureFault("E-stop edge at tick " + std::to_string(now) + " ms: the firmware ignores the first edge until HAL_GetTick() > 1000 (lastEstop starts at 0, FFBHIDMain.cpp:343)");
+		}
+	} else if (static_cast<int64_t>(now) - lastEstopEdgeMs_ <= 1000) {
+		reportFixtureFault("E-stop edge " + std::to_string(static_cast<int64_t>(now) - lastEstopEdgeMs_) + " ms after the previous edge: the firmware ignores edges within 1000 ms (FFBHIDMain.cpp:343)");
+	}
+	HostTarget::setPin(E_STOP_GPIO_Port, E_STOP_Pin, !press);
+	HostTarget::triggerExti(E_STOP_Pin);
+	lastEstopEdgeMs_ = now;
+}
+
+void IntegrationFixture::registerEventLog(ChipEventLog *log) { eventLogs_.push_back(log); }
+void IntegrationFixture::unregisterEventLog(ChipEventLog *log) {
+	for (size_t i = 0; i < eventLogs_.size(); i++) {
+		if (eventLogs_[i] == log) {
+			eventLogs_.erase(eventLogs_.begin() + static_cast<std::ptrdiff_t>(i));
+			return;
+		}
+	}
+}
+
+// --- reboot ---
+uint32_t IntegrationFixture::rebootKeepingFlash(uint32_t budgetMs, bool allowReplug, bool sendDrvType) {
+	// (1) flash survives; the copy is taken before any destructor of the firmware runs
+	const std::map<uint16_t, uint16_t> savedFlash = HostPlatform::flash();
+	// (2) what the board keeps while the MCU restarts
+	const int32_t ext = supplyExt_;
+	const int32_t intv = supplyInt_;
+	const bool enableIn1 = (chip1.reg(0x76) & (1u << 15)) != 0;
+	const bool enableIn2 = (chip2.reg(0x76) & (1u << 15)) != 0;
+	const std::string before = firstFault();
+	if (!before.empty()) {
+		reportFixtureFault("fault before the reboot: " + before); // the resets below clear the sources of firstFault()
+	}
+	// (3) plant and script point at chip state that is reset
+	if (sched.stepEndHook && eventLogs_.empty()) {
+		reportFixtureFault("rebootKeepingFlash: a step-end observer (a running TorqueTrace?) is attached across the reboot: stop it first, its cycle counter would exceed the reset ffbCycles");
+	}
+	detachPlant();
+	detachPositionScript();
+	if (tud_ready()) {
+		CDCcomm::clearRemainingBuffer(0);
+		CDCcomm::cdcFinished(0);
+	}
+	// (4) delete the main class (bug 24: IT_DELETES_FFBHIDMAIN), then the reset sequence of the constructor
+	HostTarget::deleteCppmainMainclass();
+	mainclass = nullptr;
+	usb_device = nullptr;
+	UsbHidHandler::globalHidHandler = nullptr;
+	tud_deinit(0);
+	{
+		const HostRtos::ObjectCounts now = HostRtos::objectCounts();
+		const bool same = now.tasks == atStart_.tasks && now.queues == atStart_.queues && now.semaphores == atStart_.semaphores && now.timers == atStart_.timers && now.eventGroups == atStart_.eventGroups;
+		if (!same) {
+			reportFixtureFault("kernel object counts differ from the start of the case after the main class was deleted (reboot teardown)");
+		}
+	}
+	resetAll();
+	// (5) flash back
+	HostPlatform::flash() = savedFlash;
+	// (6) board as after power-up
+	setupBoard();
+	hidInReports.clear();
+	startMark = 0;
+	for (ChipEventLog *l : eventLogs_) {
+		l->onReboot();
+	}
+	// (7) bring-up (see the header)
+	boot();
+	chip1.setEnableIn(enableIn1);
+	chip2.setEnableIn(enableIn2);
+	// The supply rises after the MCU started: the TMC thread first runs with no supply (see the header: cold start, not "supply
+	// present at boot"); this also zeroes the static powerCheckCounter of TMC4671.cpp:478
+	setSupply(0, 0);
+	enumerateUsb();
+	startUs_ = HostPlatform::nowUs();
+	rebootReplugged_ = false;
+	if (tmc() == nullptr) {
+		const std::string reply = cdcCommand("axis.0.drvtype?");
+		const size_t bar = reply.find('|');
+		const long id = bar != std::string::npos ? std::strtol(reply.c_str() + bar + 1, nullptr, 10) : -1;
+		if (id > 1) {
+			reportFixtureFault("rebootKeepingFlash: flash holds driver type " + std::to_string(id) + ", not the TMC (1): only the TMC chain is brought up (reply '" + reply + "')");
+			setSupply(ext, intv);
+			return 0;
+		}
+		if (sendDrvType) {
+			selectDriver(1);
+		} else {
+			setSupply(ext, intv);
+			return 0; // the case sends axis.0.drvtype itself
+		}
+	}
+	sched.advanceMs(600); // at least two passes of the 250 ms wait of waitPower without power
+	setSupply(ext, intv);
+	auto running = [this] {
+		TMC4671 *t = tmc();
+		return t != nullptr && t->getState() == TMC_ControlState::Running && t->motorReady();
+	};
+	bool up = false;
+	for (uint32_t ms = 0; ms < budgetMs && !up; ms++) {
+		up = running();
+		if (up) {
+			break;
+		}
+		TMC4671 *t = tmc();
+		if (allowReplug && !rebootReplugged_ && t != nullptr && t->getState() == TMC_ControlState::Shutdown) {
+			rebootReplugged_ = true;
+			startMark = chip1.log().size();
+			replugUsb();
+			continue;
+		}
+		sched.advanceMs(1);
+	}
+	up = up || running();
+	bringUpMs = static_cast<uint32_t>((HostPlatform::nowUs() - startUs_) / 1000);
+	if (!up) {
+		TMC4671 *t = tmc();
+		reportFixtureFault("rebootKeepingFlash: Running not reached in " + std::to_string(budgetMs) + " ms (replug " + (allowReplug ? "allowed" : "not allowed") + "), TMC state " + (t != nullptr ? std::to_string(static_cast<uint32_t>(t->getState())) : std::string("(no driver)")));
+	}
+	return bringUpMs;
 }

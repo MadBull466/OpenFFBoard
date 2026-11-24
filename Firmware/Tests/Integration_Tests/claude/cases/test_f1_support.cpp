@@ -21,6 +21,7 @@
 #include "FfbHost.h"
 #include "IntegrationFixture.h"
 #include "PositionScript.h"
+#include "ChipEventLog.h"
 
 #include <cmath>
 #include <cstdint>
@@ -2211,3 +2212,502 @@ TEST_CASE("support: FfbHost takes the value of a CDC reply after the last bar an
 }
 
 } // TEST_SUITE
+
+
+// ===========================================================================
+// WO I2-1: reboot, E-stop wrapper, ChipEventLog, armSpiFailure, runCommandOnWrite (helper self-tests)
+// ===========================================================================
+namespace {
+/** Enable pin of the driver (DRV_ENABLE, PE7) */
+bool drvEnable() { return HostTarget::outputPin(DRV_ENABLE_GPIO_Port, DRV_ENABLE_Pin); }
+} // namespace
+
+TEST_CASE_FIXTURE(IntegrationFixture, "support: rebootKeepingFlash keeps a saved setting, loses an unsaved one and starts the chain fresh twice" * IT_DELETES_FFBHIDMAIN) {
+	// Oracle: a power cycle keeps flash and loses RAM. Settings: axis.0.degrees (default 900) and axis.0.power (default 5000),
+	// read over CDC; sys.save writes the settings to flash (SystemCommands.cpp:49).
+	const uint32_t freshMs = bringUp();
+	REQUIRE(cdcCommand("axis.0.degrees?").find("|900]") != std::string::npos);
+	REQUIRE(cdcCommand("axis.0.power?").find("|5000]") != std::string::npos);
+	REQUIRE(cdcCommand("axis.0.degrees=540").find("OK") != std::string::npos);
+	const std::string saved = cdcCommand("sys.save?", 500);
+	INFO("sys.save reply: " << saved);
+	REQUIRE(cdcCommand("axis.0.power=1234").find("OK") != std::string::npos); // after the save: not stored
+	sched.advanceMs(3000);
+	const uint32_t cyclesBefore = ffbCycles();
+	const uint64_t timeBefore = HostPlatform::nowUs();
+	REQUIRE(cyclesBefore > 1000);
+
+	const uint32_t rebootMs = rebootKeepingFlash(20000, true);
+	CHECK(rebootReplugged()); // with a stored configuration the chain stops in Shutdown (see the default-reboot case below)
+	MESSAGE("bring-up time fresh " << freshMs << " ms, after a reboot with a stored configuration " << rebootMs << " ms");
+	REQUIRE(firstFault().empty());
+	REQUIRE(isFfbWheel());
+	CHECK(cdcCommand("axis.0.degrees?").find("|540]") != std::string::npos); // survived: saved to flash
+	CHECK(cdcCommand("axis.0.power?").find("|5000]") != std::string::npos);	 // lost: RAM only
+	// the counters and the clock start again
+	CHECK(ffbCycles() < cyclesBefore);
+	CHECK(HostPlatform::nowUs() < timeBefore);
+	CHECK(tmc()->getState() == TMC_ControlState::Running);
+
+	// a second reboot in the same case also works; the value set before it is still in flash
+	REQUIRE(cdcCommand("axis.0.degrees=360").find("OK") != std::string::npos); // not saved
+	rebootKeepingFlash(20000, true);
+	REQUIRE(firstFault().empty());
+	CHECK(cdcCommand("axis.0.degrees?").find("|540]") != std::string::npos);
+}
+
+TEST_CASE_FIXTURE(IntegrationFixture, "support: rebootKeepingFlash restarts ChipEventLog and keeps the supply and the ENABLE_IN level" * IT_DELETES_FFBHIDMAIN) {
+	ChipEventLog log(*this, chip1);
+	bringUp();
+	const size_t before = log.events().size();
+	REQUIRE(before > 5);
+	chip2.setEnableIn(false);
+	setSupply(24000, 23000);
+	rebootKeepingFlash(20000, true);
+	REQUIRE(firstFault().empty());
+	CHECK(log.events().size() > 5);
+	CHECK(log.events().front().timeUs < 1000000); // time restarted at 0: the first frame is in the first second
+	CHECK(log.complete());
+	CHECK((chip2.reg(0x76) & (1u << 15)) == 0); // ENABLE_IN of the chip as before the reboot
+	CHECK((chip1.reg(0x76) & (1u << 15)) != 0);
+	const uint32_t vint = std::stoul(cdcCommand("sys.vint?").substr(cdcCommand("sys.vint?").find('|') + 1));
+	CHECK(vint > 22500);
+	CHECK(vint < 23500); // 23 V internal supply as before
+}
+
+TEST_CASE_FIXTURE(IntegrationFixture, "support: E-stop wrapper press is seen by the firmware, an edge inside 1000 ms is a fixture fault, a release after the window is accepted" * IT_DELETES_FFBHIDMAIN) {
+	// Oracle: the debounce of FFBHIDMain::exti (FFBHIDMain.cpp:343, 1000 ms), active low pin (:341). Observable: DRV_ENABLE low while
+	// the emergency stop is active (the TMC driver releases its enable pin, see the frames W64:0 ... W1A:0 and TMC4671.cpp:1705).
+	bringUp();
+	sched.advanceMs(500); // bring-up ends at about 630 ms: the first press needs a tick above 1000 (FFBHIDMain.cpp:343, lastEstop = 0)
+	REQUIRE(drvEnable());
+	REQUIRE_FALSE(estopPressed());
+	pressEstop();
+	CHECK(estopPressed());
+	REQUIRE(firstFault().empty()); // the first press after bring-up is outside the start-up window
+	sched.advanceMs(20);
+	CHECK_FALSE(drvEnable());
+	// 500 ms later: inside the window
+	sched.advanceMs(500);
+	releaseEstop();
+	CHECK_FALSE(estopPressed());
+	CHECK(firstFault().find("IntegrationFixture: E-stop edge") == 0);
+	clearFixtureFault();
+	sched.advanceMs(20);
+	CHECK_FALSE(drvEnable()); // the firmware ignored the release (inside 1000 ms of its accepted press)
+	// the next release edge is more than 1000 ms after the wrapper's last edge and the firmware's own
+	sched.advanceMs(1100);
+	pressEstop();
+	sched.advanceMs(1100);
+	releaseEstop();
+	CHECK(firstFault().empty());
+	sched.advanceMs(20);
+	CHECK(drvEnable()); // the release was accepted
+}
+
+TEST_CASE_FIXTURE(IntegrationFixture, "support: E-stop wrapper reports the first edge before tick 1000 because lastEstop starts at 0" * IT_DELETES_FFBHIDMAIN) {
+	boot(); // main class exists, the tick is about 0
+	REQUIRE(HAL_GetTick() <= 1000);
+	pressEstop();
+	CHECK(firstFault().find("the firmware ignores the first edge") != std::string::npos);
+	clearFixtureFault();
+}
+
+TEST_CASE_FIXTURE(IntegrationFixture, "support: ChipEventLog records the bring-up writes in order with the enable pin level and coexists with a PositionScript" * IT_DELETES_FFBHIDMAIN) {
+	// Known sequence (TMC4671::initialize, TMC4671.cpp:300-301): writeReg(0x64, 0) then setPwm(0, ...) -> updateReg(0x1A, 0, 0xFF, 0)
+	// with the enable pin still low; initializeWithPower (:423-424): enablePin.set() then setPwm(PWM_FOC) -> 0x1A low byte 7 (DS 0x1A:
+	// chopper mode 7 = centred PWM with FOC, TMC_PwmMode::PWM_FOC = 7).
+	ChipEventLog log(*this, chip1);
+	PositionScript script;
+	script.setConstant(1000);
+	attachPositionScript(script);
+	bringUp();
+	REQUIRE(firstFault().empty());
+	CHECK(log.complete());
+
+	const size_t w64 = log.firstWrite(0x64, [](uint32_t d) { return d == 0; });
+	const size_t off = log.firstWrite(0x1A, [](uint32_t d) { return (d & 0xFF) == 0; });
+	const size_t foc = log.firstWrite(0x1A, [](uint32_t d) { return (d & 0xFF) == 7; });
+	REQUIRE(w64 != ChipEventLog::npos);
+	REQUIRE(off != ChipEventLog::npos);
+	REQUIRE(foc != ChipEventLog::npos);
+	CHECK(w64 < off);
+	CHECK(off < foc);
+	CHECK_FALSE(log.events()[w64].enable);
+	CHECK_FALSE(log.events()[off].enable);
+	CHECK(log.events()[foc].enable); // the pin was set before the FOC write (sampled at the write)
+	CHECK(log.enableAt(foc));
+	CHECK_FALSE(log.enableAt(off));
+	// the value in force: 0x1A low byte 0 after the first write, 7 after the second
+	CHECK((*log.valueAt(0x1A, off) & 0xFF) == 0);
+	CHECK((*log.valueAt(0x1A, foc) & 0xFF) == 7);
+	CHECK_FALSE(log.valueAt(0x1A, w64).has_value());
+	// the torque / flux target is zero before the FOC write
+	CHECK(log.fluxTorqueZeroBefore(foc));
+	CHECK(log.countWrites(0x64, foc) >= 1);
+	// the Enable event: seen at the end of a scheduler step, so after the writes of that step (resolution limit)
+	const size_t up = log.firstEnable(true);
+	REQUIRE(up != ChipEventLog::npos);
+	CHECK(up > off);
+	CHECK(log.events()[up].timeUs >= log.events()[foc].timeUs);
+	// times never go backwards
+	for (size_t k = 1; k < log.events().size(); k++) {
+		CHECK(log.events()[k].timeUs >= log.events()[k - 1].timeUs);
+	}
+	// the script still drives 0x6B
+	sched.advanceMs(5);
+	CHECK(chip1.reg(0x6B) == 1000);
+	// a user hook through the log runs next to the log
+	uint32_t hookCalls = 0;
+	log.onRead(0x6B, [&hookCalls](FakeTmc4671 &) { hookCalls++; });
+	sched.advanceMs(5);
+	CHECK(hookCalls >= 5);
+	CHECK(log.complete());
+}
+
+TEST_CASE_FIXTURE(IntegrationFixture, "support: ChipEventLog turns the enable pin change of an E-stop into an event and counts a hook that replaced its own as incomplete" * IT_DELETES_FFBHIDMAIN) {
+	bringUp();
+	ChipEventLog log(*this, chip1);
+	sched.advanceMs(500);
+	const size_t n0 = log.events().size();
+	pressEstop();
+	sched.advanceMs(5);
+	const size_t down = log.firstEnable(false, n0);
+	REQUIRE(down != ChipEventLog::npos);
+	CHECK(log.firstWrite(0x64, {}, n0) < down); // W64:0 ... W1A:0 come in the same step, before the step end sample
+	CHECK(log.events()[down].timeUs >= log.events()[log.firstWrite(0x1A, {}, n0)].timeUs);
+	CHECK(log.complete());
+	chip1.onWrite(0x1A, [](FakeTmc4671 &, uint32_t) {}); // replaces the log's hook for 0x1A (see the header)
+	const size_t w1a = chip1.writesTo(0x1A).size();
+	sched.advanceMs(1100);
+	releaseEstop();
+	sched.advanceMs(20);
+	REQUIRE(chip1.writesTo(0x1A).size() > w1a); // the release re-enables the PWM: a 0x1A write the log did not see
+	CHECK_FALSE(log.complete());
+}
+
+TEST_CASE_FIXTURE(IntegrationFixture, "support: armSpiFailure fails only the armed read frame with HAL_ERROR and the following frames succeed" * IT_DELETES_FFBHIDMAIN) {
+	bringUp();
+	setSpiFrameUs(0);
+	ChipEventLog log(*this, chip1);
+	sched.advanceMs(3);
+	const size_t first = HostTarget::spiTransfers(&hspi1).size();
+	log.armSpiFailure(0x6B, false, HAL_ERROR);
+	sched.advanceMs(5);
+	REQUIRE(log.failedTransferIndex() >= static_cast<int64_t>(first));
+	const auto &tr = HostTarget::spiTransfers(&hspi1);
+	const size_t bad = static_cast<size_t>(log.failedTransferIndex());
+	REQUIRE(bad + 1 < tr.size());
+	for (size_t i = first; i < tr.size(); i++) {
+		INFO("transfer " << i);
+		CHECK(tr[i].tx[0] == 0x6B);
+		if (i == first) { // the first read of 0x6B after the arming is the armed frame
+			CHECK(i == bad);
+			CHECK(tr[i].result == HAL_ERROR);
+			CHECK(tr[i].errorCode == HAL_SPI_ERROR_FLAG);
+			CHECK_FALSE(tr[i].completed);
+		} else {
+			CHECK(tr[i].result == HAL_OK);
+			CHECK(tr[i].completed);
+		}
+	}
+	CHECK(hspi1.ErrorCode == HAL_SPI_ERROR_NONE);
+	CHECK(firstFault().empty());
+}
+
+TEST_CASE_FIXTURE(IntegrationFixture, "support: armSpiFailure fails only the armed write frame (0x64) with HAL_ERROR, the chip received it and the next frames succeed" * IT_DELETES_FFBHIDMAIN) {
+	// E-stop press frames (observed): W64:0 R63 W63 R1A W1A (TMC4671.cpp emergency path)
+	bringUp();
+	sched.advanceMs(500);
+	setSpiFrameUs(0);
+	ChipEventLog log(*this, chip1);
+	sched.advanceMs(2);
+	const size_t first = HostTarget::spiTransfers(&hspi1).size();
+	log.armSpiFailure(0x64, true, HAL_ERROR);
+	pressEstop();
+	sched.advanceMs(5);
+	REQUIRE(log.failedTransferIndex() == static_cast<int64_t>(first));
+	const auto &tr = HostTarget::spiTransfers(&hspi1);
+	CHECK(tr[first].tx[0] == (0x80 | 0x64));
+	CHECK(tr[first].result == HAL_ERROR);
+	CHECK(tr[first].errorCode == HAL_SPI_ERROR_FLAG);
+	REQUIRE(tr.size() > first + 4);
+	for (size_t i = first + 1; i < tr.size(); i++) {
+		INFO("transfer " << i);
+		CHECK(tr[i].result == HAL_OK);
+	}
+	CHECK(log.firstWrite(0x64) != ChipEventLog::npos); // the frame was applied
+	CHECK(firstFault().empty());
+}
+
+TEST_CASE_FIXTURE(IntegrationFixture, "support: armSpiFailure refuses HAL_TIMEOUT as a fixture fault" * IT_DELETES_FFBHIDMAIN) {
+	bringUp();
+	ChipEventLog log(*this, chip1);
+	log.armSpiFailure(0x6B, false, HAL_TIMEOUT);
+	CHECK(firstFault().find("only HAL_ERROR") != std::string::npos);
+	clearFixtureFault();
+}
+
+TEST_CASE_FIXTURE(IntegrationFixture, "support: armSpiTimeoutAfter makes the frame after the matching read time out (a write) and the frames after it succeed" * IT_DELETES_FFBHIDMAIN) {
+	// E-stop frames: W64:0 R63 W63 R1A W1A. After the read of 0x63 the next frame is the write of 0x63: it times out.
+	bringUp();
+	sched.advanceMs(500);
+	setSpiFrameUs(0);
+	ChipEventLog log(*this, chip1);
+	sched.advanceMs(2);
+	const size_t first = HostTarget::spiTransfers(&hspi1).size();
+	log.armSpiTimeoutAfter(0x63, false);
+	pressEstop();
+	sched.advanceMs(5);
+	const auto &tr = HostTarget::spiTransfers(&hspi1);
+	const int64_t bad = log.failedTransferIndex();
+	REQUIRE(bad >= static_cast<int64_t>(first));
+	REQUIRE(static_cast<size_t>(bad) < tr.size());
+	// a timed-out frame records no tx bytes (nothing was transferred): its identity is its place after R63 and before R1A
+	CHECK(tr[bad].result == HAL_TIMEOUT);
+	CHECK(tr[bad].tx.empty());
+	CHECK(tr[bad - 1].tx[0] == 0x63);
+	CHECK(tr[bad - 1].result == HAL_OK);
+	REQUIRE(static_cast<size_t>(bad) + 1 < tr.size());
+	CHECK(tr[bad + 1].tx[0] == 0x1A); // the frame after the missing W63
+	for (size_t i = first; i < tr.size(); i++) {
+		if (static_cast<int64_t>(i) != bad) {
+			CHECK(tr[i].result == HAL_OK);
+		}
+	}
+	// the chip never saw the timed-out frame: no write of 0x63 in its log since the arming (the firmware's write was the lost frame)
+	CHECK(log.countWrites(0x63) == 0);
+}
+
+TEST_CASE_FIXTURE(IntegrationFixture, "support: armSpiTimeoutAfter makes the frame after the matching write time out (a read) and the frames after it succeed" * IT_DELETES_FFBHIDMAIN) {
+	bringUp();
+	sched.advanceMs(500);
+	setSpiFrameUs(0);
+	ChipEventLog log(*this, chip1);
+	sched.advanceMs(2);
+	const size_t first = HostTarget::spiTransfers(&hspi1).size();
+	log.armSpiTimeoutAfter(0x64, true); // W64 is followed by R63
+	pressEstop();
+	sched.advanceMs(5);
+	const auto &tr = HostTarget::spiTransfers(&hspi1);
+	const int64_t bad = log.failedTransferIndex();
+	REQUIRE(bad >= static_cast<int64_t>(first));
+	CHECK(tr[bad].result == HAL_TIMEOUT);
+	CHECK(tr[bad].tx.empty());
+	CHECK(tr[bad - 1].tx[0] == (0x80 | 0x64));
+	REQUIRE(static_cast<size_t>(bad) + 1 < tr.size());
+	CHECK(tr[bad + 1].tx[0] == (0x80 | 0x63)); // the frame after the lost R63: the write of the same register
+	for (size_t i = first; i < tr.size(); i++) {
+		if (static_cast<int64_t>(i) != bad) {
+			CHECK(tr[i].result == HAL_OK);
+		}
+	}
+}
+
+namespace {
+/** A HID ramp force (PID 1.01 5.7) from -32767 to 32767: the torque changes every few cycles, so 0x64 is written again and again. Needs bringUp() and an FfbHost */
+void startRamp(FfbHost &ffb) {
+	ffb.command("axis.0.power=5000");
+	ffb.command("axis.0.fxratio=255");
+	ffb.run(2500);
+	const FfbHost::CreateResult created = ffb.createEffect(pid::use::EtRamp);
+	REQUIRE(created.load.success());
+	const int64_t idx = created.load.effectBlockIndex;
+	pid::PidReport se = ffb.builder().make(hid::ReportType::Output, pid::use::SetEffectReport);
+	se.set(pid::use::EffectBlockIndex, idx).select(pid::use::EtRamp).set(pid::use::Duration, 30000).set(pid::use::Gain, 255);
+	se.set(pid::use::StartDelay, 0);
+	se.flag(pid::use::DirectionEnable, true);
+	se.setIn({pid::use::Direction}, hid::usage(0x0A, 1), 9000); // 90 degrees (as test_f1_effects.cpp)
+	ffb.send(se);
+	pid::PidReport sr = ffb.builder().make(hid::ReportType::Output, pid::use::SetRampForceReport);
+	sr.set(pid::use::EffectBlockIndex, idx).set(pid::use::RampStart, -32767).set(pid::use::RampEnd, 32767);
+	ffb.send(sr); // a ramp: the torque changes every few cycles, so 0x64 is written again and again
+	pid::PidReport eo = ffb.builder().make(hid::ReportType::Output, pid::use::EffectOperationReport);
+	eo.set(pid::use::EffectBlockIndex, idx).select(pid::use::OpEffectStart).set(pid::use::LoopCount, 1);
+	ffb.send(eo);
+	ffb.run(2500); // the ramp reaches the torque (a ramp started right after the first run gives no torque writes in this fixture)
+}
+} // namespace
+
+TEST_CASE_FIXTURE(IntegrationFixture, "support: runCommandOnWrite sends the command at the end of the trigger step so that it runs once before the writer's next cycle and its effect is visible" * IT_DELETES_FFBHIDMAIN) {
+	// The writer must be a task: the FFB thread writes 0x64 once per FFB cycle while an effect produces torque (HID ramp force,
+	// PID 1.01 5.7: Set Effect, Set Ramp Force, Effect Operation start; the reports are sent by FfbHost).
+	bringUp();
+	setSpiFrameUs(0);
+	FfbHost ffb(*this);
+	startRamp(ffb);
+	ChipEventLog log(*this, chip1);
+	sched.advanceMs(20);
+	REQUIRE(log.countWrites(0x64) > 3); // the premise: a stream of 0x64 writes from the FFB thread
+	REQUIRE(cdcCommand("axis.0.degrees?").find("|900]") != std::string::npos);
+	std::vector<ChipEventLog::CommandState> stateAtWrite;
+	log.onWrite(0x64, [&](FakeTmc4671 &, uint32_t) { stateAtWrite.push_back(log.commandState()); });
+	// the writer's next frame (the next FFB cycle reads 0x6B first): the command was sent before it. Mutation checked: removing the
+	// cdcWrite of ChipEventLog::stepEnd makes this case fail (state never Sent, no reply, degrees stays 900).
+	ChipEventLog::CommandState stateAtNextFrame = ChipEventLog::CommandState::Idle;
+	bool nextSeen = false;
+	log.onRead(0x6B, [&](FakeTmc4671 &) {
+		if (!nextSeen && log.commandState() != ChipEventLog::CommandState::Armed) {
+			nextSeen = true;
+			stateAtNextFrame = log.commandState();
+		}
+	});
+	log.runCommandOnWrite(0x64, "axis.0.degrees=300");
+	CHECK(log.commandState() == ChipEventLog::CommandState::Armed);
+	for (uint32_t i = 0; i < 30 && log.commandState() == ChipEventLog::CommandState::Armed; i++) {
+		sched.advanceMs(1); // the next W64 comes within a few cycles
+	}
+	CHECK(log.commandState() == ChipEventLog::CommandState::Sent); // fired in the step of the write, sent at its end
+	sched.advanceMs(10);
+	CHECK(log.commandState() == ChipEventLog::CommandState::Done);
+	CHECK(log.commandRuns() == 1);
+	CHECK(log.commandReply().find("OK") != std::string::npos);
+	// the point: the trigger is a W64; the writer's next W64 comes in a later step, after the command was sent
+	const size_t trig = log.commandTriggerEvent();
+	REQUIRE(trig != ChipEventLog::npos);
+	CHECK(log.events()[trig].addr == 0x64);
+	const size_t next = log.firstWrite(0x64, {}, trig + 1);
+	REQUIRE(next != ChipEventLog::npos);
+	CHECK(log.events()[next].timeUs - log.events()[trig].timeUs >= 500); // the next cycle is a step later
+	// the very next frame of the chip after the trigger frame (any address) is the next cycle's, at least ~1 ms later
+	const auto &frames = chip1.log();
+	const size_t tf = log.events()[trig].chipFrame;
+	REQUIRE(tf + 1 < frames.size());
+	CHECK(frames[tf + 1].timeUs - frames[tf].timeUs >= 500);
+	REQUIRE(nextSeen);
+	CHECK(stateAtNextFrame == ChipEventLog::CommandState::Sent);
+	REQUIRE(stateAtWrite.size() >= 2);
+	CHECK(stateAtWrite[0] == ChipEventLog::CommandState::Armed); // the trigger frame itself: the hook runs before the state changes
+	CHECK(stateAtWrite[1] >= ChipEventLog::CommandState::Sent);	  // the writer's next frame: the command was already sent (Sent, or Done if the next W64 came later)
+	// effect, and once only
+	CHECK(cdcCommand("axis.0.degrees?").find("|300]") != std::string::npos);
+	sched.advanceMs(50);
+	CHECK(log.commandRuns() == 1);
+	CHECK(firstFault().empty());
+}
+
+TEST_CASE_FIXTURE(IntegrationFixture, "support: runCommandOnWrite with an SPI command puts the command's frames between the trigger W64 and the writer's next cycle" * IT_DELETES_FFBHIDMAIN) {
+	// Characterises the helper: the command runs between two activations of the FFB thread (header of runCommandOnWrite). Observed
+	// order after the trigger W64: the command's W54 ... R63 W63, then the writer's next R6B. Not producible: a command between two
+	// frames inside one activation, hence no straddling of setMotionMode's R63 / W63.
+	bringUp();
+	setSpiFrameUs(0);
+	FfbHost ffb(*this);
+	startRamp(ffb);
+	ChipEventLog log(*this, chip1);
+	sched.advanceMs(20);
+	log.runCommandOnWrite(0x64, "tmc.0.torqueP=1234");
+	for (uint32_t i = 0; i < 60 && log.commandState() != ChipEventLog::CommandState::Done; i++) {
+		sched.advanceMs(1);
+	}
+	REQUIRE(log.commandState() == ChipEventLog::CommandState::Done);
+	CHECK(log.commandRuns() == 1);
+	const auto &frames = chip1.log();
+	const size_t tf = log.events()[log.commandTriggerEvent()].chipFrame;
+	REQUIRE(tf + 1 < frames.size());
+	size_t firstCmd = ChipEventLog::npos, firstWriter = ChipEventLog::npos;
+	for (size_t i = tf + 1; i < frames.size(); i++) {
+		if (firstWriter == ChipEventLog::npos && !frames[i].write && frames[i].addr == 0x6B) {
+			firstWriter = i;
+		}
+		if (firstCmd == ChipEventLog::npos && frames[i].write && frames[i].addr == 0x54) {
+			firstCmd = i;
+		}
+	}
+	REQUIRE(firstWriter != ChipEventLog::npos);
+	REQUIRE(firstCmd != ChipEventLog::npos);
+	CHECK(firstCmd == tf + 1); // the command's first frame directly follows the trigger frame
+	CHECK(firstCmd < firstWriter);
+	// the command's own read-modify-write of 0x63 follows contiguously (no frame of the writer between R63 and W63)
+	for (size_t i = firstCmd; i + 1 < frames.size(); i++) {
+		if (!frames[i].write && frames[i].addr == 0x63) {
+			CHECK(frames[i + 1].write);
+			CHECK(frames[i + 1].addr == 0x63);
+			break;
+		}
+	}
+}
+
+TEST_CASE_FIXTURE(IntegrationFixture, "support: ChipEventLog reports lost step sampling as a fixture fault when a TorqueTrace stops after the log attached, also with a pending command" * IT_DELETES_FFBHIDMAIN) {
+	bringUp();
+	{
+		TorqueTrace trace(chip1);
+		trace.start(*this); // sets sched.stepEndHook (it requires it empty)
+		{
+			ChipEventLog log(*this, chip1); // chains to the trace's hook
+			sched.advanceMs(5);
+			CHECK(firstFault().empty());
+			CHECK(log.complete());
+			log.runCommandOnWrite(0x64, "axis.0.degrees?"); // pending: its send needs the log's step hook
+			trace.stop(); // sets the hook to nullptr: the log's sampling and the pending send are gone
+			sched.advanceMs(5);
+			CHECK(firstFault().find("step sampling lost") != std::string::npos);
+			CHECK_FALSE(log.complete());
+			CHECK(log.commandRuns() == 0);
+		}
+		CHECK(firstFault().empty()); // the log is gone: nothing left to distrust
+	}
+}
+
+TEST_CASE_FIXTURE(IntegrationFixture, "support: ChipEventLog misses the enable pin change after its step sampling was dropped and says so" * IT_DELETES_FFBHIDMAIN) {
+	bringUp();
+	sched.advanceMs(500);
+	TorqueTrace trace(chip1);
+	trace.start(*this);
+	{
+		ChipEventLog log(*this, chip1);
+		trace.stop();
+		sched.advanceMs(500);
+		pressEstop();
+		sched.advanceMs(5);
+		CHECK(log.firstEnable(false) == ChipEventLog::npos); // the probe of the finding: the pin change is not in the log ...
+		CHECK(firstFault().find("step sampling lost") != std::string::npos); // ... and the fixture says why
+	}
+}
+
+TEST_CASE_FIXTURE(IntegrationFixture, "support: ChipEventLog fluxTorqueZeroBefore is false after a non-zero 0x64 write and is vacuously true without one" * IT_DELETES_FFBHIDMAIN) {
+	ChipEventLog log(*this, chip1);
+	bringUp();
+	// before any torque the bring-up writes only 0x64 = 0
+	CHECK(log.countWrites(0x64) >= 1);
+	CHECK(log.fluxTorqueZeroBefore(log.events().size()));
+	CHECK(log.fluxTorqueZeroBefore(0)); // vacuous: no write before index 0 (callers check countWrites)
+	CHECK(log.countWrites(0x64, 0) == 0);
+	setSpiFrameUs(0);
+	FfbHost ffb(*this);
+	startRamp(ffb);
+	sched.advanceMs(20);
+	const size_t nz = log.firstWrite(0x64, [](uint32_t d) { return d != 0; });
+	REQUIRE(nz != ChipEventLog::npos);
+	CHECK_FALSE(log.fluxTorqueZeroBefore(log.events().size()));
+	CHECK_FALSE(log.fluxTorqueZeroBefore(nz + 1));
+	CHECK(log.fluxTorqueZeroBefore(nz)); // exclusive bound: the non-zero write itself is not before itself
+}
+
+TEST_CASE_FIXTURE(IntegrationFixture, "support: the default rebootKeepingFlash does not replug USB and with a stored TMC configuration ends in Shutdown" * IT_DELETES_FFBHIDMAIN) {
+	// End state observed and explained (header of rebootKeepingFlash): the driver is created at start-up from the stored type, the USB
+	// mount (Axis::usbResume -> TMC4671::startMotor, TMC4671.cpp:1682-1686) comes while the state machine is uninitialised and changes
+	// nothing, initialisation ends in Shutdown (TMC4671.cpp:1574-1588), nothing calls startMotor() again without a mount.
+	bringUp();
+	REQUIRE(cdcCommand("sys.save?", 500).find("OK") != std::string::npos);
+	rebootKeepingFlash(3000);
+	CHECK_FALSE(rebootReplugged());
+	REQUIRE(tmc() != nullptr); // the stored driver type created the TMC at start-up
+	CHECK(tmc()->getState() == TMC_ControlState::Shutdown);
+	CHECK(firstFault().find("Running not reached") != std::string::npos);
+	clearFixtureFault();
+	// the explicit option reaches Running through one replug and says so
+	rebootKeepingFlash(20000, true);
+	CHECK(rebootReplugged());
+	CHECK(tmc()->getState() == TMC_ControlState::Running);
+	CHECK(firstFault().empty());
+}
+
+TEST_CASE_FIXTURE(IntegrationFixture, "support: rebootKeepingFlash without the drvtype command leaves the driver selection to the case" * IT_DELETES_FFBHIDMAIN) {
+	bringUp(); // nothing saved: flash holds no driver
+	rebootKeepingFlash(3000, false, false);
+	CHECK(firstFault().empty());
+	CHECK(tmc() == nullptr);
+	selectDriver(1);
+	CHECK(tmc() != nullptr);
+}

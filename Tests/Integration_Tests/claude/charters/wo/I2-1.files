@@ -1,0 +1,8 @@
+# Files of WO I2-1 (read by it_gate.py): support for driver events and reboot
+Firmware/Tests/Integration_Tests/support/IntegrationFixture.h
+Firmware/Tests/Integration_Tests/support/IntegrationFixture.cpp
+Firmware/Tests/Integration_Tests/support/ChipEventLog.h
+Firmware/Tests/Integration_Tests/support/ChipEventLog.cpp
+Firmware/Tests/Integration_Tests/integration.cmake
+Firmware/Tests/Integration_Tests/claude/cases/test_f1_support.cpp
+Firmware/Tests/README.md
