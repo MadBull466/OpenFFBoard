@@ -1,0 +1,15 @@
+# WO I2-5: external encoder (F1-T9) (as sent, 2026-11-24)
+
+One `integration-test-writer` run, in parallel with the I2-4 fix round (other file). **`I2_PARALLEL_COMMON.md` (same folder) is part of this order: read it first and follow it** (with `--jobs 4` / `-j4` instead of 2: only one other writer runs). Repository root `/mnt/SATA_SSD1/OpenFFBoard Testing/OpenFFBoard` (space in the path: quote it), branch `add-test-suite`. File list: `wo/I2-5.files` (new file `claude/cases/test_f1_encoder.cpp`). Next free register numbers after the commits of today: IB 44, INR 46 (use provisional `IB I2-5/<k>` / `INR I2-5/<k>`).
+
+## Order
+
+Requirement F1-T9 (P2; charter group G-T; I2 work-order row I2-5). The local quadrature encoder (`EncoderLocal`, `FFBoard/UserExtensions/Src/EncoderLocal.cpp`, TIM3 = `TIM_ENC` in encoder-interface mode) is built into `ffb_integration_tests` (`LOCALENCODER` in `Code_Coverage/platform/target_f407_drivers/target_constants.h:73`), and the shared HostTarget has a TIM3 encoder fake (`Firmware/Tests/Code_Coverage/support/HostTarget.h:160-180`, read its fidelity header: 4 counts per line, what is not modelled). The TMC's external-encoder path: `setExternalEncoderAllowed` (`TMC4671.cpp:2016-2027`, needs `TIM_TMC` = htim6 at 4 kHz, `target_constants.h:94-96`), `setPhiE_ext` (`:948`), the TMCENC thread writing PHI_E_EXT (DS 0x1C) with `writeRegAsync` (`:3173`; async writes complete in `completeHspi1` from the test thread: their hooks run there, see the `ChipEventLog` header), the encoder selection commands (`axis.0.enctype` or the TMC encoder source commands: find them in the command tables and cite).
+
+1. Select the local encoder and the TMC external-encoder mode by the real commands, from a running TMC chain. If the chain cannot reach Running with the external encoder through commands alone (alignment, encoder init), find out why from the source, and either reach it through the documented user sequence or stop and report under "Lead decision needed" (no private calls, no shared-fake change).
+2. **Position**: a known TIM3 count change (through the fake's public API) gives the expected `axis.0.curpos` (MATH from counts per revolution as the encoder reports it, 4 counts per line per the fake; derive the expected degrees from the configured CPR and `degrees`).
+3. **PHI_E_EXT**: the TMCENC thread writes 0x1C at the TIM6 rate the scheduler raises (`ChainScheduler` stats `tim6Updates` / `tmcencActivations`; derive the expected rate from `TIM_TMC_ARR`), and the written electrical angle follows the TIM3 position (DS 0x1C layout; the mapping from counts to phi_e through pole pairs and CPR as MATH in a comment; firmware-only scaling `characterization:`).
+4. **Signs (F1-X2 conventions)**: with the external position, a spring is restoring and a damper opposes motion at the chip (as in `test_f1_axis.cpp` F1-X2, read those cases), including with the encoder direction inverted if a command offers it.
+5. Anything not reachable by the user's path: no case, report it with evidence.
+
+Name every case `F1-T9: ...` / `characterization: [F1-T9] ...`. Answer per the common part item 7.

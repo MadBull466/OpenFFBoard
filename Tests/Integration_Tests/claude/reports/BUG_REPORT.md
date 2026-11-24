@@ -10,8 +10,8 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 | Kind | Count | Open | Resolved |
 |---|---|---|---|
-| Suspected firmware bugs (IB) | 48 | 48 | 0 |
-| NEEDS REVIEW items (INR) | 51 | 51 | 0 |
+| Suspected firmware bugs (IB) | 50 | 50 | 0 |
+| NEEDS REVIEW items (INR) | 52 | 52 | 0 |
 | Defects in shared test fakes (A) | 3 | 0 | 3 |
 | Defects in test tools (T) | 1 | 0 | 1 |
 
@@ -65,6 +65,8 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | IB 46 | firmware bug | Axis / SPI | open |
 | IB 47 | firmware bug | TMC4671 | open |
 | IB 48 | firmware bug | TMC4671 / SPI | open |
+| IB 49 | firmware bug | TMC4671 | open |
+| IB 50 | firmware bug | TMC4671 | open |
 | INR 1 | NEEDS REVIEW | Axis / TMC4671 | open |
 | INR 2 | NEEDS REVIEW | HID descriptor | open |
 | INR 3 | NEEDS REVIEW | HID descriptor | open |
@@ -116,6 +118,7 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | INR 49 | NEEDS REVIEW | FFBHIDMain | open |
 | INR 50 | NEEDS REVIEW | Axis | open |
 | INR 51 | NEEDS REVIEW | TMC4671 | open |
+| INR 52 | NEEDS REVIEW | TMC4671 | open |
 | A-1 | fake defect | Fake HAL SPI + GPIO / EXTI | fixed |
 | A-2 | fake defect | Fake ADC, timers, flash map | fixed |
 | A-3 | fake defect | `HostDcd` + `UsbHost` + `HostRtos` ext | fixed |
@@ -507,6 +510,22 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 - **Test / evidence:** `KNOWN_ISSUE_UB` case `F1-T8: a read of 0x6B lost to an SPI timeout does not make the spring torque at the chip jump` in `test_f1_runtime.cpp` (WO I2-4)
 - **Resolved?:** no
 
+### IB 49: TMC4671
+
+- **Where:** `TMC4671.cpp:953-960`
+- **What:** The external-encoder electrical angle (PHI_E_EXT, 0x1C) is scaled by 0xffff instead of 65536 (DS: 2^16 positions per electrical revolution): pole_pairs counts are lost per mechanical revolution (4 pole pairs, 5 revolutions: 65517 instead of 1). The coverage characterizations `test_tmc4671_encoder.cpp:712`, `:733` (NEEDS REVIEW 369) and its `ExtPlant` (`:160`) pin the same scaling
+- **Same as (coverage):** related to IB 16
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-T9: PHI_E_EXT returns to its starting value after five full revolutions of the encoder` in `test_f1_encoder.cpp` (WO I2-5)
+- **Resolved?:** no
+
+### IB 50: TMC4671
+
+- **Where:** `TMC4671.cpp:1005`
+- **What:** The BLDC external-encoder alignment (`bangInitEnc`) writes the read-only register 0x00 (`updateReg(phiEoffsetReg = 0, ...)`) on the user's path (mtype BLDC, encsrc external, local quadrature encoder)
+- **Same as (coverage):** bug 165
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-T9: the BLDC external-encoder alignment writes no read-only register of the chip` in `test_f1_encoder.cpp` (WO I2-5)
+- **Resolved?:** no
+
 ## 2. NEEDS REVIEW items (INR)
 
 ### INR 1: Axis / TMC4671
@@ -863,6 +882,13 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 - **Test / location:** characterization case `characterization: [F1-T6] tmc.0.trqbq_mode=1 writes the value 1 (bit 0) as the enable of the torque biquad` in `test_f1_runtime.cpp` (WO I2-4); see the case comment
 - **Question:** Torque biquad enable: the firmware writes the value 1 (bit 0, `TMC4671.cpp:2271`); the datasheet writes `bit(31)` with range 0..0x1 for this field and for MODE_PID_TYPE (bit 31). Under the literal reading the filter is never enabled. Owner question IQ 15
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 52: TMC4671
+
+- **Test / location:** characterization case `characterization: [F1-T9] the alignment offset against a follower rotor is the firmware's quantisation value` in `test_f1_encoder.cpp` (WO I2-5); `TMC4671.cpp:1029-1031`
+- **Question:** With a rotor that follows the alignment angle exactly, the external-encoder offset is 1 (a 0 offset is replaced by 1). Only firmware-defined
 - **Same as (coverage):** (none)
 - **Resolved?:** no
 

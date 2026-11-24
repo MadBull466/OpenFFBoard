@@ -315,9 +315,10 @@ TEST_CASE_FIXTURE(AxisFixture, "F1-X1: a power above 0x7fff never reverses the d
 // Reachable settings: axis.0.invert (Axis.cpp:1067-1075) flips both the measured angle (getEncAngle, Axis.cpp:601-606) and the torque
 // (updateTorque step 7, :884), so a restoring effect stays restoring. tmc.0.invertForce flips only the torque in TMC4671::turn() (:1753).
 // Encoder direction by command: tmc.0.encdir is a CMDFLAG_DEBUG command (TMC4671.cpp:2794), reachable after sys.debug=1
-// (SystemCommands.cpp:68, :143-144), but the encoder-direction rows move to F1-T9 (I2): encdir sets only abnconf.rdir and re-runs
-// setup_ABN_Enc (TMC4671.cpp:3028-3035), not conf.encoderReversed, which is what turn() uses (:1753, and only with an external encoder);
-// the encoder type of the fresh-flash bring-up is NONE (INR 1); and FakeTmc4671 does not tie the ABN direction to the scripted 0x6B.
+// (SystemCommands.cpp:68, :143-144), but the encoder-direction rows move to F1-T9 (I2): encdir sets abnconf.rdir and re-runs
+// setup_ABN_Enc, which copies it to conf.encoderReversed (TMC4671.cpp:3028-3035, 1309), the flag turn() uses (:1753) only with an
+// external encoder; the encoder type of the fresh-flash bring-up is NONE (INR 1); and FakeTmc4671 does not tie the ABN direction to the
+// scripted 0x6B.
 //
 // Spring check: torque at the chip opposes the scripted displacement; damper check: opposes the scripted velocity.
 
