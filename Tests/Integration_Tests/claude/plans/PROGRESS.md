@@ -21,7 +21,7 @@
 
 1. Open owner questions (not blocking I1): IQ6 (INR 1), IQ9 (INR 2), IQ10 (INR 3), IQ11 (INR 4) in `../reports/OPEN_QUESTIONS.md`.
 2. Phase I1 approved by the owner on 2026-11-24 (`../reports/I1_REPORT.md`). IQ13 (sawtooth direction) open.
-3. Tool WO I1-T3 (gate speed-up) done and committed (see the decisions log 2026-11-24). Next: phase I2 (driver in the chain, persistence: G-T, G-P): write its work orders and get the owner's approval before the first writer starts.
+3. Tool WO I1-T3 (gate speed-up) done and committed (see the decisions log 2026-11-24). Next: phase I2 (driver in the chain, persistence: G-T, G-P): work orders drafted in `../charters/I2_WORK_ORDERS.md` (I2-1 support first, then I2-2/3/4/6 in parallel, I2-5, I2-7 gate), waiting for the owner's approval before the first writer starts.
 4. For the closed-loop phases (I3 / I4): configure an encoder with a mechanical (PhiM) position source through the real commands before attaching the plant (0x51 is phi_e after the fresh-flash bring-up).
 
 ## Phase checklist
