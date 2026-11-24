@@ -4,7 +4,7 @@
 
 ## 1. Result
 
-Phase I1 is complete and waits for the owner's approval. `ffb_integration_tests` now drives the real chain USB HID PID -> `HidFFB` -> `EffectsCalculator` (CMSIS-DSP) -> `Axis` -> `TMC4671` open-loop: the host sends PID reports built from the descriptor the device reports, the encoder position at the chip is scripted, and the torque the firmware writes to register 0x64 is checked against PID 1.01, the TMC4671 datasheet and hand derivations. All 27 requirements of the groups G-H (HID entry), G-E (effects) and G-X (axis) have cases.
+Phase I1 is complete and was approved by the owner on 2026-11-24. `ffb_integration_tests` now drives the real chain USB HID PID -> `HidFFB` -> `EffectsCalculator` (CMSIS-DSP) -> `Axis` -> `TMC4671` open-loop: the host sends PID reports built from the descriptor the device reports, the encoder position at the chip is scripted, and the torque the firmware writes to register 0x64 is checked against PID 1.01, the TMC4671 datasheet and hand derivations. All 27 requirements of the groups G-H (HID entry), G-E (effects) and G-X (axis) have cases.
 
 | Exit criterion | Status | Evidence |
 |---|---|---|
