@@ -1778,7 +1778,8 @@ TEST_CASE_FIXTURE(LateFixture, "F1-X7: a constant force set before the driver ru
 // Axis.cpp:908-921). In THIS path that does no harm: readiness comes about 104 ms after the replug, while the usbResume fade (from 0,
 // Axis.cpp:640, running on the not-ready cycles too, Axis.cpp:872-876) still keeps previous.torque near 0, so the first writes are small.
 // The property holds only for a not-ready window shorter than that fade. A longer window through the replug path never reaches Running
-// (IB 24, next case), so the slew jump of coverage bug 33 is not reachable through the chain on this path.
+// (IB 24, next case), so the slew jump of coverage bug 33 is not reachable through the chain on THIS path; it is reachable through a
+// short USB detach of a running wheel (IB 39, `test_f1_driver.cpp`, WO I2-2).
 TEST_CASE_FIXTURE(LateFixture, "F1-X7: with slewrate R the first torque written after the driver runs is within R of the value the chip held" * IT_DELETES_FFBHIDMAIN) {
 	upLate();
 	configure(10000, 360);

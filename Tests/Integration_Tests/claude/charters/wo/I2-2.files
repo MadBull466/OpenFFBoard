@@ -1,0 +1,3 @@
+# Files of WO I2-2 (read by it_gate.py)
+Firmware/Tests/Integration_Tests/claude/cases/test_f1_driver.cpp
+Firmware/Tests/Integration_Tests/claude/cases/test_f1_axis.cpp

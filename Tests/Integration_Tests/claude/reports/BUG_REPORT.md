@@ -10,8 +10,8 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 | Kind | Count | Open | Resolved |
 |---|---|---|---|
-| Suspected firmware bugs (IB) | 37 | 37 | 0 |
-| NEEDS REVIEW items (INR) | 32 | 32 | 0 |
+| Suspected firmware bugs (IB) | 39 | 39 | 0 |
+| NEEDS REVIEW items (INR) | 33 | 33 | 0 |
 | Defects in shared test fakes (A) | 3 | 0 | 3 |
 | Defects in test tools (T) | 1 | 0 | 1 |
 
@@ -54,6 +54,8 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | IB 35 | firmware bug | HidFFB | open |
 | IB 36 | firmware bug | HidFFB / EffectsCalculator | open |
 | IB 37 | firmware bug | HidFFB / EffectsCalculator | open |
+| IB 38 | firmware bug | Axis / TMC4671 | open |
+| IB 39 | firmware bug | Axis | open |
 | INR 1 | NEEDS REVIEW | Axis / TMC4671 | open |
 | INR 2 | NEEDS REVIEW | HID descriptor | open |
 | INR 3 | NEEDS REVIEW | HID descriptor | open |
@@ -86,6 +88,7 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | INR 30 | NEEDS REVIEW | HidFFB | open |
 | INR 31 | NEEDS REVIEW | EffectsCalculator | open |
 | INR 32 | NEEDS REVIEW | Axis | open |
+| INR 33 | NEEDS REVIEW | TMC4671 | open |
 | A-1 | fake defect | Fake HAL SPI + GPIO / EXTI | fixed |
 | A-2 | fake defect | Fake ADC, timers, flash map | fixed |
 | A-3 | fake defect | `HostDcd` + `UsbHost` + `HostRtos` ext | fixed |
@@ -389,6 +392,22 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 - **Test / evidence:** `KNOWN_ISSUE` case `F1-E14: a running effect changed to another type after more than Duration ms of uptime keeps playing` in `test_f1_conditions.cpp` (WO I1-6)
 - **Resolved?:** no
 
+### IB 38: Axis / TMC4671
+
+- **Where:** `Axis.cpp:540-543`; `TMC4671.cpp:1688-1691`, `:300`, `:82-85`
+- **What:** Re-selecting the TMC driver by `axis.0.drvtype` enables the power stage (FOC in 0x1A, enable pin high, `startMotor` right after `setupDriver`) before `initialize()` zeroes 0x64: the torque target of the previous driver (`~TMC4671` only resets the pin) meets the enabled stage (0x64 = 0xEF500000 at the enable instant). The same order applies after an MCU-only reset with the chip powered (warm-start detection `TMC4671.cpp:289-295`); intended: no non-zero target while the stage is enabled before initialisation
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-T1: the power stage is not enabled while 0x64 still holds the torque of the previous driver, driver re-selected by axis.0.drvtype` in `test_f1_driver.cpp` (WO I2-2)
+- **Resolved?:** no
+
+### IB 39: Axis
+
+- **Where:** `Axis.cpp:631`, `:908-921`
+- **What:** Slew-limiter base `metric.previous.torque` kept across a short USB detach (`usbSuspend` `turn(0)`): the first FFB write after the mount is the stale base moved by R (step 3072 at R = 300 after a 3 ms detach); hidden by detaches above about 15 ms (the base winds down, NR 40). Reachable through the chain, contrary to the I1-8 note (comment in `test_f1_axis.cpp` corrected)
+- **Same as (coverage):** bug 33
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-T2: with slewrate R no write to 0x64 after a USB detach and mount changes the target by more than R` in `test_f1_driver.cpp` (WO I2-2)
+- **Resolved?:** no
+
 ## 2. NEEDS REVIEW items (INR)
 
 ### INR 1: Axis / TMC4671
@@ -612,6 +631,13 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 - **Test / location:** `Axis.cpp:1413-1418`, `Axis.h:549`; characterization case `characterization: [F1-X7] a band-1 gain of g / 10 dB scales a constant force by 10 to the power g / 200 ...` in `test_f1_axis.cpp` (WO I1-8)
 - **Question:** Equalizer: band-1 gain g gives g/10 dB at DC (low shelf), bands 2-6 unity at DC. Intended?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 33: TMC4671
+
+- **Test / location:** characterization case `characterization: [F1-T1] the start-up writes the limits before any FOC write, then initialize zeroes 0x64 and switches the PWM off, then FOC is written again with the pin high` in `test_f1_driver.cpp` (WO I2-2); `TMC4671.cpp:243-254`, `:260-301`, `:423-424`
+- **Question:** Start-up order after selecting the driver: limits (0x5C..0x62, 0x5E) with the pin low, then `initialize` zeroes 0x64 and switches the PWM off, then FOC again with the pin high (the earlier FOC of `startMotor` is IB 38). Only firmware-defined
 - **Same as (coverage):** (none)
 - **Resolved?:** no
 
