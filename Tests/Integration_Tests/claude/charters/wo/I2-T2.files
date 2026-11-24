@@ -1,0 +1,11 @@
+# Files of WO I2-T2 (read by it_gate.py): per-case time limit in every doctest executable, no whole-run limits
+Firmware/Tests/Integration_Tests/tools/it_gate.py
+Firmware/Tests/Integration_Tests/tools/test_it_gate.py
+Firmware/Tests/Integration_Tests/integration.cmake
+Firmware/Tests/Integration_Tests/support/CaseWatchdog.cpp
+Firmware/Tests/Integration_Tests/support/CaseWatchdog.h
+Firmware/Tests/Integration_Tests/claude/cases/test_f1_support.cpp
+Firmware/Tests/Code_Coverage/support/CaseWatchdog.cpp
+Firmware/Tests/Code_Coverage/support/CaseWatchdog.h
+Firmware/Tests/CMakeLists.txt
+Firmware/Tests/README.md
