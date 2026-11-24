@@ -19,6 +19,8 @@ Questions of the integration track (`Tests/Integration_Tests/`), numbered IQ1, I
 | IQ11 | Block Load index 0 on failure outside the declared range 1..40 (INR 4) | 2026-11-18 | **open** |
 | IQ13 | Direction of the Sawtooth Up / Down waveforms (WO I1-4, INR 29) | 2026-11-23 | **open** |
 | IQ12 | Device Control encoding: descriptor bit flags vs PID 1.01 command numbers (WO I1-2) | 2026-11-19 | answered 2026-11-19: PID 1.01 command numbers (IB 8) |
+| IQ14 | Thermistor formula and the unreachable over-temperature limit (WO I2-3, INR 42) | 2026-11-24 | **open** |
+| IQ15 | TMC4671 torque biquad enable: bit 31 or value 1 (WO I2-4, INR 51) | 2026-11-24 | **open** |
 
 Faults found by the track are in [BUG_REPORT.md](BUG_REPORT.md).
 

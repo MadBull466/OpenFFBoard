@@ -1,5 +1,7 @@
 # P11 G1 work orders: FastMath + BasicMath helpers (lead -> writers)
 
+Note (2026-11-24): the working-directory path `.../ffb-test-build/ws/p11/inventory.md` below is a scratch file of the time that no longer exists; the committed copy is `Tests/Code_Coverage/claude/charters/dsp/CMSIS_DSP_INVENTORY.md`.
+
 Common to every work order (read first):
 - Read CLAUDE.md, `Firmware/Tests/README.md` (section `ffb_dsp_tests`), the charter `Tests/Code_Coverage/claude/charters/dsp/CMSIS_DSP_REQUIREMENTS.md` (requirements C1-C6, oracles PAT/ARMTOL/DEF/DOC/LIB, lead decisions L1-L6), the loader `Firmware/Tests/Code_Coverage/support/DspPatterns.h` and its use in `Firmware/Tests/Code_Coverage/claude/cases_dsp/test_dsp_smoke.cpp`. Inventory with ARM tolerances: `/home/ben/Documents/OpenFFBoard/testing/ffb-test-build/ws/p11/inventory.md` (sections 4.3, 4.4, 6).
 - ARM's tests for your type are the C1 source: `Firmware/Libraries/CMSIS-DSP/Testing/Source/Tests/FastMath<T>.cpp` (what is input, reference, block size, the tolerance defines; cite file:line) and `Testing/desc.txt` / `desc_f16.txt` (the "Fast Maths <T>" suite: pattern id -> file, list of test functions, including ids ARM comments out or disables). Patterns: `Testing/Patterns/DSP/FastMath/FastMath<T>/`. Function DOC: `Source/FastMathFunctions/arm_*.c` and `Include/dsp/fast_math_functions*.h`.

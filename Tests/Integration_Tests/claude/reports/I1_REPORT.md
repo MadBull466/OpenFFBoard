@@ -1,6 +1,6 @@
 # Phase I1 report: open-loop chain (groups G-H, G-E, G-X)
 
-*2026-11-23. Branch `add-test-suite`, phase commits `76a19dcb` .. this report's commit (local, not pushed; last push `f4f61e7e`). Written by the lead (Opus 5.5) to be read without the conversation; links point to the details.*
+*2026-11-23. Branch `add-test-suite`, phase commits `76a19dcb` .. this report's commit (local at the time of writing; pushed to the fork on 2026-11-24, up to `f3c3e55f`). Written by the lead (Opus 5.5) to be read without the conversation; links point to the details.*
 
 ## 1. Result
 

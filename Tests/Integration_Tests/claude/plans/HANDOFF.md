@@ -1,14 +1,27 @@
 # Handoff: OpenFFBoard integration test track (for any agent taking over)
 
-Written 2026-11-18 by the lead (Opus 5.5). You have no memory of this project: read this file, then the read order below. Where this file and `PROGRESS.md` disagree, **`PROGRESS.md` wins**.
+Written 2026-11-18 by the lead (Opus 5.5), updated 2026-11-24. You have no memory of this project: read this file, then the read order below. Where this file and `PROGRESS.md` disagree, **`PROGRESS.md` wins**.
 
 ## What this is
 
 A host-side integration test suite: the real firmware modules of a force-feedback flow wired together (USB HID PID -> `HidFFB` -> `EffectsCalculator` with CMSIS-DSP -> `Axis` -> motor driver), with only the hardware faked (fake SPI / USB controller / timers / ADC / GPIO / flash, `FakeTmc4671`, later the CAN / UART peers). It sits next to the finished code-coverage unit-test suite (`Tests/Code_Coverage/`, `Firmware/Tests/Code_Coverage/`) and reuses its fakes and support code. Branch `add-test-suite`.
 
-## State (updated 2026-11-23, end of phase I1)
+## State (updated 2026-11-24)
 
-Phase I0 approved 2026-11-18 ([../reports/I0_REPORT.md](../reports/I0_REPORT.md)). Phase I1 (open-loop chain, groups G-H, G-E, G-X) is complete and was approved by the owner on 2026-11-24 ([../reports/I1_REPORT.md](../reports/I1_REPORT.md)): 325 integration cases in `test_f1_setup.cpp`, `test_f1_support.cpp`, `test_f1_hid.cpp`, `test_f1_effects.cpp`, `test_f1_conditions.cpp`, `test_f1_axis.cpp`. Helpers since I1: `FfbHost` (PID reports from the parsed descriptor), `TorqueTrace`, `PositionScript` (see `Firmware/Tests/README.md`). Conventions settled in I1: Device Control as PID 1.01 Figure 16 command numbers (IQ12, IB 8) with a second case in the flag encoding when a defect hides behind IB 8; rotated conditions act along a line (sin² / cos²); polar zero undefined (relative signs only); absolute counts from firmware constants are `characterization:` with an INR. Tool WO I1-T3 (gate speed-up, owner-ordered) is done: a two-variant WO gate takes about 4 minutes, a `--full` phase gate about 18 minutes (before: about 30 minutes and 2 hours); details `AGENT_PLAN.md` 2.4. Before a commit check `rerun_passed` and `dead_shards` in the evidence. Phase I2 (G-T, G-P): work orders approved 2026-11-24 (`../charters/I2_WORK_ORDERS.md`); WO I2-1 done (support helpers `rebootKeepingFlash`, `pressEstop` / `releaseEstop`, `ChipEventLog` with `armSpiFailure` / `armSpiTimeoutAfter` / `runCommandOnWrite`; limits in `Firmware/Tests/README.md` and the decisions log). Attach a `ChipEventLog` after any `TorqueTrace` and stop the trace only after the log is gone (lost sampling is a fixture fault); stop traces and re-create `FfbHost` around a reboot. Next: I2-2, I2-3, I2-4, I2-6 in parallel, then I2-5, I2-7. Phases run strictly one after another.
+Where things stand, with every number: `PROGRESS.md` "Current state" (this file holds no numbers). Short form:
+
+* I0 and I1 are approved ([../reports/I0_REPORT.md](../reports/I0_REPORT.md), [../reports/I1_REPORT.md](../reports/I1_REPORT.md)).
+* I2 (G-T, G-P; work orders [../charters/I2_WORK_ORDERS.md](../charters/I2_WORK_ORDERS.md), approved 2026-11-24): all writer work orders (I2-1 to I2-6) and the tool WO I2-T1 are done and committed. **Next: the phase gate I2-7 (`it_gate.py --wo I2-7 --full --isolated`) and the I2 report, then stop for the owner's approval.** Do not start I3 before that approval.
+* Phases run strictly one after another.
+
+### Helpers and conventions settled so far
+
+* Since I1: `FfbHost` (PID reports from the parsed descriptor), `TorqueTrace`, `PositionScript` (see `Firmware/Tests/README.md`). Device Control uses the PID 1.01 Figure 16 command numbers (IQ12, IB 8), with a second case in the flag encoding when a defect hides behind IB 8. Rotated conditions act along a line (sin² / cos²). The polar zero is undefined (relative signs only). Absolute counts from firmware constants are `characterization:` with an INR.
+* Since I2-1: `rebootKeepingFlash` (models a cold start with the flash kept; no USB replug unless allowed, `rebootReplugged()` for the replug), `pressEstop` / `releaseEstop`, `ChipEventLog` (`armSpiFailure`, `armSpiTimeoutAfter`, `runCommandOnWrite`). Limits are in `Firmware/Tests/README.md` and the decisions log (2026-11-24): the 0x63 read-modify-write race of F1-T6 cannot be produced on the cooperative host, and `bringUp()` time depends on the process-wide `powerCheckCounter`.
+* **Attach order:** attach a `ChipEventLog` after any `TorqueTrace` and stop the trace only after the log is gone (lost sampling is a fixture fault). Stop traces and re-create `FfbHost` around a reboot.
+* **Per-case watchdog (I2-T1):** every case has a time limit inside the executable (`support/CaseWatchdog`, `FFB_IT_CASE_TIMEOUT_S`, default 120 s, exit code 86 and a `CASE TIMEOUT` line); there is no limit on a whole run. A timed-out case is rerun alone by the gate (in `cov` it is a failure).
+* **Gate** (`AGENT_PLAN.md` 2.4): the integration executable runs once per variant on at most 10 jobs in total (`--jobs`, default and maximum 10). Each gate process counts only its own jobs, so with parallel writers split the 10 between them with `--jobs` (e.g. `--jobs 2` each for four writers). A WO gate runs only its own case files when only case files changed. Before a commit check `rerun_passed` and `dead_shards` in the evidence (a case listed there is investigated, not committed over). Random-order and repeat runs come only at the end of the integration testing.
+* **Do not change documents while an `--isolated` gate runs:** it overlays the lead's changed documents on HEAD (`docs_overlaid` in the evidence), and fails with "the documents under Tests/Integration_Tests/ changed while the isolated gate ran" if one changes during the run.
 
 ## Where to continue
 
@@ -16,13 +29,13 @@ Phase I0 approved 2026-11-18 ([../reports/I0_REPORT.md](../reports/I0_REPORT.md)
 
 ## Read order
 
-1. Root `CLAUDE.md` (rules; the "Integration track" section once added).
+1. Root `CLAUDE.md` (rules, including the "Integration track" section).
 2. `PROGRESS.md` ("Current state", "Next action", decisions log, registers).
 3. `INTEGRATION_TEST_PLAN.md` (chain, architecture, fake audit list, stability method, phases, limits).
 4. `AGENT_PLAN.md` (agents, hooks, gate, per-work-order flow, what goes to the owner).
 5. The flow charter (`../charters/F1_TMC4671_CHAIN_REQUIREMENTS.md`) and the current phase's work orders (`../charters/I<n>_WORK_ORDERS.md`).
 6. `Firmware/Tests/README.md` (fake platform, simulated time, fixtures, naming conventions).
-7. Before reviewing or recording a bug: `../reports/OPEN_QUESTIONS.md` (IQ n), `../reports/BUG_REPORT.md` (once generated) and the coverage suite's `Tests/Code_Coverage/claude/reports/BUG_REPORT.md` and `OPEN_QUESTIONS.md` (answered questions there settle intended behaviour).
+7. Before reviewing or recording a bug: `../reports/OPEN_QUESTIONS.md` (IQ n), `../reports/BUG_REPORT.md` (generated) and the coverage suite's `Tests/Code_Coverage/claude/reports/BUG_REPORT.md` and `OPEN_QUESTIONS.md` (answered questions there settle intended behaviour).
 8. The unit charters the flow builds on: `Tests/Code_Coverage/claude/charters/driver/TMC4671_REQUIREMENTS.md`, `.../dsp/CMSIS_DSP_REQUIREMENTS.md`.
 
 ## Method (per work order)

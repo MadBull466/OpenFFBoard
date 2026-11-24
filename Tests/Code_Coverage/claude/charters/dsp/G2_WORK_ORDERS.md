@@ -1,5 +1,7 @@
 # P11 G2 work orders: Interpolation + Controller (lead -> writers)
 
+Note (2026-11-24): the working-directory path `.../ffb-test-build/ws/p11/inventory.md` below is a scratch file of the time that no longer exists; the committed copy is `Tests/Code_Coverage/claude/charters/dsp/CMSIS_DSP_INVENTORY.md`.
+
 Decisions that apply on top of the charter (L1-L11): ARM has patterns for linear and bilinear interpolation (f32, q31, q15, q7, f16) and for the PARABOLIC_RUNOUT spline (square, sine, ramp); ARM has NO tests for natural spline, `arm_pid_*`, `arm_sin_cos_*`, Clarke / Park (their oracle is DEF/DOC, C3). Fixed point tolerance from ARM: Interpolation Q31 abs 2000 LSB, Q15 and Q7 abs 2 LSB, f32 REL 8e-5, f16 REL 6e-3 / ABS 7e-3 (read the exact defines in `Testing/Source/Tests/InterpolationTests<T>.cpp`). Lessons from G1 that every writer applies: (1) never put two calls of a pseudo random generator in one expression (unspecified evaluation order); (2) any "sweep" test should cover the whole input range at least once strided, because ARM's patterns miss isolated bad inputs (V41, V42 were found that way): compare against the DEF with the bound derived in a comment; (3) a test name must claim only what its assertions check; (4) mind UB: left shifts of negative values -> `KNOWN_ISSUE_UB_HIDDEN`, and report; (5) the evaluation of the DEF is done in double in the test, never with the library function under test.
 
 Common to every work order (read first):

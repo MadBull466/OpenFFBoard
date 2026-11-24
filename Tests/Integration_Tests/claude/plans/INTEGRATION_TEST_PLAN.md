@@ -1,6 +1,6 @@
 # Integration test plan: OpenFFBoard firmware modules working together (host side)
 
-Status: **draft, written 2026-11-18 by the lead (Opus 5.5), waiting for the owner's approval.** Nothing in `Firmware/` has been created or changed for this track yet. State and numbers: `PROGRESS.md` "Current state" (the only place for numbers). Agents, hooks and gates: `AGENT_PLAN.md`.
+Status: **written 2026-11-18 by the lead (Opus 5.5); approved by the owner on 2026-11-18** (phase checklist "Planning" in `PROGRESS.md`). State and numbers: `PROGRESS.md` "Current state" (the only place for numbers). Agents, hooks and gates: `AGENT_PLAN.md`.
 
 ## 1. Goal and what "integration" means here
 
@@ -158,6 +158,7 @@ Classification of results: instability predicted **and** observed inside the use
 * The 32-bit build proves `size_t`, `long` and pointer widths, not ARM struct layout (`int64_t` / `double` 8-aligned on ARM, 4 on i386) or ARM's `uint32_t` = `unsigned long`; out-of-range float-to-int conversions differ (x86 gives INT_MIN, ARM saturates).
 * Flash: the in-memory flash map, not `eeprom.c` on NOR flash (that is covered by `ffb_flash_tests`).
 * MinGW / macOS are kept buildable in CMake but unverified (no toolchain here), as for the coverage suite.
+* A CDC command can run only between two activations of the FFB or TMC thread, never between two SPI frames of one activation, so the 0x63 read-modify-write race of F1-T6 against `setMotionMode` cannot be produced (decisions log 2026-11-24, I2-1 review).
 
 ## 8. Phases and stage gates
 
@@ -201,6 +202,7 @@ When the audit or a test shows that a shared fake in `Code_Coverage/` is wrong: 
 | `claude/reports/BUG_REPORT.md` | generated |
 | `claude/reports/I<n>_REPORT.md` | phase reports (self-contained, for Codex) |
 | `claude/charters/F1_TMC4671_CHAIN_REQUIREMENTS.md` | F1 charter |
-| `claude/charters/I0_WORK_ORDERS.md` | I0 work orders (draft) |
+| `claude/charters/I<n>_WORK_ORDERS.md`, `I<n>-<k>_ORDER.md`, `I<n>_PARALLEL_COMMON.md` | work orders of each phase (as sent) and the common part of parallel orders |
+| `claude/charters/wo/<ID>.files`, `wo/ACTIVE` | the gate's file list of each work order; the work orders running at the same time |
 | `claude/charters/stability/` | stability derivation (I4) |
 | `claude/charters/audit/` | fake audit reports (I0) |

@@ -1,6 +1,6 @@
 # Flow F1: HID PID -> EffectsCalculator (CMSIS-DSP) -> Axis -> TMC4671: requirements charter
 
-Status: **draft by the lead (Opus 5.5), 2026-11-18, waiting for the owner's approval of the plan.** Changes only by the lead, recorded in the decisions log of `Tests/Integration_Tests/claude/plans/PROGRESS.md`.
+Status: **written by the lead (Opus 5.5) on 2026-11-18; approved by the owner with the plan on 2026-11-18.** Changes only by the lead, recorded in the decisions log of `Tests/Integration_Tests/claude/plans/PROGRESS.md`.
 
 Plan: `Tests/Integration_Tests/claude/plans/INTEGRATION_TEST_PLAN.md`. Executable: `ffb_integration_tests`, cases in `Firmware/Tests/Integration_Tests/claude/cases/test_f1_*.cpp`. Each test name starts with its requirement id (`[F1-E3] ...`; for characterization `characterization: [F1-E3] ...`).
 

@@ -1,6 +1,6 @@
 # Phase I0 report: integration track infrastructure
 
-*2026-11-18. Branch `add-test-suite`, phase commits `084835fc` .. this report's commit (local, not pushed). Written by the lead (Opus 5.5) to be read without the conversation or other files; links point to the details.*
+*2026-11-18. Branch `add-test-suite`, phase commits `084835fc` .. this report's commit (local at the time of writing; pushed to the fork up to `f4f61e7e` before I1). Written by the lead (Opus 5.5) to be read without the conversation or other files; links point to the details.*
 
 ## 1. Result
 
