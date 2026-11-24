@@ -10,8 +10,8 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 | Kind | Count | Open | Resolved |
 |---|---|---|---|
-| Suspected firmware bugs (IB) | 39 | 39 | 0 |
-| NEEDS REVIEW items (INR) | 35 | 35 | 0 |
+| Suspected firmware bugs (IB) | 43 | 43 | 0 |
+| NEEDS REVIEW items (INR) | 45 | 45 | 0 |
 | Defects in shared test fakes (A) | 3 | 0 | 3 |
 | Defects in test tools (T) | 1 | 0 | 1 |
 
@@ -56,6 +56,10 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | IB 37 | firmware bug | HidFFB / EffectsCalculator | open |
 | IB 38 | firmware bug | Axis / TMC4671 | open |
 | IB 39 | firmware bug | Axis | open |
+| IB 40 | firmware bug | Axis | open |
+| IB 41 | firmware bug | ErrorHandler | open |
+| IB 42 | firmware bug | FFBHIDMain / TMC4671 | open |
+| IB 43 | firmware bug | TMC4671 | open |
 | INR 1 | NEEDS REVIEW | Axis / TMC4671 | open |
 | INR 2 | NEEDS REVIEW | HID descriptor | open |
 | INR 3 | NEEDS REVIEW | HID descriptor | open |
@@ -91,6 +95,16 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | INR 33 | NEEDS REVIEW | TMC4671 | open |
 | INR 34 | NEEDS REVIEW | TMC4671 | open |
 | INR 35 | NEEDS REVIEW | TMC4671 | open |
+| INR 36 | NEEDS REVIEW | Axis / TMC4671 | open |
+| INR 37 | NEEDS REVIEW | FFBHIDMain | open |
+| INR 38 | NEEDS REVIEW | HidFFB | open |
+| INR 39 | NEEDS REVIEW | FFBHIDMain | open |
+| INR 40 | NEEDS REVIEW | TMC4671 | open |
+| INR 41 | NEEDS REVIEW | TMC4671 | open |
+| INR 42 | NEEDS REVIEW | TMC4671 | open |
+| INR 43 | NEEDS REVIEW | FFBHIDMain | open |
+| INR 44 | NEEDS REVIEW | CommandInterface | open |
+| INR 45 | NEEDS REVIEW | TMC4671 / Axis | open |
 | A-1 | fake defect | Fake HAL SPI + GPIO / EXTI | fixed |
 | A-2 | fake defect | Fake ADC, timers, flash map | fixed |
 | A-3 | fake defect | `HostDcd` + `UsbHost` + `HostRtos` ext | fixed |
@@ -410,6 +424,38 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 - **Test / evidence:** `KNOWN_ISSUE` case `F1-T2: with slewrate R no write to 0x64 after a USB detach and mount changes the target by more than R` in `test_f1_driver.cpp` (WO I2-2)
 - **Resolved?:** no
 
+### IB 40: Axis
+
+- **Where:** `Axis.cpp:917-921`
+- **What:** E-stop release: the slew limiter starts from the torque before the E-stop (`metric.previous.torque`), so with slewrate 300 the first torque after the release steps by 5503
+- **Same as (coverage):** bug 33
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-T3: with slewrate R the first torques after an E-stop release do not step by more than R from the 0 the chip held` in `test_f1_safety.cpp` (WO I2-3)
+- **Resolved?:** no
+
+### IB 41: ErrorHandler
+
+- **Where:** `ErrorHandler.cpp:130-143`
+- **What:** `sys.errors?` says None while the critical TMC emergency-stop error is stored (`getErrors()` stops at the first empty slot after a clear)
+- **Same as (coverage):** bug 7
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-T4: sys.errors? still lists the TMC emergency stop error after the ENABLE_IN stop` in `test_f1_safety.cpp` (WO I2-3)
+- **Resolved?:** no
+
+### IB 42: FFBHIDMain / TMC4671
+
+- **Where:** `FFBHIDMain.cpp:361-364`; `TMC4671.cpp:1711-1724`
+- **What:** After the ENABLE_IN stop the critical-error handler calls `emergencyStop(true)` (release), which switches the PWM on again with the enable pin high and the old 0x64 before the second stop: event order W1A=0, W1A=7, W63 torque mode, W64=0, W63 stop, W1A=0. Also: the plain case `F1-T4: ENABLE_IN low during a constant force puts 0 at 0x64 within one poll period` passes only through this restart path (INR 45)
+- **Same as (coverage):** bug 39
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-T4: after the ENABLE_IN stop the PWM is not switched on again while ENABLE_IN is low` in `test_f1_safety.cpp` (WO I2-3)
+- **Resolved?:** no
+
+### IB 43: TMC4671
+
+- **Where:** `TMC4671.cpp:643-650`
+- **What:** The undervoltage stop changes only the motion mode: 0x64 keeps the old torque (-6103), PWM stays on (0x1A = 7) and the enable pin high while the supply is low; intended (charter F1-T5): torque 0 at the chip
+- **Same as (coverage):** related to IB 25, bug 152
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-T5: the torque target at the chip is 0 while the supply is low` in `test_f1_safety.cpp` (WO I2-3)
+- **Resolved?:** no
+
 ## 2. NEEDS REVIEW items (INR)
 
 ### INR 1: Axis / TMC4671
@@ -654,6 +700,76 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 - **Test / location:** characterization case `characterization: [F1-P1] the torque filter Q set by command is back to its default after a reboot while mode and frequency survive` in `test_f1_persistence.cpp` (WO I2-6); `TMC4671.cpp:121-128`, `:186-190`; `CHANGELOG.md:136-137`
 - **Question:** The torque biquad Q is not saved (flash word: 13 bits frequency, 3 bits mode); the v1.10.0 changelog says "fixed Q factor, saved frequency", yet `tmc.0.trqbq_q` changes Q at runtime (back to 50 after a reboot). NEEDS REVIEW
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 36: Axis / TMC4671
+
+- **Test / location:** characterization case `characterization: [F1-T3] after the E-stop is released the drive restarts and the running constant force returns to its torque` in `test_f1_safety.cpp` (WO I2-3); see the case comment
+- **Question:** After an E-stop release the drive restarts (0x1A = 7, pin high) and the running constant force returns to its torque (6103, MATH 20000*10000/32767 within 2): recovery defined only by the firmware
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 37: FFBHIDMain
+
+- **Test / location:** characterization case `characterization: [F1-T3] the host reads the E-stop through main.estop? (1) and main.ffbactive? (-1) and both return to normal after the release` in `test_f1_safety.cpp` (WO I2-3); see the case comment
+- **Question:** The host sees the E-stop only through `main.estop?` = 1 and `main.ffbactive?` = -1 (`FFBHIDMain_commmands.cpp:34-51`)
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 38: HidFFB
+
+- **Test / location:** characterization case `characterization: [F1-T3] the PID State report sent during an E-stop does not signal it` in `test_f1_safety.cpp` (WO I2-3); see the case comment
+- **Question:** The PID State report during an E-stop still says actuators enabled / power on / no safety switch; it is sent only on effect operations. Intended?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 39: FFBHIDMain
+
+- **Test / location:** characterization case `characterization: [F1-T4] after ENABLE_IN low the host reads main.estop? = 1 and a new magnitude does not restart the drive` in `test_f1_safety.cpp` (WO I2-3); see the case comment
+- **Question:** After the ENABLE_IN stop `main.estop?` = 1, `main.ffbactive?` = -1, new reports do not restart the drive
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 40: TMC4671
+
+- **Test / location:** characterization case `characterization: [F1-T4] after ENABLE_IN returns high the drive stays off until the host clears the emergency with main.estop=0` in `test_f1_safety.cpp` (WO I2-3); see the case comment
+- **Question:** After ENABLE_IN returns high the drive stays off (10 s observed, the Shutdown recovery is unreachable: the thread suspends itself, bug 163) until the host sends `main.estop=0`. Intended?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 41: TMC4671
+
+- **Test / location:** characterization case `characterization: [F1-T5] after the supply returns the driver is Running again within the waitPower bound` in `test_f1_safety.cpp` (WO I2-3); see the case comment
+- **Question:** After the supply returns the driver is Running again (325 ms, bound 371 ms from `waitPower`), 0x63 stays 0 (IB 25 / bug 152), 0x64 at the old torque throughout
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 42: TMC4671
+
+- **Test / location:** characterization case `characterization: [F1-T5] the largest possible thermistor ADC word never reaches the 90 C limit, so the over-temperature stop is never taken` in `test_f1_safety.cpp` (WO I2-3); see the case comment
+- **Question:** Over-temperature is enabled by default (hw config v1.3, `TMC4671_configs.cpp:53-72`), but the thermistor formula (`TMC4671.cpp:365-385`, r = R2*Vref/V, matching neither standard divider equation) gives at most 62.72 C (v1.3; 83.84 C v1.2) at ADC word 0xFFFF (`tmc.0.temp?` = 6271), so the 90 C limit is unreachable and no command changes the thermistor settings. Owner question IQ 14 (needs the board schematic)
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 43: FFBHIDMain
+
+- **Test / location:** characterization case `characterization: [F1-T3] the E-stop input raises no error for the host` in `test_f1_safety.cpp` (WO I2-3); see the case comment
+- **Question:** The E-stop input raises no error entry (`sys.errors?` None). Intended?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 44: CommandInterface
+
+- **Test / location:** characterization case `characterization: [F1-T4] the ENABLE_IN stop error frame is discarded when no command arrives within 500 ms` in `test_f1_safety.cpp` (WO I2-3); see the case comment
+- **Question:** An asynchronous error frame (TMC emergency stop) is buffered until the next command batch and discarded when none arrives within `parserTimeout` = 500 ms (`CommandInterface.cpp:274-302`, `CommandInterface.h:80`): a host that does not poll never sees it. Intended?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 45: TMC4671 / Axis
+
+- **Test / location:** plain case `F1-T4: ENABLE_IN low during a constant force puts 0 at 0x64 within one poll period` in `test_f1_safety.cpp` (WO I2-3); `TMC4671.cpp:1746`, `FFBHIDMain.cpp:361-364`
+- **Question:** The 0 at 0x64 after an ENABLE_IN stop comes only from the defective restart path of IB 42 / bug 39: with `errorCallback` fixed to `emergencyStop(false)` nothing zeroes 0x64 (`turn(0)` returns early because `motorEnabledRequested` is false; I2-3 review mutation). A fix of bug 39 must also zero the target
 - **Same as (coverage):** (none)
 - **Resolved?:** no
 

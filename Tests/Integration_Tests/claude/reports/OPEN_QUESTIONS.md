@@ -129,3 +129,11 @@ The firmware's HID descriptor declares the PID Device Control field as 8 one-bit
 The firmware's Sawtooth Up force falls within each period and its Sawtooth Down force rises (`EffectsCalculator.cpp:239`, `:262`), relative to a constant force of positive Magnitude. PID 1.01 (and 1.02) only name the effect types ET Sawtooth Up / ET Sawtooth Down in Table 2 and section 5.1, and 5.1 even describes ET Sawtooth Down as defining "a Sawtooth Up waveform" (a typo); HID 1.11 says nothing; the conventional reading (e.g. DirectInput DIEFT_SAWTOOTHUP: rises) is not a supplied specification. Should "Sawtooth Up" rise (then the firmware swaps the two and the I1-4 characterization becomes a known issue), or is the firmware's direction intended? Until answered, a characterization case records what the firmware does.
 
 **Answer:** open.
+
+## Batch 6 (phase I2, 2026-11-24)
+
+### IQ14. Thermistor formula and the unreachable over-temperature limit (INR 42)
+
+The TMC driver converts the thermistor ADC word with r = R2 * 43252 / adc (`TMC4671.cpp:365-385`, 43252 = the count at 3.3 V on a 2.5 V reference) and a Beta formula, and stops the motor above `temp_limit` = 90 C. Temperature checking is on by default (hardware config v1.3, `TMC4671_configs.cpp:53-72`). Even at the largest ADC word (0xFFFF -> adc 32768) the formula gives 62.72 C for v1.3 (83.84 C for v1.2), so the over-temperature stop can never be taken, and no command changes the thermistor settings. r = R2*Vref/V matches neither standard divider equation (R2*(Vref-V)/V or R2*V/(Vref-V)); with the standard equation for an NTC at the top, 90 C would be reachable. Which divider does the board use (thermistor position, R2, reference), i.e. what should the ADC-to-temperature mapping be? With the schematic the case becomes a plain test (or a `KNOWN_ISSUE` if the formula is wrong).
+
+**Answer:** open.
