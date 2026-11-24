@@ -137,3 +137,9 @@ The firmware's Sawtooth Up force falls within each period and its Sawtooth Down 
 The TMC driver converts the thermistor ADC word with r = R2 * 43252 / adc (`TMC4671.cpp:365-385`, 43252 = the count at 3.3 V on a 2.5 V reference) and a Beta formula, and stops the motor above `temp_limit` = 90 C. Temperature checking is on by default (hardware config v1.3, `TMC4671_configs.cpp:53-72`). Even at the largest ADC word (0xFFFF -> adc 32768) the formula gives 62.72 C for v1.3 (83.84 C for v1.2), so the over-temperature stop can never be taken, and no command changes the thermistor settings. r = R2*Vref/V matches neither standard divider equation (R2*(Vref-V)/V or R2*V/(Vref-V)); with the standard equation for an NTC at the top, 90 C would be reachable. Which divider does the board use (thermistor position, R2, reference), i.e. what should the ADC-to-temperature mapping be? With the schematic the case becomes a plain test (or a `KNOWN_ISSUE` if the formula is wrong).
 
 **Answer:** open.
+
+### IQ15. TMC4671 torque biquad enable: bit 31 or value 1? (INR 51)
+
+The TMC4671-LA datasheet Rev 2.07 describes the biquad enable field (`biquad_t_enable`, CONFIG_DATA of the torque biquad) as `bit(31)` with range 0..0x1, the same notation it uses for MODE_PID_TYPE in 0x63, which the firmware and the tests treat as bit 31. The firmware writes the torque-biquad enable as the value 1, i.e. bit 0 (`TMC4671.cpp:2271`, `bq.enable & 0x1`). Read literally, the enable is bit 31 and the firmware never enables the torque filter on the chip. Which reading is right (Trinamic application note, register map file or a hardware check)? With the answer the enable checks of `test_f1_runtime.cpp` become plain tests or a `KNOWN_ISSUE`.
+
+**Answer:** open.

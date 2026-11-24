@@ -10,8 +10,8 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 | Kind | Count | Open | Resolved |
 |---|---|---|---|
-| Suspected firmware bugs (IB) | 43 | 43 | 0 |
-| NEEDS REVIEW items (INR) | 45 | 45 | 0 |
+| Suspected firmware bugs (IB) | 48 | 48 | 0 |
+| NEEDS REVIEW items (INR) | 51 | 51 | 0 |
 | Defects in shared test fakes (A) | 3 | 0 | 3 |
 | Defects in test tools (T) | 1 | 0 | 1 |
 
@@ -60,6 +60,11 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | IB 41 | firmware bug | ErrorHandler | open |
 | IB 42 | firmware bug | FFBHIDMain / TMC4671 | open |
 | IB 43 | firmware bug | TMC4671 | open |
+| IB 44 | firmware bug | TMC4671 | open |
+| IB 45 | firmware bug | global_callbacks / FFBHIDMain | open |
+| IB 46 | firmware bug | Axis / SPI | open |
+| IB 47 | firmware bug | TMC4671 | open |
+| IB 48 | firmware bug | TMC4671 / SPI | open |
 | INR 1 | NEEDS REVIEW | Axis / TMC4671 | open |
 | INR 2 | NEEDS REVIEW | HID descriptor | open |
 | INR 3 | NEEDS REVIEW | HID descriptor | open |
@@ -105,6 +110,12 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | INR 43 | NEEDS REVIEW | FFBHIDMain | open |
 | INR 44 | NEEDS REVIEW | CommandInterface | open |
 | INR 45 | NEEDS REVIEW | TMC4671 / Axis | open |
+| INR 46 | NEEDS REVIEW | Axis / TMC4671 | open |
+| INR 47 | NEEDS REVIEW | TMC4671 | open |
+| INR 48 | NEEDS REVIEW | TMC4671 | open |
+| INR 49 | NEEDS REVIEW | FFBHIDMain | open |
+| INR 50 | NEEDS REVIEW | Axis | open |
+| INR 51 | NEEDS REVIEW | TMC4671 | open |
 | A-1 | fake defect | Fake HAL SPI + GPIO / EXTI | fixed |
 | A-2 | fake defect | Fake ADC, timers, flash map | fixed |
 | A-3 | fake defect | `HostDcd` + `UsbHost` + `HostRtos` ext | fixed |
@@ -456,6 +467,46 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 - **Test / evidence:** `KNOWN_ISSUE` case `F1-T5: the torque target at the chip is 0 while the supply is low` in `test_f1_safety.cpp` (WO I2-3)
 - **Resolved?:** no
 
+### IB 44: TMC4671
+
+- **Where:** `TMC4671.cpp:3095`, `:2809`
+- **What:** `tmc.0.trqbq_f=0` is clipped to 1 and enables a 1 Hz torque lowpass, although the help text says "0 to disable" (the help text may be stale: it also says "1000 max" while the code clips at 0x1fff)
+- **Same as (coverage):** (none)
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-T6: tmc.0.trqbq_f=0 disables the torque filter as its help text says` in `test_f1_runtime.cpp` (WO I2-4)
+- **Resolved?:** no
+
+### IB 45: global_callbacks / FFBHIDMain
+
+- **Where:** `global_callbacks.cpp:365`; TinyUSB `usbd.c:659`
+- **What:** A USB bus suspend with a force running leaves the torque on the chip (3051): `tud_suspend_cb()` lacks the `bool` parameter, so the main class never hears of the suspend
+- **Same as (coverage):** bug 42
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-T7: a USB bus suspend with a force running puts torque 0 at the chip` in `test_f1_runtime.cpp` (WO I2-4)
+- **Resolved?:** no
+
+### IB 46: Axis / SPI
+
+- **Where:** `Axis.cpp:488-495`, `:921`; `SPI.cpp:163`, `:181`; `TMC4671.cpp:2543-2556`
+- **What:** A 0x64 write lost to an SPI timeout is never repeated while the force is held (torque written only on change, HAL status ignored): the chip holds -907 while the axis computes -1816
+- **Same as (coverage):** related to bug 140; related to IB 22, IB 25
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-T8: a 0x64 write lost to an SPI timeout is repeated so that the chip holds the torque the axis computes` in `test_f1_runtime.cpp` (WO I2-4)
+- **Resolved?:** no
+
+### IB 47: TMC4671
+
+- **Where:** `TMC4671.cpp:798-808`, `:1676-1685`, `:452-454`, `:577`
+- **What:** An immediate USB unplug and replug of a running wheel ends in Shutdown: the unmount only requests Shutdown (`requestedState`, state still Running), the mount's `startMotor` sees Running and requests nothing but enables PWM, then the thread applies the stale Shutdown; the force stays frozen. Shown at every TMC thread phase (sweep 0-200 ms); found by I2-4 and the I2-2 review (every second immediate replug)
+- **Same as (coverage):** related to IB 24, bug 152
+- **Test / evidence:** `KNOWN_ISSUE` case `F1-T7: after an immediate unplug and replug of a running wheel the driver is Running again` in `test_f1_runtime.cpp` (WO I2-4)
+- **Resolved?:** no
+
+### IB 48: TMC4671 / SPI
+
+- **Where:** `TMC4671.cpp:2531-2535`; `SPI.cpp:181`
+- **What:** A 0x6B read lost to an SPI timeout uses the uninitialised receive buffer: the spring torque jumps (1065 counts vs bound 9.05, 64-bit) or the garbage position stops the axis and the chip freezes (32-bit). `KNOWN_ISSUE_UB`
+- **Same as (coverage):** bug 140
+- **Test / evidence:** `KNOWN_ISSUE_UB` case `F1-T8: a read of 0x6B lost to an SPI timeout does not make the spring torque at the chip jump` in `test_f1_runtime.cpp` (WO I2-4)
+- **Resolved?:** no
+
 ## 2. NEEDS REVIEW items (INR)
 
 ### INR 1: Axis / TMC4671
@@ -770,6 +821,48 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 - **Test / location:** plain case `F1-T4: ENABLE_IN low during a constant force puts 0 at 0x64 within one poll period` in `test_f1_safety.cpp` (WO I2-3); `TMC4671.cpp:1746`, `FFBHIDMain.cpp:361-364`
 - **Question:** The 0 at 0x64 after an ENABLE_IN stop comes only from the defective restart path of IB 42 / bug 39: with `errorCallback` fixed to `emergencyStop(false)` nothing zeroes 0x64 (`turn(0)` returns early because `motorEnabledRequested` is false; I2-3 review mutation). A fix of bug 39 must also zero the target
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 46: Axis / TMC4671
+
+- **Test / location:** characterization case `characterization: [F1-T6] a held constant force is not rewritten when tmc.0.invertForce changes, 0x64 keeps the old torque until the force changes` in `test_f1_runtime.cpp` (WO I2-4); see the case comment
+- **Question:** `invertForce` acts only on the next torque change: a held force keeps the old sign at 0x64 (`Axis.cpp:488-495`, `:921`). Intended?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 47: TMC4671
+
+- **Test / location:** characterization case `characterization: [F1-T6] tmc.0.fluxoffset=F makes the flux field of the next 0x64 write -min(|torque|, F)` in `test_f1_runtime.cpp` (WO I2-4); see the case comment
+- **Question:** `fluxoffset=F` gives flux -min(|torque|, F) with idleFlux 0 (`TMC4671.cpp:1752`); a value above 32767 narrows to a negative int16 bound (F1-B2 note)
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 48: TMC4671
+
+- **Test / location:** characterization case `characterization: [F1-T6] tmc.0.combineEncoder=0 switches invertForce off so that the next torque is not inverted` in `test_f1_runtime.cpp` (WO I2-4); see the case comment
+- **Question:** `combineEncoder=0` clears `invertForce` (`TMC4671.cpp:2820-2824`), also on a GET of `combineEncoder` (not tested)
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 49: FFBHIDMain
+
+- **Test / location:** characterization case `characterization: [F1-T7] after an unplug and a replug the old force is gone: the driver runs again and the torque stays 0` in `test_f1_runtime.cpp` (WO I2-4); see the case comment
+- **Question:** A replug deletes all effects (`FFBHIDMain.cpp:310`); the host must re-create them
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 50: Axis
+
+- **Test / location:** characterization case `characterization: [F1-T7] a bus resume after a suspend that never reached the main class restarts the force from zero` in `test_f1_runtime.cpp` (WO I2-4); see the case comment
+- **Question:** A bus resume (after a suspend lost to bug 42) restarts the 2 s force fade-in from 0 (`Axis.cpp:639-645`)
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 51: TMC4671
+
+- **Test / location:** characterization case `characterization: [F1-T6] tmc.0.trqbq_mode=1 writes the value 1 (bit 0) as the enable of the torque biquad` in `test_f1_runtime.cpp` (WO I2-4); see the case comment
+- **Question:** Torque biquad enable: the firmware writes the value 1 (bit 0, `TMC4671.cpp:2271`); the datasheet writes `bit(31)` with range 0..0x1 for this field and for MODE_PID_TYPE (bit 31). Under the literal reading the filter is never enabled. Owner question IQ 15
 - **Same as (coverage):** (none)
 - **Resolved?:** no
 
