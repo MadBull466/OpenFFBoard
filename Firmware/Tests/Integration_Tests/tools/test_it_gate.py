@@ -11,6 +11,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -986,9 +988,77 @@ class Stub:
                       ctest_list="  Test  #8: ffb_integration_tests\n  Test  #9: integration_tool_tests\n",
                       target_help="... all\n... ffb_integration_tests\n", baseline_rc=0, int_rc=0, summary_rc=0,
                       summary="Test cases: 5  passed: 5  failed: 0  skipped: 0  known issue: 1\n",
-                      syntax_rc=0, syntax_text="", make_exe=True, cc_flag="-O0", cache_override={})
+                      syntax_rc=0, syntax_text="", make_exe=True, cc_flag="-O0", cache_override={},
+                      cases=None, list_rc=0, fail_in_shard=(), fail_always=(), die_in_shard=(), die_alone=(),
+                      skip_names=(), known_names=(), delay=0, ctest_json=None, ctest_props=(), neg_rc_after=None,
+                      sanitizer_in=(), sanitizer_in_shard=())
         self.o.update(opts)
+        if self.o["cases"] is None:
+            self.o["cases"] = [self.case("case %d" % i, CASE_REL, i * 10) for i in range(1, 6)]
         self.calls = []
+        self.cwds = []
+        self.lock = threading.Lock()
+        self.active = self.peak = 0
+        self.exe_times = []  # seconds of every real run of the executable (not the listing), measured inside the stub
+
+    @staticmethod
+    def case(name, rel, line):
+        return {"name": name, "rel": rel, "line": line}
+
+    def exe_call(self, cmd):
+        """Answers a call of ffb_integration_tests like doctest 2.4.11: -ltc lists only the cases that pass the filters (-sf,
+        --test-case-exclude, doctest::skip() = skip_names); the XML report of a run names every registered case, and a
+        case that is filtered out, skipped or outside --first / --last is skipped="true" there."""
+        import fnmatch
+        import xml.sax.saxutils as sx
+        o = self.o
+        arg = lambda k: next((a.split("=", 1)[1] for a in cmd if a.startswith(k + "=")), None)  # noqa: E731
+        sf, tce = arg("-sf"), arg("--test-case-exclude")
+        first, last = arg("--first"), arg("--last")
+        a, b = (int(first), int(last)) if first else (1, 10 ** 9)
+        alone = first is not None and first == last
+        listing = "-ltc" in cmd
+
+        def passes(c):
+            if c["name"] in o["skip_names"]:
+                return False
+            if sf and not any(fnmatch.fnmatchcase(os.path.join(self.root, c["rel"]), x) for x in sf.split(",")):
+                return False
+            return not (tce and c["name"] in tce.split(","))
+
+        body, failed_here, p, crash, san = [], False, 0, None, False
+        for c in o["cases"]:
+            at = 'name=%s filename=%s line="%d"' % (sx.quoteattr(c["name"]), sx.quoteattr(os.path.join(self.root, c["rel"])), c["line"])
+            n = c["name"]
+            sel = passes(c)
+            p += 1 if sel else 0
+            if listing:
+                if sel:
+                    body.append("<TestCase %s skipped=\"false\"/>" % at)
+                continue
+            if not sel or not a <= p <= b or crash is not None:
+                body.append("<TestCase %s skipped=\"true\"/>" % at)
+                continue
+            if n in o["die_alone"] or (not alone and n in o["die_in_shard"]):
+                # aborted inside the case: its element is open, no closing tag
+                return 134, "<?xml version=\"1.0\"?><doctest>" + "".join(body) + "<TestCase %s>" % at
+            san = san or n in o["sanitizer_in"] or (not alone and n in o["sanitizer_in_shard"])
+            st = "passed"
+            if n in o["fail_always"] or (not alone and n in o["fail_in_shard"]):
+                st = "failed"
+            elif n in o["known_names"]:
+                st = "known"
+            failed_here = failed_here or st == "failed"
+            f = {"passed": (3, 0, "true"), "known": (3, 1, "true"), "failed": (2, 1, "false")}[st]
+            body.append("<TestCase %s><OverallResultsAsserts successes=\"%d\" failures=\"%d\" test_case_success=\"%s\"/></TestCase>"
+                        % ((at,) + f))
+            if o["neg_rc_after"] and n in o["neg_rc_after"] and not alone:
+                crash = o["neg_rc_after"][n]  # a signal after this case: the later cases of the range are not run
+        text = "<?xml version=\"1.0\"?><doctest>%s</doctest>" % "".join(body)
+        if san:
+            text += "\n==1==ERROR: AddressSanitizer: heap-use-after-free on address 0x1\n"
+        rc = o["list_rc"] if listing else (crash if crash is not None else (o["int_rc"] or (1 if failed_here else 0)))
+        return rc, text
 
     def bd_of(self, cmd):
         if "-B" in cmd:
@@ -1034,7 +1104,30 @@ class Stub:
             os.remove(exe)
 
     def __call__(self, cmd, log, cwd=None, timeout=None):
-        self.calls.append(list(cmd))
+        w = 1
+        for a in cmd:
+            if cmd[0] == "cmake" and str(a).startswith("-j"):
+                w = int(a[2:])
+        with self.lock:
+            self.calls.append(list(cmd))
+            self.cwds.append(cwd)
+            self.active += w
+            self.peak = max(self.peak, self.active)
+        try:
+            t = time.monotonic()
+            if self.o["delay"]:
+                time.sleep(self.o["delay"])
+            try:
+                return self.answer(cmd, log, cwd, timeout)
+            finally:
+                if str(cmd[0]).endswith(ig.EXE) and "-ltc" not in cmd:
+                    with self.lock:
+                        self.exe_times.append(time.monotonic() - t)
+        finally:
+            with self.lock:
+                self.active -= w
+
+    def answer(self, cmd, log, cwd=None, timeout=None):
         o = self.o
         text, rc = "", 0
         joined = " ".join(str(c) for c in cmd)
@@ -1050,6 +1143,12 @@ class Stub:
             rc, text = o["build_rc"], o["build_text"]
         elif cmd[0] == "ctest" and "-N" in cmd:
             text = o["ctest_list"]
+        elif cmd[0] == "ctest" and "--show-only=json-v1" in cmd:
+            bd = cmd[cmd.index("--test-dir") + 1]
+            excl = ig.integration_excludes(ig.read_cache(bd))
+            test = {"name": ig.EXE, "command": [os.path.join(bd, ig.EXE)] + (["--test-case-exclude=" + ",".join(excl)] if excl else []),
+                    "properties": list(o["ctest_props"])}
+            text = o["ctest_json"] if o["ctest_json"] is not None else json.dumps({"tests": [test]})
         elif cmd[0] == "ctest":
             rc, text = o["ctest_rc"], o["ctest_text"]
         elif "check_baseline.py" in joined:
@@ -1057,7 +1156,7 @@ class Stub:
         elif "summarise_results.py" in joined:
             rc, text = o["summary_rc"], o["summary"]
         elif str(cmd[0]).endswith(ig.EXE):
-            rc = o["int_rc"]
+            rc, text = self.exe_call(cmd)
         elif "-fsyntax-only" in cmd:
             rc, text = o["syntax_rc"], o["syntax_text"]
         else:
@@ -1090,7 +1189,7 @@ class RunVariant(unittest.TestCase):
         stub.write_build(bd, variant)
         ig.record_reference(self.root, bd, variant)
 
-    def go(self, fresh=False, variant="default", **opts):
+    def go(self, fresh=False, variant="default", serial=True, rv=None, **opts):
         stub = Stub(self.root, **opts)
         ref_stub = Stub(self.root)
         self.record(ref_stub, variant)
@@ -1099,7 +1198,7 @@ class RunVariant(unittest.TestCase):
             os.remove(os.path.join(bd, "CMakeCache.txt"))
         else:
             stub.write_build(bd, variant)  # the existing directory as this scenario has it (cache, executable)
-        res = ig.run_variant(self.root, variant, LIST_PATTERNS, self.evid, stub)
+        res = ig.run_variant(self.root, variant, LIST_PATTERNS, self.evid, stub, serial=serial, **(rv or {}))
         return res, stub
 
     def fixroot(self, text):
@@ -1303,11 +1402,17 @@ class MainLogic(unittest.TestCase):
     def test_a_failing_variant_fails_the_gate_and_the_evidence(self):
         for opt in (dict(build_rc=1), dict(configure_rc=1), dict(ctest_rc=1), dict(baseline_rc=1), dict(int_rc=1),
                     dict(cc_flag="-O3"), dict(build_text=warn(root=self.root)), dict(make_exe=False),
-                    dict(summary="Test cases: 1  passed: 0  failed: 1  skipped: 0\n")):
+                    dict(fail_always=("case 1",))):
             rc, last, _ = self.run_main(["--variants", "default,m32"], **opt)
             self.assertEqual(rc, 1, opt)
             self.assertTrue(last.startswith("GATE FAIL "), (opt, last))
             self.assertEqual(self.latest()["result"], "FAIL", opt)
+        # --serial: the same, and the failed summary of the old XML run
+        for opt in (dict(int_rc=1), dict(fail_always=("case 1",)), dict(make_exe=False),
+                    dict(summary="Test cases: 1  passed: 0  failed: 1  skipped: 0\n")):
+            rc, last, _ = self.run_main(["--variants", "default,m32", "--serial"], **opt)
+            self.assertEqual(rc, 1, opt)
+            self.assertTrue(last.startswith("GATE FAIL "), (opt, last))
 
     def test_scope_failure_fails_the_gate(self):
         self.write("Firmware/FFBoard/Src/Axis.cpp", "changed by mistake\n")
@@ -1396,12 +1501,12 @@ class MainLogic(unittest.TestCase):
         cfg = [c for c in stub.calls if c[0] == "cmake" and "-S" in c]
         self.assertTrue(all(c[c.index("-S") + 1] == os.path.join(sroot, "Firmware/Tests") for c in cfg), cfg)
 
-    def run_isolated(self, runner, wo="T-1"):
+    def run_isolated(self, runner, wo="T-1", extra=()):
         import io
         import contextlib
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            rc = ig.main(["--root", self.root, "--wo", wo, "--variants", "default,m32", "--isolated"], runner=runner)
+            rc = ig.main(["--root", self.root, "--wo", wo, "--variants", "default,m32", "--isolated"] + list(extra), runner=runner)
         return rc, buf.getvalue()
 
     def test_isolated_run_fails_when_head_moves_during_the_gate(self):
@@ -1453,6 +1558,12 @@ class MainLogic(unittest.TestCase):
         rc, out = self.run_isolated(stub)
         self.assertEqual(rc, 0, out)
         _, sroot = ig.iso_paths(self.root, "T-1")
+        scripts = [c[2] for c in stub.calls if len(c) > 2 and str(c[2]).endswith(("check_baseline.py", "summarise_results.py"))]
+        self.assertEqual(sorted(os.path.basename(x) for x in scripts), ["check_baseline.py"] * 2)  # the shards need no summary script
+        self.assertTrue(all(x.startswith(sroot + os.sep) for x in scripts), scripts)
+        stub = Stub(self.root)
+        rc, out = self.run_isolated(stub, extra=["--serial"])
+        self.assertEqual(rc, 0, out)
         scripts = [c[2] for c in stub.calls if len(c) > 2 and str(c[2]).endswith(("check_baseline.py", "summarise_results.py"))]
         self.assertEqual(len(scripts), 4)
         self.assertTrue(all(x.startswith(sroot + os.sep) for x in scripts), scripts)
@@ -1603,6 +1714,755 @@ class Output(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertTrue(r.stdout.strip().splitlines()[-1].startswith("GATE FAIL "))
         self.assertIn("missing", r.stdout)
+
+
+CD = "Firmware/Tests/Integration_Tests/claude/cases/"
+
+
+class ScopeDecision(unittest.TestCase):
+    """integration_scope: the subset of cases is used only when every non-document file of the WO list is a case file."""
+
+    def test_case_files_only_give_the_subset(self):
+        self.assertEqual(ig.integration_scope([CD + "test_f1_a.cpp", CD + "test_f1_b.cpp"]), [CD + "test_f1_a.cpp", CD + "test_f1_b.cpp"])
+
+    def test_case_files_with_documents_give_the_subset(self):
+        pats = [CD + "test_f1_a.cpp", "Tests/Integration_Tests/claude/plans/PROGRESS.md", "Tests/Code_Coverage/claude/plans/PROGRESS.md",
+                "Firmware/Tests/Integration_Tests/README.md"]
+        self.assertEqual(ig.integration_scope(pats), [CD + "test_f1_a.cpp"])
+
+    def test_a_case_file_glob_in_the_file_name_gives_the_subset(self):
+        self.assertEqual(ig.integration_scope([CD + "test_f1_*.cpp"]), [CD + "test_f1_*.cpp"])
+
+    def test_one_other_code_file_makes_it_the_full_run(self):
+        for other in ("Firmware/Tests/Integration_Tests/support/x.h", "Firmware/Tests/Integration_Tests/fakes/f.cpp",
+                      "Firmware/Tests/Integration_Tests/integration.cmake", "Firmware/Tests/CMakeLists.txt",
+                      "Firmware/Tests/Integration_Tests/tools/it_gate.py", "Firmware/Tests/Code_Coverage/fakes/a.cpp",
+                      "Firmware/Tests/Code_Coverage/claude/cases/test_x.cpp", ".claude/hooks/guard_lib.py", "AGENTS.mdx", "*"):
+            self.assertIsNone(ig.integration_scope([CD + "test_f1_a.cpp", other]), other)
+            self.assertIsNone(ig.integration_scope([other]), other)
+
+    def test_a_pattern_that_may_match_a_non_case_file_makes_it_the_full_run(self):
+        for p in (CD + "*.cpp", CD + "helper.cpp", CD + "test_[ab].cpp", CD + "test_x.h", CD + "sub/test_x.cpp", CD + "*"):
+            self.assertIsNone(ig.integration_scope([p]), p)
+
+    def test_documents_only_give_the_full_run(self):
+        self.assertIsNone(ig.integration_scope(["Tests/Integration_Tests/claude/plans/PROGRESS.md", "CLAUDE.md"]))
+
+    def test_full_always_gives_the_full_run(self):
+        self.assertIsNone(ig.integration_scope([CD + "test_f1_a.cpp"], full=True))
+
+    def test_the_file_filters_match_only_the_cases_directory(self):
+        import fnmatch
+        f = ig.scope_filters([CD + "test_f1_a.cpp"])
+        self.assertEqual(f, ["*cases?test_f1_a.cpp"])
+        self.assertTrue(fnmatch.fnmatchcase("/a b/Firmware/Tests/Integration_Tests/claude/cases/test_f1_a.cpp", f[0]))
+        self.assertFalse(fnmatch.fnmatchcase("/a/Firmware/Tests/Other/test_f1_a.cpp", f[0]))
+
+
+class Shards(unittest.TestCase):
+    def test_partition_covers_every_index_exactly_once(self):
+        for n in range(0, 60):
+            for parts in (1, 2, 3, 7, 40, 100):
+                r = ig.partition(n, parts)
+                covered = [i for a, b in r for i in range(a, b + 1)]
+                self.assertEqual(covered, list(range(1, n + 1)), (n, parts))
+                self.assertLessEqual(len(r), max(parts, 1))
+                if r:
+                    self.assertLessEqual(max(b - a for a, b in r) - min(b - a for a, b in r), 1)
+
+    def test_case_xml_statuses_follow_summarise_results(self):
+        xml = ("<doctest>"
+               '<TestCase name="p" filename="/x/Firmware/Tests/a.cpp" line="1"><OverallResultsAsserts successes="4" failures="0" test_case_success="true"/></TestCase>'
+               '<TestCase name="k" filename="/x/Firmware/Tests/a.cpp" line="2"><OverallResultsAsserts successes="4" failures="2" test_case_success="true"/></TestCase>'
+               '<TestCase name="f" filename="/x/Firmware/Tests/a.cpp" line="3"><OverallResultsAsserts successes="1" failures="1" test_case_success="false"/></TestCase>'
+               '<TestCase name="s" filename="/x/Firmware/Tests/a.cpp" line="4" skipped="true"/>'
+               "</doctest>")
+        cases = ig.parse_cases_xml("noise before\n" + xml + "\nnoise after")
+        self.assertEqual([c["status"] for c in cases], ["passed", "known", "failed", "skipped"])
+        self.assertEqual((cases[1]["asserts_passed"], cases[1]["asserts_failed"], cases[1]["file"]), (4, 2, "Firmware/Tests/a.cpp"))
+        self.assertEqual(ig.case_counts(cases), (4, 1, 1, 1, 1))
+
+    def test_a_report_without_the_closing_tag_is_a_dead_run(self):
+        self.assertIsNone(ig.parse_cases_xml("<doctest><TestCase name='a' filename='f' line='1'>"))
+        self.assertIsNone(ig.parse_cases_xml(""))
+        self.assertIsNone(ig.parse_cases_xml("<doctest><TestCase></doctest>"))
+
+    def test_budget_never_hands_out_more_than_its_total_and_is_first_come(self):
+        b = ig.Budget(3)
+        active, peak, lock, order = [0], [0], threading.Lock(), []
+
+        def work(n):
+            with b.hold(n):
+                with lock:
+                    active[0] += n
+                    peak[0] = max(peak[0], active[0])
+                    order.append(n)
+                time.sleep(0.003)
+                with lock:
+                    active[0] -= n
+        ts = [threading.Thread(target=work, args=(n,)) for n in (1, 3, 1, 2, 1, 1, 3, 1)]
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join()
+        self.assertLessEqual(peak[0], 3)
+        self.assertEqual(sorted(order), sorted((1, 3, 1, 2, 1, 1, 3, 1)))
+        self.assertEqual(b.free, 3)
+
+
+def many(n, rel=CASE_REL, names=None):
+    return [Stub.case(names[i - 1] if names else "case %d" % i, rel, i * 10) for i in range(1, n + 1)]
+
+
+class IntegrationRun(unittest.TestCase):
+    """run_variant without --serial: one integration run in shards, per-case results, reruns, scope, job budget."""
+
+    def setUp(self):
+        self.tmp = os.path.realpath(tempfile.mkdtemp())
+        self.root = os.path.join(self.tmp, "repo")
+        os.makedirs(os.path.join(self.root, "Firmware/Tests"))
+        self.evid = os.path.join(self.tmp, "evid")
+        os.makedirs(self.evid)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def go(self, variant="default", serial=False, rv=None, echo=None, **opts):
+        stub = Stub(self.root, **opts)
+        bd = ig.build_dir_for(self.root, variant)
+        ref = Stub(self.root)
+        ref.write_build(bd, variant)
+        ig.record_reference(self.root, bd, variant)
+        stub.write_build(bd, variant)
+        kw = dict(rv or {})
+        kw["echo"] = echo if echo is not None else (lambda line: None)
+        res = ig.run_variant(self.root, variant, LIST_PATTERNS, self.evid, stub, serial=serial, **kw)
+        return res, stub
+
+    def exe_calls(self, stub):
+        return [c for c in stub.calls if str(c[0]).endswith(ig.EXE)]
+
+    def cases_file(self, variant="default"):
+        with open(os.path.join(self.evid, "%s.integration.cases.json" % variant)) as f:
+            return json.load(f)
+
+    def test_ctest_runs_without_the_integration_entry_and_the_registration_is_still_checked(self):
+        _, stub = self.go()
+        ct = [c for c in stub.calls if c[0] == "ctest" and "-N" not in c and "--show-only=json-v1" not in c]
+        self.assertEqual(len(ct), 1)
+        self.assertEqual(ct[0][ct[0].index("-E") + 1], "^ffb_integration_tests$")
+        self.assertEqual(ct[0][ct[0].index("--parallel") + 1], "1")  # one entry at a time: ctest is one job of the budget
+        res, _ = self.go(ctest_list="  Test #9: integration_tool_tests\n")
+        self.assertFalse(res["ok"])
+        self.assertIn("ffb_integration_tests", res["reason"])
+        res, _ = self.go(ctest_list="  Test #8: ffb_integration_tests\n")
+        self.assertIn("integration_tool_tests", res["reason"])
+
+    def test_serial_runs_the_whole_ctest_without_exclusion(self):
+        _, stub = self.go(serial=True)
+        ct = [c for c in stub.calls if c[0] == "ctest" and "-N" not in c]
+        self.assertEqual(len(ct), 1)
+        self.assertNotIn("-E", ct[0])
+        self.assertNotIn("--parallel", ct[0])
+        self.assertFalse([c for c in stub.calls if "--show-only=json-v1" in c])
+
+    def test_the_executable_runs_once_in_shards_and_needs_no_summary_script(self):
+        res, stub = self.go(cases=many(12), rv=dict(jobs=2))
+        self.assertTrue(res["ok"], res.get("reason"))
+        self.assertFalse([c for c in stub.calls if "summarise_results.py" in " ".join(map(str, c))])
+        runs = [c for c in self.exe_calls(stub) if "-ltc" not in c]
+        self.assertEqual(len(runs), res["integration"]["shards"])
+        self.assertEqual(len([c for c in self.exe_calls(stub) if "-ltc" in c]), 1)
+        for c in runs:
+            self.assertEqual(c[1], "-r=xml")
+            self.assertIn("--order-by=file", c)
+
+    def test_every_case_runs_exactly_once_across_the_shards(self):
+        for n, jobs in ((1, 10), (5, 1), (12, 2), (37, 3), (37, 10)):
+            res, stub = self.go(cases=many(n), rv=dict(jobs=jobs))
+            self.assertTrue(res["ok"], res.get("reason"))
+            ranges = [(int(next(a for a in c if a.startswith("--first=")).split("=")[1]),
+                       int(next(a for a in c if a.startswith("--last=")).split("=")[1]))
+                      for c in self.exe_calls(stub) if "-ltc" not in c]
+            covered = sorted(i for a, b in ranges for i in range(a, b + 1))
+            self.assertEqual(covered, list(range(1, n + 1)), (n, jobs))
+            self.assertEqual(res["integration"]["cases"], n)
+            self.assertEqual(len(self.cases_file()["cases"]), n)
+
+    def test_case_names_with_commas_and_wildcards_are_each_run_once(self):
+        names = ["a, b", "x*y", "what?", "back\\slash, [x]", "plain", "a", "b"]
+        res, stub = self.go(cases=many(7, names=names), rv=dict(jobs=1))
+        self.assertTrue(res["ok"], res.get("reason"))
+        self.assertEqual(sorted(c["name"] for c in self.cases_file()["cases"]), sorted(names))
+        # no case name is ever given to doctest: the shards are index ranges, so no escaping can be wrong
+        for c in self.exe_calls(stub):
+            self.assertLessEqual({a.split("=")[0] for a in c[1:]}, {"-r", "--order-by", "-ltc", "--first", "--last"}, c)
+
+    def test_the_excluded_cases_of_ctest_reach_the_list_and_every_shard(self):
+        res, stub = self.go(cases=many(6), rv=dict(jobs=2), cache_override={"FFB_INTEGRATION_TESTS_EXCLUDE": "case 2;case 3"})
+        self.assertTrue(res["ok"], res.get("reason"))
+        for c in self.exe_calls(stub):
+            self.assertIn("--test-case-exclude=case 2,case 3", c)
+        i = res["integration"]  # the excluded cases are in the report as skipped, like the old summary counted them
+        self.assertEqual((i["cases"], i["selected"], i["passed"], i["skipped"]), (6, 4, 4, 2))
+
+    def test_merged_counts_and_the_cases_file(self):
+        cases = many(8)
+        res, _ = self.go(cases=cases, known_names=("case 2", "case 5"), skip_names=("case 7",), rv=dict(jobs=1))
+        self.assertTrue(res["ok"], res.get("reason"))
+        i = res["integration"]
+        self.assertEqual((i["cases"], i["passed"], i["failed"], i["skipped"], i["known_issue"]), (8, 5, 0, 1, 2))
+        f = self.cases_file()
+        self.assertEqual(f["scope"], "full")
+        self.assertEqual(f["count"], 8)
+        by = {c["name"]: c for c in f["cases"]}
+        self.assertEqual(by["case 2"]["status"], "known")
+        self.assertEqual((by["case 2"]["asserts_passed"], by["case 2"]["asserts_failed"]), (3, 1))
+        self.assertEqual(by["case 7"]["status"], "skipped")
+        self.assertEqual(by["case 1"]["status"], "passed")
+        self.assertEqual(set(by["case 1"]), {"name", "file", "line", "status", "asserts_passed", "asserts_failed"})
+        with open(os.path.join(self.evid, "default.integration.summary.log")) as fh:
+            self.assertEqual(ig.parse_counts(fh.read()), (8, 5, 0, 1, 2))
+
+    def test_serial_and_parallel_write_the_same_cases_file(self):
+        kw = dict(cases=many(9), known_names=("case 3",), skip_names=("case 8",))
+        self.go(serial=True, **kw)
+        with open(os.path.join(self.evid, "default.integration.cases.json")) as f:
+            old = f.read()
+        self.go(rv=dict(jobs=2), **kw)
+        with open(os.path.join(self.evid, "default.integration.cases.json")) as f:
+            new = f.read()
+        self.assertEqual(old, new)
+
+    def test_a_case_that_fails_in_a_shard_and_passes_alone_passes_with_a_warning(self):
+        lines = []
+        res, stub = self.go(cases=many(12), fail_in_shard=("case 5", "case 11"), rv=dict(jobs=1), echo=lines.append)
+        self.assertTrue(res["ok"], res.get("reason"))
+        i = res["integration"]
+        self.assertEqual(sorted(i["rerun_passed"]), ["case 11", "case 5"])
+        self.assertEqual(i["rerun_failed"], [])
+        self.assertEqual(i["failed"], 0)
+        self.assertIn("WARNING: 2 case(s) passed only when rerun alone: case 5; case 11 (variant default)", lines)
+        alone = [c for c in self.exe_calls(stub) if any(a == "--first=5" for a in c) and "--last=5" in c]
+        self.assertEqual(len(alone), 1)  # the rerun of case 5: alone, once
+        self.assertEqual({c["name"]: c["status"] for c in self.cases_file()["cases"]}["case 5"], "passed")
+        self.assertEqual(self.cases_file()["rerun_passed"], ["case 5", "case 11"])
+
+    def test_a_case_that_fails_again_alone_fails_the_variant(self):
+        lines = []
+        res, _ = self.go(cases=many(12), fail_always=("case 4",), fail_in_shard=("case 9",), rv=dict(jobs=1), echo=lines.append)
+        self.assertFalse(res["ok"])
+        self.assertIn("1 integration case(s) failed, first: case 4", res["reason"])
+        i = res["integration"]
+        self.assertEqual((i["rerun_failed"], i["rerun_passed"], i["failed"]), (["case 4"], ["case 9"], 1))
+        self.assertTrue(any(l.startswith("WARNING: 1 case(s) passed only when rerun alone: case 9") for l in lines))
+
+    def test_the_reruns_run_one_after_the_other_and_not_during_each_other(self):
+        res, stub = self.go(cases=many(12), fail_in_shard=("case 2", "case 6", "case 10"), rv=dict(jobs=1), delay=0.002)
+        self.assertTrue(res["ok"], res.get("reason"))
+        calls = [c for c in stub.calls if str(c[0]).endswith(ig.EXE)]
+        shard_calls = [c for c in calls if "-ltc" not in c and any(a.startswith("--first=") for a in c)]
+        singles = [c for c in shard_calls if next(a for a in c if a.startswith("--first=")).split("=")[1]
+                   == next(a for a in c if a.startswith("--last=")).split("=")[1]]
+        order = [next(a for a in c if a.startswith("--first=")) for c in singles[-3:]]
+        self.assertEqual(order, ["--first=2", "--first=6", "--first=10"])
+
+    def test_a_dead_shard_leaves_its_cases_unrun_and_they_run_alone(self):
+        lines = []
+        res, stub = self.go(cases=many(12), die_in_shard=("case 5",), rv=dict(jobs=1), echo=lines.append)
+        self.assertTrue(res["ok"], res.get("reason"))
+        i = res["integration"]
+        # 12 cases, 4 shards of 3: the shard 4..6 died, its 3 cases ran alone
+        self.assertEqual(sorted(i["rerun_unrun_passed"]), ["case 4", "case 5", "case 6"])
+        self.assertEqual((i["rerun_failed"], i["rerun_passed"], i["cases"], i["failed"]), ([], [], 12, 0))
+        self.assertEqual(len(self.cases_file()["cases"]), 12)
+        self.assertTrue(any(l.startswith("WARNING: 3 case(s) passed only when rerun alone") for l in lines))
+
+
+    def test_a_case_that_crashes_alone_is_a_failure(self):
+        res, _ = self.go(cases=many(12), die_alone=("case 5",), die_in_shard=("case 5",), rv=dict(jobs=1))
+        self.assertFalse(res["ok"])
+        self.assertIn("1 integration case(s) failed, first: case 5", res["reason"])
+        self.assertEqual(res["integration"]["rerun_failed"], ["case 5"])
+        c = {c["name"]: c for c in self.cases_file()["cases"]}
+        self.assertEqual(c["case 5"]["status"], "failed")
+        self.assertEqual(c["case 4"]["status"], "passed")
+
+    def test_a_timeout_alone_is_a_timeout_failure(self):
+        class Timing(Stub):
+            def exe_call(self2, cmd):
+                if "--first=2" in cmd and "--last=2" in cmd:
+                    return 124, "[timeout]"
+                return Stub.exe_call(self2, cmd)
+        bd = ig.build_dir_for(self.root, "default")
+        stub = Timing(self.root, cases=many(4), fail_in_shard=("case 2",))
+        stub.write_build(bd, "default")
+        ig.record_reference(self.root, bd, "default")
+        res = ig.run_variant(self.root, "default", LIST_PATTERNS, self.evid, stub, jobs=1, echo=lambda l: None)
+        self.assertFalse(res["ok"])
+        self.assertIn("timed out", res["reason"])
+        self.assertEqual(res["integration"]["exe_rc"], 124)
+
+    def test_other_ways_to_fail(self):
+        def fails(text, **o):
+            res, _ = self.go(**o)
+            self.assertFalse(res["ok"], o)
+            self.assertIn(text, res["reason"], o)
+        fails("integration case(s) failed", int_rc=1)  # exit code the report does not explain: not trusted, rerun alone, fails again
+        fails("cannot list", list_rc=1)
+        fails("timed out", list_rc=124)
+        fails("zero test cases", cases=[Stub.case("x", "Firmware/Tests/Other/test_y.cpp", 1)], rv=dict(scope_files=[CD + "test_x.cpp"]))
+        fails("ctest failed", ctest_rc=8)
+        fails("check_baseline", baseline_rc=1)
+        fails("not found", make_exe=False)
+        fails("compile commands differ", cc_flag="-O3")
+        fails("warning(s) in WO files", build_text=warn(root=self.root))
+
+    def test_the_scope_runs_only_the_listed_case_files(self):
+        other = "Firmware/Tests/Integration_Tests/claude/cases/test_other.cpp"
+        cases = many(3) + [Stub.case("other %d" % i, other, i) for i in range(1, 4)]
+        res, stub = self.go(cases=cases, rv=dict(jobs=1, scope_files=[CD + "test_other.cpp"]))
+        self.assertTrue(res["ok"], res.get("reason"))
+        self.assertEqual(res["integration"]["scope"], [CD + "test_other.cpp"])
+        by = {c["name"]: c["status"] for c in self.cases_file()["cases"]}
+        self.assertEqual(sorted(n for n, st in by.items() if st != "skipped"), ["other 1", "other 2", "other 3"])
+        self.assertEqual([by["case %d" % k] for k in (1, 2, 3)], ["skipped"] * 3)  # not selected: skipped, as doctest reports them
+        self.assertEqual((res["integration"]["selected"], res["integration"]["passed"]), (3, 3))
+        self.assertEqual(self.cases_file()["scope"], [CD + "test_other.cpp"])
+        for c in self.exe_calls(stub):
+            self.assertIn("-sf=*cases?test_other.cpp", c)
+        self.assertIn("scope 1 case file(s)", ig.variant_summary("default", res))
+        res, stub = self.go(cases=cases)
+        self.assertEqual((res["integration"]["scope"], res["integration"]["cases"]), ("full", 6))
+        self.assertIn("scope full", ig.variant_summary("default", res))
+        self.assertFalse([a for c in self.exe_calls(stub) for a in c if a.startswith("-sf")])
+
+    def test_selected_cases_are_found_by_name_when_the_report_lists_unselected_ones_before_them(self):
+        # the XML report of a run names every registered case: positions of the list and of the report differ
+        other = "Firmware/Tests/Integration_Tests/claude/cases/test_a_first.cpp"
+        cases = [Stub.case("other %d" % i, other, i) for i in range(1, 6)] + many(6)
+        for jobs in (1, 3):
+            res, _ = self.go(cases=cases, rv=dict(jobs=jobs, scope_files=[CD + "test_x.cpp"]), die_in_shard=("case 4",))
+            self.assertTrue(res["ok"], res.get("reason"))
+            i = res["integration"]
+            self.assertEqual((i["selected"], i["passed"], i["skipped"], i["failed"]), (6, 6, 5, 0))
+            if jobs == 1:  # shards of 2 cases: the one with case 4 dies, its cases run alone
+                self.assertEqual(sorted(i["rerun_unrun_passed"]), ["case 3", "case 4"])
+        res, _ = self.go(variant="cov", cases=cases, rv=dict(scope_files=[CD + "test_x.cpp"]), fail_in_shard=("case 2",))
+        self.assertFalse(res["ok"])  # a failure of the full-order cov run stands
+        self.assertEqual(res["integration"]["cov_alone"], {"case 2": "passed"})  # index 2 of the selection, not of the report
+        self.assertEqual((res["integration"]["selected"], res["integration"]["skipped"]), (6, 5))
+
+    def test_the_cov_variant_runs_the_integration_executable_in_one_process(self):
+        res, stub = self.go(variant="cov", cases=many(12), rv=dict(jobs=10))
+        self.assertTrue(res["ok"], res.get("reason"))
+        calls = self.exe_calls(stub)
+        self.assertEqual(len(calls), 1)
+        self.assertFalse([a for a in calls[0] if a.startswith(("--first", "--last", "-ltc"))])
+        self.assertEqual((res["integration"]["shards"], res["integration"]["cases"]), (1, 12))
+        res, stub = self.go(variant="cov", cases=many(6), fail_in_shard=("case 2",))  # fails in the one process, passes alone
+        self.assertFalse(res["ok"])  # the rerun is only recorded: it cannot rescue a full-order run
+        self.assertIn("integration case(s) failed, first: case 2", res["reason"])
+        self.assertEqual((res["integration"]["cov_alone"], res["integration"]["rerun_passed"]), ({"case 2": "passed"}, []))
+        self.assertEqual(len(self.exe_calls(stub)), 2)
+        res, stub = self.go(variant="cov", cases=many(6), fail_always=("case 2",))
+        self.assertFalse(res["ok"])
+        self.assertEqual([c for c in self.exe_calls(stub) if "--first=2" in c and "--last=2" in c].__len__(), 1)  # rerun alone
+        self.assertNotIn("-ltc", " ".join(" ".join(c) for c in self.exe_calls(stub)))
+
+    def test_the_job_budget_is_never_exceeded(self):
+        for jobs in (1, 3, 10):
+            res, stub = self.go(cases=many(40), delay=0.004, rv=dict(jobs=jobs))
+            self.assertTrue(res["ok"], res.get("reason"))
+            self.assertLessEqual(stub.peak, jobs, jobs)
+            if jobs > 1:
+                self.assertGreater(stub.peak, 1)  # the shards and ctest really overlap
+
+    def test_the_build_uses_its_share_of_the_budget(self):
+        _, stub = self.go(rv=dict(jobs=6, build_jobs=3))
+        b = [c for c in stub.calls if c[0] == "cmake" and "--build" in c and "-j3" in c]
+        self.assertEqual(len(b), 1)
+        _, stub = self.go(rv=dict(jobs=4))
+        self.assertEqual(len([c for c in stub.calls if "-j4" in c]), 1)
+        _, stub = self.go(serial=True)
+        self.assertEqual(len([c for c in stub.calls if "-j%d" % (os.cpu_count() or 2) in c]), 1)
+
+    def test_serial_issues_the_old_command_sequence(self):
+        res, stub = self.go(serial=True)
+        self.assertTrue(res["ok"], res.get("reason"))
+        kinds = []
+        for c in stub.calls:
+            j = " ".join(map(str, c))
+            if c[0] == "cmake" and "-S" in c:
+                kinds.append("configure")
+            elif c[0] == "ctest" and "-N" in c:
+                kinds.append("ctest-list")
+            elif c[0] == "cmake" and "help" in c:
+                kinds.append("targets")
+            elif c[0] == "cmake":
+                kinds.append("build")
+            elif c[0] == "ctest":
+                kinds.append("ctest")
+            elif "check_baseline" in j:
+                kinds.append("baseline")
+            elif str(c[0]).endswith(ig.EXE):
+                kinds.append("exe " + " ".join(c[1:]))
+            elif "summarise_results" in j:
+                kinds.append("summary")
+            elif "-fsyntax-only" in c:
+                kinds.append("syntax")
+        self.assertEqual(kinds, ["configure", "ctest-list", "targets", "build", "syntax", "ctest", "baseline", "exe -r=xml", "summary"])
+        self.assertEqual(res["integration"]["mode"], "serial")
+        self.assertEqual(res["integration"]["scope"], "full")
+        self.assertEqual(res["integration"]["cases"], 5)  # from the summary script, as before
+
+    def test_a_crash_of_the_integration_run_does_not_hide_the_other_failures(self):
+        res, _ = self.go(ctest_rc=8, fail_always=("case 1",))
+        self.assertIn("ctest failed", res["reason"])
+        self.assertIn("integration case(s) failed", res["reason"])
+
+
+class IntegrationRunSafety(IntegrationRun):
+    """Fix round of I1-T3: cov failures, ctest command check, time sum, dead shards, sanitizer reports, signals."""
+
+    def test_ctest_command_mismatch_fails_the_variant(self):
+        bd = lambda: ig.build_dir_for(self.root, "default")  # noqa: E731
+        good = {"name": ig.EXE, "command": [os.path.join(bd(), ig.EXE)], "properties": []}
+        for label, test in (
+                ("arguments", dict(good, command=good["command"] + ["--abort-after=1"])),
+                ("executable", dict(good, command=["/elsewhere/" + ig.EXE])),
+                ("ENVIRONMENT", dict(good, properties=[{"name": "ENVIRONMENT", "value": ["X=1"]}])),
+                ("ENVIRONMENT_MODIFICATION", dict(good, properties=[{"name": "ENVIRONMENT_MODIFICATION", "value": ["X=set:1"]}]))):
+            res, stub = self.go(ctest_json=json.dumps({"tests": [test]}))
+            self.assertFalse(res["ok"], label)
+            self.assertIn("differs from the one the gate runs", res["reason"])
+            self.assertIn(label, res["reason"])
+            self.assertFalse(self.exe_calls(stub), label)  # nothing is run
+        res, _ = self.go(ctest_json="not json")
+        self.assertFalse(res["ok"])
+        res, _ = self.go(ctest_json=json.dumps({"tests": []}))
+        self.assertFalse(res["ok"])
+
+    def test_ctest_command_with_the_exclusion_list_matches(self):
+        res, _ = self.go(cache_override={"FFB_INTEGRATION_TESTS_EXCLUDE": "case 2"})
+        self.assertTrue(res["ok"], res.get("reason"))
+
+    def test_ctest_properties_the_gate_does_not_reproduce_are_a_mismatch(self):
+        bd = ig.build_dir_for(self.root, "default")
+        base = {"name": ig.EXE, "command": [os.path.join(bd, ig.EXE)]}
+        for prop in ("WILL_FAIL", "FAIL_REGULAR_EXPRESSION", "PASS_REGULAR_EXPRESSION", "SKIP_RETURN_CODE", "TIMEOUT", "DISABLED"):
+            res, stub = self.go(ctest_json=json.dumps({"tests": [dict(base, properties=[{"name": prop, "value": 1}])]}))
+            self.assertFalse(res["ok"], prop)
+            self.assertIn("the property %s" % prop, res["reason"])
+            self.assertIn("does not reproduce", res["reason"])
+            self.assertFalse(self.exe_calls(stub), prop)
+
+    def test_ctest_properties_the_gate_reproduces_are_allowed(self):
+        wd = os.path.join(self.tmp, "wd")
+        res, _ = self.go(ctest_props=[{"name": "WORKING_DIRECTORY", "value": wd},
+                                      {"name": "_BACKTRACE_TRIPLES", "value": [["/x/CMakeLists.txt", 1, "add_test"]]}])
+        self.assertTrue(res["ok"], res.get("reason"))
+
+    def test_the_wall_time_sum_counts_the_processes_and_not_the_wait_for_a_slot(self):
+        names = ("default", "m32", "san", "clang")
+        stubs, results = {}, {}
+        for v in names:
+            stub = Stub(self.root, cases=many(16), delay=0.01)
+            bd = ig.build_dir_for(self.root, v)
+            ref = Stub(self.root)
+            ref.write_build(bd, v)
+            ig.record_reference(self.root, bd, v)
+            stub.write_build(bd, v)
+            stubs[v] = stub
+        budget = ig.Budget(2)  # four variants and 8 shards each wait a lot for two slots
+
+        def work(v):
+            results[v] = ig.run_variant(self.root, v, LIST_PATTERNS, self.evid, stubs[v], jobs=2, budget=budget, echo=lambda l: None)
+        ts = [threading.Thread(target=work, args=(v,)) for v in names]
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join()
+        for v in names:
+            self.assertTrue(results[v]["ok"], results[v].get("reason"))
+            spent = sum(stubs[v].exe_times)
+            self.assertGreater(spent, 0.05)
+            got = results[v]["integration"]["wall_sum_s"]
+            # the waiting (about 4 x as long as the work with 4 variants on 2 slots) is not in the sum
+            self.assertLess(got, spent * 1.3 + 0.05, (v, got, spent))
+            self.assertGreaterEqual(got, spent * 0.9 - 0.01, (v, got, spent))
+
+    def test_the_working_directory_of_ctest_is_used_for_every_run(self):
+        wd = os.path.join(self.tmp, "wd")
+        res, stub = self.go(cases=many(6), rv=dict(jobs=1), ctest_props=[{"name": "WORKING_DIRECTORY", "value": wd}])
+        self.assertTrue(res["ok"], res.get("reason"))
+        runs = [cwd for c, cwd in zip(stub.calls, stub.cwds) if str(c[0]).endswith(ig.EXE)]
+        self.assertTrue(runs and all(c == wd for c in runs), runs)
+
+    def test_the_sum_of_the_wall_times_is_limited_and_recorded(self):
+        res, _ = self.go(cases=many(8), rv=dict(jobs=1))
+        self.assertTrue(res["ok"], res.get("reason"))
+        self.assertIn("wall_sum_s", res["integration"])
+        self.assertEqual(ig.INTEGRATION_SUM_LIMIT, 2400)
+        saved = ig.INTEGRATION_SUM_LIMIT
+        ig.INTEGRATION_SUM_LIMIT = 0.01
+        try:
+            res, _ = self.go(cases=many(8), delay=0.004, rv=dict(jobs=1))
+        finally:
+            ig.INTEGRATION_SUM_LIMIT = saved
+        self.assertFalse(res["ok"])
+        self.assertRegex(res["reason"], r"took [0-9]+ s in total .* over the limit of 0\.01 s")
+        self.assertGreater(res["integration"]["wall_sum_s"], 0.01)
+
+    def test_a_dead_shard_is_recorded_with_its_last_started_case_and_printed(self):
+        lines = []
+        res, _ = self.go(cases=many(12), die_in_shard=("case 5",), rv=dict(jobs=1), echo=lines.append)
+        self.assertTrue(res["ok"], res.get("reason"))
+        d = res["integration"]["dead_shards"]
+        self.assertEqual(len(d), 1)
+        self.assertEqual((d[0]["shard"], d[0]["first"], d[0]["last"], d[0]["rc"], d[0]["last_started"]), (2, 4, 6, 134, "case 5"))
+        self.assertTrue(d[0]["log"].endswith("default.integration.shard002.xml.log"))
+        self.assertTrue(any(l.startswith("WARNING: dead shard 2 (cases 4-6, rc 134, last started: case 5") for l in lines), lines)
+        self.assertIn("1 dead shard(s)", ig.variant_summary("default", res))
+
+    def test_a_sanitizer_report_kills_a_shard_even_when_a_failed_case_explains_rc_1(self):
+        res, _ = self.go(cases=many(12), sanitizer_in_shard=("case 5",), fail_in_shard=("case 4",), rv=dict(jobs=1))
+        self.assertTrue(res["ok"], res.get("reason"))
+        i = res["integration"]
+        self.assertEqual(len(i["dead_shards"]), 1)
+        self.assertIn("sanitizer", i["dead_shards"][0]["reason"])
+        self.assertEqual(sorted(i["rerun_unrun_passed"]), ["case 4", "case 5", "case 6"])  # nothing of the shard is trusted
+
+    def test_a_sanitizer_report_of_a_case_alone_is_a_failure(self):
+        res, _ = self.go(cases=many(12), sanitizer_in=("case 5",), rv=dict(jobs=1))
+        self.assertFalse(res["ok"])
+        self.assertIn("integration case(s) failed", res["reason"])
+        self.assertIn("case 5", res["integration"]["rerun_failed"])
+        note = {c["name"]: c.get("note", "") for c in self.cases_file()["cases"]}["case 5"]
+        self.assertIn("sanitizer", note)
+
+    def test_all_sanitizer_markers_are_recognised(self):
+        for t in ("ERROR: AddressSanitizer: x", "ERROR: LeakSanitizer: y", "ERROR: ThreadSanitizer: z", "a.cpp:1:2: runtime error: signed overflow"):
+            self.assertTrue(ig.SANITIZER_REPORT.search(t), t)
+        self.assertFalse(ig.SANITIZER_REPORT.search("no problem, runtime errors are fine"))
+
+    # a signal after a complete report: rc < 0 with the later cases of the range missing (skipped)
+    def test_a_shard_killed_by_a_signal_is_dead_and_nothing_of_it_is_trusted(self):
+        res, _ = self.go(cases=many(12), neg_rc_after={"case 5": -11}, rv=dict(jobs=1))
+        self.assertTrue(res["ok"], res.get("reason"))
+        i = res["integration"]
+        self.assertEqual([(d["shard"], d["rc"]) for d in i["dead_shards"]], [(2, -11)])
+        # the case before the crash (case 4) and the ones after it (case 6) all ran alone; case 5 too
+        self.assertEqual(sorted(i["rerun_unrun_passed"]), ["case 4", "case 5", "case 6"])
+        by = {c["name"]: c["status"] for c in self.cases_file()["cases"]}
+        self.assertEqual(set(by.values()), {"passed"})  # the skipped-looking later cases are not results
+
+    def test_a_signal_with_a_failed_case_in_the_shard_does_not_make_the_shard_trusted(self):
+        res, _ = self.go(cases=many(12), neg_rc_after={"case 6": -11}, fail_in_shard=("case 4",), rv=dict(jobs=1))
+        self.assertTrue(res["ok"], res.get("reason"))
+        i = res["integration"]
+        self.assertEqual([d["rc"] for d in i["dead_shards"]], [-11])
+        self.assertEqual(i["rerun_passed"], [])  # the failed case died with its shard: it is unrun, not "failed in a shard"
+        self.assertEqual(sorted(i["rerun_unrun_passed"]), ["case 4", "case 5", "case 6"])
+
+    def test_the_cov_run_killed_by_a_signal_fails_and_nothing_is_rerun(self):
+        for opts in (dict(neg_rc_after={"case 3": -11}), dict(neg_rc_after={"case 3": -11}, fail_in_shard=("case 2",))):
+            res, stub = self.go(variant="cov", cases=many(6), **opts)
+            self.assertFalse(res["ok"], opts)
+            self.assertIn("not usable", res["reason"])
+            self.assertEqual(len(self.exe_calls(stub)), 1, opts)
+
+    def test_a_skipped_looking_element_of_a_selected_case_is_never_a_result(self):
+        # rc 0 and a complete report in which a selected case is skipped="true": the case is unrun and runs alone
+        class Odd(Stub):
+            def exe_call(self2, cmd):
+                rc, text = Stub.exe_call(self2, cmd)
+                if "--first=1" in cmd:
+                    text = re.sub(r'(<TestCase name="case 2"[^>]*?)>.*?</TestCase>', r'\1 skipped="true"/>', text, count=1)
+                return rc, text
+        bd = ig.build_dir_for(self.root, "default")
+        stub = Odd(self.root, cases=many(6))
+        stub.write_build(bd, "default")
+        ig.record_reference(self.root, bd, "default")
+        res = ig.run_variant(self.root, "default", LIST_PATTERNS, self.evid, stub, jobs=1, echo=lambda l: None)
+        self.assertTrue(res["ok"], res.get("reason"))
+        self.assertEqual(res["integration"]["rerun_unrun_passed"], ["case 2"])
+        self.assertEqual(res["integration"]["skipped"], 0)
+
+
+class GateScope(unittest.TestCase):
+    CASE = CD + "test_a.cpp"
+
+    def test_only_an_isolated_run_uses_the_subset(self):
+        self.assertIsNone(ig.gate_scope([self.CASE], [self.CASE], False, False))
+        self.assertEqual(ig.gate_scope([self.CASE], [self.CASE], False, True), [self.CASE])
+
+    def test_every_changed_non_document_file_must_be_a_case_file_directly_in_the_cases_directory(self):
+        docs = ["Tests/Integration_Tests/claude/plans/PROGRESS.md"]
+        self.assertEqual(ig.gate_scope([self.CASE, docs[0]], [self.CASE] + docs, False, True), [self.CASE])
+        for other in ("Firmware/Tests/Integration_Tests/support/x.h", CD + "sub/test_b.cpp", CD + "helper.cpp", CD + "test_b.h",
+                      "Firmware/Tests/Integration_Tests/integration.cmake"):
+            self.assertIsNone(ig.gate_scope([self.CASE], [self.CASE, other], False, True), other)
+
+    def test_a_run_without_a_changed_file_or_with_a_non_case_list_or_full_runs_everything(self):
+        self.assertIsNone(ig.gate_scope([self.CASE], [], False, True))
+        self.assertIsNone(ig.gate_scope([self.CASE, "Firmware/Tests/Integration_Tests/support/x.h"], [self.CASE], False, True))
+        self.assertIsNone(ig.gate_scope([self.CASE], [self.CASE], True, True))
+
+    def test_the_aggregate_warning_names_every_variant_with_reruns_or_dead_shards(self):
+        self.assertIsNone(ig.aggregate_warning({"default": {"integration": {"rerun_passed": [], "dead_shards": []}}, "m32": {}}))
+        w = ig.aggregate_warning({"default": {"integration": {"rerun_passed": ["a"], "rerun_unrun_passed": ["b"], "dead_shards": []}},
+                                  "m32": {"integration": {"dead_shards": [{}]}}, "san": {"integration": {}}})
+        self.assertTrue(w.startswith("WARNING: default: 2 case(s) passed only when rerun alone, 0 dead shard(s); m32: 0 case(s)"))
+        self.assertNotIn("san:", w)
+
+
+
+class MainParallel(MainLogic):
+    """main() in the parallel mode (the MainLogic fixtures)."""
+
+    def lines_of(self, out):
+        return out.strip().splitlines()
+
+    def test_jobs_above_ten_or_below_one_are_refused(self):
+        for n in ("11", "100", "0", "-1"):
+            rc, last, _ = self.run_main(["--variants", "default,m32", "--jobs", n])
+            self.assertEqual(rc, 1, n)
+            self.assertTrue(last.startswith("GATE FAIL --jobs must be between 1 and 10"), last)
+        rc, last, _ = self.run_main(["--variants", "default,m32", "--jobs", "10"])
+        self.assertEqual(rc, 0, last)
+
+    def test_the_variants_run_at_the_same_time_within_the_job_budget(self):
+        stub = Stub(self.root, delay=0.004, cases=many(30))
+        import io
+        import contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = ig.main(["--root", self.root, "--wo", "T-1", "--variants", "default,m32", "--jobs", "6"], runner=stub)
+        self.assertEqual(rc, 0, buf.getvalue())
+        self.assertLessEqual(stub.peak, 6)
+        self.assertGreater(stub.peak, 2)
+        builds = [c for c in stub.calls if c[0] == "cmake" and "--build" in c and "help" not in c]
+        self.assertEqual(sorted(c[-1] for c in builds), ["-j3", "-j3"])  # 6 jobs // 2 variants
+        self.assertEqual(self.latest()["jobs"], 6)
+
+    def test_the_output_of_each_variant_stays_together(self):
+        stub = Stub(self.root, delay=0.003, cases=many(20), fail_in_shard=("case 3",))
+        import io
+        import contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = ig.main(["--root", self.root, "--wo", "T-1", "--variants", "default,m32", "--jobs", "2"], runner=stub)
+        lines = buf.getvalue().strip().splitlines()
+        self.assertEqual(rc, 0, buf.getvalue())
+        for v in ("default", "m32"):
+            i = next(k for k, l in enumerate(lines) if l.startswith("== variant %s " % v))
+            j = next(k for k, l in enumerate(lines) if l.startswith("   %s: OK" % v))
+            between = lines[i + 1:j]
+            self.assertTrue(all(l.startswith("WARNING:") and "variant %s" % v in l for l in between), (v, between))
+        self.assertTrue(lines[-1].startswith("GATE PASS "))
+
+    def test_a_rerun_passed_case_passes_the_gate_and_is_in_the_evidence_and_the_output(self):
+        stub = Stub(self.root, cases=many(12), fail_in_shard=("case 5",))
+        import io
+        import contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = ig.main(["--root", self.root, "--wo", "T-1", "--variants", "default,m32", "--jobs", "1"], runner=stub)
+        out = buf.getvalue()
+        self.assertEqual(rc, 0, out)
+        self.assertTrue(out.strip().splitlines()[-1].startswith("GATE PASS "))
+        self.assertIn("WARNING: 1 case(s) passed only when rerun alone: case 5 (variant default)", out)
+        ev = self.latest()
+        self.assertEqual(ev["rerun_passed"], {"default": ["case 5"], "m32": ["case 5"]})
+        self.assertEqual(ev["rerun_failed"], {})
+
+    def test_evidence_fields_of_both_modes(self):
+        rc, last, _ = self.run_main(["--variants", "default,m32"])
+        self.assertEqual(rc, 0, last)
+        ev = self.latest()
+        # the WO list of T-1 is the glob cases/*.cpp plus integration.cmake: not provably only case files -> full
+        self.assertEqual((ev["integration_scope"], ev["serial"], ev["jobs"]), ("full", False, 10))
+        self.assertEqual(ev["variants"]["default"]["integration"]["mode"], "parallel")
+        rc, last, _ = self.run_main(["--variants", "default,m32", "--serial"])
+        self.assertEqual(rc, 0, last)
+        ev = self.latest()
+        self.assertEqual((ev["integration_scope"], ev["serial"], ev["jobs"]), ("full", True, None))
+        self.assertEqual(ev["variants"]["m32"]["integration"]["mode"], "serial")
+
+    def test_a_wo_of_case_files_runs_only_their_cases_and_records_the_scope(self):
+        self.write("Tests/Integration_Tests/claude/charters/wo/T-1.files", CASE_REL + "\nTests/Integration_Tests/claude/plans/PROGRESS.md\n")
+        other = "Firmware/Tests/Integration_Tests/claude/cases/test_other.cpp"
+        cases = many(3) + [Stub.case("other %d" % i, other, i) for i in range(1, 4)]
+        stub = Stub(self.root, cases=cases)
+        import io
+        import contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = ig.main(["--root", self.root, "--wo", "T-1", "--variants", "default,m32", "--isolated"], runner=stub)
+        out = buf.getvalue()
+        self.assertEqual(rc, 0, out)
+        ev = self.latest()
+        self.assertEqual(ev["integration_scope"], [CASE_REL])
+        i = ev["variants"]["default"]["integration"]
+        self.assertEqual((i["selected"], i["passed"], i["skipped"]), (3, 3, 3))
+        self.assertIn("scope 1 case file(s)", out)
+        for c in [c for c in stub.calls if str(c[0]).endswith(ig.EXE)]:
+            self.assertIn("-sf=*cases?test_x.cpp", c)
+        # --full and --serial run every case
+        for extra in (["--full"], ["--serial"]):
+            for v in ig.FULL_VARIANTS:
+                s = Stub(self.root)
+                bd = ig.build_dir_for(self.root, v)
+                s.write_build(bd, v)
+                ig.record_reference(self.root, bd, v)
+            stub = Stub(self.root, cases=cases)
+            with contextlib.redirect_stdout(io.StringIO()):
+                ig.main(["--root", self.root, "--wo", "T-1", "--variants", "default,m32"] + extra, runner=stub)
+            self.assertEqual(self.latest()["integration_scope"], "full", extra)
+            if extra == ["--full"]:
+                self.assertEqual(self.latest()["variants"]["default"]["integration"]["cases"], 6, extra)
+
+    def test_a_non_isolated_run_never_uses_the_subset_and_the_aggregate_warning_precedes_the_last_line(self):
+        self.write("Tests/Integration_Tests/claude/charters/wo/T-1.files", CASE_REL + "\n")
+        stub = Stub(self.root, cases=many(12), fail_in_shard=("case 5",))
+        import io
+        import contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = ig.main(["--root", self.root, "--wo", "T-1", "--variants", "default,m32", "--jobs", "1"], runner=stub)
+        lines = buf.getvalue().strip().splitlines()
+        self.assertEqual(rc, 0, buf.getvalue())
+        self.assertEqual(self.latest()["integration_scope"], "full")  # not --isolated: HEAD plus working tree is not provably the WO
+        self.assertTrue(lines[-1].startswith("GATE PASS "))
+        self.assertTrue(lines[-2].startswith("WARNING: default: 1 case(s) passed only when rerun alone, 0 dead shard(s); m32: 1 case(s)"), lines[-2])
+
+    def test_an_isolated_run_with_a_changed_support_file_runs_every_case(self):
+        self.write("Tests/Integration_Tests/claude/charters/wo/T-1.files", CASE_REL + "\nFirmware/Tests/Integration_Tests/integration.cmake\n")
+        self.write("Firmware/Tests/Integration_Tests/integration.cmake", "changed\n")
+        stub = Stub(self.root, cases=many(3))
+        import io
+        import contextlib
+        with contextlib.redirect_stdout(io.StringIO()) as buf:
+            rc = ig.main(["--root", self.root, "--wo", "T-1", "--variants", "default,m32", "--isolated"], runner=stub)
+        self.assertEqual(rc, 0, buf.getvalue())
+        self.assertEqual(self.latest()["integration_scope"], "full")
+        self.assertFalse([a for c in stub.calls for a in c if str(a).startswith("-sf")])
+
+
+    def test_serial_variants_run_one_after_another(self):
+        rc, last, out = self.run_main(["--variants", "default,m32", "--serial"], delay=0.002)
+        self.assertEqual(rc, 0, out)
+        lines = out.splitlines()
+        h = [i for i, l in enumerate(lines) if l.startswith("== variant ")]
+        self.assertEqual(len(h), 2)
+        self.assertTrue(lines[h[0] + 1].startswith("   default: OK"))  # the summary comes before the next variant starts
+        self.assertNotIn("in parallel", out)
+
+
+for _name in dir(MainLogic):  # MainParallel only reuses the fixtures of MainLogic: its inherited tests are not run twice
+    if _name.startswith("test_") and _name not in MainParallel.__dict__:
+        setattr(MainParallel, _name, None)
 
 
 if __name__ == "__main__":

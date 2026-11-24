@@ -1,0 +1,4 @@
+# Files of WO I1-T3 (read by it_gate.py): faster gate (one integration run, WO-scoped cases, parallel shards and variants)
+Firmware/Tests/Integration_Tests/tools/it_gate.py
+Firmware/Tests/Integration_Tests/tools/test_it_gate.py
+Firmware/Tests/README.md

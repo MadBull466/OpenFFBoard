@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Gate of the OpenFFBoard integration track (Tests/Integration_Tests/claude/plans/AGENT_PLAN.md sections 2.3 and 2.4).
 
-  python3 -B Firmware/Tests/Integration_Tests/tools/it_gate.py --wo <ID> [--variants default,m32] [--full] [--own-build | --isolated] [--files <path>]
+  python3 -B Firmware/Tests/Integration_Tests/tools/it_gate.py --wo <ID> [--variants default,m32] [--full] [--own-build | --isolated] [--files <path>] [--serial] [--jobs N]
   python3 -B Firmware/Tests/Integration_Tests/tools/it_gate.py --record-compile-reference <build dir> --variant <name>
 
 Per variant (build directory ../ffb-test-build/it-<variant>, outside the repository; with --own-build
@@ -9,9 +9,9 @@ Per variant (build directory ../ffb-test-build/it-<variant>, outside the reposit
 shared folders (an existing build folder whose CMAKE_HOME_DIRECTORY is not this repository's Firmware/Tests is deleted and
 configured fresh, with a note in the run log); the compile reference of it-gate/ is the same for both layouts, the build directory is normalised away):
   1. configure (if there is no CMakeCache.txt) and build; a compiler or CMake warning in a file of the WO's file list fails;
-  2. ctest --output-on-failure;
+  2. ctest --output-on-failure (without the ffb_integration_tests entry, see below; ctest must still register it);
   3. Code_Coverage/tools/check_baseline.py --build-dir <dir>;
-  4. ffb_integration_tests -r=xml, summarised by Code_Coverage/tools/summarise_results.py;
+  4. ffb_integration_tests, once (see "Speed"); its per-case results go to <variant>.integration.cases.json;
   5. the compile commands of every target other than ffb_integration_tests equal the recorded reference
      (../ffb-test-build/it-gate/compile_reference-<variant>.json).
 --isolated (the lead's final gate before a commit): the build uses a source tree outside the repository,
@@ -39,12 +39,26 @@ Evidence: ../ffb-test-build/it-gate/<WO>/<UTC timestamp>.json and latest.json, i
 (`files` = git blob of every changed or untracked file under Firmware/ that is in the WO list, `fingerprint`;
 plus `own_build`, `isolated`, `source_root`, `other_active` and `other_active_blobs` (git blob of each other_active path,
 so a later gate can see that another WO's file changed during a run)).
+Speed (tool WO I1-T3): the variants run at the same time and never use more than --jobs (default and maximum 10)
+compile jobs plus test processes in all (the builds share the budget with -j jobs // variants, ctest and check_baseline take
+one slot each, the rest runs the shards). ffb_integration_tests runs once per variant, with the exclusion list of ctest
+(integration_excludes): `-ltc` lists the cases, then shards `--order-by=file --first=a --last=b` of the same executable run in
+parallel (index ranges of that list: no escaping of commas or doctest wildcards in case names, every case in exactly one
+shard). A failed case, and a case that a dead shard (abort, sanitizer, timeout) left unrun, runs alone, one after the other:
+failing again = failure; passing alone = the gate passes with `rerun_passed` in the evidence and a WARNING line (the lead
+looks at it before a commit). The cov variant is never sharded (one process, one writer of the coverage files). A WO whose
+file list holds, besides documents, only integration case files (Firmware/Tests/Integration_Tests/claude/cases/test_*.cpp)
+runs only those files' cases (doctest -sf); any other code file, a list without a case file and --full run every case
+(`integration_scope` in the evidence). --serial keeps the old sequence: variants one after another, the full ctest, then the
+executable again for its XML summary; it writes the cases file too. The per-case file lists name, file, line, status and
+assertion counts of every case that ran; the old run and the new run must give the same file.
 The last line printed is `GATE PASS <evidence path>` or `GATE FAIL <reason>`; exit status 0 / 1.
 
 Python standard library only (plus .claude/hooks/guard_lib.py of this repository).
 """
 
 import argparse
+import contextlib
 import datetime
 import io
 import fnmatch
@@ -56,6 +70,10 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import threading
+import time
+import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
 
 sys.dont_write_bytecode = True
 
@@ -72,8 +90,16 @@ CTEST_TIMEOUT = 600  # seconds per ctest entry (the HAL tests use 600 in sanitiz
 CTEST_TOTAL_TIMEOUT = 3600
 BASELINE_TIMEOUT = 900
 INTEGRATION_TIMEOUT = 600
+# Limit for the SUM of the process times of all shards, alone reruns and the cov run of one variant (the wait for a budget slot
+# is not counted). Measured under the 10-job budget with two variants (I1-T3): 569 s (default) and 657 s (m32), because shard
+# processes run 2-3 times slower when ten share the machine (one process on an idle core needed 389 s for the whole suite).
+# 2400 s leaves about 3.5x headroom (lead's decision); the 600 s per process above stays as the hang guard.
+INTEGRATION_SUM_LIMIT = 2400
 SOURCE_SUFFIXES = (".c", ".cc", ".cpp", ".cxx")
 SOURCE_DIR = "Firmware/Tests"
+MAX_JOBS = 10  # owner's limit: compile jobs + test processes at once, in total
+SHARD_FACTOR = 4  # shards per job slot (more shards than slots balances the load; a dead shard loses few cases)
+CASE_DIR = "Firmware/Tests/Integration_Tests/claude/cases/"
 COV_FLAGS = "--coverage"  # coverage recipe (cc-cov): CMAKE_C_FLAGS / CMAKE_CXX_FLAGS / CMAKE_EXE_LINKER_FLAGS = --coverage
 
 BASE_VARIANTS = ("default", "m32")
@@ -429,7 +455,8 @@ def scope_check(root, patterns, block_reason=None, status_raw=None, active=None,
 
 
 def make_evidence(root, wo, variants, scope, git_head, result, now=None, requested=None, files_path=None, patterns=None,
-                  own_build=False, isolated=False, source_root=None, docs_overlaid=None):
+                  own_build=False, isolated=False, source_root=None, docs_overlaid=None, integration_scope=None, serial=False,
+                  jobs=None):
     """The evidence dict in the format guard_lib.load_evidence / fingerprint expect."""
     files = {rel: guard_lib.blob_of_file(root, rel) for rel in scope.get("changed", [])}
     return {
@@ -450,6 +477,14 @@ def make_evidence(root, wo, variants, scope, git_head, result, now=None, request
         "source_root": source_root or root,
         "other_active": list(scope.get("other_active", [])),
         "other_active_blobs": {rel: guard_lib.blob_of_file(root, rel) for rel in scope.get("other_active_paths", [])},
+        "integration_scope": "full" if integration_scope is None else list(integration_scope),
+        "serial": bool(serial),
+        "jobs": jobs,
+        "dead_shards": {v: r["integration"]["dead_shards"] for v, r in variants.items() if r.get("integration", {}).get("dead_shards")},
+        "rerun_failed": {v: r["integration"]["rerun_failed"] for v, r in variants.items() if r.get("integration", {}).get("rerun_failed")},
+        "rerun_passed": {v: r["integration"]["rerun_passed"] + r["integration"].get("rerun_unrun_passed", [])
+                         for v, r in variants.items()
+                         if r.get("integration", {}).get("rerun_passed") or r.get("integration", {}).get("rerun_unrun_passed")},
     }
 
 
@@ -492,6 +527,393 @@ def integration_excludes(cache):
     if cache.get("FFB_TESTS_32BIT", "OFF").upper() in ("ON", "1", "TRUE", "YES"):
         names += [x for x in cache.get("FFB_INTEGRATION_TESTS_EXCLUDE_32BIT", "").split(";") if x]
     return names
+
+
+# ------------------------------------------------------------------ scope, per-case results, shards (unit-tested)
+
+def is_case_pattern(p):
+    """True when the WO-list pattern can only match integration case files: a path (a glob allowed in the file name only)
+    `Firmware/Tests/Integration_Tests/claude/cases/test_*.cpp`. A character class ([) cannot be turned into a doctest
+    file filter, so it does not count."""
+    if not p.startswith(CASE_DIR):
+        return False
+    rest = p[len(CASE_DIR):]
+    return bool(rest) and "/" not in rest and rest.startswith("test_") and rest.endswith(".cpp") and "[" not in rest
+
+
+def is_document(p):
+    """True for a path that holds no code: below the repository's Tests/ (plans, reports, charters), or a .md file."""
+    if p[:1] in "*?[":
+        return False
+    return p.startswith("Tests/") or p.endswith(".md") or p in ("AGENTS.md", "CLAUDE.md")
+
+
+def integration_scope(patterns, full=False):
+    """None = run every integration case; else the list of case-file patterns of the WO. The subset is used only when every
+    entry of the WO file list that is not a document is an integration case file; --full, any other code file (support,
+    fakes, integration.cmake, CMakeLists.txt, tools, anything under Code_Coverage/) and a list without a case file mean
+    the full run."""
+    if full:
+        return None
+    cases = []
+    for p in patterns:
+        if is_case_pattern(p):
+            cases.append(p)
+        elif not is_document(p):
+            return None
+    return cases or None
+
+
+def gate_scope(patterns, changed, full=False, isolated=False):
+    """The case-file subset of a gate run, or None (every case). Only an --isolated run (the tree is exactly HEAD plus
+    the WO's files) may use it, and only when integration_scope() allows it by the file list and every changed non-document
+    file of the WO (`changed`, the scope check's list) is directly in the cases directory and named test_*.cpp; a WO with
+    no changed file runs everything."""
+    if not isolated:
+        return None
+    base = integration_scope(patterns, full)
+    if base is None:
+        return None
+    code = [c for c in changed if not is_document(c)]
+    if not code:
+        return None
+    for c in code:
+        rest = c[len(CASE_DIR):] if c.startswith(CASE_DIR) else None
+        if rest is None or "/" in rest or not (rest.startswith("test_") and rest.endswith(".cpp")):
+            return None
+    return base
+
+
+def aggregate_warning(variants):
+    """One WARNING line for every variant that has cases that passed only when rerun alone or dead shards, or None."""
+    parts = []
+    for v, r in variants.items():
+        i = r.get("integration") or {}
+        n = len(i.get("rerun_passed") or []) + len(i.get("rerun_unrun_passed") or [])
+        d = len(i.get("dead_shards") or [])
+        if n or d:
+            parts.append("%s: %d case(s) passed only when rerun alone, %d dead shard(s)" % (v, n, d))
+    return ("WARNING: " + "; ".join(parts) + " (the lead looks at every one before a commit)") if parts else None
+
+
+def scope_filters(case_patterns):
+    """doctest -sf file patterns of the case files (`?` stands for the path separator, so only the cases directory matches)."""
+    return ["*cases?" + p[len(CASE_DIR):] for p in case_patterns]
+
+
+def partition(n, parts):
+    """Contiguous 1-based inclusive ranges (first, last) that cover 1..n exactly once, at most `parts` of them."""
+    if n <= 0:
+        return []
+    parts = max(1, min(parts, n))
+    base, extra = divmod(n, parts)
+    out, a = [], 1
+    for i in range(parts):
+        size = base + (1 if i < extra else 0)
+        out.append((a, a + size - 1))
+        a += size
+    return out
+
+
+def short_file(path):
+    path = (path or "").replace("\\", "/")
+    i = path.find("Firmware/")
+    return path[i:] if i >= 0 else path.rsplit("/", 1)[-1]
+
+
+def parse_cases_xml(text):
+    """[{name, file, line, status, asserts_passed, asserts_failed}] of the TestCase elements of a doctest XML report (or
+    list) in document order, or None when there is no complete report (the run died). The status is the one
+    summarise_results.py gives: skipped / failed / known (failed as expected, test_case_success true) / passed."""
+    a = text.find("<?xml")
+    if a < 0:
+        a = text.find("<doctest")
+    b = text.rfind("</doctest>")
+    if a < 0 or b < 0:
+        return None
+    try:
+        root = ET.fromstring(text[a:b + len("</doctest>")])
+    except ET.ParseError:
+        return None
+    out = []
+    for tc in root.iter("TestCase"):
+        own = tc.find("OverallResultsAsserts")
+        failures = int(own.get("failures", "0")) if own is not None else 0
+        passed = int(own.get("successes", "0")) if own is not None else 0
+        ok = own is None or own.get("test_case_success") == "true"
+        if tc.get("skipped") == "true":
+            status = "skipped"
+        elif not ok:
+            status = "failed"
+        elif failures:
+            status = "known"
+        else:
+            status = "passed"
+        out.append({"name": tc.get("name", ""), "file": short_file(tc.get("filename", "")), "line": int(tc.get("line", "0") or 0),
+                    "status": status, "asserts_passed": passed, "asserts_failed": failures})
+    return out
+
+
+def case_key(c):
+    return (c["name"], c["file"], c["line"])
+
+
+def case_counts(cases):
+    """(cases, passed, failed, skipped, known) of a case list, counted like summarise_results.py."""
+    n = {"passed": 0, "failed": 0, "skipped": 0, "known": 0}
+    for c in cases:
+        n[c["status"]] += 1
+    return len(cases), n["passed"], n["failed"], n["skipped"], n["known"]
+
+
+def summary_text(cases):
+    n, p, f, s, k = case_counts(cases)
+    ap = sum(c["asserts_passed"] for c in cases)
+    af = sum(c["asserts_failed"] for c in cases)
+    lines = ["Format: xml (merged by it_gate.py)", "Test cases: %d  passed: %d  failed: %d  skipped: %d  known issue: %d" % (n, p, f, s, k),
+             "Assertions: %d  passed: %d  failed: %d (including the failed-as-expected ones of the known issues)" % (ap + af, ap, af)]
+    failed = [c for c in cases if c["status"] == "failed"]
+    if failed:
+        lines.append("Failed test cases (%d):" % len(failed))
+        lines += ["  %s%s" % (c["name"], "  (%s)" % c["note"] if c.get("note") else "") for c in failed]
+    return "\n".join(lines) + "\n"
+
+
+def write_cases_file(path, variant, scope, cases, extra=None):
+    """<variant>.integration.cases.json: every case that ran, sorted by (file, line, name), with its status and assertion counts."""
+    data = {"variant": variant, "scope": "full" if scope is None else list(scope), "count": len(cases),
+            "cases": sorted(cases, key=lambda c: (c["file"], c["line"], c["name"]))}
+    data.update(extra or {})
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=1, sort_keys=True)
+
+
+class Budget:
+    """The job budget: at most `total` weight at once, in first-come order (a wide request, a build with -j k, is not starved
+    by single test processes). Every subprocess of a variant run holds its weight while it runs."""
+
+    def __init__(self, total):
+        self.total, self.free, self.peak = total, total, 0
+        self._cond, self._queue = threading.Condition(), []
+
+    @contextlib.contextmanager
+    def hold(self, n=1):
+        n = max(1, min(n, self.total))
+        ticket = object()
+        with self._cond:
+            self._queue.append(ticket)
+            while not (self._queue[0] is ticket and self.free >= n):
+                self._cond.wait()
+            self._queue.pop(0)
+            self.free -= n
+            self.peak = max(self.peak, self.total - self.free)
+            self._cond.notify_all()
+        try:
+            yield
+        finally:
+            with self._cond:
+                self.free += n
+                self._cond.notify_all()
+
+
+SANITIZER_REPORT = re.compile(r"ERROR: (?:AddressSanitizer|LeakSanitizer|ThreadSanitizer)|runtime error:")
+_STARTED = re.compile(r"<TestCase\s+([^>]*?)(/?)>")
+
+
+def last_started_case(text):
+    """Name of the last test case a (truncated) XML report shows as started (not skipped), or None."""
+    name = None
+    for m in _STARTED.finditer(text or ""):
+        if 'skipped="true"' in m.group(1):
+            continue
+        n = re.search(r'name="([^"]*)"', m.group(1))
+        if n:
+            name = (n.group(1).replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"').replace("&apos;", "'")
+                    .replace("&amp;", "&"))
+    return name
+
+
+def run_integration(job, exe, excl, scope_files, logs, slots, unsharded=False, timeout=None, cwd=None, sum_limit=None):
+    """The one run of ffb_integration_tests of a variant, split into shards of the same executable.
+
+    Shard method: doctest `--order-by=file --first=a --last=b` over the case list that `-ltc` prints with the same filters
+    (-sf of the WO's case files, --test-case-exclude of ctest). The ranges are indices into that list, so a case name with
+    a comma or a doctest wildcard (`*`, `?`) needs no escaping, every case is in exactly one shard, and the same index
+    runs one case alone. unsharded (the cov variant) = one process for the whole selection, no list run.
+    A doctest XML report names every registered case: a case that was not selected (filter, exclusion, doctest::skip(),
+    another shard's range) is `skipped="true"` in it; the cases of the result are the selected ones with their result plus
+    those skipped ones (as the old summary counted them). A shard is dead (its results are not used) when its report is
+    incomplete, its exit code is not 0 (or 1 explained by a failed case), or its output holds a sanitizer report. A failed
+    case and the cases of a dead shard are run alone, one after the other; a case that fails or dies alone, or whose output
+    has a sanitizer report, is a failure. In an unsharded run a failed case is a failure whatever its rerun says (the
+    rerun is only recorded in cov_alone). The sum of the wall times of all shards and reruns must stay within `sum_limit`.
+    `job(cmd, log, timeout=, cwd=, on_done=)` runs one test process (it holds the job budget). Returns a dict: cases, selected,
+    problems, shards, rerun_failed, rerun_passed (failed in a shard, passed alone), rerun_unrun_passed, dead_shards,
+    cov_alone, wall_sum, exe_rc."""
+    base = [exe, "-r=xml", "--order-by=file"]
+    if scope_files:
+        base.append("-sf=" + ",".join(scope_filters(scope_files)))
+    if excl:
+        base.append("--test-case-exclude=" + ",".join(excl))
+    out = {"cases": [], "selected": 0, "problems": [], "shards": 0, "rerun_failed": [], "rerun_passed": [],
+           "rerun_unrun_passed": [], "dead_shards": [], "cov_alone": {}, "wall_sum": 0.0, "exe_rc": 0}
+    others = {}  # key -> case of the registered cases that were not selected (from any complete report)
+    clock = threading.Lock()
+
+    def add_time(d):
+        with clock:
+            out["wall_sum"] += d
+
+    def run(cmd, log, timed=True):
+        kw = {"timeout": timeout}
+        if cwd is not None:
+            kw["cwd"] = cwd
+        if timed:
+            kw["on_done"] = add_time  # called by job() with the time of the process itself, not of the wait for a slot
+        return job(cmd, log, **kw)
+
+    def bad(msg, rc=1):
+        out["problems"].append(msg)
+        out["exe_rc"] = rc
+        return out
+
+    def clean(rc, cases):
+        """rc 0, or rc 1 explained by a failed case; anything else (abort, signal, sanitizer exit code) is not trusted."""
+        return rc == 0 or (rc == 1 and any(c["status"] == "failed" for c in cases))
+
+    def take(rc, text, a, b, entries):
+        """({index: case} of the selected cases a..b of a run, why the run is dead or None). Only a complete report with an
+        explained exit code and no sanitizer report is used."""
+        if SANITIZER_REPORT.search(text or ""):
+            return {}, "sanitizer report in the output (rc %s)" % rc
+        cases = parse_cases_xml(text)
+        if cases is None:
+            return {}, "no complete report (rc %s%s)" % (rc, ", timed out" if rc == 124 else "")
+        if not clean(rc, cases):
+            return {}, "exit code %s is not explained by the report" % rc
+        by_key = {}
+        for c in cases:
+            by_key.setdefault(case_key(c), c)
+        keys = {case_key(e) for e in entries}
+        for k, c in by_key.items():
+            if k not in keys and c["status"] == "skipped":
+                others.setdefault(k, c)
+        got = {}
+        for p in range(a, b + 1):
+            c = by_key.get(case_key(entries[p - 1]))
+            if c is not None and c["status"] != "skipped":
+                got[p] = c
+        return got, None
+
+    if unsharded:
+        rc, text = run(base, logs("integration.xml"))
+        if rc == 124:
+            return bad("%s timed out after %s s" % (EXE, timeout), 124)
+        everything = parse_cases_xml(text)
+        if everything is None:
+            return bad("%s died without a report (rc %s)" % (EXE, rc), rc)
+        entries = [c for c in everything if c["status"] != "skipped"]
+        out["shards"] = 1
+        results, why = take(rc, text, 1, len(entries), entries) if entries else ({}, None)
+        if entries and not results:
+            return bad("%s run is not usable: %s (unsharded run, nothing is rerun)" % (EXE, why), rc)
+        for c in everything:
+            if c["status"] == "skipped":
+                others.setdefault(case_key(c), c)
+    else:
+        rc, text = run(base + ["-ltc"], logs("integration.list.xml"), timed=False)
+        if rc == 124:
+            return bad("%s timed out after %s s while listing the test cases" % (EXE, timeout), 124)
+        entries = parse_cases_xml(text)
+        if rc != 0 or entries is None:
+            return bad("cannot list the test cases of %s (rc %s)" % (EXE, rc), rc)
+        ranges = partition(len(entries), slots * SHARD_FACTOR)
+        out["shards"] = len(ranges)
+        results = {}
+        if ranges:
+            def shard(k):
+                a, b = ranges[k]
+                return run(base + ["--first=%d" % a, "--last=%d" % b], logs("integration.shard%03d.xml" % (k + 1)))
+            with ThreadPoolExecutor(max_workers=max(1, slots)) as ex:
+                runs = list(ex.map(shard, range(len(ranges))))
+            for k, ((a, b), (rc, text)) in enumerate(zip(ranges, runs)):
+                got, why = take(rc, text, a, b, entries)
+                results.update(got)
+                if why:
+                    out["dead_shards"].append({"shard": k + 1, "first": a, "last": b, "rc": rc, "reason": why,
+                                               "last_started": last_started_case(text),
+                                               "log": logs("integration.shard%03d.xml" % (k + 1))})
+    out["selected"] = len(entries)
+    if not entries:
+        return bad("%s ran zero test cases" % EXE)
+
+    failed = [p for p in range(1, len(entries) + 1) if p in results and results[p]["status"] == "failed"]
+    unrun = [p for p in range(1, len(entries) + 1) if p not in results]
+    timed_out = []
+    for p in sorted(failed + unrun):
+        rc, text = run(base + ["--first=%d" % p, "--last=%d" % p], logs("integration.alone%04d.xml" % p))
+        gots, why = take(rc, text, p, p, entries)
+        got = gots.get(p)
+        name = entries[p - 1]["name"]
+        if unsharded:
+            out["cov_alone"][name] = "passed" if (got is not None and got["status"] != "failed") else "failed"
+            continue  # the failure of the full-order run stands
+        if got is not None and got["status"] != "failed":
+            results[p] = got
+            out["rerun_passed" if p in failed else "rerun_unrun_passed"].append(name)
+            continue
+        if got is None:
+            got = dict(entries[p - 1], status="failed", asserts_passed=0, asserts_failed=0,
+                       note="no complete result when run alone: %s" % (why or "no result"))
+            if rc == 124:
+                timed_out.append(name)
+        results[p] = got
+        out["rerun_failed"].append(name)
+    out["cases"] = [results[p] for p in range(1, len(entries) + 1)] + list(others.values())
+    nf = [c for c in out["cases"] if c["status"] == "failed"]
+    if nf:
+        bad("%d integration case(s) failed, first: %s" % (len(nf), nf[0]["name"]))
+    if timed_out:
+        bad("%s timed out after %s s on %d case(s), first: %s" % (EXE, timeout, len(timed_out), timed_out[0]), 124)
+    if sum_limit and out["wall_sum"] > sum_limit:
+        bad("the integration test processes took %.0f s in total (shards and reruns), over the limit of %s s" % (out["wall_sum"], sum_limit))
+    return out
+
+
+# properties of the integration test in `ctest --show-only=json-v1` that the gate reproduces (WORKING_DIRECTORY) or that carry no
+# behaviour (CMake's own source location); any other property (WILL_FAIL, *_REGULAR_EXPRESSION, SKIP_RETURN_CODE, TIMEOUT,
+# DISABLED, ...) would change what ctest counts as a pass and is a mismatch
+CTEST_REPRODUCED_PROPERTIES = ("WORKING_DIRECTORY", "_BACKTRACE_TRIPLES")
+
+
+def ctest_integration_mismatch(text, exe, excl, wd_default=None):
+    """(working directory to use or None, [mismatch]) between the integration test that ctest registers
+    (`ctest --show-only=json-v1 -R '^ffb_integration_tests$'`) and the command the gate runs: executable, arguments after it
+    (only --test-case-exclude=<the exclusion list>), working directory and environment properties (the gate sets none)."""
+    try:
+        tests = json.loads(text).get("tests", [])
+    except (ValueError, AttributeError):
+        return None, ["cannot read the ctest test definition of %s" % EXE]
+    tests = [t for t in tests if t.get("name") == EXE]
+    if len(tests) != 1:
+        return None, ["ctest lists %d tests named %s, expected 1" % (len(tests), EXE)]
+    t = tests[0]
+    cmd = t.get("command") or []
+    want = (["--test-case-exclude=" + ",".join(excl)] if excl else [])
+    bad = []
+    if not cmd or os.path.realpath(cmd[0]) != os.path.realpath(exe):
+        bad.append("executable %s, the gate runs %s" % (cmd[0] if cmd else None, exe))
+    if list(cmd[1:]) != want:
+        bad.append("arguments %s, the gate uses %s" % (list(cmd[1:]), want))
+    wd = None
+    for prop in t.get("properties", []):
+        if prop.get("name") == "WORKING_DIRECTORY":
+            wd = prop.get("value")
+        elif prop.get("name") in ("ENVIRONMENT", "ENVIRONMENT_MODIFICATION"):
+            bad.append("ctest sets %s %s, the gate sets none" % (prop["name"], prop.get("value")))
+        elif prop.get("name") not in CTEST_REPRODUCED_PROPERTIES:
+            bad.append("ctest sets the property %s (%s) that the gate does not reproduce" % (prop.get("name"), prop.get("value")))
+    return wd, bad
 
 
 # ------------------------------------------------------------------ running things
@@ -572,7 +994,7 @@ def syntax_jobs(entries, root, patterns):
     return jobs
 
 
-def syntax_recheck(jobs, runner):
+def syntax_recheck(jobs, runner, workers=None):
     """Runs every job; returns (combined output, number of failed jobs). An incremental build only recompiles what
     changed, so a warning of an unchanged WO source (or of a WO header seen through another source) would be missed;
     this pass compiles each listed source again, without output. A warning that is only in a WO header and appears
@@ -580,7 +1002,7 @@ def syntax_recheck(jobs, runner):
     if not jobs:
         return "", 0
     from concurrent.futures import ThreadPoolExecutor
-    with ThreadPoolExecutor(max_workers=max(1, os.cpu_count() or 2)) as ex:
+    with ThreadPoolExecutor(max_workers=max(1, workers or os.cpu_count() or 2)) as ex:
         results = list(ex.map(lambda j: runner(j[1], None, cwd=j[0], timeout=BASELINE_TIMEOUT), jobs))
     return "\n".join(t for _, t in results), sum(1 for rc, _ in results if rc != 0)
 
@@ -722,14 +1144,41 @@ def _fail(res, reason):
     return res
 
 
-def run_variant(root, variant, patterns, evid_dir, runner=run, own_wo=None, src_root=None, iso=False):
+def run_variant(root, variant, patterns, evid_dir, runner=run, own_wo=None, src_root=None, iso=False,
+                serial=False, jobs=MAX_JOBS, budget=None, scope_files=None, echo=print, build_jobs=None):
     """Configure, build, test one variant. `runner(cmd, log_path, cwd=None, timeout=None) -> (rc, text)` runs every
     subprocess (injectable for the unit tests). `own_wo` = WO id of --own-build. Returns a result dict with `ok` and,
-    when not ok, `reason`."""
+    when not ok, `reason`.
+
+    serial=True: the sequence of the old gate (build with -j<cpus>, the whole ctest including ffb_integration_tests, then
+    ffb_integration_tests again for its XML report); in both modes <variant>.integration.cases.json is written.
+    serial=False: every subprocess holds its weight in `budget` (default: a new Budget(jobs)): the build -j<build_jobs>
+    (default all of jobs), ctest without the integration entry and check_baseline one process each, beside the shards of
+    the single integration run (run_integration; `scope_files` = case-file patterns, None = every case; the cov variant is
+    not sharded). `echo` receives the notes of the run (the caller keeps the output of concurrent variants together)."""
     bd = build_dir_for(root, variant, own_wo, iso)
     sroot = src_root or root  # repository root or isolated source tree
     os.makedirs(os.path.dirname(bd), exist_ok=True)
     res = {"build_dir": bd}
+    budget = budget or Budget(jobs)
+
+    def job(cmd, log, weight=1, cwd=None, timeout=None, on_done=None):
+        """Runs one subprocess holding `weight` of the budget; on_done(seconds) gets the time of the runner call only
+        (measured inside the hold: the wait for a free slot is not counted)."""
+        kw = {}
+        if cwd is not None:
+            kw["cwd"] = cwd
+        if timeout is not None:
+            kw["timeout"] = timeout
+        if serial:
+            return runner(cmd, log, **kw)
+        with budget.hold(weight):
+            t = time.monotonic()
+            try:
+                return runner(cmd, log, **kw)
+            finally:
+                if on_done:
+                    on_done(time.monotonic() - t)
 
     def logs(n):
         return os.path.join(evid_dir, "%s.%s.log" % (variant, n))
@@ -740,7 +1189,7 @@ def run_variant(root, variant, patterns, evid_dir, runner=run, own_wo=None, src_
     home = read_cache(bd).get("CMAKE_HOME_DIRECTORY") if os.path.isfile(cache_file) else None
     if home and os.path.realpath(home) != os.path.realpath(src):
         note = "build directory %s was configured for %s, not %s: deleted, configuring fresh" % (bd, home, src)
-        print("   " + note, flush=True)
+        echo("   " + note)
         res["fresh_configure"] = note
         shutil.rmtree(bd, ignore_errors=True)
 
@@ -753,7 +1202,7 @@ def run_variant(root, variant, patterns, evid_dir, runner=run, own_wo=None, src_
             return _fail(res, "stale build directory %s: %s" % (bd, "; ".join(bad)))
     else:
         cfg += VARIANT_ARGS[variant]
-    rc, warn_text = runner(cfg, logs("configure"))
+    rc, warn_text = job(cfg, logs("configure"))
     res["configure"] = {"rc": rc}
     if rc != 0:
         return _fail(res, "configure failed (%s)" % logs("configure"))
@@ -761,75 +1210,147 @@ def run_variant(root, variant, patterns, evid_dir, runner=run, own_wo=None, src_
     if bad:
         return _fail(res, "build directory %s does not match the variant: %s" % (bd, "; ".join(bad)))
 
-    rc, text = runner(["ctest", "--test-dir", bd, "-N"], logs("ctest_list"))
+    rc, text = job(["ctest", "--test-dir", bd, "-N"], logs("ctest_list"))
     missing = [t for t in REQUIRED_TESTS if t not in registered_tests(text)]
     if rc != 0 or missing:
         return _fail(res, "ctest does not register %s in this configuration (%s)" % (", ".join(missing) or "any test", logs("ctest_list")))
-    rc, text = runner(["cmake", "--build", bd, "--target", "help"], logs("targets"))
+    rc, text = job(["cmake", "--build", bd, "--target", "help"], logs("targets"))
     if rc != 0 or not has_build_target(text, EXE):
         return _fail(res, "the build target %s does not exist in this configuration (%s)" % (EXE, logs("targets")))
 
-    rc, text = runner(["cmake", "--build", bd, "-j%d" % (os.cpu_count() or 2)], logs("build"))
+    bj = (os.cpu_count() or 2) if serial else max(1, min(build_jobs or jobs, jobs))
+    rc, text = job(["cmake", "--build", bd, "-j%d" % bj], logs("build"), weight=bj)
     warn_text += "\n" + text
     res["build"] = {"rc": rc}
     if rc != 0:
         res["build"]["warnings_in_wo_files"] = []
         return _fail(res, "build failed (%s)" % logs("build"))
-    jobs = []
+    jobs_list = []
     try:
-        jobs = syntax_jobs(read_compile_commands(bd), sroot, patterns)
+        jobs_list = syntax_jobs(read_compile_commands(bd), sroot, patterns)
     except (OSError, ValueError):
         pass
-    syn_text, syn_failed = syntax_recheck(jobs, runner)
+    syn_text, syn_failed = syntax_recheck(jobs_list, job, None if serial else budget.total)
     warnings = attribute_warnings(warn_text + "\n" + syn_text, sroot, patterns, bd)
     res["build"]["warnings_in_wo_files"] = sorted({"%s:%d: %s" % w for w in warnings})[:20]
-    res["build"]["syntax_rechecked_sources"] = len(jobs)
+    res["build"]["syntax_rechecked_sources"] = len(jobs_list)
     if syn_failed:
         return _fail(res, "%d WO source(s) failed the -fsyntax-only re-check" % syn_failed)
     if warnings:
         return _fail(res, "%d warning(s) in WO files, first: %s:%d: %s" % ((len(warnings),) + warnings[0]))
 
-    problems = []
-    rc, text = runner(["ctest", "--test-dir", bd, "--output-on-failure", "--timeout", str(CTEST_TIMEOUT)],
-                      logs("ctest"), timeout=CTEST_TOTAL_TIMEOUT)
-    cc = parse_ctest_counts(text)
-    res["ctest"] = {"rc": rc, "failed": cc[0] if cc else None, "total": cc[1] if cc else None}
-    if rc == 124:
-        problems.append("ctest timed out after %d s (%s)" % (CTEST_TOTAL_TIMEOUT, logs("ctest")))
-    elif "***Timeout" in text:
-        problems.append("a ctest entry exceeded its %d s timeout (%s)" % (CTEST_TIMEOUT, logs("ctest")))
-    elif rc != 0 or cc is None or cc[0] != 0 or cc[1] == 0:
-        problems.append("ctest failed (%s)" % logs("ctest"))
-
-    rc_b, text = runner([sys.executable, "-B", os.path.join(sroot, "Firmware/Tests/Code_Coverage/tools/check_baseline.py"),
-                         "--build-dir", bd], logs("check_baseline"), timeout=BASELINE_TIMEOUT)
-    res["check_baseline"] = {"rc": rc_b, "last": (text.strip().splitlines() or [""])[-1]}
-    if rc_b == 124:
-        problems.append("check_baseline timed out after %d s" % BASELINE_TIMEOUT)
-    elif rc_b != 0:
-        problems.append("check_baseline failed (%s)" % logs("check_baseline"))
-
     exe = os.path.join(bd, EXE + (".exe" if os.name == "nt" else ""))
-    if os.path.isfile(exe):
-        excl = integration_excludes(read_cache(bd))
+    excl = integration_excludes(read_cache(bd))
+
+    def run_ctest():
+        """(res["ctest"], res["check_baseline"], [problem]) : ctest (without the integration entry unless serial), check_baseline."""
+        problems = []
+        cmd = ["ctest", "--test-dir", bd, "--output-on-failure", "--timeout", str(CTEST_TIMEOUT)]
+        if not serial:
+            # the one integration run is made by run_integration; one entry at a time, so ctest is one job of the budget
+            cmd += ["-E", "^%s$" % EXE, "--parallel", "1"]
+        rc, text = job(cmd, logs("ctest"), timeout=CTEST_TOTAL_TIMEOUT)
+        cc = parse_ctest_counts(text)
+        r_ctest = {"rc": rc, "failed": cc[0] if cc else None, "total": cc[1] if cc else None}
+        if rc == 124:
+            problems.append("ctest timed out after %d s (%s)" % (CTEST_TOTAL_TIMEOUT, logs("ctest")))
+        elif "***Timeout" in text:
+            problems.append("a ctest entry exceeded its %d s timeout (%s)" % (CTEST_TIMEOUT, logs("ctest")))
+        elif rc != 0 or cc is None or cc[0] != 0 or cc[1] == 0:
+            problems.append("ctest failed (%s)" % logs("ctest"))
+        rc_b, text = job([sys.executable, "-B", os.path.join(sroot, "Firmware/Tests/Code_Coverage/tools/check_baseline.py"),
+                          "--build-dir", bd], logs("check_baseline"), timeout=BASELINE_TIMEOUT)
+        r_base = {"rc": rc_b, "last": (text.strip().splitlines() or [""])[-1]}
+        if rc_b == 124:
+            problems.append("check_baseline timed out after %d s" % BASELINE_TIMEOUT)
+        elif rc_b != 0:
+            problems.append("check_baseline failed (%s)" % logs("check_baseline"))
+        return r_ctest, r_base, problems
+
+    def run_integration_serial():
+        """The old second run of the executable with its XML summary (and the per-case file). (res["integration"], [problem])."""
+        problems = []
         cmd = [exe, "-r=xml"] + (["--test-case-exclude=" + ",".join(excl)] if excl else [])
-        rc_i, _ = runner(cmd, logs("integration.xml"), timeout=INTEGRATION_TIMEOUT)
-        rc_s, summary = runner([sys.executable, "-B", os.path.join(sroot, "Firmware/Tests/Code_Coverage/tools/summarise_results.py"),
-                                "--format", "xml", logs("integration.xml")], logs("integration.summary"))
+        rc_i, xml_text = job(cmd, logs("integration.xml"), timeout=INTEGRATION_TIMEOUT)
+        rc_s, summary = job([sys.executable, "-B", os.path.join(sroot, "Firmware/Tests/Code_Coverage/tools/summarise_results.py"),
+                             "--format", "xml", logs("integration.xml")], logs("integration.summary"))
         counts = parse_counts(summary)
-        res["integration"] = {"exe_rc": rc_i, "summary_rc": rc_s,
-                              "cases": counts[0] if counts else None, "passed": counts[1] if counts else None,
-                              "failed": counts[2] if counts else None, "skipped": counts[3] if counts else None,
-                              "known_issue": counts[4] if counts else None}
+        r = {"exe_rc": rc_i, "summary_rc": rc_s,
+             "cases": counts[0] if counts else None, "passed": counts[1] if counts else None,
+             "failed": counts[2] if counts else None, "skipped": counts[3] if counts else None,
+             "known_issue": counts[4] if counts else None, "scope": "full", "mode": "serial"}
+        cases = parse_cases_xml(xml_text or "")
+        if cases is not None:
+            write_cases_file(os.path.join(evid_dir, "%s.integration.cases.json" % variant), variant, None, cases,
+                             {"rerun_failed": [], "rerun_passed": [], "rerun_unrun_passed": []})
+            r["cases_file"] = "%s.integration.cases.json" % variant
         if rc_i == 124:
             problems.append("%s timed out after %d s" % (EXE, INTEGRATION_TIMEOUT))
         elif rc_i != 0 or rc_s != 0 or counts is None or counts[2] != 0:
             problems.append("%s failed (%s)" % (EXE, logs("integration.summary")))
         elif counts[0] == 0:
             problems.append("%s ran zero test cases" % EXE)
+        return r, problems
+
+    def run_integration_parallel():
+        problems = []
+        rc_j, jtext = job(["ctest", "--test-dir", bd, "--show-only=json-v1", "-R", "^%s$" % EXE], logs("ctest_show"))
+        wd, mismatch = ctest_integration_mismatch(jtext, exe, excl) if rc_j == 0 else (None, ["ctest --show-only=json-v1 failed (rc %s)" % rc_j])
+        if mismatch:
+            return ({"exe_rc": None, "mode": "parallel", "note": "ctest registers another integration command"},
+                    ["the integration command that ctest registers differs from the one the gate runs: %s (%s)" % (
+                        "; ".join(mismatch), logs("ctest_show"))])
+        o = run_integration(job, exe, excl, scope_files, logs, budget.total, unsharded=("cov" in variant.split("-")),
+                            timeout=INTEGRATION_TIMEOUT, cwd=wd, sum_limit=INTEGRATION_SUM_LIMIT)
+        cases = o["cases"]
+        counts = case_counts(cases) if cases else None
+        r = {"exe_rc": o["exe_rc"], "summary_rc": 0,
+             "cases": counts[0] if counts else None, "passed": counts[1] if counts else None,
+             "failed": counts[2] if counts else None, "skipped": counts[3] if counts else None,
+             "known_issue": counts[4] if counts else None,
+             "selected": o["selected"], "scope": "full" if not scope_files else list(scope_files), "mode": "parallel",
+             "shards": o["shards"],
+             "rerun_failed": o["rerun_failed"], "rerun_passed": o["rerun_passed"], "rerun_unrun_passed": o["rerun_unrun_passed"],
+             "dead_shards": o["dead_shards"], "cov_alone": o["cov_alone"], "wall_sum_s": round(o["wall_sum"], 3)}
+        if cases:
+            write_cases_file(os.path.join(evid_dir, "%s.integration.cases.json" % variant), variant, scope_files, cases,
+                             {"rerun_failed": o["rerun_failed"], "rerun_passed": o["rerun_passed"],
+                              "rerun_unrun_passed": o["rerun_unrun_passed"]})
+            r["cases_file"] = "%s.integration.cases.json" % variant
+            with open(logs("integration.summary"), "w", encoding="utf-8") as f:
+                f.write(summary_text(cases))
+        problems += o["problems"]
+        for d in o["dead_shards"]:
+            echo("WARNING: dead shard %d (cases %d-%d, rc %s, last started: %s, %s): %s" % (
+                d["shard"], d["first"], d["last"], d["rc"], d["last_started"] or "unknown", d["log"], d["reason"]))
+        again = o["rerun_passed"] + o["rerun_unrun_passed"]
+        if again:
+            echo("WARNING: %d case(s) passed only when rerun alone: %s (variant %s)" % (len(again), "; ".join(again), variant))
+        return r, problems
+
+    problems = []
+    if serial:
+        res["ctest"], res["check_baseline"], p = run_ctest()
+        problems += p
+        if os.path.isfile(exe):
+            res["integration"], p = run_integration_serial()
+            problems += p
+        else:
+            res["integration"] = {"exe_rc": None, "note": "%s not found in the build directory" % EXE}
+            problems.append("%s not found in %s" % (EXE, bd))
     else:
-        res["integration"] = {"exe_rc": None, "note": "%s not found in the build directory" % EXE}
-        problems.append("%s not found in %s" % (EXE, bd))
+        if os.path.isfile(exe):
+            with ThreadPoolExecutor(max_workers=2) as ex:
+                f_ctest = ex.submit(run_ctest)
+                f_int = ex.submit(run_integration_parallel)
+                res["ctest"], res["check_baseline"], p_ctest = f_ctest.result()
+                res["integration"], p_int = f_int.result()
+            problems += p_ctest + p_int
+        else:
+            res["ctest"], res["check_baseline"], p_ctest = run_ctest()
+            problems += p_ctest
+            res["integration"] = {"exe_rc": None, "note": "%s not found in the build directory" % EXE}
+            problems.append("%s not found in %s" % (EXE, bd))
 
     if os.path.isfile(os.path.join(bd, "compile_commands.json")):
         res["compile_check"] = check_compile_reference(root, bd, variant, sroot)
@@ -856,6 +1377,17 @@ def variant_summary(variant, r):
         i = r["integration"]
         parts.append("integration %s cases, %s passed, %s failed, %s skipped, %s known issue" % (
             i["cases"], i["passed"], i["failed"], i["skipped"], i["known_issue"]))
+        if "mode" in i:
+            sc = i.get("scope", "full")
+            extra = ["scope " + ("full" if sc == "full" else "%d case file(s)" % len(sc)), i["mode"]]
+            if i.get("shards"):
+                extra.append("%d shards" % i["shards"])
+            if i.get("dead_shards"):
+                extra.append("%d dead shard(s)" % len(i["dead_shards"]))
+            if i.get("rerun_failed") or i.get("rerun_passed") or i.get("rerun_unrun_passed"):
+                extra.append("reruns: %d failed again, %d passed alone, %d unrun passed alone" % (
+                    len(i.get("rerun_failed", [])), len(i.get("rerun_passed", [])), len(i.get("rerun_unrun_passed", []))))
+            parts[-1] += " [%s]" % ", ".join(extra)
     if "compile_check" in r:
         parts.append("compile check: %s" % r["compile_check"]["message"])
     if not r.get("ok") and r.get("reason"):
@@ -877,6 +1409,35 @@ def write_evidence(root, wo, evidence, now=None):
         json.dump(evidence, f, indent=1, sort_keys=True)
     shutil.copyfile(path, os.path.join(d, "latest.json"))
     return path
+
+
+def run_variants_parallel(root, names, patterns, evid_dir, runner, own_wo, src_root, iso, jobs, scope_files):
+    """All variants at once, under one job budget of `jobs` (compile jobs plus test processes): the builds share it
+    (-j jobs // number of concurrent variants), the shards and the other ctest entries take what is free. The output of
+    each variant is printed as one block when it is done. Returns {variant: result}."""
+    budget = Budget(jobs)
+    workers = max(1, min(len(names), jobs))
+    share = max(1, jobs // workers)
+    lock = threading.Lock()
+    print("== %d variant(s) in parallel (%s), at most %d jobs at once" % (len(names), ", ".join(names), jobs), flush=True)
+
+    def one(v):
+        lines = ["== variant %s (%s)" % (v, build_dir_for(root, v, own_wo, iso))]
+        try:
+            if iso:
+                shutil.rmtree(build_dir_for(root, v, own_wo, True), ignore_errors=True)
+            r = run_variant(root, v, patterns, evid_dir, runner, own_wo, src_root, iso, serial=False, jobs=jobs, budget=budget,
+                            scope_files=scope_files, echo=lines.append, build_jobs=share)
+        except Exception as e:  # noqa: BLE001 - one variant's error must not hide the others
+            r = {"ok": False, "reason": "internal error: %s: %s" % (type(e).__name__, e)}
+        lines.append("   " + variant_summary(v, r))
+        with lock:
+            print("\n".join(lines), flush=True)
+        return v, r
+
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        done = dict(ex.map(one, names))
+    return {v: done[v] for v in names}
 
 
 def decide(names, full, ok):
@@ -915,10 +1476,17 @@ def _main(argv, runner):
     ap.add_argument("--record-compile-reference", metavar="BUILD_DIR",
                     help="record the compile commands of BUILD_DIR as the reference of --variant and exit")
     ap.add_argument("--variant", help="variant name for --record-compile-reference")
+    ap.add_argument("--serial", action="store_true",
+                    help="the old sequence: variants one after another, the whole ctest (with ffb_integration_tests), then the integration executable again for its XML report")
+    ap.add_argument("--jobs", type=int, default=MAX_JOBS,
+                    help="most compile jobs plus test processes at once, in total (default and maximum %d)" % MAX_JOBS)
     ap.add_argument("--root", default=DEFAULT_ROOT, help=argparse.SUPPRESS)
     args = ap.parse_args(argv)
     root = os.path.realpath(args.root)
 
+    if not 1 <= args.jobs <= MAX_JOBS:
+        print("GATE FAIL --jobs must be between 1 and %d (the owner's limit for compile jobs plus test processes), got %d" % (MAX_JOBS, args.jobs))
+        return 1
     if args.record_compile_reference:
         if not args.variant or args.variant not in VARIANT_ARGS:
             print("GATE FAIL --record-compile-reference needs --variant (%s)" % ", ".join(VARIANT_ARGS))
@@ -973,13 +1541,21 @@ def _main(argv, runner):
                 print("== isolated source tree %s (%s + %d file(s) of %s + %d document(s) of Tests/Integration_Tests)" % (
                     sroot, head0[:12], len(overlay), args.wo, len(docs)), flush=True)
     own_wo = args.wo if (args.own_build or args.isolated) else None
+    scope_files = None
+    if args.isolated and not args.serial and not args.full and scope and scope["result"] == "OK":
+        scope_files = gate_scope(patterns, scope["changed"], False, True)
     if not failures and not (scope and scope["result"] != "OK"):
-        for v in names:
-            if args.isolated:
-                shutil.rmtree(build_dir_for(root, v, own_wo, True), ignore_errors=True)
-            print("== variant %s (%s)" % (v, build_dir_for(root, v, own_wo, args.isolated)), flush=True)
-            variants[v] = run_variant(root, v, patterns, evid_dir, runner, own_wo, sroot if args.isolated else None, args.isolated)
-            print("   " + variant_summary(v, variants[v]), flush=True)
+        if args.serial:
+            for v in names:
+                if args.isolated:
+                    shutil.rmtree(build_dir_for(root, v, own_wo, True), ignore_errors=True)
+                print("== variant %s (%s)" % (v, build_dir_for(root, v, own_wo, args.isolated)), flush=True)
+                variants[v] = run_variant(root, v, patterns, evid_dir, runner, own_wo, sroot if args.isolated else None, args.isolated,
+                                          serial=True)
+                print("   " + variant_summary(v, variants[v]), flush=True)
+        else:
+            variants.update(run_variants_parallel(root, names, patterns, evid_dir, runner, own_wo,
+                                                  sroot if args.isolated else None, args.isolated, args.jobs, scope_files))
 
     scope = scope_check(root, patterns, active=active, active_errors=active_errors, wo=args.wo)
     print("== scope: %s%s" % (scope["result"], "".join("\n   " + o for o in scope["offenders"])))
@@ -1008,8 +1584,12 @@ def _main(argv, runner):
     result, covers = decide(names, args.full, not failures)
     evidence = make_evidence(root, args.wo, variants, scope, head0 if args.isolated else git_head(root), result, now,
                              requested=names, files_path=files_path, patterns=patterns, own_build=args.own_build,
-                             isolated=args.isolated, source_root=sroot, docs_overlaid=docs)
+                             isolated=args.isolated, source_root=sroot, docs_overlaid=docs, integration_scope=scope_files,
+                             serial=args.serial, jobs=None if args.serial else args.jobs)
     path = write_evidence(root, args.wo, evidence, now)
+    warning = aggregate_warning(variants)
+    if warning:
+        print(warning)
     if result == "PASS":
         print(final_line(True, path))
         return 0
