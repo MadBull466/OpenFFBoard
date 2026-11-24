@@ -11,7 +11,7 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | Kind | Count | Open | Resolved |
 |---|---|---|---|
 | Suspected firmware bugs (IB) | 39 | 39 | 0 |
-| NEEDS REVIEW items (INR) | 33 | 33 | 0 |
+| NEEDS REVIEW items (INR) | 35 | 35 | 0 |
 | Defects in shared test fakes (A) | 3 | 0 | 3 |
 | Defects in test tools (T) | 1 | 0 | 1 |
 
@@ -89,6 +89,8 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 | INR 31 | NEEDS REVIEW | EffectsCalculator | open |
 | INR 32 | NEEDS REVIEW | Axis | open |
 | INR 33 | NEEDS REVIEW | TMC4671 | open |
+| INR 34 | NEEDS REVIEW | TMC4671 | open |
+| INR 35 | NEEDS REVIEW | TMC4671 | open |
 | A-1 | fake defect | Fake HAL SPI + GPIO / EXTI | fixed |
 | A-2 | fake defect | Fake ADC, timers, flash map | fixed |
 | A-3 | fake defect | `HostDcd` + `UsbHost` + `HostRtos` ext | fixed |
@@ -283,9 +285,9 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 ### IB 24: TMC4671
 
 - **Where:** `TMC4671.cpp:453`, `:473-492`, `:643-650`, `:1682-1687`
-- **What:** A start request made while the driver waits for power is lost: the supply drops (state saved in `requestedState`), the PC connects (`usbResume` -> `startMotor` only sets `motorEnabledRequested` outside Shutdown), and when the supply returns the driver goes to the saved Shutdown and nothing asks for Running: PWM on, MODE_MOTION stopped, the motor never runs. Oracle: the firmware sequence (charter F1-X7 "recover correctly after the driver becomes ready late"; the start-up sequence honours a recorded request, `TMC4671.cpp:619-621`). The long not-ready slew scenario of coverage bug 33 is not reachable through the chain on this path
+- **What:** A start request made while the driver waits for power is lost: the supply drops (state saved in `requestedState`), the PC connects (`usbResume` -> `startMotor` only sets `motorEnabledRequested` outside Shutdown), and when the supply returns the driver goes to the saved Shutdown and nothing asks for Running: PWM on, MODE_MOTION stopped, the motor never runs. Oracle: the firmware sequence (charter F1-X7 "recover correctly after the driver becomes ready late"; the start-up sequence honours a recorded request, `TMC4671.cpp:619-621`). The long not-ready slew scenario of coverage bug 33 is not reachable through the chain on this path. **Also at boot** (WO I2-6): a power cycle with a stored TMC configuration and the PC connected ends in Shutdown without a USB replug: the mount's `startMotor` comes while the driver is uninitialised, initialisation ends in Shutdown through `initializeWithPower` -> `setEncoderType` (`TMC4671.cpp:1586-1588`, hall branch `:1573`) and nothing consumes the request; one fix (Shutdown honours a recorded request) makes both cases pass (I2-6 review)
 - **Same as (coverage):** related to bug 152 (same waitPower recovery)
-- **Test / evidence:** `KNOWN_ISSUE` case `F1-X7: the motor starts once the supply returns after the PC connected while the supply was off` in `test_f1_axis.cpp` (WO I1-8)
+- **Test / evidence:** `KNOWN_ISSUE` cases `F1-X7: the motor starts once the supply returns after the PC connected while the supply was off` in `test_f1_axis.cpp` (WO I1-8); `F1-P1: after a power cycle with a stored configuration and the PC connected the motor is driven without a USB replug` in `test_f1_persistence.cpp` (WO I2-6)
 - **Resolved?:** no
 
 ### IB 25: Axis
@@ -638,6 +640,20 @@ Firmware and vendor code are never fixed by this track: each bug has a test that
 
 - **Test / location:** characterization case `characterization: [F1-T1] the start-up writes the limits before any FOC write, then initialize zeroes 0x64 and switches the PWM off, then FOC is written again with the pin high` in `test_f1_driver.cpp` (WO I2-2); `TMC4671.cpp:243-254`, `:260-301`, `:423-424`
 - **Question:** Start-up order after selecting the driver: limits (0x5C..0x62, 0x5E) with the pin low, then `initialize` zeroes 0x64 and switches the PWM off, then FOC again with the pin high (the earlier FOC of `startMotor` is IB 38). Only firmware-defined
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 34: TMC4671
+
+- **Test / location:** characterization case `characterization: [F1-P1] tmc.0.invertForce set without combineEncoder is not restored after a reboot` in `test_f1_persistence.cpp` (WO I2-6); `TMC4671.cpp:1753`, `:2720`, `:2823`, `:2832`
+- **Question:** `invertForce` set with `combineEncoder` 0 is accepted and acts at runtime, but the restore masks it (`&& combineEncoder`), so it is 0 after a reboot; clearing `combineEncoder` also forces it off. Intended?
+- **Same as (coverage):** (none)
+- **Resolved?:** no
+
+### INR 35: TMC4671
+
+- **Test / location:** characterization case `characterization: [F1-P1] the torque filter Q set by command is back to its default after a reboot while mode and frequency survive` in `test_f1_persistence.cpp` (WO I2-6); `TMC4671.cpp:121-128`, `:186-190`; `CHANGELOG.md:136-137`
+- **Question:** The torque biquad Q is not saved (flash word: 13 bits frequency, 3 bits mode); the v1.10.0 changelog says "fixed Q factor, saved frequency", yet `tmc.0.trqbq_q` changes Q at runtime (back to 50 after a reboot). NEEDS REVIEW
 - **Same as (coverage):** (none)
 - **Resolved?:** no
 
