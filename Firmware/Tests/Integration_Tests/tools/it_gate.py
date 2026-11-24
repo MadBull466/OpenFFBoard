@@ -49,7 +49,14 @@ failing again = failure; passing alone = the gate passes with `rerun_passed` in 
 looks at it before a commit). The cov variant is never sharded (one process, one writer of the coverage files). A WO whose
 file list holds, besides documents, only integration case files (Firmware/Tests/Integration_Tests/claude/cases/test_*.cpp)
 runs only those files' cases (doctest -sf); any other code file, a list without a case file and --full run every case
-(`integration_scope` in the evidence). --serial keeps the old sequence: variants one after another, the full ctest, then the
+(`integration_scope` in the evidence). There is no time limit for a whole run, a shard, a rerun, the cov run or --serial (owner's
+decision 2026-11-24, tool WO I2-T1); every test case has its own limit inside the executable (support/CaseWatchdog: a host thread
+ends the process with exit code 86 and the line `CASE TIMEOUT <s> s: <case> (<file>:<line>)` when one case runs longer than
+FFB_IT_CASE_TIMEOUT_S seconds; unset = the compiled default, 0 = off). The gate sets the variable for every integration process
+(`case_timeout_s` of the variant in the evidence). A shard that ends that way is a dead shard (its unrun cases run alone); the
+timed-out case runs alone once: timing out again = failure `<variant>: case timed out: <case>`, passing = `rerun_passed` with the
+reason "timeout in shard" (`rerun_reasons`); the cov run (one process) fails with the case name. `case_timeouts` lists the cases.
+--serial keeps the old sequence: variants one after another, the full ctest, then the
 executable again for its XML summary; it writes the cases file too. The per-case file lists name, file, line, status and
 assertion counts of every case that ran; the old run and the new run must give the same file.
 The last line printed is `GATE PASS <evidence path>` or `GATE FAIL <reason>`; exit status 0 / 1.
@@ -89,12 +96,14 @@ REF_FORMAT = 2
 CTEST_TIMEOUT = 600  # seconds per ctest entry (the HAL tests use 600 in sanitizer builds)
 CTEST_TOTAL_TIMEOUT = 3600
 BASELINE_TIMEOUT = 900
-INTEGRATION_TIMEOUT = 600
-# Limit for the SUM of the process times of all shards, alone reruns and the cov run of one variant (the wait for a budget slot
-# is not counted). Measured under the 10-job budget with two variants (I1-T3): 569 s (default) and 657 s (m32), because shard
-# processes run 2-3 times slower when ten share the machine (one process on an idle core needed 389 s for the whole suite).
-# 2400 s leaves about 3.5x headroom (lead's decision); the 600 s per process above stays as the hang guard.
-INTEGRATION_SUM_LIMIT = 2400
+# No time limit for a whole integration run, a shard, an alone rerun, the cov run or --serial (owner's decision 2026-11-24, tool WO
+# I2-T1: the suite grows every phase and a whole-run limit failed the I2-7 gate). The limit is per test case, inside the executable
+# (support/CaseWatchdog.cpp): the gate hands it over through the environment variable below, per variant.
+CASE_TIMEOUT_ENV = "FFB_IT_CASE_TIMEOUT_S"
+CASE_TIMEOUT_RC = 86  # exit code of the executable's watchdog (support/CaseWatchdog.h kCaseTimeoutExitCode)
+DEFAULT_CASE_TIMEOUT_S = 120  # same as kDefaultCaseTimeoutS in CaseWatchdog.h (a test compares them); derivation in that header
+CASE_TIMEOUT_FACTOR = {}  # variant name part -> factor of the default; empty = none needed (see the measurements in CaseWatchdog.h)
+CASE_TIMEOUT_LINE = re.compile(r"^CASE TIMEOUT (\d+) s: (.*) \((.*):(\d+)\)\s*$", re.M)
 SOURCE_SUFFIXES = (".c", ".cc", ".cpp", ".cxx")
 SOURCE_DIR = "Firmware/Tests"
 MAX_JOBS = 10  # owner's limit: compile jobs + test processes at once, in total
@@ -482,6 +491,10 @@ def make_evidence(root, wo, variants, scope, git_head, result, now=None, request
         "jobs": jobs,
         "dead_shards": {v: r["integration"]["dead_shards"] for v, r in variants.items() if r.get("integration", {}).get("dead_shards")},
         "rerun_failed": {v: r["integration"]["rerun_failed"] for v, r in variants.items() if r.get("integration", {}).get("rerun_failed")},
+        "case_timeout_s": {v: r["integration"]["case_timeout_s"] for v, r in variants.items()
+                           if r.get("integration", {}).get("case_timeout_s") is not None},
+        "case_timeouts": {v: r["integration"]["case_timeouts"] for v, r in variants.items() if r.get("integration", {}).get("case_timeouts")},
+        "rerun_reasons": {v: r["integration"]["rerun_reasons"] for v, r in variants.items() if r.get("integration", {}).get("rerun_reasons")},
         "rerun_passed": {v: r["integration"]["rerun_passed"] + r["integration"].get("rerun_unrun_passed", [])
                          for v, r in variants.items()
                          if r.get("integration", {}).get("rerun_passed") or r.get("integration", {}).get("rerun_unrun_passed")},
@@ -733,7 +746,25 @@ def last_started_case(text):
     return name
 
 
-def run_integration(job, exe, excl, scope_files, logs, slots, unsharded=False, timeout=None, cwd=None, sum_limit=None):
+def case_timeout_s(variant):
+    """The per-case limit in seconds that the gate gives the executable for a variant: the default times the variant's factor
+    (the largest factor of the variant's name parts; none = 1)."""
+    f = max([CASE_TIMEOUT_FACTOR.get(n, 1) for n in variant.split("-")] + [1])
+    return int(DEFAULT_CASE_TIMEOUT_S * f)
+
+
+def timed_out_case(rc, text):
+    """Name of the case that the executable's watchdog ended the process for (exit code CASE_TIMEOUT_RC and a `CASE TIMEOUT` line
+    in the output), else None."""
+    if rc != CASE_TIMEOUT_RC:
+        return None
+    m = None
+    for m in CASE_TIMEOUT_LINE.finditer(text or ""):
+        pass
+    return m.group(2) if m else None
+
+
+def run_integration(job, exe, excl, scope_files, logs, slots, unsharded=False, cwd=None, env=None, label=""):
     """The one run of ffb_integration_tests of a variant, split into shards of the same executable.
 
     Shard method: doctest `--order-by=file --first=a --last=b` over the case list that `-ltc` prints with the same filters
@@ -746,17 +777,28 @@ def run_integration(job, exe, excl, scope_files, logs, slots, unsharded=False, t
     incomplete, its exit code is not 0 (or 1 explained by a failed case), or its output holds a sanitizer report. A failed
     case and the cases of a dead shard are run alone, one after the other; a case that fails or dies alone, or whose output
     has a sanitizer report, is a failure. In an unsharded run a failed case is a failure whatever its rerun says (the
-    rerun is only recorded in cov_alone). The sum of the wall times of all shards and reruns must stay within `sum_limit`.
-    `job(cmd, log, timeout=, cwd=, on_done=)` runs one test process (it holds the job budget). Returns a dict: cases, selected,
-    problems, shards, rerun_failed, rerun_passed (failed in a shard, passed alone), rerun_unrun_passed, dead_shards,
-    cov_alone, wall_sum, exe_rc."""
+    rerun is only recorded in cov_alone). There is no time limit for a process or for the sum of them (tool WO I2-T1): the
+    executable limits every case itself (watchdog, `env` carries FFB_IT_CASE_TIMEOUT_S). A process that ends with the
+    watchdog's exit code and a `CASE TIMEOUT` line is a dead shard (its unrun cases run alone) naming the timed-out case; that
+    case runs alone once: it times out again = a failure `<label>: case timed out: <name>`, it passes = `rerun_passed` with the
+    reason "timeout in shard" (rerun_reasons). The unsharded (cov) run has no rerun: its case timeout is a failure.
+    `job(cmd, log, cwd=, env=, on_done=)` runs one test process (it holds the job budget). Returns a dict: cases, selected,
+    problems, shards, rerun_failed, rerun_passed (failed in a shard, passed alone, or timed out in a shard and passed alone),
+    rerun_reasons, rerun_unrun_passed, dead_shards, cov_alone, case_timeouts, wall_sum (information only), exe_rc."""
     base = [exe, "-r=xml", "--order-by=file"]
     if scope_files:
         base.append("-sf=" + ",".join(scope_filters(scope_files)))
     if excl:
         base.append("--test-case-exclude=" + ",".join(excl))
     out = {"cases": [], "selected": 0, "problems": [], "shards": 0, "rerun_failed": [], "rerun_passed": [],
-           "rerun_unrun_passed": [], "dead_shards": [], "cov_alone": {}, "wall_sum": 0.0, "exe_rc": 0}
+           "rerun_unrun_passed": [], "dead_shards": [], "cov_alone": {}, "wall_sum": 0.0, "exe_rc": 0,
+           "rerun_reasons": {}, "case_timeouts": []}
+    prefix = (label + ": ") if label else ""
+    shard_timeouts = set()  # names of the cases the watchdog ended a shard for
+
+    def note_timeout(name):
+        if name not in out["case_timeouts"]:
+            out["case_timeouts"].append(name)
     others = {}  # key -> case of the registered cases that were not selected (from any complete report)
     clock = threading.Lock()
 
@@ -765,7 +807,9 @@ def run_integration(job, exe, excl, scope_files, logs, slots, unsharded=False, t
             out["wall_sum"] += d
 
     def run(cmd, log, timed=True):
-        kw = {"timeout": timeout}
+        kw = {}
+        if env:
+            kw["env"] = env
         if cwd is not None:
             kw["cwd"] = cwd
         if timed:
@@ -807,8 +851,10 @@ def run_integration(job, exe, excl, scope_files, logs, slots, unsharded=False, t
 
     if unsharded:
         rc, text = run(base, logs("integration.xml"))
-        if rc == 124:
-            return bad("%s timed out after %s s" % (EXE, timeout), 124)
+        hung = timed_out_case(rc, text)
+        if hung is not None:
+            note_timeout(hung)
+            return bad("%scase timed out: %s (unsharded run, nothing is rerun)" % (prefix, hung), rc)
         everything = parse_cases_xml(text)
         if everything is None:
             return bad("%s died without a report (rc %s)" % (EXE, rc), rc)
@@ -822,8 +868,6 @@ def run_integration(job, exe, excl, scope_files, logs, slots, unsharded=False, t
                 others.setdefault(case_key(c), c)
     else:
         rc, text = run(base + ["-ltc"], logs("integration.list.xml"), timed=False)
-        if rc == 124:
-            return bad("%s timed out after %s s while listing the test cases" % (EXE, timeout), 124)
         entries = parse_cases_xml(text)
         if rc != 0 or entries is None:
             return bad("cannot list the test cases of %s (rc %s)" % (EXE, rc), rc)
@@ -840,6 +884,11 @@ def run_integration(job, exe, excl, scope_files, logs, slots, unsharded=False, t
                 got, why = take(rc, text, a, b, entries)
                 results.update(got)
                 if why:
+                    hung = timed_out_case(rc, text)
+                    if hung is not None:
+                        shard_timeouts.add(hung)
+                        note_timeout(hung)
+                        why = "case timed out: %s (%s)" % (hung, why)
                     out["dead_shards"].append({"shard": k + 1, "first": a, "last": b, "rc": rc, "reason": why,
                                                "last_started": last_started_case(text),
                                                "log": logs("integration.shard%03d.xml" % (k + 1))})
@@ -849,34 +898,38 @@ def run_integration(job, exe, excl, scope_files, logs, slots, unsharded=False, t
 
     failed = [p for p in range(1, len(entries) + 1) if p in results and results[p]["status"] == "failed"]
     unrun = [p for p in range(1, len(entries) + 1) if p not in results]
-    timed_out = []
     for p in sorted(failed + unrun):
         rc, text = run(base + ["--first=%d" % p, "--last=%d" % p], logs("integration.alone%04d.xml" % p))
         gots, why = take(rc, text, p, p, entries)
         got = gots.get(p)
         name = entries[p - 1]["name"]
+        hung = timed_out_case(rc, text)
+        if hung is not None:
+            note_timeout(hung)
         if unsharded:
             out["cov_alone"][name] = "passed" if (got is not None and got["status"] != "failed") else "failed"
             continue  # the failure of the full-order run stands
         if got is not None and got["status"] != "failed":
             results[p] = got
-            out["rerun_passed" if p in failed else "rerun_unrun_passed"].append(name)
+            if name in shard_timeouts:
+                out["rerun_passed"].append(name)
+                out["rerun_reasons"][name] = "timeout in shard"
+            else:
+                out["rerun_passed" if p in failed else "rerun_unrun_passed"].append(name)
             continue
         if got is None:
             got = dict(entries[p - 1], status="failed", asserts_passed=0, asserts_failed=0,
                        note="no complete result when run alone: %s" % (why or "no result"))
-            if rc == 124:
-                timed_out.append(name)
+            if hung is not None:
+                got["note"] = "case timed out when run alone (%s)" % why
+                out["problems"].append("%scase timed out: %s" % (prefix, hung))
+                out["exe_rc"] = rc
         results[p] = got
         out["rerun_failed"].append(name)
     out["cases"] = [results[p] for p in range(1, len(entries) + 1)] + list(others.values())
     nf = [c for c in out["cases"] if c["status"] == "failed"]
     if nf:
         bad("%d integration case(s) failed, first: %s" % (len(nf), nf[0]["name"]))
-    if timed_out:
-        bad("%s timed out after %s s on %d case(s), first: %s" % (EXE, timeout, len(timed_out), timed_out[0]), 124)
-    if sum_limit and out["wall_sum"] > sum_limit:
-        bad("the integration test processes took %.0f s in total (shards and reruns), over the limit of %s s" % (out["wall_sum"], sum_limit))
     return out
 
 
@@ -911,6 +964,8 @@ def ctest_integration_mismatch(text, exe, excl, wd_default=None):
             wd = prop.get("value")
         elif prop.get("name") in ("ENVIRONMENT", "ENVIRONMENT_MODIFICATION"):
             bad.append("ctest sets %s %s, the gate sets none" % (prop["name"], prop.get("value")))
+        elif prop.get("name") == "TIMEOUT" and prop.get("value") == 0:
+            pass  # no ctest time limit for this entry (integration.cmake): the gate runs it without a process limit too
         elif prop.get("name") not in CTEST_REPRODUCED_PROPERTIES:
             bad.append("ctest sets the property %s (%s) that the gate does not reproduce" % (prop.get("name"), prop.get("value")))
     return wd, bad
@@ -1007,11 +1062,13 @@ def syntax_recheck(jobs, runner, workers=None):
     return "\n".join(t for _, t in results), sum(1 for rc, _ in results if rc != 0)
 
 
-def run(cmd, log_path, cwd=None, timeout=None):
-    """Runs cmd, writes stdout+stderr to log_path (unless None), returns (returncode, text). rc 124 = timeout."""
+def run(cmd, log_path, cwd=None, timeout=None, env=None):
+    """Runs cmd, writes stdout+stderr to log_path (unless None), returns (returncode, text). rc 124 = timeout.
+    env = variables added to the environment of the process (the rest is inherited)."""
+    full_env = None if not env else dict(os.environ, **env)
     try:
         p = subprocess.run(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                           errors="replace", timeout=timeout)
+                           errors="replace", timeout=timeout, env=full_env)
         rc, text = p.returncode, p.stdout
     except subprocess.TimeoutExpired as e:
         out = e.stdout if isinstance(e.stdout, str) else (e.stdout or b"").decode("utf-8", "replace")
@@ -1162,7 +1219,7 @@ def run_variant(root, variant, patterns, evid_dir, runner=run, own_wo=None, src_
     res = {"build_dir": bd}
     budget = budget or Budget(jobs)
 
-    def job(cmd, log, weight=1, cwd=None, timeout=None, on_done=None):
+    def job(cmd, log, weight=1, cwd=None, timeout=None, on_done=None, env=None):
         """Runs one subprocess holding `weight` of the budget; on_done(seconds) gets the time of the runner call only
         (measured inside the hold: the wait for a free slot is not counted)."""
         kw = {}
@@ -1170,6 +1227,8 @@ def run_variant(root, variant, patterns, evid_dir, runner=run, own_wo=None, src_
             kw["cwd"] = cwd
         if timeout is not None:
             kw["timeout"] = timeout
+        if env:
+            kw["env"] = env
         if serial:
             return runner(cmd, log, **kw)
         with budget.hold(weight):
@@ -1241,6 +1300,8 @@ def run_variant(root, variant, patterns, evid_dir, runner=run, own_wo=None, src_
 
     exe = os.path.join(bd, EXE + (".exe" if os.name == "nt" else ""))
     excl = integration_excludes(read_cache(bd))
+    limit_s = case_timeout_s(variant)
+    limit_env = {CASE_TIMEOUT_ENV: str(limit_s)}  # the per-case limit of the executable (no limit for any whole run)
 
     def run_ctest():
         """(res["ctest"], res["check_baseline"], [problem]) : ctest (without the integration entry unless serial), check_baseline."""
@@ -1249,7 +1310,8 @@ def run_variant(root, variant, patterns, evid_dir, runner=run, own_wo=None, src_
         if not serial:
             # the one integration run is made by run_integration; one entry at a time, so ctest is one job of the budget
             cmd += ["-E", "^%s$" % EXE, "--parallel", "1"]
-        rc, text = job(cmd, logs("ctest"), timeout=CTEST_TOTAL_TIMEOUT)
+        # serial only: no 3600 s total cap on this ctest, because it also runs the integration entry (a whole-run limit is not wanted); the other entries lose the cap too
+        rc, text = (job(cmd, logs("ctest"), env=limit_env) if serial else job(cmd, logs("ctest"), timeout=CTEST_TOTAL_TIMEOUT))
         cc = parse_ctest_counts(text)
         r_ctest = {"rc": rc, "failed": cc[0] if cc else None, "total": cc[1] if cc else None}
         if rc == 124:
@@ -1271,21 +1333,25 @@ def run_variant(root, variant, patterns, evid_dir, runner=run, own_wo=None, src_
         """The old second run of the executable with its XML summary (and the per-case file). (res["integration"], [problem])."""
         problems = []
         cmd = [exe, "-r=xml"] + (["--test-case-exclude=" + ",".join(excl)] if excl else [])
-        rc_i, xml_text = job(cmd, logs("integration.xml"), timeout=INTEGRATION_TIMEOUT)
+        rc_i, xml_text = job(cmd, logs("integration.xml"), env=limit_env)
         rc_s, summary = job([sys.executable, "-B", os.path.join(sroot, "Firmware/Tests/Code_Coverage/tools/summarise_results.py"),
                              "--format", "xml", logs("integration.xml")], logs("integration.summary"))
         counts = parse_counts(summary)
         r = {"exe_rc": rc_i, "summary_rc": rc_s,
              "cases": counts[0] if counts else None, "passed": counts[1] if counts else None,
              "failed": counts[2] if counts else None, "skipped": counts[3] if counts else None,
-             "known_issue": counts[4] if counts else None, "scope": "full", "mode": "serial"}
+             "known_issue": counts[4] if counts else None, "scope": "full", "mode": "serial",
+             "case_timeout_s": limit_s, "case_timeouts": []}
+        hung = timed_out_case(rc_i, xml_text)
+        if hung is not None:
+            r["case_timeouts"] = [hung]
         cases = parse_cases_xml(xml_text or "")
         if cases is not None:
             write_cases_file(os.path.join(evid_dir, "%s.integration.cases.json" % variant), variant, None, cases,
                              {"rerun_failed": [], "rerun_passed": [], "rerun_unrun_passed": []})
             r["cases_file"] = "%s.integration.cases.json" % variant
-        if rc_i == 124:
-            problems.append("%s timed out after %d s" % (EXE, INTEGRATION_TIMEOUT))
+        if hung is not None:
+            problems.append("%s: case timed out: %s" % (variant, hung))
         elif rc_i != 0 or rc_s != 0 or counts is None or counts[2] != 0:
             problems.append("%s failed (%s)" % (EXE, logs("integration.summary")))
         elif counts[0] == 0:
@@ -1293,6 +1359,12 @@ def run_variant(root, variant, patterns, evid_dir, runner=run, own_wo=None, src_
         return r, problems
 
     def run_integration_parallel():
+        t_start = time.monotonic()
+        r, problems = run_integration_parallel_inner()
+        r["wall_s"] = round(time.monotonic() - t_start, 1)  # the integration phase of this variant (information, not a limit)
+        return r, problems
+
+    def run_integration_parallel_inner():
         problems = []
         rc_j, jtext = job(["ctest", "--test-dir", bd, "--show-only=json-v1", "-R", "^%s$" % EXE], logs("ctest_show"))
         wd, mismatch = ctest_integration_mismatch(jtext, exe, excl) if rc_j == 0 else (None, ["ctest --show-only=json-v1 failed (rc %s)" % rc_j])
@@ -1301,7 +1373,7 @@ def run_variant(root, variant, patterns, evid_dir, runner=run, own_wo=None, src_
                     ["the integration command that ctest registers differs from the one the gate runs: %s (%s)" % (
                         "; ".join(mismatch), logs("ctest_show"))])
         o = run_integration(job, exe, excl, scope_files, logs, budget.total, unsharded=("cov" in variant.split("-")),
-                            timeout=INTEGRATION_TIMEOUT, cwd=wd, sum_limit=INTEGRATION_SUM_LIMIT)
+                            cwd=wd, env=limit_env, label=variant)
         cases = o["cases"]
         counts = case_counts(cases) if cases else None
         r = {"exe_rc": o["exe_rc"], "summary_rc": 0,
@@ -1311,7 +1383,8 @@ def run_variant(root, variant, patterns, evid_dir, runner=run, own_wo=None, src_
              "selected": o["selected"], "scope": "full" if not scope_files else list(scope_files), "mode": "parallel",
              "shards": o["shards"],
              "rerun_failed": o["rerun_failed"], "rerun_passed": o["rerun_passed"], "rerun_unrun_passed": o["rerun_unrun_passed"],
-             "dead_shards": o["dead_shards"], "cov_alone": o["cov_alone"], "wall_sum_s": round(o["wall_sum"], 3)}
+             "dead_shards": o["dead_shards"], "cov_alone": o["cov_alone"], "wall_sum_s": round(o["wall_sum"], 3),
+             "rerun_reasons": o["rerun_reasons"], "case_timeout_s": limit_s, "case_timeouts": o["case_timeouts"]}
         if cases:
             write_cases_file(os.path.join(evid_dir, "%s.integration.cases.json" % variant), variant, scope_files, cases,
                              {"rerun_failed": o["rerun_failed"], "rerun_passed": o["rerun_passed"],
@@ -1380,6 +1453,12 @@ def variant_summary(variant, r):
         if "mode" in i:
             sc = i.get("scope", "full")
             extra = ["scope " + ("full" if sc == "full" else "%d case file(s)" % len(sc)), i["mode"]]
+            if i.get("case_timeout_s") is not None:
+                extra.append("case limit %s s" % i["case_timeout_s"])
+            if i.get("wall_s") is not None:
+                extra.append("%s s wall" % i["wall_s"])
+            if i.get("case_timeouts"):
+                extra.append("%d case timeout(s)" % len(i["case_timeouts"]))
             if i.get("shards"):
                 extra.append("%d shards" % i["shards"])
             if i.get("dead_shards"):
@@ -1464,7 +1543,14 @@ def main(argv=None, runner=run):
 
 
 def _main(argv, runner):
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0], formatter_class=argparse.RawDescriptionHelpFormatter,
+                                 epilog="Time limits: none for a whole integration run (no process or sum limit, owner's decision 2026-11-24). "
+                                        "Every test case of ffb_integration_tests has its own limit, enforced inside the executable (support/CaseWatchdog): "
+                                        "environment variable %s = whole seconds, 0 = off, unset = the compiled default (%d s; derivation in "
+                                        "support/CaseWatchdog.h). The gate sets it per variant (%d s here), a case that exceeds it ends its process "
+                                        "with exit code %d and the line `CASE TIMEOUT <s> s: <case> (<file>:<line>)`; the gate runs that case alone once "
+                                        "(failure `<variant>: case timed out: <case>` if it times out again, `rerun_passed` otherwise; cov: failure)."
+                                        % (CASE_TIMEOUT_ENV, DEFAULT_CASE_TIMEOUT_S, case_timeout_s("default"), CASE_TIMEOUT_RC))
     ap.add_argument("--wo", help="work order id (e.g. I0-4)")
     ap.add_argument("--variants", default="default,m32", help="comma separated: %s" % ", ".join(VARIANT_ARGS))
     ap.add_argument("--full", action="store_true", help="also run the variants: %s" % ", ".join(FULL_VARIANTS))

@@ -22,9 +22,16 @@
 #include "IntegrationFixture.h"
 #include "PositionScript.h"
 #include "ChipEventLog.h"
+#include "CaseWatchdog.h"
 
 #include <cmath>
+#include <atomic>
+#include <condition_variable>
 #include <cstdint>
+#include <cstdlib>
+#include <functional>
+#include <mutex>
+#include <thread>
 #include <initializer_list>
 #include <vector>
 
@@ -2710,4 +2717,116 @@ TEST_CASE_FIXTURE(IntegrationFixture, "support: rebootKeepingFlash without the d
 	CHECK(tmc() == nullptr);
 	selectDriver(1);
 	CHECK(tmc() != nullptr);
+}
+
+// ---- CaseWatchdog (tool WO I2-T1): the per-case time limit. Oracle: the design in support/CaseWatchdog.h (a hand-written
+// specification: limit from FFB_IT_CASE_TIMEOUT_S, 0 = off, fires only for a case running longer than the limit, one line, exit code 86).
+
+namespace {
+struct WatchdogProbe {
+	std::mutex m;
+	std::condition_variable cv;
+	int fired = 0;
+	ffb_it::CaseWatchdogEvent last{"", "", 0, std::chrono::milliseconds(0)};
+	std::function<void(const ffb_it::CaseWatchdogEvent&)> action() {
+		return [this](const ffb_it::CaseWatchdogEvent& e) {
+			std::lock_guard<std::mutex> lk(m);
+			last = e;
+			++fired;
+			cv.notify_all();
+		};
+	}
+	// waits on the host clock for the first firing, at most `ms`; true if it fired
+	bool waitFired(int ms) {
+		std::unique_lock<std::mutex> lk(m);
+		return cv.wait_for(lk, std::chrono::milliseconds(ms), [this] { return fired > 0; });
+	}
+};
+}  // namespace
+
+TEST_CASE("support: the limit of the case watchdog is the integer of FFB_IT_CASE_TIMEOUT_S, 0 for off, and the default for no or a bad value") {
+	bool ok = true;
+	CHECK(ffb_it::caseTimeoutSecondsFrom("37", &ok) == 37);
+	CHECK(ok);
+	CHECK(ffb_it::caseTimeoutSecondsFrom("0", &ok) == 0);
+	CHECK(ok);
+	CHECK(ffb_it::caseTimeoutSecondsFrom(nullptr, &ok) == ffb_it::kDefaultCaseTimeoutS);
+	CHECK(ok);
+	CHECK(ffb_it::caseTimeoutSecondsFrom("", &ok) == ffb_it::kDefaultCaseTimeoutS);
+	CHECK(ok);
+	for (const char* bad : {"-5", "abc", "1.5", "10s", " 7", "+3", "99999999999999999999"}) {
+		ok = true;
+		CHECK_MESSAGE(ffb_it::caseTimeoutSecondsFrom(bad, &ok) == ffb_it::kDefaultCaseTimeoutS, bad);
+		CHECK_MESSAGE(!ok, bad);
+	}
+}
+
+TEST_CASE("support: the case watchdog does not fire for a case that ends below the limit") {
+	WatchdogProbe probe;
+	{
+		ffb_it::CaseWatchdog dog(std::chrono::milliseconds(60000), probe.action());
+		CHECK_FALSE(dog.armed());
+		dog.arm("case below the limit", "f.cpp", 7);
+		CHECK(dog.armed());
+		dog.disarm();
+		CHECK_FALSE(dog.armed());
+		// re-armed again and again, each time disarmed in time: still no firing
+		for (int i = 0; i < 20; ++i) {
+			dog.arm("next case", "f.cpp", 8);
+			dog.disarm();
+		}
+	}
+	CHECK(probe.fired == 0);
+}
+
+TEST_CASE("support: a limit of 0 turns the case watchdog off") {
+	WatchdogProbe probe;
+	ffb_it::CaseWatchdog dog(std::chrono::milliseconds(0), probe.action());
+	dog.arm("never watched", "f.cpp", 1);
+	CHECK_FALSE(dog.armed());
+	CHECK_FALSE(probe.waitFired(50));
+}
+
+TEST_CASE("support: the case watchdog fires once for a case that runs beyond the limit and names the case, its file and line") {
+	WatchdogProbe probe;
+	ffb_it::CaseWatchdog dog(std::chrono::milliseconds(30), probe.action());
+	dog.arm("a slow case", "slow.cpp", 123);
+	REQUIRE(probe.waitFired(10000));  // host clock, ends at the firing (about 30 ms)
+	{
+		std::lock_guard<std::mutex> lk(probe.m);
+		CHECK(probe.fired == 1);
+		CHECK(probe.last.name == "a slow case");
+		CHECK(probe.last.file == "slow.cpp");
+		CHECK(probe.last.line == 123u);
+		CHECK(probe.last.limit == std::chrono::milliseconds(30));
+	}
+	CHECK_FALSE(dog.armed());  // it fires once per arming
+	// armed again, it fires for the next case
+	dog.arm("another slow case", "slow.cpp", 124);
+	{
+		std::unique_lock<std::mutex> lk(probe.m);
+		REQUIRE(probe.cv.wait_for(lk, std::chrono::milliseconds(10000), [&] { return probe.fired >= 2; }));
+	}
+	CHECK(probe.fired == 2);
+}
+
+TEST_CASE("support: a case disarmed just before its deadline does not fire and a later arming gets a fresh deadline") {
+	WatchdogProbe probe;
+	ffb_it::CaseWatchdog dog(std::chrono::milliseconds(200), probe.action());
+	dog.arm("c1", "f.cpp", 1);
+	dog.disarm();
+	dog.arm("c2", "f.cpp", 2);  // the deadline of c1 would have passed 200 ms after its arming, c2 has its own
+	dog.disarm();
+	CHECK_FALSE(probe.waitFired(300));  // host clock: past both deadlines, nothing armed
+}
+
+// The firing path of the real listener (line on stderr, exit code 86 through std::_Exit) cannot be a doctest case that passes: it ends
+// the process. This case exists only to be run by tools/test_it_gate.py as
+//     FFB_IT_CASE_TIMEOUT_S=1 ffb_integration_tests --no-skip -tc="support: watchdog helper hangs on the host clock"
+// and must see exit code 86 and the line `CASE TIMEOUT 1 s: <this name> (<this file>:<line>)`. doctest::skip() keeps it out of every
+// normal run: the gate and ctest count it as one skipped case of every variant (-ltc does not list it, the XML report names it
+// skipped="true"), and it never runs unless --no-skip is given.
+TEST_CASE("support: watchdog helper hangs on the host clock" * doctest::skip()) {
+	std::this_thread::sleep_for(std::chrono::seconds(30));
+	FAIL("the case watchdog did not end this case");
 }

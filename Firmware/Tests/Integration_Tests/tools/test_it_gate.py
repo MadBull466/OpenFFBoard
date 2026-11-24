@@ -991,12 +991,14 @@ class Stub:
                       syntax_rc=0, syntax_text="", make_exe=True, cc_flag="-O0", cache_override={},
                       cases=None, list_rc=0, fail_in_shard=(), fail_always=(), die_in_shard=(), die_alone=(),
                       skip_names=(), known_names=(), delay=0, ctest_json=None, ctest_props=(), neg_rc_after=None,
-                      sanitizer_in=(), sanitizer_in_shard=())
+                      sanitizer_in=(), sanitizer_in_shard=(), timeout_in_shard=(), timeout_alone=(), timeout_line=True)
         self.o.update(opts)
         if self.o["cases"] is None:
             self.o["cases"] = [self.case("case %d" % i, CASE_REL, i * 10) for i in range(1, 6)]
         self.calls = []
         self.cwds = []
+        self.envs = []
+        self.timeouts = []  # the timeout= argument of every call
         self.lock = threading.Lock()
         self.active = self.peak = 0
         self.exe_times = []  # seconds of every real run of the executable (not the listing), measured inside the stub
@@ -1042,6 +1044,10 @@ class Stub:
             if n in o["die_alone"] or (not alone and n in o["die_in_shard"]):
                 # aborted inside the case: its element is open, no closing tag
                 return 134, "<?xml version=\"1.0\"?><doctest>" + "".join(body) + "<TestCase %s>" % at
+            if n in o["timeout_alone"] or (not alone and n in o["timeout_in_shard"]):
+                # the watchdog of the executable: the case element is open, the line on stderr, exit code 86
+                line = "CASE TIMEOUT 600 s: %s (%s:%d)\n" % (n, os.path.join(self.root, c["rel"]), c["line"]) if o["timeout_line"] else ""
+                return 86, "<?xml version=\"1.0\"?><doctest>" + "".join(body) + "<TestCase %s>" % at + "\n" + line
             san = san or n in o["sanitizer_in"] or (not alone and n in o["sanitizer_in_shard"])
             st = "passed"
             if n in o["fail_always"] or (not alone and n in o["fail_in_shard"]):
@@ -1103,7 +1109,7 @@ class Stub:
         elif os.path.exists(exe):
             os.remove(exe)
 
-    def __call__(self, cmd, log, cwd=None, timeout=None):
+    def __call__(self, cmd, log, cwd=None, timeout=None, env=None):
         w = 1
         for a in cmd:
             if cmd[0] == "cmake" and str(a).startswith("-j"):
@@ -1111,6 +1117,8 @@ class Stub:
         with self.lock:
             self.calls.append(list(cmd))
             self.cwds.append(cwd)
+            self.envs.append(env)
+            self.timeouts.append(timeout)
             self.active += w
             self.peak = max(self.peak, self.active)
         try:
@@ -1118,7 +1126,7 @@ class Stub:
             if self.o["delay"]:
                 time.sleep(self.o["delay"])
             try:
-                return self.answer(cmd, log, cwd, timeout)
+                return self.answer(cmd, log, cwd, timeout, env)
             finally:
                 if str(cmd[0]).endswith(ig.EXE) and "-ltc" not in cmd:
                     with self.lock:
@@ -1127,7 +1135,7 @@ class Stub:
             with self.lock:
                 self.active -= w
 
-    def answer(self, cmd, log, cwd=None, timeout=None):
+    def answer(self, cmd, log, cwd=None, timeout=None, env=None):
         o = self.o
         text, rc = "", 0
         joined = " ".join(str(c) for c in cmd)
@@ -1250,7 +1258,7 @@ class RunVariant(unittest.TestCase):
 
     def test_integration_exit_code_fails(self):
         self.assertFails(self.go(int_rc=1)[0], ig.EXE)
-        self.assertFails(self.go(int_rc=124)[0], "timed out")
+        self.assertFails(self.go(int_rc=124)[0], ig.EXE)  # no process limit: 124 is just a failing exit code now
 
     def test_summary_exit_code_fails(self):
         self.assertFails(self.go(summary_rc=1)[0], ig.EXE)
@@ -1513,10 +1521,10 @@ class MainLogic(unittest.TestCase):
         outer = self
 
         class Committing(Stub):
-            def __call__(self2, cmd, log, cwd=None, timeout=None):
+            def __call__(self2, cmd, log, cwd=None, timeout=None, env=None):
                 if cmd[0] == "ctest" and "-N" not in cmd:
                     sh(outer.root, *ID, "commit", "-q", "--allow-empty", "-m", "moved")
-                return Stub.__call__(self2, cmd, log, cwd, timeout)
+                return Stub.__call__(self2, cmd, log, cwd, timeout, env)
         head0 = sh(self.root, "git", "rev-parse", "HEAD").strip()
         rc, out = self.run_isolated(Committing(self.root))
         self.assertEqual(rc, 1)
@@ -1545,10 +1553,10 @@ class MainLogic(unittest.TestCase):
         self.write("Tests/Integration_Tests/claude/plans/PROGRESS.md", "progress\n")
 
         class Editing(Stub):
-            def __call__(self2, cmd, log, cwd=None, timeout=None):
+            def __call__(self2, cmd, log, cwd=None, timeout=None, env=None):
                 if cmd[0] == "ctest" and "-N" not in cmd:
                     outer.write("Tests/Integration_Tests/claude/plans/PROGRESS.md", "edited\n")
-                return Stub.__call__(self2, cmd, log, cwd, timeout)
+                return Stub.__call__(self2, cmd, log, cwd, timeout, env)
         rc, out = self.run_isolated(Editing(self.root))
         self.assertEqual(rc, 1)
         self.assertIn("documents under Tests/Integration_Tests/ changed", out.strip().splitlines()[-1])
@@ -1621,10 +1629,10 @@ class MainLogic(unittest.TestCase):
         outer = self
 
         class Changing(Stub):
-            def __call__(self2, cmd, log, cwd=None, timeout=None):
+            def __call__(self2, cmd, log, cwd=None, timeout=None, env=None):
                 if cmd[0] == "ctest" and "-N" not in cmd:
                     outer.write(CASE_REL, "edited while the gate runs\n")
-                return Stub.__call__(self2, cmd, log, cwd, timeout)
+                return Stub.__call__(self2, cmd, log, cwd, timeout, env)
         import io
         import contextlib
         buf = io.StringIO()
@@ -1988,20 +1996,160 @@ class IntegrationRun(unittest.TestCase):
         self.assertEqual(c["case 5"]["status"], "failed")
         self.assertEqual(c["case 4"]["status"], "passed")
 
-    def test_a_timeout_alone_is_a_timeout_failure(self):
-        class Timing(Stub):
-            def exe_call(self2, cmd):
-                if "--first=2" in cmd and "--last=2" in cmd:
-                    return 124, "[timeout]"
-                return Stub.exe_call(self2, cmd)
-        bd = ig.build_dir_for(self.root, "default")
-        stub = Timing(self.root, cases=many(4), fail_in_shard=("case 2",))
-        stub.write_build(bd, "default")
-        ig.record_reference(self.root, bd, "default")
-        res = ig.run_variant(self.root, "default", LIST_PATTERNS, self.evid, stub, jobs=1, echo=lambda l: None)
+    # ---- per-case time limits instead of process time limits (tool WO I2-T1)
+
+    def integration_calls_with_timeout(self, stub):
+        return [(c, t) for c, t in zip(stub.calls, stub.timeouts) if str(c[0]).endswith(ig.EXE) and t is not None]
+
+    def test_no_integration_run_gets_a_process_time_limit_and_every_run_carries_the_case_limit(self):
+        for kw in (dict(), dict(rv=dict(jobs=1)), dict(cases=many(12), die_in_shard=("case 5",), fail_in_shard=("case 2",))):
+            res, stub = self.go(**kw)
+            self.assertTrue(res["ok"], res.get("reason"))
+            self.assertEqual(self.integration_calls_with_timeout(stub), [])
+            idx = [i for i, c in enumerate(stub.calls) if str(c[0]).endswith(ig.EXE)]
+            self.assertTrue(idx)
+            for i in idx:  # shards, the listing and the alone reruns alike
+                self.assertEqual(stub.envs[i], {"FFB_IT_CASE_TIMEOUT_S": str(ig.DEFAULT_CASE_TIMEOUT_S)}, stub.calls[i])
+        res, stub = self.go(variant="cov", cases=many(4))  # cov: one process
+        self.assertTrue(res["ok"], res.get("reason"))
+        self.assertEqual(self.integration_calls_with_timeout(stub), [])
+        self.assertTrue(all(stub.envs[i] == {"FFB_IT_CASE_TIMEOUT_S": str(ig.case_timeout_s("cov"))}
+                            for i, c in enumerate(stub.calls) if str(c[0]).endswith(ig.EXE)))
+
+    def test_serial_passes_no_process_limit_for_the_executable_or_for_the_ctest_that_runs_it(self):
+        res, stub = self.go(serial=True)
+        self.assertTrue(res["ok"], res.get("reason"))
+        self.assertEqual(self.integration_calls_with_timeout(stub), [])
+        for c, t, e in zip(stub.calls, stub.timeouts, stub.envs):
+            if c[0] == "ctest" and "-N" not in c:
+                self.assertIsNone(t)  # the whole ctest includes ffb_integration_tests: no limit on it
+                self.assertEqual(e, {"FFB_IT_CASE_TIMEOUT_S": str(ig.DEFAULT_CASE_TIMEOUT_S)})
+            if str(c[0]).endswith(ig.EXE):
+                self.assertEqual(e, {"FFB_IT_CASE_TIMEOUT_S": str(ig.DEFAULT_CASE_TIMEOUT_S)})
+        # the other ctest entries keep their limits in the non-serial run (ctest without the integration entry)
+        _, stub = self.go()
+        ct = [(c, t) for c, t in zip(stub.calls, stub.timeouts) if c[0] == "ctest" and "-E" in c]
+        self.assertEqual([t for _, t in ct], [ig.CTEST_TOTAL_TIMEOUT])
+        self.assertEqual(ct[0][0][ct[0][0].index("--timeout") + 1], str(ig.CTEST_TIMEOUT))
+
+    def test_the_gate_has_no_whole_run_limit_constants_left(self):
+        self.assertFalse(hasattr(ig, "INTEGRATION_TIMEOUT"))
+        self.assertFalse(hasattr(ig, "INTEGRATION_SUM_LIMIT"))
+
+    def test_the_default_limit_of_the_gate_is_the_one_compiled_into_the_executable(self):
+        header = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "support", "CaseWatchdog.h")
+        with open(header) as f:
+            text = f.read()
+        self.assertEqual(int(re.search(r"kDefaultCaseTimeoutS\s*=\s*(\d+)", text).group(1)), ig.DEFAULT_CASE_TIMEOUT_S)
+        self.assertEqual(int(re.search(r"kCaseTimeoutExitCode\s*=\s*(\d+)", text).group(1)), ig.CASE_TIMEOUT_RC)
+        self.assertRegex(text, r'kCaseTimeoutEnv\s*=\s*"%s"' % re.escape(ig.CASE_TIMEOUT_ENV))
+
+    def test_the_limit_of_a_variant_is_the_default_times_its_factor(self):
+        saved = dict(ig.CASE_TIMEOUT_FACTOR)
+        try:
+            ig.CASE_TIMEOUT_FACTOR.clear()
+            self.assertEqual(ig.case_timeout_s("clang-san"), ig.DEFAULT_CASE_TIMEOUT_S)
+            ig.CASE_TIMEOUT_FACTOR.update({"san": 3, "cov": 2})
+            self.assertEqual(ig.case_timeout_s("default"), ig.DEFAULT_CASE_TIMEOUT_S)
+            self.assertEqual(ig.case_timeout_s("clang-san"), 3 * ig.DEFAULT_CASE_TIMEOUT_S)
+            self.assertEqual(ig.case_timeout_s("cov"), 2 * ig.DEFAULT_CASE_TIMEOUT_S)
+            res, stub = self.go(variant="nodsp-san", cases=many(3))
+            self.assertEqual(res["integration"]["case_timeout_s"], 3 * ig.DEFAULT_CASE_TIMEOUT_S)
+        finally:
+            ig.CASE_TIMEOUT_FACTOR.clear()
+            ig.CASE_TIMEOUT_FACTOR.update(saved)
+
+    def test_a_shard_ended_by_the_watchdog_is_a_dead_shard_and_the_named_case_passing_alone_is_recorded_with_the_reason(self):
+        lines = []
+        res, stub = self.go(cases=many(12), timeout_in_shard=("case 5",), rv=dict(jobs=1), echo=lines.append)
+        self.assertTrue(res["ok"], res.get("reason"))
+        i = res["integration"]
+        self.assertEqual(len(i["dead_shards"]), 1)
+        self.assertEqual((i["dead_shards"][0]["first"], i["dead_shards"][0]["last"], i["dead_shards"][0]["rc"]), (4, 6, 86))
+        self.assertIn("case timed out: case 5", i["dead_shards"][0]["reason"])
+        self.assertEqual(i["rerun_passed"], ["case 5"])  # the timed-out case itself
+        self.assertEqual(i["rerun_reasons"], {"case 5": "timeout in shard"})
+        self.assertEqual(sorted(i["rerun_unrun_passed"]), ["case 4", "case 6"])  # the others of the dead shard
+        self.assertEqual((i["case_timeouts"], i["failed"], i["cases"]), (["case 5"], 0, 12))
+        self.assertEqual(i["case_timeout_s"], ig.DEFAULT_CASE_TIMEOUT_S)
+        alone = [c for c in self.exe_calls(stub) if "--first=5" in c and "--last=5" in c]
+        self.assertEqual(len(alone), 1)  # run alone once
+        self.assertTrue(any("passed only when rerun alone" in l and "case 5" in l for l in lines))
+        self.assertEqual(self.cases_file()["rerun_passed"], ["case 5"])
+
+    def test_a_case_that_times_out_alone_fails_the_variant_and_is_named(self):
+        res, _ = self.go(cases=many(12), timeout_in_shard=("case 5",), timeout_alone=("case 5",), rv=dict(jobs=1))
         self.assertFalse(res["ok"])
-        self.assertIn("timed out", res["reason"])
-        self.assertEqual(res["integration"]["exe_rc"], 124)
+        self.assertIn("default: case timed out: case 5", res["reason"])
+        i = res["integration"]
+        self.assertEqual((i["rerun_failed"], i["case_timeouts"], i["failed"]), (["case 5"], ["case 5"], 1))
+        c = {c["name"]: c for c in self.cases_file()["cases"]}
+        self.assertEqual(c["case 5"]["status"], "failed")
+        self.assertEqual(c["case 4"]["status"], "passed")  # the other cases of the dead shard ran alone and passed
+
+    def test_a_process_that_dies_without_the_watchdog_line_stays_an_ordinary_dead_shard(self):
+        res, _ = self.go(cases=many(12), timeout_in_shard=("case 5",), timeout_line=False, rv=dict(jobs=1))
+        self.assertTrue(res["ok"], res.get("reason"))
+        i = res["integration"]
+        self.assertEqual(i["case_timeouts"], [])
+        self.assertEqual(i["rerun_reasons"], {})
+        self.assertEqual(sorted(i["rerun_unrun_passed"]), ["case 4", "case 5", "case 6"])
+
+    def test_a_case_timeout_in_the_cov_run_is_a_failure_naming_the_case(self):
+        res, stub = self.go(variant="cov", cases=many(6), timeout_in_shard=("case 3",))
+        self.assertFalse(res["ok"])
+        self.assertIn("cov: case timed out: case 3", res["reason"])
+        self.assertEqual(res["integration"]["case_timeouts"], ["case 3"])
+        self.assertEqual(len([c for c in self.exe_calls(stub)]), 1)  # one process, nothing is rerun
+
+    def test_serial_names_the_case_the_watchdog_ended_the_run_for(self):
+        res, _ = self.go(serial=True, cases=many(6), timeout_in_shard=("case 3",))
+        self.assertFalse(res["ok"])
+        self.assertIn("default: case timed out: case 3", res["reason"])
+        self.assertEqual(res["integration"]["case_timeouts"], ["case 3"])
+
+    def test_a_missing_summary_or_zero_cases_stays_a_failure(self):
+        res, _ = self.go(cases=[], rv=dict(jobs=1))
+        self.assertFalse(res["ok"])
+        self.assertIn("zero test cases", res["reason"])
+        res, _ = self.go(list_rc=1)
+        self.assertFalse(res["ok"])
+
+    def test_the_evidence_has_the_limit_per_variant_and_the_timed_out_cases(self):
+        res, _ = self.go(cases=many(8), timeout_in_shard=("case 2",), rv=dict(jobs=1))
+        ev = ig.make_evidence(self.root, "T-1", {"default": res}, {"result": "OK", "offenders": [], "changed": []}, "abc", "PASS")
+        self.assertEqual(ev["case_timeout_s"], {"default": ig.DEFAULT_CASE_TIMEOUT_S})
+        self.assertEqual(ev["case_timeouts"], {"default": ["case 2"]})
+        self.assertEqual(ev["rerun_reasons"], {"default": {"case 2": "timeout in shard"}})
+        res, _ = self.go(cases=many(3))
+        ev = ig.make_evidence(self.root, "T-1", {"default": res}, {"result": "OK", "offenders": [], "changed": []}, "abc", "PASS")
+        self.assertEqual(ev["case_timeouts"], {})
+        self.assertEqual(ev["case_timeout_s"], {"default": ig.DEFAULT_CASE_TIMEOUT_S})
+
+    def test_the_variant_line_shows_the_case_limit_and_the_wall_time(self):
+        res, _ = self.go(cases=many(3))
+        line = ig.variant_summary("default", res)
+        self.assertIn("case limit %d s" % ig.DEFAULT_CASE_TIMEOUT_S, line)
+        self.assertRegex(line, r"[0-9.]+ s wall")
+
+    def test_the_watchdog_line_is_parsed_with_names_that_contain_brackets_and_colons(self):
+        text = "x\nCASE TIMEOUT 600 s: a: b (c) [d] (/p q/t.cpp:12)\n"
+        self.assertEqual(ig.timed_out_case(86, text), "a: b (c) [d]")
+        self.assertIsNone(ig.timed_out_case(1, text))  # the exit code must be the watchdog's too
+        self.assertIsNone(ig.timed_out_case(86, "no line"))
+
+    def test_the_help_describes_the_per_case_limit(self):
+        import io
+        import contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            try:
+                ig.main(["--help"])
+            except SystemExit:
+                pass
+        text = buf.getvalue()
+        for word in ("FFB_IT_CASE_TIMEOUT_S", "no time limit" if False else "none for a whole integration run", "exit code 86"):
+            self.assertIn(word, text.replace("\n", " "))
 
     def test_other_ways_to_fail(self):
         def fails(text, **o):
@@ -2010,7 +2158,7 @@ class IntegrationRun(unittest.TestCase):
             self.assertIn(text, res["reason"], o)
         fails("integration case(s) failed", int_rc=1)  # exit code the report does not explain: not trusted, rerun alone, fails again
         fails("cannot list", list_rc=1)
-        fails("timed out", list_rc=124)
+        fails("cannot list the test cases", list_rc=124)
         fails("zero test cases", cases=[Stub.case("x", "Firmware/Tests/Other/test_y.cpp", 1)], rv=dict(scope_files=[CD + "test_x.cpp"]))
         fails("ctest failed", ctest_rc=8)
         fails("check_baseline", baseline_rc=1)
@@ -2157,6 +2305,14 @@ class IntegrationRunSafety(IntegrationRun):
             self.assertIn("does not reproduce", res["reason"])
             self.assertFalse(self.exe_calls(stub), prop)
 
+    def test_ctest_timeout_0_is_allowed_and_any_other_ctest_timeout_is_a_mismatch(self):
+        bd = ig.build_dir_for(self.root, "default")
+        base = {"name": ig.EXE, "command": [os.path.join(bd, ig.EXE)]}
+        res, _ = self.go(ctest_json=json.dumps({"tests": [dict(base, properties=[{"name": "TIMEOUT", "value": 0}])]}))
+        self.assertTrue(res["ok"], res.get("reason"))
+        res, _ = self.go(ctest_json=json.dumps({"tests": [dict(base, properties=[{"name": "TIMEOUT", "value": 1500}])]}))
+        self.assertFalse(res["ok"])
+
     def test_ctest_properties_the_gate_reproduces_are_allowed(self):
         wd = os.path.join(self.tmp, "wd")
         res, _ = self.go(ctest_props=[{"name": "WORKING_DIRECTORY", "value": wd},
@@ -2199,20 +2355,11 @@ class IntegrationRunSafety(IntegrationRun):
         runs = [cwd for c, cwd in zip(stub.calls, stub.cwds) if str(c[0]).endswith(ig.EXE)]
         self.assertTrue(runs and all(c == wd for c in runs), runs)
 
-    def test_the_sum_of_the_wall_times_is_limited_and_recorded(self):
-        res, _ = self.go(cases=many(8), rv=dict(jobs=1))
+    def test_the_sum_of_the_wall_times_is_recorded_and_never_a_failure(self):
+        res, _ = self.go(cases=many(8), delay=0.004, rv=dict(jobs=1))
         self.assertTrue(res["ok"], res.get("reason"))
         self.assertIn("wall_sum_s", res["integration"])
-        self.assertEqual(ig.INTEGRATION_SUM_LIMIT, 2400)
-        saved = ig.INTEGRATION_SUM_LIMIT
-        ig.INTEGRATION_SUM_LIMIT = 0.01
-        try:
-            res, _ = self.go(cases=many(8), delay=0.004, rv=dict(jobs=1))
-        finally:
-            ig.INTEGRATION_SUM_LIMIT = saved
-        self.assertFalse(res["ok"])
-        self.assertRegex(res["reason"], r"took [0-9]+ s in total .* over the limit of 0\.01 s")
-        self.assertGreater(res["integration"]["wall_sum_s"], 0.01)
+        self.assertGreater(res["integration"]["wall_sum_s"], 0.0)
 
     def test_a_dead_shard_is_recorded_with_its_last_started_case_and_printed(self):
         lines = []
@@ -2288,6 +2435,64 @@ class IntegrationRunSafety(IntegrationRun):
         self.assertTrue(res["ok"], res.get("reason"))
         self.assertEqual(res["integration"]["rerun_unrun_passed"], ["case 2"])
         self.assertEqual(res["integration"]["skipped"], 0)
+
+
+class CaseWatchdogFiring(unittest.TestCase):
+    """The firing path of the executable's per-case watchdog (support/CaseWatchdog.cpp), with the real executable: a hidden case
+    (doctest::skip(), never run unless --no-skip is given; it is a skipped case in every normal run) sleeps on the host clock far
+    beyond a limit of 1 s set through the environment. The executable is the one of the build that ctest runs this test for
+    (FFB_IT_EXE, set by integration.cmake); without it the test is skipped."""
+    HELPER = "support: watchdog helper hangs on the host clock"
+
+    def exe(self):
+        exe = os.environ.get("FFB_IT_EXE")
+        if not exe or not os.path.isfile(exe):
+            self.skipTest("FFB_IT_EXE (the ffb_integration_tests executable) is not set")
+        return exe
+
+    def run_helper(self, limit, extra=()):
+        env = dict(os.environ)
+        env.pop("FFB_IT_CASE_TIMEOUT_S", None)
+        if limit is not None:
+            env["FFB_IT_CASE_TIMEOUT_S"] = limit
+        t = time.monotonic()
+        p = subprocess.run([self.exe(), "--no-skip", "-tc=" + self.HELPER] + list(extra), stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE, text=True, errors="replace", env=env, timeout=120)
+        return p, time.monotonic() - t
+
+    def test_a_case_beyond_the_limit_ends_the_process_with_the_exit_code_and_the_line(self):
+        p, took = self.run_helper("1")
+        self.assertEqual(p.returncode, ig.CASE_TIMEOUT_RC)
+        lines = [l for l in p.stderr.splitlines() if l.startswith("CASE TIMEOUT")]
+        self.assertEqual(len(lines), 1, p.stderr)
+        m = ig.CASE_TIMEOUT_LINE.match(lines[0])
+        self.assertTrue(m, lines[0])
+        self.assertEqual((m.group(1), m.group(2)), ("1", self.HELPER))
+        self.assertTrue(m.group(3).endswith("test_f1_support.cpp"), m.group(3))
+        self.assertLess(took, 20)  # ended by the watchdog, not by the helper's 30 s sleep
+        self.assertEqual(ig.timed_out_case(p.returncode, p.stderr), self.HELPER)
+
+    def test_the_helper_is_not_part_of_a_normal_run_and_is_a_skipped_case(self):
+        p = subprocess.run([self.exe(), "-ltc", "-r=xml"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                           errors="replace", timeout=120)
+        self.assertEqual(p.returncode, 0)
+        self.assertNotIn(self.HELPER, p.stdout)  # -ltc lists only the cases a run would execute
+        p = subprocess.run([self.exe(), "-tc=" + self.HELPER], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                           errors="replace", timeout=120, env=dict(os.environ, FFB_IT_CASE_TIMEOUT_S="1"))
+        self.assertEqual(p.returncode, 0)  # skipped without --no-skip: nothing sleeps, nothing fires
+        self.assertNotIn("CASE TIMEOUT", p.stderr)
+
+    def test_the_executable_accepts_0_and_warns_about_a_bad_value(self):
+        # the helper sleeps 30 s: too long to wait for in a unit test, so ask for a case filter that runs nothing and only check
+        # that 0 and a bad value are accepted by the executable at start-up
+        exe = self.exe()
+        p = subprocess.run([exe, "-tc=no such test case"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                           errors="replace", env=dict(os.environ, FFB_IT_CASE_TIMEOUT_S="0"), timeout=120)
+        self.assertEqual(p.returncode, 0)
+        p = subprocess.run([exe, "-tc=no such test case"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                           errors="replace", env=dict(os.environ, FFB_IT_CASE_TIMEOUT_S="abc"), timeout=120)
+        self.assertEqual(p.returncode, 0)
+        self.assertIn("FFB_IT_CASE_TIMEOUT_S is not a non-negative integer", p.stderr)
 
 
 class GateScope(unittest.TestCase):

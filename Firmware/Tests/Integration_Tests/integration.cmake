@@ -52,6 +52,7 @@ if(FFB_TESTS_INTEGRATION)
 		Integration_Tests/support/FfbHost.cpp
 		Integration_Tests/support/PositionScript.cpp
 		Integration_Tests/support/ChipEventLog.cpp
+		Integration_Tests/support/CaseWatchdog.cpp
 		Integration_Tests/fakes/WheelPlant.cpp
 		Code_Coverage/support/test_main.cpp
 	)
@@ -147,6 +148,10 @@ if(FFB_TESTS_INTEGRATION)
 	else()
 		add_test(NAME ffb_integration_tests COMMAND ffb_integration_tests)
 	endif()
+	# No time limit of the whole run (owner's decision 2026-11-24, tool WO I2-T1): the suite grows every phase and one process runs every
+	# case. The limit is per case, inside the executable (support/CaseWatchdog.cpp, FFB_IT_CASE_TIMEOUT_S). TIMEOUT 0 = no ctest timeout
+	# for this entry only (ctest's default of 1500 s, or a --timeout given on the command line, does not apply to it).
+	set_tests_properties(ffb_integration_tests PROPERTIES TIMEOUT 0)
 
 	# Self-tests of the integration tooling (the gate script, the hook rules, the bug report generator and its --check of the committed report): stdlib unittest, only with Python 3.
 	# test_hooks.py tests the Claude Code hooks, which are meant to run on Linux / macOS only (python3 command): not on Windows.
@@ -161,7 +166,8 @@ if(FFB_TESTS_INTEGRATION)
 			COMMAND ${Python3_EXECUTABLE} -B -m unittest discover -v
 				-s ${CMAKE_CURRENT_SOURCE_DIR}/Integration_Tests/tools -t ${CMAKE_CURRENT_SOURCE_DIR}/Integration_Tests/tools -p "${FFB_INTEGRATION_TOOL_TEST_GLOB}"
 			WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-		set_tests_properties(integration_tool_tests PROPERTIES ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
+		# FFB_IT_EXE: the executable that test_it_gate.py runs for the firing self-test of the per-case watchdog (a hidden, skipped case).
+		set_tests_properties(integration_tool_tests PROPERTIES ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;FFB_IT_EXE=$<TARGET_FILE:ffb_integration_tests>")
 		# test_make_integration_bug_report.py also runs make_integration_bug_report.py --check against the committed report
 		# (Tests/Integration_Tests/claude/reports/BUG_REPORT.md, generated from the registers of PROGRESS.md): a stale report fails this test.
 	else()
