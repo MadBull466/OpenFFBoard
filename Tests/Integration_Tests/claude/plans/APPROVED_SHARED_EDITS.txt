@@ -1,8 +1,4 @@
 # Shared paths the hooks let the lead and the integration-test-writer edit (.claude/hooks/guard_lib.py).
 # One line per path: <repository-relative path> | <owner's approval date> | <work order>
 # The lead adds a line only after the owner approved that change (AGENT_PLAN.md section 4). Remove a line in the commit after its WO's commit (the commit check still needs it).
-# (no open approvals: the I0-8 lines were removed after commit 77e4a25b, 2026-11-18)
-Firmware/Tests/CMakeLists.txt | 2026-11-24 | I2-T2
-Firmware/Tests/Code_Coverage/support/CaseWatchdog.h | 2026-11-24 | I2-T2
-Firmware/Tests/Code_Coverage/support/CaseWatchdog.cpp | 2026-11-24 | I2-T2
-Firmware/Tests/Code_Coverage/claude/cases_flash/test_case_watchdog_helper.cpp | 2026-11-24 | I2-T2
+# (no open approvals: the I2-T2 lines were removed after commit 0835a697, 2026-11-25)
