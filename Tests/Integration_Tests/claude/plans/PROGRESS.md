@@ -7,7 +7,7 @@
 
 *Last updated: 2026-11-24 (HEAD `3735b97d`).* Branch `add-test-suite`; pushed to the fork up to `f3c3e55f`. Coverage-suite state: `Tests/Code_Coverage/claude/plans/PROGRESS.md` "Current state".
 
-- **Phases:** I0 (infrastructure) approved 2026-11-18 (`../reports/I0_REPORT.md`). I1 (open-loop chain, G-H, G-E, G-X: 27 requirements) approved 2026-11-24 (`../reports/I1_REPORT.md`, commit `a2ad77ce`; phase gate I1-9: PASS in all 8 variants). **I2 (driver in the chain, persistence, G-T, G-P: 11 requirements) complete (2026-11-25), waiting for the owner's approval** (`../reports/I2_REPORT.md`; phase gate I2-7 `--full --isolated` on `51847987`: PASS in all 8 variants).
+- **Phases:** I0 (infrastructure) approved 2026-11-18 (`../reports/I0_REPORT.md`). I1 (open-loop chain, G-H, G-E, G-X: 27 requirements) approved 2026-11-24 (`../reports/I1_REPORT.md`, commit `a2ad77ce`; phase gate I1-9: PASS in all 8 variants). **I2 (driver in the chain, persistence, G-T, G-P: 11 requirements) complete (2026-11-25), approved by the owner on 2026-11-25** (`../reports/I2_REPORT.md`; phase gate I2-7 `--full --isolated` on `51847987`: PASS in all 8 variants).
 - **I2 work orders** (`../charters/I2_WORK_ORDERS.md`, approved 2026-11-24; every one reviewed by `integration-reviewer`, majors fixed, isolated gate 0 failed in default and m32):
 
 | WO | Content | File | Cases | Commit | New register rows |
@@ -31,7 +31,7 @@
 
 ## Next action
 
-1. Phase I2 complete; `../reports/I2_REPORT.md` waits for the owner's approval. Do not start I3 before it.
+1. Phase I2 approved by the owner on 2026-11-25 (`../reports/I2_REPORT.md`). Next: phase I3 (G-R, G-S): write its work orders and get the owner's approval before the first writer starts.
 2. Open owner questions (none blocks I2): IQ6 (INR 1), IQ9 (INR 2), IQ10 (INR 3), IQ11 (INR 4), IQ13 (sawtooth direction), IQ14 (thermistor formula; over-temperature limit unreachable), IQ15 (TMC4671 torque biquad enable: bit 31 or value 1) in `../reports/OPEN_QUESTIONS.md`.
 3. After approval: phase I3 (G-R, G-S). For the closed-loop phases (I3 / I4): configure an encoder with a mechanical (PhiM) position source through the real commands before attaching the plant (0x51 is phi_e after the fresh-flash bring-up).
 
@@ -42,7 +42,7 @@
 | Planning | plan, F1 charter, agent plan, documents | done | yes, 2026-11-18 | |
 | I0 | infrastructure, fake audit, agents / hooks / gate | done (`../reports/I0_REPORT.md`) | yes, 2026-11-18 | `480990ea` |
 | I1 | open-loop chain (G-H, G-E, G-X) | done (`../reports/I1_REPORT.md`) | yes, 2026-11-24 | `a2ad77ce` |
-| I2 | driver in the chain, persistence (G-T, G-P) | done (`../reports/I2_REPORT.md`) | waiting | I2-7 commit |
+| I2 | driver in the chain, persistence (G-T, G-P) | done (`../reports/I2_REPORT.md`) | yes, 2026-11-25 | `0692b9e6` |
 | I3 | DSP, reconstruction, timing (G-R, G-S) | not started | | |
 | I4 | stability (G-O) | not started | | |
 | I5 | F1 close-out | not started | | |
@@ -52,6 +52,7 @@
 
 | Date | Decision | Reason |
 |---|---|---|
+| 2026-11-25 | Owner approved phase I2 | Owner's answer "Approve I2" on `../reports/I2_REPORT.md` |
 | 2026-11-25 | I2-7 phase gate PASS in all 8 variants (`51847987`); I2 report written; chain coverage 64.1 %; phase I2 waits for the owner's approval | WO I2-7 |
 | 2026-11-25 | Tool WO I2-T2 done: per-case watchdog in every doctest executable (shared `Code_Coverage/support/CaseWatchdog`, compiled defaults 30 / 60 / 120 s from measurements), no whole-run limit left except the two Python ctest entries (60 s / 120 s); compile references re-recorded after showing that the only differences are the watchdog source / definition and the flash helper case; reviewed (10 minors fixed); full isolated gate PASS in all 8 variants | Owner's answer "Per-case watchdog in all executables" (2026-11-24) |
 | 2026-11-24 | Owner: no time limit on whole integration runs (the I2-7 `cov` process, 430 cases in one process, exceeded the 600 s process limit); a time limit per test case instead: tool WO I2-T1 (doctest listener watchdog, `FFB_IT_CASE_TIMEOUT_S`, gate without process / sum limits), committed before the I2-7 gate is re-run. I2-7 sanitizer runs by hand: 196 I2 cases, 184 clean, 12 (reboot / replug / driver re-selection flows of `test_f1_support.cpp` and `test_f1_driver.cpp`) reach IB 3 (heap-use-after-free in `HidCommandInterface`, `tu_memcpy_s`), no other report | Owner's instruction "Do not set a time limit on the overall test runs ... Have time limits for each test case" |

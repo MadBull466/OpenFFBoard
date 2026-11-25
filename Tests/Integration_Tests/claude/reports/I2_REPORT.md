@@ -4,7 +4,7 @@
 
 ## 1. Result
 
-Phase I2 is complete and waits for the owner's approval. All 11 requirements of G-T (the TMC4671 driver inside the chain: start-up, readiness, E-stop, hardware enable input, supply and temperature, commands, USB state, SPI faults, external encoder) and G-P (settings across a power cycle) have cases. Every case brings up the real chain (USB HID PID -> `HidFFB` -> `EffectsCalculator` -> `Axis` -> `TMC4671` on `FakeTmc4671`) and observes the chip's registers and the driver enable pin; the encoder position is still scripted (closed loop is I3 / I4).
+Phase I2 is complete and was approved by the owner on 2026-11-25. All 11 requirements of G-T (the TMC4671 driver inside the chain: start-up, readiness, E-stop, hardware enable input, supply and temperature, commands, USB state, SPI faults, external encoder) and G-P (settings across a power cycle) have cases. Every case brings up the real chain (USB HID PID -> `HidFFB` -> `EffectsCalculator` -> `Axis` -> `TMC4671` on `FakeTmc4671`) and observes the chip's registers and the driver enable pin; the encoder position is still scripted (closed loop is I3 / I4).
 
 Numbers: 436 integration cases (325 at the end of I1, 111 new: 87 requirement cases, 23 helper self-tests, 1 hidden watchdog helper): 365 passed, 69 known issues (`KNOWN_ISSUE` / `KNOWN_ISSUE_UB`, failing as intended), 2 skipped (IB 36, a crash; the hidden watchdog helper), 0 failed. Chain line coverage 64.1 % (I1: 50.5 %). Registers: 13 new integration bugs (IB 38-50), 20 new NEEDS REVIEW items (INR 33-52), 2 new owner questions (IQ14, IQ15).
 

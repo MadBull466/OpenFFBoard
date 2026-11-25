@@ -16,7 +16,7 @@ Chain files of F1: `HidFFB.cpp`, `EffectsCalculator.cpp`, `Filters.cpp`, `Axis.c
 
 | Flow | Chain | Phase | Status |
 |---|---|---|---|
-| F1 | HID PID (USB) -> HidFFB -> EffectsCalculator (CMSIS-DSP) -> Axis -> TMC4671 (`FakeTmc4671`), with feedback, supply, init, faults, E-stop, commands, persistence, timing, stability | I0-I5 | I0 complete (approved 2026-11-18): infrastructure and group G-A (F1-A1 to F1-A5) covered; chain line coverage measured as a starting point. I1 complete (approved 2026-11-24): groups G-H, G-E, G-X (27 requirements) have cases, open-loop with a scripted position; chain coverage and the classification of unexecuted parts in `../reports/I1_REPORT.md`. I2 complete (2026-11-25, waiting for approval; chain coverage 64.1 %, `../reports/I2_REPORT.md`): G-T (`test_f1_driver.cpp` T1, T2; `test_f1_safety.cpp` T3-T5; `test_f1_runtime.cpp` T6-T8; `test_f1_encoder.cpp` T9) and G-P (`test_f1_persistence.cpp` P1, P2); the I2 chain coverage is measured at the I2-7 gate (numbers in `PROGRESS.md`) |
+| F1 | HID PID (USB) -> HidFFB -> EffectsCalculator (CMSIS-DSP) -> Axis -> TMC4671 (`FakeTmc4671`), with feedback, supply, init, faults, E-stop, commands, persistence, timing, stability | I0-I5 | I0 complete (approved 2026-11-18): infrastructure and group G-A (F1-A1 to F1-A5) covered; chain line coverage measured as a starting point. I1 complete (approved 2026-11-24): groups G-H, G-E, G-X (27 requirements) have cases, open-loop with a scripted position; chain coverage and the classification of unexecuted parts in `../reports/I1_REPORT.md`. I2 complete (approved 2026-11-25; chain coverage 64.1 %, `../reports/I2_REPORT.md`): G-T (`test_f1_driver.cpp` T1, T2; `test_f1_safety.cpp` T3-T5; `test_f1_runtime.cpp` T6-T8; `test_f1_encoder.cpp` T9) and G-P (`test_f1_persistence.cpp` P1, P2); the I2 chain coverage is measured at the I2-7 gate (numbers in `PROGRESS.md`) |
 | F2 | same chain with ODrive (`FakeOdrivePeer`, CAN) | I6 | planned after F1 |
 | F3 | VESC (`FakeVescPeer`, CAN) | I7 | planned after F2 |
 | F4 | PWM (`MotorPWM`, fake TIM1) | I8 | planned after F3 |
@@ -37,7 +37,6 @@ Chain files of F1: `HidFFB.cpp`, `EffectsCalculator.cpp`, `Filters.cpp`, `Axis.c
 
 | Item | Planned in |
 |---|---|
-| F1 groups G-T and G-P: complete, the owner's approval pending | I2 |
 | F1 groups G-R (reconstruction filter, spline) and G-S (timing, SPI frames per cycle) | I3 |
 | F1 group G-O (stability with the wheel plant) | I4 |
 | F1 close-out (mutation score, random-order and repeat runs) | I5 |
