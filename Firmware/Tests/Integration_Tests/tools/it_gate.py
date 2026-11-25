@@ -49,11 +49,19 @@ failing again = failure; passing alone = the gate passes with `rerun_passed` in 
 looks at it before a commit). The cov variant is never sharded (one process, one writer of the coverage files). A WO whose
 file list holds, besides documents, only integration case files (Firmware/Tests/Integration_Tests/claude/cases/test_*.cpp)
 runs only those files' cases (doctest -sf); any other code file, a list without a case file and --full run every case
-(`integration_scope` in the evidence). There is no time limit for a whole run, a shard, a rerun, the cov run or --serial (owner's
-decision 2026-11-24, tool WO I2-T1); every test case has its own limit inside the executable (support/CaseWatchdog: a host thread
-ends the process with exit code 86 and the line `CASE TIMEOUT <s> s: <case> (<file>:<line>)` when one case runs longer than
-FFB_IT_CASE_TIMEOUT_S seconds; unset = the compiled default, 0 = off). The gate sets the variable for every integration process
-(`case_timeout_s` of the variant in the evidence). A shard that ends that way is a dead shard (its unrun cases run alone); the
+(`integration_scope` in the evidence). There is no time limit for a whole run of any doctest executable: not for a shard, a rerun,
+the cov run, --serial, the ctest run or check_baseline (owner's decision 2026-11-24, tool WOs I2-T1 / I2-T2); every test case has its own
+limit inside its executable (Code_Coverage/support/CaseWatchdog, linked into every doctest executable of the suite: a host thread ends the
+process with exit code 86 and the line `CASE TIMEOUT <s> s: <case> (<file>:<line>)` when one case runs longer than FFB_IT_CASE_TIMEOUT_S
+seconds; unset = the executable's own compiled default, 0 = off). The gate sets the variable only for its integration processes
+(`case_timeout_s` of the variant in the evidence); the compiled default of every executable is read from compile_commands.json
+(`case_timeout_defaults` of the variant in the evidence) and the gate fails when a doctest executable of the ctest list has none.
+Consequence for Codex's own entries (codex_python_tests, codex_usb_setup_guard, not ours): they lost the old 600 s per-entry ctest timeout of this gate and now have no limit. --serial runs the integration entry inside the whole ctest with its compiled default (no per-entry environment value is possible; identical while CASE_TIMEOUT_FACTOR is empty).
+ctest runs with `--overwrite TimeOut=0` and no `--timeout` (no limit for any entry; verified with CMake 4.5.1: `--timeout 0` does not
+remove the 1500 s default of a project that uses include(CTest), `--overwrite TimeOut=0` does, and a TIMEOUT property still applies); the
+gate fails when a ctest entry has a TIMEOUT other than 0, except the two Python entries (stdlib unittest has no per-case limit: they
+keep a ctest TIMEOUT, the only whole-run limit left; `ctest_timeouts` in the evidence) and Codex's own entries. A case timeout inside
+another executable's ctest entry (or check_baseline) is a failure `<variant>: case timed out in <entry>: <case>` with no rerun. A shard that ends that way is a dead shard (its unrun cases run alone); the
 timed-out case runs alone once: timing out again = failure `<variant>: case timed out: <case>`, passing = `rerun_passed` with the
 reason "timeout in shard" (`rerun_reasons`); the cov run (one process) fails with the case name. `case_timeouts` lists the cases.
 --serial keeps the old sequence: variants one after another, the full ctest, then the
@@ -93,15 +101,18 @@ EXE = "ffb_integration_tests"
 REQUIRED_TESTS = ("ffb_integration_tests", "integration_tool_tests")
 REQUIRED_VARIANTS = ("default", "m32")
 REF_FORMAT = 2
-CTEST_TIMEOUT = 600  # seconds per ctest entry (the HAL tests use 600 in sanitizer builds)
-CTEST_TOTAL_TIMEOUT = 3600
-BASELINE_TIMEOUT = 900
-# No time limit for a whole integration run, a shard, an alone rerun, the cov run or --serial (owner's decision 2026-11-24, tool WO
-# I2-T1: the suite grows every phase and a whole-run limit failed the I2-7 gate). The limit is per test case, inside the executable
-# (support/CaseWatchdog.cpp): the gate hands it over through the environment variable below, per variant.
-CASE_TIMEOUT_ENV = "FFB_IT_CASE_TIMEOUT_S"
+# No time limit for any whole run (owner's decision 2026-11-24, tool WOs I2-T1 / I2-T2: the suite grows every phase and a whole-run limit
+# failed the I2-7 gate): not for an integration run, a shard, an alone rerun, the cov run, --serial, ctest or check_baseline. The limit is per
+# test case, inside every doctest executable (Code_Coverage/support/CaseWatchdog.cpp); the gate hands the integration limit over through the
+# environment variable below, per variant. ctest: `--overwrite TimeOut=0` (see the module docstring), never `--timeout`.
+CTEST_NO_LIMIT_ARGS = ("--overwrite", "TimeOut=0")
+CASE_TIMEOUT_ENV = "FFB_IT_CASE_TIMEOUT_S"  # generic: applies to every doctest executable of the suite, not only the integration one
 CASE_TIMEOUT_RC = 86  # exit code of the executable's watchdog (support/CaseWatchdog.h kCaseTimeoutExitCode)
-DEFAULT_CASE_TIMEOUT_S = 120  # same as kDefaultCaseTimeoutS in CaseWatchdog.h (a test compares them); derivation in that header
+DEFAULT_CASE_TIMEOUT_S = 120  # fallback of the integration limit: same as the #define default FFB_CASE_TIMEOUT_DEFAULT_S in CaseWatchdog.h (a test compares them)
+WATCHDOG_SOURCE = "Code_Coverage/support/CaseWatchdog.cpp"
+CASE_TIMEOUT_DEFINE = re.compile(r"-DFFB_CASE_TIMEOUT_DEFAULT_S=(\d+)")
+# stdlib unittest has no per-case limit: these two Python entries keep a ctest TIMEOUT (the only whole-run limit left, small suites)
+PYTHON_ENTRIES = ("python_helper_tests", "integration_tool_tests")
 CASE_TIMEOUT_FACTOR = {}  # variant name part -> factor of the default; empty = none needed (see the measurements in CaseWatchdog.h)
 CASE_TIMEOUT_LINE = re.compile(r"^CASE TIMEOUT (\d+) s: (.*) \((.*):(\d+)\)\s*$", re.M)
 SOURCE_SUFFIXES = (".c", ".cc", ".cpp", ".cxx")
@@ -494,6 +505,8 @@ def make_evidence(root, wo, variants, scope, git_head, result, now=None, request
         "case_timeout_s": {v: r["integration"]["case_timeout_s"] for v, r in variants.items()
                            if r.get("integration", {}).get("case_timeout_s") is not None},
         "case_timeouts": {v: r["integration"]["case_timeouts"] for v, r in variants.items() if r.get("integration", {}).get("case_timeouts")},
+        "case_timeout_defaults": {v: r["case_timeout_defaults"] for v, r in variants.items() if r.get("case_timeout_defaults")},
+        "ctest_timeouts": {v: r["ctest_timeouts"] for v, r in variants.items() if r.get("ctest_timeouts")},
         "rerun_reasons": {v: r["integration"]["rerun_reasons"] for v, r in variants.items() if r.get("integration", {}).get("rerun_reasons")},
         "rerun_passed": {v: r["integration"]["rerun_passed"] + r["integration"].get("rerun_unrun_passed", [])
                          for v, r in variants.items()
@@ -746,11 +759,98 @@ def last_started_case(text):
     return name
 
 
-def case_timeout_s(variant):
-    """The per-case limit in seconds that the gate gives the executable for a variant: the default times the variant's factor
-    (the largest factor of the variant's name parts; none = 1)."""
+def case_timeout_s(variant, default=None):
+    """The per-case limit in seconds that the gate gives the integration executable for a variant: its compiled default (`default`,
+    from compiled_case_timeouts; DEFAULT_CASE_TIMEOUT_S when unknown) times the variant's factor (the largest factor of the variant's
+    name parts; none = 1)."""
     f = max([CASE_TIMEOUT_FACTOR.get(n, 1) for n in variant.split("-")] + [1])
-    return int(DEFAULT_CASE_TIMEOUT_S * f)
+    return int((default or DEFAULT_CASE_TIMEOUT_S) * f)
+
+
+def compiled_case_timeouts(entries):
+    """{executable: compiled default limit in seconds} from the compile_commands.json entries of the watchdog source
+    (-DFFB_CASE_TIMEOUT_DEFAULT_S=<n>, set by ffb_add_case_watchdog in CMake; the object directory names the executable)."""
+    out = {}
+    for e in entries:
+        if not (e.get("file") or "").replace("\\", "/").endswith("/" + WATCHDOG_SOURCE):
+            continue
+        m = re.search(r"CMakeFiles/([^/]+)\.dir/", (e.get("output") or e.get("command") or "").replace("\\", "/"))
+        d = CASE_TIMEOUT_DEFINE.search(e.get("command") or " ".join(e.get("arguments", [])))
+        if m and d:
+            out[m.group(1)] = int(d.group(1))
+    return out
+
+
+def ctest_entry_tests(text):
+    """The test list of `ctest --show-only=json-v1` ([] when unreadable)."""
+    try:
+        return json.loads(text).get("tests", [])
+    except (ValueError, AttributeError):
+        return []
+
+
+def _timeout_property(test):
+    for prop in test.get("properties", []):
+        if prop.get("name") == "TIMEOUT":
+            try:
+                return float(prop.get("value"))
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
+def ctest_limit_problems(tests):
+    """([problem], {entry: TIMEOUT}) : no ctest entry may carry a time limit except the Python entries (which must carry one) and
+    Codex's own entries (codex_*, not ours). TIMEOUT 0 and no TIMEOUT are no limit (the gate runs ctest with --overwrite TimeOut=0)."""
+    bad, limits = [], {}
+    for t in tests:
+        name = t.get("name", "")
+        if name.startswith("codex_"):
+            continue
+        v = _timeout_property(t)
+        if name in PYTHON_ENTRIES:
+            if v is None or v <= 0:
+                bad.append("ctest entry %s has no TIMEOUT (a Python entry keeps its whole-run limit: stdlib unittest has no per-case limit)" % name)
+            else:
+                limits[name] = int(v)
+        elif v:
+            bad.append("ctest entry %s carries the time limit TIMEOUT %s (no whole-run limit is allowed: use TIMEOUT 0)" % (name, t_value(v)))
+    return bad, limits
+
+
+def t_value(v):
+    return int(v) if v == int(v) else v
+
+
+def watchdog_problems(tests, compiled):
+    """[problem] : every doctest executable of the ctest list (an `ffb_*` entry that runs the executable of the same name) must have a
+    compiled per-case default (ffb_add_case_watchdog), so a new executable cannot run without a case limit."""
+    bad = []
+    for t in tests:
+        name, cmd = t.get("name", ""), t.get("command") or []
+        if name.startswith("ffb_") and cmd and os.path.splitext(os.path.basename(cmd[0]))[0] == name:
+            if name not in compiled:
+                bad.append("%s has no per-case time limit (CaseWatchdog.cpp is not linked into it: call ffb_add_case_watchdog)" % name)
+            elif compiled[name] <= 0:
+                bad.append("%s has the compiled per-case default %s (0 would turn its limit off: use a positive number of seconds)" % (name, compiled[name]))
+    return bad
+
+
+_CTEST_ENTRY_LINE = re.compile(r"Test\s+#\d+:\s+(\S+)")
+
+
+def ctest_case_timeouts(text):
+    """[(ctest entry, case)] for every `CASE TIMEOUT` line in a ctest log (the entry is the last `Test #n: <name>` line above it;
+    `--output-on-failure` prints a failed test's output after its status line)."""
+    out, entry = [], "?"
+    for line in (text or "").splitlines():
+        m = _CTEST_ENTRY_LINE.search(line)
+        if m:
+            entry = m.group(1)
+        c = CASE_TIMEOUT_LINE.match(line)
+        if c:
+            out.append((entry, c.group(2)))
+    return out
 
 
 def timed_out_case(rc, text):
@@ -1058,21 +1158,18 @@ def syntax_recheck(jobs, runner, workers=None):
         return "", 0
     from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=max(1, workers or os.cpu_count() or 2)) as ex:
-        results = list(ex.map(lambda j: runner(j[1], None, cwd=j[0], timeout=BASELINE_TIMEOUT), jobs))
+        results = list(ex.map(lambda j: runner(j[1], None, cwd=j[0]), jobs))
     return "\n".join(t for _, t in results), sum(1 for rc, _ in results if rc != 0)
 
 
-def run(cmd, log_path, cwd=None, timeout=None, env=None):
-    """Runs cmd, writes stdout+stderr to log_path (unless None), returns (returncode, text). rc 124 = timeout.
+def run(cmd, log_path, cwd=None, env=None):
+    """Runs cmd, writes stdout+stderr to log_path (unless None), returns (returncode, text). No process time limit.
     env = variables added to the environment of the process (the rest is inherited)."""
     full_env = None if not env else dict(os.environ, **env)
     try:
         p = subprocess.run(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                           errors="replace", timeout=timeout, env=full_env)
+                           errors="replace", env=full_env)
         rc, text = p.returncode, p.stdout
-    except subprocess.TimeoutExpired as e:
-        out = e.stdout if isinstance(e.stdout, str) else (e.stdout or b"").decode("utf-8", "replace")
-        rc, text = 124, out + "\n[timeout after %s s]" % timeout
     except OSError as e:
         rc, text = 127, "cannot run %s: %s" % (cmd[0], e)
     if log_path:
@@ -1203,7 +1300,7 @@ def _fail(res, reason):
 
 def run_variant(root, variant, patterns, evid_dir, runner=run, own_wo=None, src_root=None, iso=False,
                 serial=False, jobs=MAX_JOBS, budget=None, scope_files=None, echo=print, build_jobs=None):
-    """Configure, build, test one variant. `runner(cmd, log_path, cwd=None, timeout=None) -> (rc, text)` runs every
+    """Configure, build, test one variant. `runner(cmd, log_path, cwd=None, env=None) -> (rc, text)` runs every
     subprocess (injectable for the unit tests). `own_wo` = WO id of --own-build. Returns a result dict with `ok` and,
     when not ok, `reason`.
 
@@ -1219,14 +1316,12 @@ def run_variant(root, variant, patterns, evid_dir, runner=run, own_wo=None, src_
     res = {"build_dir": bd}
     budget = budget or Budget(jobs)
 
-    def job(cmd, log, weight=1, cwd=None, timeout=None, on_done=None, env=None):
+    def job(cmd, log, weight=1, cwd=None, on_done=None, env=None):
         """Runs one subprocess holding `weight` of the budget; on_done(seconds) gets the time of the runner call only
         (measured inside the hold: the wait for a free slot is not counted)."""
         kw = {}
         if cwd is not None:
             kw["cwd"] = cwd
-        if timeout is not None:
-            kw["timeout"] = timeout
         if env:
             kw["env"] = env
         if serial:
@@ -1300,31 +1395,53 @@ def run_variant(root, variant, patterns, evid_dir, runner=run, own_wo=None, src_
 
     exe = os.path.join(bd, EXE + (".exe" if os.name == "nt" else ""))
     excl = integration_excludes(read_cache(bd))
-    limit_s = case_timeout_s(variant)
-    limit_env = {CASE_TIMEOUT_ENV: str(limit_s)}  # the per-case limit of the executable (no limit for any whole run)
+    compiled = {}
+    try:
+        compiled = compiled_case_timeouts(read_compile_commands(bd))
+    except (OSError, ValueError):
+        pass
+    res["case_timeout_defaults"] = dict(compiled)  # compiled per-case default of every executable (CaseWatchdog.cpp)
+    limit_s = case_timeout_s(variant, compiled.get(EXE))
+    limit_env = {CASE_TIMEOUT_ENV: str(limit_s)}  # the per-case limit of the integration processes (no limit for any whole run)
+    # every ctest entry: no time limit but the Python entries' own; every doctest executable has a compiled per-case limit
+    rc_all, all_text = job(["ctest", "--test-dir", bd, "--show-only=json-v1"], logs("ctest_all"))
+    all_tests = ctest_entry_tests(all_text) if rc_all == 0 else []
+    limit_bad, entry_limits = ctest_limit_problems(all_tests)
+    res["ctest_timeouts"] = entry_limits
+    setup_problems = (limit_bad + watchdog_problems(all_tests, compiled)) if rc_all == 0 and all_tests else [
+        "ctest --show-only=json-v1 failed or listed no test (rc %s, %s)" % (rc_all, logs("ctest_all"))]
 
     def run_ctest():
         """(res["ctest"], res["check_baseline"], [problem]) : ctest (without the integration entry unless serial), check_baseline."""
         problems = []
-        cmd = ["ctest", "--test-dir", bd, "--output-on-failure", "--timeout", str(CTEST_TIMEOUT)]
+        cmd = ["ctest", "--test-dir", bd, "--output-on-failure"] + list(CTEST_NO_LIMIT_ARGS)
         if not serial:
             # the one integration run is made by run_integration; one entry at a time, so ctest is one job of the budget
             cmd += ["-E", "^%s$" % EXE, "--parallel", "1"]
-        # serial only: no 3600 s total cap on this ctest, because it also runs the integration entry (a whole-run limit is not wanted); the other entries lose the cap too
-        rc, text = (job(cmd, logs("ctest"), env=limit_env) if serial else job(cmd, logs("ctest"), timeout=CTEST_TOTAL_TIMEOUT))
+        # no process limit and no ctest timeout; the executables limit every case themselves with their own compiled defaults (no env here:
+        # one value would override every executable's default; the serial ctest runs the integration entry with its compiled default too)
+        rc, text = job(cmd, logs("ctest"))
         cc = parse_ctest_counts(text)
         r_ctest = {"rc": rc, "failed": cc[0] if cc else None, "total": cc[1] if cc else None}
-        if rc == 124:
-            problems.append("ctest timed out after %d s (%s)" % (CTEST_TOTAL_TIMEOUT, logs("ctest")))
-        elif "***Timeout" in text:
-            problems.append("a ctest entry exceeded its %d s timeout (%s)" % (CTEST_TIMEOUT, logs("ctest")))
+        timed_out = ctest_case_timeouts(text)
+        r_ctest["case_timeouts"] = ["%s: %s" % t for t in timed_out]
+        for entry, name in timed_out:  # a case limit of another executable is a failure of that entry, with no rerun
+            problems.append("%s: case timed out in %s: %s" % (variant, entry, name))
+        ctest_timeout = "***Timeout" in text  # a Python entry's own ctest TIMEOUT: reported even when a case timeout is reported too
+        if ctest_timeout:
+            problems.append("a ctest entry exceeded its ctest timeout (a Python entry's whole-run limit, %s)" % logs("ctest"))
+        if timed_out or ctest_timeout:
+            pass
         elif rc != 0 or cc is None or cc[0] != 0 or cc[1] == 0:
             problems.append("ctest failed (%s)" % logs("ctest"))
         rc_b, text = job([sys.executable, "-B", os.path.join(sroot, "Firmware/Tests/Code_Coverage/tools/check_baseline.py"),
-                          "--build-dir", bd], logs("check_baseline"), timeout=BASELINE_TIMEOUT)
+                          "--build-dir", bd], logs("check_baseline"))
         r_base = {"rc": rc_b, "last": (text.strip().splitlines() or [""])[-1]}
-        if rc_b == 124:
-            problems.append("check_baseline timed out after %d s" % BASELINE_TIMEOUT)
+        timed_out_b = ctest_case_timeouts(text)
+        for _, name in timed_out_b:
+            problems.append("%s: case timed out in check_baseline: %s" % (variant, name))
+        if timed_out_b:
+            pass
         elif rc_b != 0:
             problems.append("check_baseline failed (%s)" % logs("check_baseline"))
         return r_ctest, r_base, problems
@@ -1401,7 +1518,7 @@ def run_variant(root, variant, patterns, evid_dir, runner=run, own_wo=None, src_
             echo("WARNING: %d case(s) passed only when rerun alone: %s (variant %s)" % (len(again), "; ".join(again), variant))
         return r, problems
 
-    problems = []
+    problems = list(setup_problems)
     if serial:
         res["ctest"], res["check_baseline"], p = run_ctest()
         problems += p
@@ -1544,13 +1661,18 @@ def main(argv=None, runner=run):
 
 def _main(argv, runner):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0], formatter_class=argparse.RawDescriptionHelpFormatter,
-                                 epilog="Time limits: none for a whole integration run (no process or sum limit, owner's decision 2026-11-24). "
-                                        "Every test case of ffb_integration_tests has its own limit, enforced inside the executable (support/CaseWatchdog): "
-                                        "environment variable %s = whole seconds, 0 = off, unset = the compiled default (%d s; derivation in "
-                                        "support/CaseWatchdog.h). The gate sets it per variant (%d s here), a case that exceeds it ends its process "
-                                        "with exit code %d and the line `CASE TIMEOUT <s> s: <case> (<file>:<line>)`; the gate runs that case alone once "
-                                        "(failure `<variant>: case timed out: <case>` if it times out again, `rerun_passed` otherwise; cov: failure)."
-                                        % (CASE_TIMEOUT_ENV, DEFAULT_CASE_TIMEOUT_S, case_timeout_s("default"), CASE_TIMEOUT_RC))
+                                 epilog="Time limits: none for any whole run (no process or sum limit, not for ctest or check_baseline either; owner's "
+                                        "decision 2026-11-24). Every test case of every doctest executable has its own limit, enforced inside the executable "
+                                        "(Code_Coverage/support/CaseWatchdog): environment variable %s = whole seconds, 0 = off, unset = the executable's "
+                                        "compiled default (derivations in support/CaseWatchdog.h). The gate sets it for its integration processes only "
+                                        "(%d s here); a case that exceeds it ends its process with exit code %d and the line "
+                                        "`CASE TIMEOUT <s> s: <case> (<file>:<line>)`; for the integration executable the gate runs that case alone once "
+                                        "(failure `<variant>: case timed out: <case>` if it times out again, `rerun_passed` otherwise; cov: failure); in any "
+                                        "other executable's ctest entry it is a failure `case timed out in <entry>: <case>` (no rerun). The Python entries "
+                                        "keep a ctest TIMEOUT (the only whole-run limit left). Codex's own entries (codex_python_tests, codex_usb_setup_guard) "
+                                        "had the old 600 s per-entry ctest timeout of this gate and now have no limit at all: they are not ours to change. In --serial the whole ctest runs "
+                                        "the integration entry with its compiled default, not with the gate's per-variant value (identical while no variant factor is set)."
+                                        % (CASE_TIMEOUT_ENV, case_timeout_s("default"), CASE_TIMEOUT_RC))
     ap.add_argument("--wo", help="work order id (e.g. I0-4)")
     ap.add_argument("--variants", default="default,m32", help="comma separated: %s" % ", ".join(VARIANT_ARGS))
     ap.add_argument("--full", action="store_true", help="also run the variants: %s" % ", ".join(FULL_VARIANTS))

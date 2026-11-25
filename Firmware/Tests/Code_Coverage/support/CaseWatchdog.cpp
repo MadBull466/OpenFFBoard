@@ -1,5 +1,5 @@
 /*
- * CaseWatchdog: see CaseWatchdog.h (per-case time limit of ffb_integration_tests, tool WO I2-T1).
+ * CaseWatchdog: see CaseWatchdog.h (per-case time limit of every doctest executable of the suite, tool WOs I2-T1 / I2-T2).
  */
 #include "CaseWatchdog.h"
 
@@ -113,7 +113,7 @@ void CaseWatchdog::loop() {
 
 namespace {
 
-/// The doctest listener of ffb_integration_tests: one watchdog for the run, armed per test case.
+/// The doctest listener of every executable: one watchdog for the run, armed per test case.
 struct CaseWatchdogListener : doctest::IReporter {
 	CaseWatchdog dog;
 

@@ -969,10 +969,9 @@ class SyntaxJobs(unittest.TestCase):
         e = {"directory": "/r/b", "file": root + "/Firmware/Tests/a.cpp", "command": "c++ -o a.o -c a.cpp"}
         self.assertEqual(len(ig.syntax_jobs([e, dict(e)], root, ["Firmware/Tests/*"])), 1)
 
-    def test_runner_timeout_is_rc_124(self):
-        rc, text = ig.run([sys.executable, "-c", "import time; time.sleep(30)"], None, timeout=0.5)
-        self.assertEqual(rc, 124)
-        self.assertIn("timeout", text)
+    def test_the_runner_has_no_process_time_limit(self):
+        import inspect
+        self.assertNotIn("timeout", inspect.signature(ig.run).parameters)
 
 
 LIST_PATTERNS = ["Firmware/Tests/Integration_Tests/claude/cases/*.cpp", "Firmware/Tests/Integration_Tests/integration.cmake"]
@@ -991,7 +990,8 @@ class Stub:
                       syntax_rc=0, syntax_text="", make_exe=True, cc_flag="-O0", cache_override={},
                       cases=None, list_rc=0, fail_in_shard=(), fail_always=(), die_in_shard=(), die_alone=(),
                       skip_names=(), known_names=(), delay=0, ctest_json=None, ctest_props=(), neg_rc_after=None,
-                      sanitizer_in=(), sanitizer_in_shard=(), timeout_in_shard=(), timeout_alone=(), timeout_line=True)
+                      sanitizer_in=(), sanitizer_in_shard=(), timeout_in_shard=(), timeout_alone=(), timeout_line=True,
+                      integ_default=ig.DEFAULT_CASE_TIMEOUT_S, json_rc=0, baseline_text="baseline OK\n")
         self.o.update(opts)
         if self.o["cases"] is None:
             self.o["cases"] = [self.case("case %d" % i, CASE_REL, i * 10) for i in range(1, 6)]
@@ -1100,6 +1100,10 @@ class Stub:
         ]
         if self.o["cc_flag"] != "-O0":
             cc[1]["command"] = cc[1]["command"].replace("-O0", self.o["cc_flag"])  # an OTHER target changed
+        for target, limit in (("ffb_integration_tests", self.o["integ_default"]), ("ffb_unit_tests", 1200)):  # CaseWatchdog.cpp of each
+            wd = os.path.join(src, "Firmware/Tests", ig.WATCHDOG_SOURCE)
+            cc.append({"directory": bd, "file": wd, "output": "CMakeFiles/%s.dir/CaseWatchdog.o" % target,
+                       "command": "c++ -DFFB_CASE_TIMEOUT_DEFAULT_S=%d -o CMakeFiles/%s.dir/CaseWatchdog.o -c %s" % (limit, target, wd)})
         with open(os.path.join(bd, "compile_commands.json"), "w") as f:
             json.dump(cc, f)
         exe = os.path.join(bd, ig.EXE)
@@ -1157,10 +1161,11 @@ class Stub:
             test = {"name": ig.EXE, "command": [os.path.join(bd, ig.EXE)] + (["--test-case-exclude=" + ",".join(excl)] if excl else []),
                     "properties": list(o["ctest_props"])}
             text = o["ctest_json"] if o["ctest_json"] is not None else json.dumps({"tests": [test]})
+            rc = o["json_rc"]
         elif cmd[0] == "ctest":
             rc, text = o["ctest_rc"], o["ctest_text"]
         elif "check_baseline.py" in joined:
-            rc, text = o["baseline_rc"], "baseline OK\n"
+            rc, text = o["baseline_rc"], o["baseline_text"]
         elif "summarise_results.py" in joined:
             rc, text = o["summary_rc"], o["summary"]
         elif str(cmd[0]).endswith(ig.EXE):
@@ -1250,15 +1255,13 @@ class RunVariant(unittest.TestCase):
 
     def test_ctest_timeout_is_reported_clearly(self):
         self.assertFails(self.go(ctest_rc=8, ctest_text="  Test #6: x ...***Timeout 600.00 sec\n1 tests failed out of 13\n")[0], "timeout")
-        self.assertFails(self.go(ctest_rc=124)[0], "timed out")
 
     def test_check_baseline_failure_fails(self):
         self.assertFails(self.go(baseline_rc=1)[0], "check_baseline")
-        self.assertFails(self.go(baseline_rc=124)[0], "timed out")
 
     def test_integration_exit_code_fails(self):
         self.assertFails(self.go(int_rc=1)[0], ig.EXE)
-        self.assertFails(self.go(int_rc=124)[0], ig.EXE)  # no process limit: 124 is just a failing exit code now
+        self.assertFails(self.go(int_rc=124)[0], ig.EXE)  # no process limit: 124 is just a failing exit code
 
     def test_summary_exit_code_fails(self):
         self.assertFails(self.go(summary_rc=1)[0], ig.EXE)
@@ -1868,11 +1871,13 @@ class IntegrationRun(unittest.TestCase):
 
     def test_serial_runs_the_whole_ctest_without_exclusion(self):
         _, stub = self.go(serial=True)
-        ct = [c for c in stub.calls if c[0] == "ctest" and "-N" not in c]
+        ct = [c for c in stub.calls if c[0] == "ctest" and "-N" not in c and "--show-only=json-v1" not in c]
         self.assertEqual(len(ct), 1)
         self.assertNotIn("-E", ct[0])
         self.assertNotIn("--parallel", ct[0])
-        self.assertFalse([c for c in stub.calls if "--show-only=json-v1" in c])
+        # serial lists every ctest entry once (limits and watchdog check), never only the integration one (-R)
+        self.assertEqual([c for c in stub.calls if "--show-only=json-v1" in c and "-R" in c], [])
+        self.assertEqual(len([c for c in stub.calls if "--show-only=json-v1" in c]), 1)
 
     def test_the_executable_runs_once_in_shards_and_needs_no_summary_script(self):
         res, stub = self.go(cases=many(12), rv=dict(jobs=2))
@@ -2016,33 +2021,158 @@ class IntegrationRun(unittest.TestCase):
         self.assertTrue(all(stub.envs[i] == {"FFB_IT_CASE_TIMEOUT_S": str(ig.case_timeout_s("cov"))}
                             for i, c in enumerate(stub.calls) if str(c[0]).endswith(ig.EXE)))
 
-    def test_serial_passes_no_process_limit_for_the_executable_or_for_the_ctest_that_runs_it(self):
+    def ctest_run_calls(self, stub):
+        return [i for i, c in enumerate(stub.calls) if c[0] == "ctest" and "-N" not in c and "--show-only=json-v1" not in c]
+
+    def test_no_ctest_run_has_a_process_limit_or_an_environment_limit_and_all_carry_the_no_limit_mechanism(self):
+        for serial in (True, False):
+            res, stub = self.go(serial=serial)
+            self.assertTrue(res["ok"], res.get("reason"))
+            idx = self.ctest_run_calls(stub)
+            self.assertEqual(len(idx), 1)
+            c = stub.calls[idx[0]]
+            self.assertIsNone(stub.timeouts[idx[0]])  # no subprocess limit (the old 3600 s)
+            self.assertIsNone(stub.envs[idx[0]])  # one value would override every executable's own compiled default
+            self.assertNotIn("--timeout", c)
+            self.assertEqual(c[c.index("--overwrite"):c.index("--overwrite") + 2], ["--overwrite", "TimeOut=0"])
+            self.assertEqual(("--overwrite", "TimeOut=0"), ig.CTEST_NO_LIMIT_ARGS)
+            if not serial:
+                self.assertIn("-E", c)  # ctest without the integration entry: the gate shards that one
+            base = [i for i, c in enumerate(stub.calls) if any("check_baseline.py" in str(a) for a in c)]
+            self.assertEqual([stub.timeouts[i] for i in base], [None])
+        self.assertTrue(all(t is None for t in stub.timeouts))  # not one call of the gate has a process limit
+
+    def test_serial_passes_no_process_limit_for_the_executable_and_the_case_limit_through_the_environment(self):
         res, stub = self.go(serial=True)
         self.assertTrue(res["ok"], res.get("reason"))
         self.assertEqual(self.integration_calls_with_timeout(stub), [])
-        for c, t, e in zip(stub.calls, stub.timeouts, stub.envs):
-            if c[0] == "ctest" and "-N" not in c:
-                self.assertIsNone(t)  # the whole ctest includes ffb_integration_tests: no limit on it
-                self.assertEqual(e, {"FFB_IT_CASE_TIMEOUT_S": str(ig.DEFAULT_CASE_TIMEOUT_S)})
+        for c, e in zip(stub.calls, stub.envs):
             if str(c[0]).endswith(ig.EXE):
                 self.assertEqual(e, {"FFB_IT_CASE_TIMEOUT_S": str(ig.DEFAULT_CASE_TIMEOUT_S)})
-        # the other ctest entries keep their limits in the non-serial run (ctest without the integration entry)
-        _, stub = self.go()
-        ct = [(c, t) for c, t in zip(stub.calls, stub.timeouts) if c[0] == "ctest" and "-E" in c]
-        self.assertEqual([t for _, t in ct], [ig.CTEST_TOTAL_TIMEOUT])
-        self.assertEqual(ct[0][0][ct[0][0].index("--timeout") + 1], str(ig.CTEST_TIMEOUT))
 
-    def test_the_gate_has_no_whole_run_limit_constants_left(self):
-        self.assertFalse(hasattr(ig, "INTEGRATION_TIMEOUT"))
-        self.assertFalse(hasattr(ig, "INTEGRATION_SUM_LIMIT"))
+    def test_the_gate_has_no_whole_run_limit_constants_or_arguments_left(self):
+        for name in ("INTEGRATION_TIMEOUT", "INTEGRATION_SUM_LIMIT", "CTEST_TIMEOUT", "CTEST_TOTAL_TIMEOUT", "BASELINE_TIMEOUT"):
+            self.assertFalse(hasattr(ig, name), name)
+        with open(ig.__file__, encoding="utf-8") as f:
+            text = f.read()
+        for token in ("timeout=", "--timeout 600", "CTEST_TOTAL_TIMEOUT", "BASELINE_TIMEOUT", '"--timeout"'):
+            self.assertNotIn(token, text, token)
+        with open(os.path.abspath(__file__), encoding="utf-8") as f:
+            this = f.read()
+        self.assertNotIn("--timeout 600", this.replace('"--timeout 600"', "").replace("'--timeout 600'", ""))
 
     def test_the_default_limit_of_the_gate_is_the_one_compiled_into_the_executable(self):
-        header = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "support", "CaseWatchdog.h")
+        header = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "Code_Coverage", "support", "CaseWatchdog.h")
         with open(header) as f:
             text = f.read()
-        self.assertEqual(int(re.search(r"kDefaultCaseTimeoutS\s*=\s*(\d+)", text).group(1)), ig.DEFAULT_CASE_TIMEOUT_S)
+        self.assertEqual(int(re.search(r"#define FFB_CASE_TIMEOUT_DEFAULT_S\s+(\d+)", text).group(1)), ig.DEFAULT_CASE_TIMEOUT_S)
         self.assertEqual(int(re.search(r"kCaseTimeoutExitCode\s*=\s*(\d+)", text).group(1)), ig.CASE_TIMEOUT_RC)
         self.assertRegex(text, r'kCaseTimeoutEnv\s*=\s*"%s"' % re.escape(ig.CASE_TIMEOUT_ENV))
+
+    def test_the_integration_limit_is_the_compiled_default_of_that_executable(self):
+        res, stub = self.go(integ_default=300, cases=many(3))
+        # the reference of the compile check was recorded with the default stub: the integration entries are not compared
+        self.assertEqual(res["case_timeout_defaults"], {"ffb_integration_tests": 300, "ffb_unit_tests": 1200})
+        self.assertEqual(res["integration"]["case_timeout_s"], 300)
+        for c, e in zip(stub.calls, stub.envs):
+            if str(c[0]).endswith(ig.EXE):
+                self.assertEqual(e, {"FFB_IT_CASE_TIMEOUT_S": "300"})
+
+    def test_the_compiled_defaults_of_all_executables_are_in_the_evidence(self):
+        res, _ = self.go(cases=many(3))
+        ev = ig.make_evidence(self.root, "T-1", {"default": res}, {"result": "OK", "offenders": [], "changed": []}, "abc", "PASS")
+        self.assertEqual(ev["case_timeout_defaults"], {"default": {"ffb_integration_tests": ig.DEFAULT_CASE_TIMEOUT_S, "ffb_unit_tests": 1200}})
+
+    def test_compiled_defaults_are_read_from_the_watchdog_entries_of_compile_commands(self):
+        wd = "/r/Firmware/Tests/" + ig.WATCHDOG_SOURCE
+        entries = [
+            {"file": wd, "output": "CMakeFiles/ffb_flash_tests.dir/Code_Coverage/support/CaseWatchdog.cpp.o",
+             "command": "c++ -DX=1 -DFFB_CASE_TIMEOUT_DEFAULT_S=900 -c " + wd},
+            {"file": wd, "output": "CMakeFiles/ffb_hal_tests.dir/CaseWatchdog.o", "arguments": ["c++", "-DFFB_CASE_TIMEOUT_DEFAULT_S=60", "-c", wd]},
+            {"file": "/r/Firmware/Tests/other.cpp", "output": "CMakeFiles/ffb_unit_tests.dir/o.o", "command": "c++ -DFFB_CASE_TIMEOUT_DEFAULT_S=5 -c o.cpp"},
+            {"file": wd, "output": "CMakeFiles/ffb_nodefine.dir/w.o", "command": "c++ -c " + wd},
+        ]
+        self.assertEqual(ig.compiled_case_timeouts(entries), {"ffb_flash_tests": 900, "ffb_hal_tests": 60})
+
+    def test_a_doctest_executable_without_a_compiled_case_limit_fails_the_variant(self):
+        bd = ig.build_dir_for(self.root, "default")
+        tests = [{"name": ig.EXE, "command": [os.path.join(bd, ig.EXE)]},
+                 {"name": "ffb_new_tests", "command": [os.path.join(bd, "ffb_new_tests")]}]
+        res, _ = self.go(ctest_json=json.dumps({"tests": tests}))
+        self.assertFalse(res["ok"])
+        self.assertIn("ffb_new_tests has no per-case time limit", res["reason"])
+        self.assertEqual(ig.watchdog_problems(tests, {"ffb_integration_tests": 1, "ffb_new_tests": 2}), [])
+
+    def test_a_failing_or_empty_ctest_listing_fails_the_variant_instead_of_skipping_the_limit_checks(self):
+        res, _ = self.go(json_rc=1)
+        self.assertFalse(res["ok"])
+        self.assertIn("ctest --show-only=json-v1 failed or listed no test", res["reason"])
+        res, _ = self.go(ctest_json=json.dumps({"tests": []}))
+        self.assertFalse(res["ok"])
+        self.assertIn("ctest --show-only=json-v1 failed or listed no test", res["reason"])
+        res, _ = self.go(ctest_json="not json")
+        self.assertFalse(res["ok"])
+        self.assertIn("ctest --show-only=json-v1 failed or listed no test", res["reason"])
+
+    def test_a_compiled_default_of_zero_is_a_failure(self):
+        bd = ig.build_dir_for(self.root, "default")
+        tests = [{"name": ig.EXE, "command": [os.path.join(bd, ig.EXE)]}]
+        res, _ = self.go(integ_default=0, ctest_json=json.dumps({"tests": tests}))
+        self.assertFalse(res["ok"])
+        self.assertIn("ffb_integration_tests has the compiled per-case default 0", res["reason"])
+        self.assertEqual(ig.watchdog_problems(tests, {ig.EXE: 5}), [])
+        self.assertEqual(len(ig.watchdog_problems(tests, {ig.EXE: 0})), 1)
+
+    def test_a_python_entry_timeout_is_reported_also_when_a_case_timeout_is_in_the_same_log(self):
+        text = ("4/9 Test #4: ffb_flash_tests ...***Failed\nCASE TIMEOUT 30 s: a case (/p/t.cpp:1)\n"
+                "9/9 Test #9: python_helper_tests ...***Timeout  60.00 sec\n")
+        res, _ = self.go(ctest_rc=8, ctest_text=text)
+        self.assertFalse(res["ok"])
+        self.assertIn("default: case timed out in ffb_flash_tests: a case", res["reason"])
+        self.assertIn("a ctest entry exceeded its ctest timeout", res["reason"])
+
+    def test_python_entries_keep_a_ctest_limit_and_no_other_entry_may_have_one(self):
+        bd = ig.build_dir_for(self.root, "default")
+        integ = {"name": ig.EXE, "command": [os.path.join(bd, ig.EXE)], "properties": [{"name": "TIMEOUT", "value": 0}]}
+        py = lambda name, props: {"name": name, "command": ["python3", "-m", "unittest"], "properties": props}
+        ok = [integ, py("python_helper_tests", [{"name": "TIMEOUT", "value": 600}]),
+              py("integration_tool_tests", [{"name": "TIMEOUT", "value": 3000}]),
+              {"name": "codex_st_hal", "command": ["x"], "properties": [{"name": "TIMEOUT", "value": 300}]}]
+        res, _ = self.go(ctest_json=json.dumps({"tests": ok}))
+        self.assertTrue(res["ok"], res.get("reason"))
+        self.assertEqual(res["ctest_timeouts"], {"python_helper_tests": 600, "integration_tool_tests": 3000})
+        ev = ig.make_evidence(self.root, "T-1", {"default": res}, {"result": "OK", "offenders": [], "changed": []}, "abc", "PASS")
+        self.assertEqual(ev["ctest_timeouts"], {"default": {"python_helper_tests": 600, "integration_tool_tests": 3000}})
+        res, _ = self.go(ctest_json=json.dumps({"tests": [integ, py("python_helper_tests", [])]}))  # a Python entry without its limit
+        self.assertFalse(res["ok"])
+        self.assertIn("python_helper_tests has no TIMEOUT", res["reason"])
+        other = {"name": "ffb_unit_tests", "command": [os.path.join(bd, "ffb_unit_tests")], "properties": [{"name": "TIMEOUT", "value": 600}]}
+        res, _ = self.go(ctest_json=json.dumps({"tests": [integ, other]}))  # a doctest entry with a whole-run limit
+        self.assertFalse(res["ok"])
+        self.assertIn("ffb_unit_tests carries the time limit TIMEOUT 600", res["reason"])
+        other = dict(other, properties=[{"name": "TIMEOUT", "value": 0}])
+        res, _ = self.go(ctest_json=json.dumps({"tests": [integ, other]}))  # TIMEOUT 0 = none
+        self.assertTrue(res["ok"], res.get("reason"))
+
+    def test_a_case_timeout_inside_another_executables_ctest_entry_fails_naming_the_executable_and_the_case_with_no_rerun(self):
+        text = ("  Start 4: ffb_flash_tests\n4/9 Test #4: ffb_flash_tests ........***Failed   10.00 sec\n"
+                "CASE TIMEOUT 1200 s: flash case (: with) [brackets] (/p q/test_x.cpp:12)\n\n"
+                "89% tests passed, 1 tests failed out of 9\n")
+        res, stub = self.go(ctest_rc=8, ctest_text=text)
+        self.assertFalse(res["ok"])
+        self.assertIn("default: case timed out in ffb_flash_tests: flash case (: with) [brackets]", res["reason"])
+        self.assertNotIn("ctest failed", res["reason"])
+        self.assertEqual(len(self.ctest_run_calls(stub)), 1)  # no rerun
+        self.assertEqual(res["ctest"]["case_timeouts"], ["ffb_flash_tests: flash case (: with) [brackets]"])
+        res, _ = self.go(baseline_rc=1, baseline_text="x\nCASE TIMEOUT 1200 s: base case (/p/t.cpp:3)\n")
+        self.assertFalse(res["ok"])
+        self.assertIn("default: case timed out in check_baseline: base case", res["reason"])
+
+    def test_the_case_timeouts_of_a_ctest_log_name_the_entry_above_them(self):
+        text = ("1/3 Test #1: a ..........   Passed\n2/3 Test #2: ffb_x ....***Failed\nCASE TIMEOUT 5 s: c1 (f:1)\n"
+                "3/3 Test #3: ffb_y ....***Failed\nCASE TIMEOUT 6 s: c2 (g:2)\n")
+        self.assertEqual(ig.ctest_case_timeouts(text), [("ffb_x", "c1"), ("ffb_y", "c2")])
+        self.assertEqual(ig.ctest_case_timeouts("no timeout here"), [])
 
     def test_the_limit_of_a_variant_is_the_default_times_its_factor(self):
         saved = dict(ig.CASE_TIMEOUT_FACTOR)
@@ -2148,7 +2278,7 @@ class IntegrationRun(unittest.TestCase):
             except SystemExit:
                 pass
         text = buf.getvalue()
-        for word in ("FFB_IT_CASE_TIMEOUT_S", "no time limit" if False else "none for a whole integration run", "exit code 86"):
+        for word in ("FFB_IT_CASE_TIMEOUT_S", "none for any whole run", "exit code 86"):
             self.assertIn(word, text.replace("\n", " "))
 
     def test_other_ways_to_fail(self):
@@ -2245,6 +2375,8 @@ class IntegrationRun(unittest.TestCase):
                 kinds.append("configure")
             elif c[0] == "ctest" and "-N" in c:
                 kinds.append("ctest-list")
+            elif c[0] == "ctest" and "--show-only=json-v1" in c:
+                kinds.append("ctest-all")
             elif c[0] == "cmake" and "help" in c:
                 kinds.append("targets")
             elif c[0] == "cmake":
@@ -2259,7 +2391,7 @@ class IntegrationRun(unittest.TestCase):
                 kinds.append("summary")
             elif "-fsyntax-only" in c:
                 kinds.append("syntax")
-        self.assertEqual(kinds, ["configure", "ctest-list", "targets", "build", "syntax", "ctest", "baseline", "exe -r=xml", "summary"])
+        self.assertEqual(kinds, ["configure", "ctest-list", "targets", "build", "syntax", "ctest-all", "ctest", "baseline", "exe -r=xml", "summary"])
         self.assertEqual(res["integration"]["mode"], "serial")
         self.assertEqual(res["integration"]["scope"], "full")
         self.assertEqual(res["integration"]["cases"], 5)  # from the summary script, as before
@@ -2443,12 +2575,29 @@ class CaseWatchdogFiring(unittest.TestCase):
     beyond a limit of 1 s set through the environment. The executable is the one of the build that ctest runs this test for
     (FFB_IT_EXE, set by integration.cmake); without it the test is skipped."""
     HELPER = "support: watchdog helper hangs on the host clock"
+    EXE_ENV = "FFB_IT_EXE"
+    BUILT_ENV = "FFB_IT_BUILT"
+    HELPER_FILE = "test_f1_support.cpp"
+    TARGET = "ffb_integration_tests"
+    CMAKE_FILE = os.path.join("..", "integration.cmake")  # relative to tools/: holds the target's ffb_add_case_watchdog line
 
     def exe(self):
-        exe = os.environ.get("FFB_IT_EXE")
-        if not exe or not os.path.isfile(exe):
-            self.skipTest("FFB_IT_EXE (the ffb_integration_tests executable) is not set")
+        """Rule: under ctest integration.cmake sets <BUILT_ENV> to 1 when the executable is built and 0 when it is not (flash on macOS).
+        Built but <EXE_ENV> missing or not a file = failure (never a silent skip); not built, or run by hand without ctest (no <BUILT_ENV>) = skip."""
+        built = os.environ.get(self.BUILT_ENV)
+        exe = os.environ.get(self.EXE_ENV)
+        if built == "1":
+            self.assertTrue(exe and os.path.isfile(exe), "%s says %s is built but %s is %r" % (self.BUILT_ENV, self.TARGET, self.EXE_ENV, exe))
+        elif not exe or not os.path.isfile(exe):
+            self.skipTest("%s is not built or %s (the executable of this self-test) is not set" % (self.TARGET, self.EXE_ENV))
         return exe
+
+    def cmake_default(self):
+        """The default seconds that CMake gives this executable: `ffb_add_case_watchdog(<target> <n>)` (the oracle for the compiled default)."""
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), self.CMAKE_FILE), encoding="utf-8") as f:
+            m = re.search(r"^\s*ffb_add_case_watchdog\(%s (\d+)\)" % self.TARGET, f.read(), re.M)
+        self.assertTrue(m, "no ffb_add_case_watchdog(%s <n>) in %s" % (self.TARGET, self.CMAKE_FILE))
+        return int(m.group(1))
 
     def run_helper(self, limit, extra=()):
         env = dict(os.environ)
@@ -2468,7 +2617,7 @@ class CaseWatchdogFiring(unittest.TestCase):
         m = ig.CASE_TIMEOUT_LINE.match(lines[0])
         self.assertTrue(m, lines[0])
         self.assertEqual((m.group(1), m.group(2)), ("1", self.HELPER))
-        self.assertTrue(m.group(3).endswith("test_f1_support.cpp"), m.group(3))
+        self.assertTrue(m.group(3).endswith(self.HELPER_FILE), m.group(3))
         self.assertLess(took, 20)  # ended by the watchdog, not by the helper's 30 s sleep
         self.assertEqual(ig.timed_out_case(p.returncode, p.stderr), self.HELPER)
 
@@ -2493,6 +2642,21 @@ class CaseWatchdogFiring(unittest.TestCase):
                            errors="replace", env=dict(os.environ, FFB_IT_CASE_TIMEOUT_S="abc"), timeout=120)
         self.assertEqual(p.returncode, 0)
         self.assertIn("FFB_IT_CASE_TIMEOUT_S is not a non-negative integer", p.stderr)
+        # the binary's own default is the one CMake gave it (a hard-coded kDefaultCaseTimeoutS in the source would be caught here)
+        self.assertIn("using the default of %d s" % self.cmake_default(), p.stderr)
+
+
+class CaseWatchdogFiringInFlashTests(CaseWatchdogFiring):
+    """The same firing self-test in an executable other than ffb_integration_tests (tool WO I2-T2): ffb_flash_tests (FFB_FLASH_EXE and
+    FFB_FLASH_BUILT, set by integration.cmake). Its hidden helper case is Code_Coverage/claude/cases_flash/test_case_watchdog_helper.cpp, compiled
+    into that executable only: it proves the shared listener is registered, reads the shared variable, uses the default CMake gave this
+    executable and ends the process with exit code 86 in an executable that is not the integration one. Skipped only where flash is not built (macOS)."""
+    HELPER = "support: case watchdog helper hangs on the host clock"
+    EXE_ENV = "FFB_FLASH_EXE"
+    BUILT_ENV = "FFB_FLASH_BUILT"
+    HELPER_FILE = "test_case_watchdog_helper.cpp"
+    TARGET = "ffb_flash_tests"
+    CMAKE_FILE = os.path.join("..", "..", "CMakeLists.txt")
 
 
 class GateScope(unittest.TestCase):

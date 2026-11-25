@@ -52,7 +52,6 @@ if(FFB_TESTS_INTEGRATION)
 		Integration_Tests/support/FfbHost.cpp
 		Integration_Tests/support/PositionScript.cpp
 		Integration_Tests/support/ChipEventLog.cpp
-		Integration_Tests/support/CaseWatchdog.cpp
 		Integration_Tests/fakes/WheelPlant.cpp
 		Code_Coverage/support/test_main.cpp
 	)
@@ -110,6 +109,7 @@ if(FFB_TESTS_INTEGRATION)
 	endif()
 
 	target_link_libraries(ffb_integration_tests PRIVATE Threads::Threads)
+	ffb_add_case_watchdog(ffb_integration_tests 120)
 
 	# -funsigned-char: char is unsigned on the ARM target. -fexceptions for C: a resumable task parked in TinyUSB is unwound through usbd.c.
 	target_compile_options(ffb_integration_tests PRIVATE -Wall $<$<COMPILE_LANGUAGE:CXX>:-Wno-volatile> $<$<COMPILE_LANGUAGE:C>:-fexceptions> -funsigned-char)
@@ -167,7 +167,17 @@ if(FFB_TESTS_INTEGRATION)
 				-s ${CMAKE_CURRENT_SOURCE_DIR}/Integration_Tests/tools -t ${CMAKE_CURRENT_SOURCE_DIR}/Integration_Tests/tools -p "${FFB_INTEGRATION_TOOL_TEST_GLOB}"
 			WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 		# FFB_IT_EXE: the executable that test_it_gate.py runs for the firing self-test of the per-case watchdog (a hidden, skipped case).
-		set_tests_properties(integration_tool_tests PROPERTIES ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;FFB_IT_EXE=$<TARGET_FILE:ffb_integration_tests>")
+		# FFB_FLASH_EXE: the same firing self-test in a second executable (ffb_flash_tests, hidden helper case of the shared CaseWatchdog.cpp; not built on macOS).
+		# FFB_*_BUILT tells the self-test whether the executable exists: built but FFB_*_EXE unusable = the test fails, not built (flash on macOS) = it skips.
+		set(FFB_INTEGRATION_TOOL_TEST_ENV "PYTHONDONTWRITEBYTECODE=1;FFB_IT_EXE=$<TARGET_FILE:ffb_integration_tests>;FFB_IT_BUILT=1")
+		if(TARGET ffb_flash_tests)
+			list(APPEND FFB_INTEGRATION_TOOL_TEST_ENV "FFB_FLASH_EXE=$<TARGET_FILE:ffb_flash_tests>" "FFB_FLASH_BUILT=1")
+		else()
+			list(APPEND FFB_INTEGRATION_TOOL_TEST_ENV "FFB_FLASH_BUILT=0")
+		endif()
+		# TIMEOUT: the whole-run limit of this small Python suite (stdlib unittest has no per-case limit; tool WO I2-T2). Measured 4.5 s unloaded
+		# (its watchdog firing self-tests each wait for a 1 s limit); 120 s is 27 times that.
+		set_tests_properties(integration_tool_tests PROPERTIES ENVIRONMENT "${FFB_INTEGRATION_TOOL_TEST_ENV}" TIMEOUT 120)
 		# test_make_integration_bug_report.py also runs make_integration_bug_report.py --check against the committed report
 		# (Tests/Integration_Tests/claude/reports/BUG_REPORT.md, generated from the registers of PROGRESS.md): a stale report fails this test.
 	else()

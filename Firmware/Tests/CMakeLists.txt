@@ -55,6 +55,20 @@ endif()
 set(FW_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..)
 set(FFBOARD_DIR ${FW_DIR}/FFBoard)
 
+# Per-case time limit of every doctest executable of the Claude / shared suite (tool WOs I2-T1 / I2-T2, owner's decision 2026-11-24: no time
+# limit on whole runs, a limit on every test case). The doctest listener Code_Coverage/support/CaseWatchdog.cpp ends the process with exit code 86
+# and the line `CASE TIMEOUT <s> s: <case> (<file>:<line>)` when a case runs longer than FFB_IT_CASE_TIMEOUT_S seconds (0 = off, unset = the
+# executable's compiled default). A new doctest executable gets the limit by calling ffb_add_case_watchdog(<target> <default seconds>) after its
+# add_executable; the derivation of every default (measured slowest cases) is in the header Code_Coverage/support/CaseWatchdog.h. The listener
+# must be an object of the executable itself (REGISTER_LISTENER is a static initialiser: a static library would drop it). Codex's executables
+# (codex_*) are not part of this.
+set(FFB_CASE_WATCHDOG_SOURCES Code_Coverage/support/CaseWatchdog.cpp)
+function(ffb_add_case_watchdog target default_s)
+	target_sources(${target} PRIVATE ${FFB_CASE_WATCHDOG_SOURCES})
+	target_compile_definitions(${target} PRIVATE FFB_CASE_TIMEOUT_DEFAULT_S=${default_s})
+	target_link_libraries(${target} PRIVATE Threads::Threads)
+endfunction()
+
 # ---------------------------------------------------------------------------
 # Firmware sources under test. These are the unmodified firmware files.
 # Add a file here to make it available to the tests. If it needs something from
@@ -163,6 +177,7 @@ endif()
 
 find_package(Threads REQUIRED) # Only used by tests which guard against endless loops
 target_link_libraries(ffb_unit_tests PRIVATE Threads::Threads)
+ffb_add_case_watchdog(ffb_unit_tests 30)
 
 # Firmware sources are built with the warning settings of the firmware makefile.
 target_compile_options(ffb_unit_tests PRIVATE -Wall $<$<COMPILE_LANGUAGE:CXX>:-Wno-volatile>)
@@ -408,6 +423,7 @@ if(USE_DSP)
 endif()
 
 target_link_libraries(ffb_target_tests PRIVATE Threads::Threads)
+ffb_add_case_watchdog(ffb_target_tests 30)
 
 # -funsigned-char: char is unsigned on the ARM target (AAPCS). Without it CanBridge.h does not compile
 # (narrowing 0xF1 to char) and char arithmetic would differ from the target.
@@ -524,6 +540,8 @@ get_filename_component(FFB_EEPROM_ADDRESSES_HEADER ${FFBOARD_DIR}/UserExtensions
 target_compile_definitions(ffb_flash_tests PRIVATE FFB_EEPROM_ADDRESSES_H="${FFB_EEPROM_ADDRESSES_HEADER}")
 
 target_link_libraries(ffb_flash_tests PRIVATE Threads::Threads)
+ffb_add_case_watchdog(ffb_flash_tests 30)
+# (the hidden helper case that tools/test_it_gate.py runs to prove the watchdog fires is cases_flash/test_case_watchdog_helper.cpp)
 
 # -funsigned-char: char is unsigned on the ARM target (like ffb_target_tests)
 target_compile_options(ffb_flash_tests PRIVATE -Wall $<$<COMPILE_LANGUAGE:CXX>:-Wno-volatile> -funsigned-char)
@@ -647,6 +665,7 @@ target_include_directories(ffb_rtos_tests PRIVATE
 target_compile_definitions(ffb_rtos_tests PRIVATE HOSTTEST HOSTTEST_RTOS_EXT)
 
 target_link_libraries(ffb_rtos_tests PRIVATE Threads::Threads)
+ffb_add_case_watchdog(ffb_rtos_tests 30)
 
 # -funsigned-char: char is unsigned on the ARM target (like ffb_target_tests)
 target_compile_options(ffb_rtos_tests PRIVATE -Wall $<$<COMPILE_LANGUAGE:CXX>:-Wno-volatile> -funsigned-char)
@@ -794,6 +813,7 @@ endif()
 target_compile_options(ffb_usb_tests PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-include${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/platform/usb_midi/TMC4671.h>)
 
 target_link_libraries(ffb_usb_tests PRIVATE Threads::Threads)
+ffb_add_case_watchdog(ffb_usb_tests 30)
 
 # -funsigned-char: char is unsigned on the ARM target (like ffb_target_tests)
 target_compile_options(ffb_usb_tests PRIVATE -Wall $<$<COMPILE_LANGUAGE:CXX>:-Wno-volatile> $<$<COMPILE_LANGUAGE:C>:-fexceptions> -funsigned-char)
@@ -928,6 +948,7 @@ if(USE_DSP)
 endif()
 
 target_link_libraries(ffb_driver_tests PRIVATE Threads::Threads)
+ffb_add_case_watchdog(ffb_driver_tests 120)
 
 # -funsigned-char: char is unsigned on the ARM target (like ffb_target_tests)
 target_compile_options(ffb_driver_tests PRIVATE -Wall $<$<COMPILE_LANGUAGE:CXX>:-Wno-volatile> -funsigned-char)
@@ -1065,6 +1086,7 @@ if(USE_DSP AND EXISTS ${FFB_DSP_PATTERN_ROOT}/FastMath AND EXISTS ${DSP_DIR}/Sou
 	endif()
 
 	add_executable(ffb_dsp_tests ${DSP_TEST_SOURCES} Code_Coverage/support/DspPatterns.cpp Code_Coverage/support/test_main.cpp)
+	ffb_add_case_watchdog(ffb_dsp_tests 60)
 	target_include_directories(ffb_dsp_tests PRIVATE Code_Coverage/support Code_Coverage/third_party ${DSP_DIR}/Include ${DSP_DIR}/PrivateInclude)
 	get_filename_component(FFB_CMSIS_PATTERN_DIR "${FFB_DSP_PATTERN_ROOT}" ABSOLUTE)
 	file(TO_CMAKE_PATH "${FFB_CMSIS_PATTERN_DIR}" FFB_CMSIS_PATTERN_DIR)
@@ -1125,7 +1147,9 @@ if(Python3_Interpreter_FOUND)
 		COMMAND ${Python3_EXECUTABLE} -B -m unittest discover -v
 			-s ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/claude/python -t ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/claude/python -p "test_*.py"
 		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-	set_tests_properties(python_helper_tests PROPERTIES ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
+	# The only whole-run limit left (tool WO I2-T2): stdlib unittest has no per-case limit and a runner of our own is not worth it for a small
+	# suite. Measured 1.0 s unloaded; 60 s is 58 times that. it_gate.py requires this property on the Python entries and forbids it elsewhere.
+	set_tests_properties(python_helper_tests PROPERTIES ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1" TIMEOUT 60)
 	add_test(NAME codex_python_tests
 		COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/codex/python/run_suite.py
 			--start ${CMAKE_CURRENT_SOURCE_DIR}/Code_Coverage/codex/python
@@ -1222,6 +1246,7 @@ if(FFB_TESTS_REAL_HAL)
 			${FFB_HAL_FAKE_DIR}/HalHostSystem.c
 			Code_Coverage/support/test_main.cpp)
 		target_include_directories(${name} PRIVATE ${FFB_HAL_CASE_DIR} Code_Coverage/support Code_Coverage/third_party)
+		ffb_add_case_watchdog(${name} 120)
 		foreach(tgt ${name}_hal ${name})
 			target_include_directories(${tgt} PRIVATE ${hal_includes})
 			# HAL_USB_TIMEOUT: the HAL's 0xF000000 (about 250 million register reads per polling loop) takes minutes per timeout case on the trapping bus; the HAL header wraps it in #ifndef.
@@ -1236,14 +1261,10 @@ if(FFB_TESTS_REAL_HAL)
 			target_link_options(${name} PRIVATE -fsanitize=address,undefined)
 		endif()
 		add_test(NAME ${name} COMMAND ${name})
-		# a HAL polling loop that never ends is reported as a hang. A full run is about 70 s unloaded (mostly system time from register
-		# trapping); under ASan / UBSan it took 172 s on a loaded machine, so sanitizer builds get 600 s.
-		if(FFB_TESTS_SANITIZE)
-			set(ffb_hal_timeout 600)
-		else()
-			set(ffb_hal_timeout 120)
-		endif()
-		set_tests_properties(${name} PROPERTIES TIMEOUT ${ffb_hal_timeout})
+		# No time limit on the whole run (owner's decision 2026-11-24, tool WO I2-T2): TIMEOUT 0 = no ctest timeout for this entry (ctest's own
+		# default of 1500 s does not apply). A HAL polling loop that never ends is a case timeout of the executable's own per-case watchdog
+		# (ffb_add_case_watchdog above, default from measurements: see Code_Coverage/support/CaseWatchdog.h).
+		set_tests_properties(${name} PROPERTIES TIMEOUT 0)
 		if(TARGET test_report)
 			add_dependencies(test_report ${name})
 		endif()

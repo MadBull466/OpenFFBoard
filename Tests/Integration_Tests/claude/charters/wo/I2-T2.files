@@ -9,3 +9,4 @@ Firmware/Tests/Code_Coverage/support/CaseWatchdog.cpp
 Firmware/Tests/Code_Coverage/support/CaseWatchdog.h
 Firmware/Tests/CMakeLists.txt
 Firmware/Tests/README.md
+Firmware/Tests/Code_Coverage/claude/cases_flash/test_case_watchdog_helper.cpp

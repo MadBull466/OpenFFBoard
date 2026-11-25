@@ -1952,7 +1952,7 @@ TEST_CASE_FIXTURE(IntegrationFixture, "support: a position change written by the
 	bringUp();
 	setSpiFrameUs(0);
 	PositionScript script;
-	script.setFunction([this](uint64_t us) { return us >= 20000 ? 1000 : 0; }); // 20 ms after attach
+	script.setFunction([](uint64_t us) { return us >= 20000 ? 1000 : 0; }); // 20 ms after attach
 	attachPositionScript(script);
 	int writeStep = -1, seenStep = -1;
 	for (int step = 0; step < 60 && seenStep < 0; step++) {
@@ -2719,7 +2719,7 @@ TEST_CASE_FIXTURE(IntegrationFixture, "support: rebootKeepingFlash without the d
 	CHECK(tmc() != nullptr);
 }
 
-// ---- CaseWatchdog (tool WO I2-T1): the per-case time limit. Oracle: the design in support/CaseWatchdog.h (a hand-written
+// ---- CaseWatchdog (tool WO I2-T1): the per-case time limit. Oracle: the design in Code_Coverage/support/CaseWatchdog.h (shared by every executable since tool WO I2-T2) (a hand-written
 // specification: limit from FFB_IT_CASE_TIMEOUT_S, 0 = off, fires only for a case running longer than the limit, one line, exit code 86).
 
 namespace {

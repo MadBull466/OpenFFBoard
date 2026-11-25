@@ -5,3 +5,4 @@
 Firmware/Tests/CMakeLists.txt | 2026-11-24 | I2-T2
 Firmware/Tests/Code_Coverage/support/CaseWatchdog.h | 2026-11-24 | I2-T2
 Firmware/Tests/Code_Coverage/support/CaseWatchdog.cpp | 2026-11-24 | I2-T2
+Firmware/Tests/Code_Coverage/claude/cases_flash/test_case_watchdog_helper.cpp | 2026-11-24 | I2-T2
