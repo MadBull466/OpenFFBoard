@@ -11,7 +11,7 @@ A host-side integration test suite: the real firmware modules of a force-feedbac
 Where things stand, with every number: `PROGRESS.md` "Current state" (this file holds no numbers). Short form:
 
 * I0 and I1 are approved ([../reports/I0_REPORT.md](../reports/I0_REPORT.md), [../reports/I1_REPORT.md](../reports/I1_REPORT.md)).
-* I2 (G-T, G-P; work orders [../charters/I2_WORK_ORDERS.md](../charters/I2_WORK_ORDERS.md), approved 2026-11-24): all writer work orders (I2-1 to I2-6) and the tool WO I2-T1 are done and committed. **Next: the phase gate I2-7 (`it_gate.py --wo I2-7 --full --isolated`) and the I2 report, then stop for the owner's approval.** Do not start I3 before that approval.
+* I2 (G-T, G-P; work orders [../charters/I2_WORK_ORDERS.md](../charters/I2_WORK_ORDERS.md), approved 2026-11-24): all writer work orders (I2-1 to I2-6) and the tool WO I2-T1 are done and committed. **Phase I2 complete (2026-11-25, [../reports/I2_REPORT.md](../reports/I2_REPORT.md)), waiting for the owner's approval.** Do not start I3 before that approval.
 * Phases run strictly one after another.
 
 ### Helpers and conventions settled so far
